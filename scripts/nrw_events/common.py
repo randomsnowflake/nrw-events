@@ -1,0 +1,521 @@
+"""
+Shared "tech" layer for the NRW event aggregator.
+
+This module holds every piece of generic machinery that the per-source fetchers
+reuse: HTTP, HTML/JSON-LD/iCal parsing, German/English date parsing, geo +
+distance scoring, the central ``make_event`` builder, and the junk filter.
+
+Source files in ``sources/`` should contain *only* the logic specific to one
+website. Anything reusable belongs here.
+
+Date window: the report window (``TODAY`` … ``END_DATE``) is module-global state
+set once by the runner via :func:`set_window`. Always reference it as
+``common.TODAY`` / ``common.END_DATE`` so sources see the configured window.
+"""
+
+import json
+import math
+import re
+import urllib.request
+import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
+import urllib.error
+from datetime import datetime, timedelta
+from html import unescape
+from typing import Optional
+
+from . import config
+
+# ── Report window (set by the runner at startup) ────────────────────
+DAYS_AHEAD = 3
+TODAY = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+END_DATE = TODAY + timedelta(days=max(DAYS_AHEAD - 1, 0))
+
+
+def set_window(days_ahead: int) -> None:
+    """Configure the look-ahead window. Call once before running fetchers."""
+    global DAYS_AHEAD, TODAY, END_DATE
+    DAYS_AHEAD = max(int(days_ahead), 1)
+    TODAY = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    END_DATE = TODAY + timedelta(days=max(DAYS_AHEAD - 1, 0))
+
+
+# ── Month name maps (shared by every date parser) ───────────────────
+MONTH_DE = {
+    "januar": 1, "jan": 1, "februar": 2, "feb": 2, "märz": 3, "maerz": 3,
+    "mär": 3, "mae": 3, "april": 4, "apr": 4, "mai": 5, "juni": 6, "jun": 6,
+    "juli": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9,
+    "oktober": 10, "okt": 10, "november": 11, "nov": 11, "dezember": 12, "dez": 12,
+}
+MONTH_EN = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
+    "december": 12,
+}
+
+# Re-export common config values for convenience.
+BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
+MAX_RADIUS_KM = config.MAX_RADIUS_KM
+
+
+# ── Geo + scoring ───────────────────────────────────────────────────
+
+def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Distance in km between two lat/lon points."""
+    R = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (math.sin(dlat / 2) ** 2
+         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2)
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+def distance_score(km: float) -> float:
+    """Score 0.1–1.0 by distance. 0km=1.0, 25km≈0.8, 50km≈0.5, 75km≈0.3."""
+    if km <= 0:
+        return 1.0
+    return max(0.1, 1.0 - (km / MAX_RADIUS_KM) * 0.9)
+
+
+def category_score(text: str) -> float:
+    """Preference score from keyword matching. Kids-only events are capped."""
+    text_lower = text.lower()
+    negative_keywords = {"kinder", "kids", "grundschüler", "grundschueler", "familie",
+                         "family", "vorlesen", "basteln", "jugendliche", "babys",
+                         "spielgruppe", "krabbelgruppe", "eltern-kind"}
+    adult_outdoor_signals = {
+        "wein", "wine", "winzer", "weingut", "afterwalk", "genuss", "lounge",
+        "beats", "festival", "markt", "flohmarkt", "street food", "kulinar",
+        "stadtteilfest", "straßenfest", "strassenfest", "dorffest", "kirmes",
+        "viertel", "meile",
+    }
+    has_negative = any(neg in text_lower for neg in negative_keywords)
+    has_adult_signal = any(sig in text_lower for sig in adult_outdoor_signals)
+    if has_negative and not has_adult_signal:
+        return 0.25
+    best = 0.8  # default
+    for keyword, weight in config.CATEGORY_WEIGHT.items():
+        if keyword in text_lower:
+            best = max(best, weight)
+    return best
+
+
+def coords_for_city(city: str) -> tuple:
+    """Coordinates for a city name, defaulting to Bonn center."""
+    return config.VENUE_COORDS.get((city or "").lower(), (BONN_LAT, BONN_LON))
+
+
+def guess_city_from_text(text: str) -> Optional[str]:
+    """Extract a known town from free text, preferring specific towns over 'Bonn'."""
+    text_lower = re.sub(r"bundesstadt\s+bonn", " ", (text or "").lower())
+    # Longer/more-specific names first; Bonn last so a trailing publisher brand
+    # ("… Siebengebirge | Bundesstadt Bonn") is not mis-scored as 0 km.
+    cities = sorted(config.VENUE_COORDS, key=lambda c: (c == "bonn", -len(c)))
+    for city in cities:
+        if re.search(rf"(?<![a-zäöüß]){re.escape(city)}(?![a-zäöüß])", text_lower):
+            return city
+    return None
+
+
+# ── HTTP ────────────────────────────────────────────────────────────
+
+def fetch_url(url: str, timeout: int = 15, headers: Optional[dict] = None) -> str:
+    """GET a URL and return decoded text. Raises on network/HTTP error."""
+    hdrs = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+    if headers:
+        hdrs.update(headers)
+    req = urllib.request.Request(url, headers=hdrs)
+    resp = urllib.request.urlopen(req, timeout=timeout)
+    return resp.read().decode("utf-8", "ignore")
+
+
+def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict] = None) -> dict:
+    """POST a JSON body and parse the JSON response."""
+    hdrs = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if headers:
+        hdrs.update(headers)
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
+    resp = urllib.request.urlopen(req, timeout=timeout)
+    return json.loads(resp.read().decode("utf-8", "ignore"))
+
+
+def extract_json_array(text: str) -> list:
+    """Best-effort parse of a JSON array from LLM/search output."""
+    if not text:
+        return []
+    candidates = [text]
+    for m in re.finditer(r"```(?:json)?\s*(.*?)```", text, re.S | re.I):
+        candidates.append(m.group(1))
+    arr_match = re.search(r"\[[\s\S]*\]", text)
+    if arr_match:
+        candidates.append(arr_match.group(0))
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate.strip())
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            continue
+    return []
+
+
+# ── HTML / text ─────────────────────────────────────────────────────
+
+def clean_html(text: str) -> str:
+    """Strip tags/entities and collapse whitespace."""
+    text = unescape(text or "")
+    text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.S | re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+# ── Date parsing ────────────────────────────────────────────────────
+
+def parse_iso_date(text: str) -> Optional[datetime]:
+    """Parse an ISO-ish datetime, dropping timezone (we only care about local date/time)."""
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        try:
+            return datetime.strptime(text[:10], "%Y-%m-%d")
+        except ValueError:
+            return None
+
+
+def parse_date(text: str) -> Optional[datetime]:
+    """Parse many date formats incl. ranges and German month names."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    # For ranges, parse the first date.
+    text = re.split(r"\s*(?:–|\bbis\b)\s*", text, maxsplit=1)[0].strip()
+    for fmt in ["%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y", "%a, %d %b %Y %H:%M:%S %z"]:
+        try:
+            return datetime.strptime(text[:len(fmt) + 5], fmt).replace(tzinfo=None)
+        except (ValueError, IndexError):
+            continue
+    m = re.search(r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s*(20\d{2})", text)
+    if m:
+        day, mon, year = m.groups()
+        mon_num = MONTH_DE.get(mon.lower())
+        if mon_num:
+            return datetime(int(year), mon_num, int(day))
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+    except (ValueError, TypeError):
+        return None
+
+
+def extract_dates(text: str) -> list:
+    """Extract parseable dates from free text (for search-result filtering)."""
+    text = text or ""
+    dates = []
+    patterns = [
+        r"20\d{2}-\d{2}-\d{2}",
+        r"\d{1,2}\.\d{1,2}\.20\d{2}",
+        r"\d{1,2}\.\d{1,2}\.\d{2}\b",
+        r"\d{1,2}\.\s*(?:Januar|Jan|Februar|Feb|März|Maerz|Mär|Mae|April|Apr|Mai|Juni|Jun|Juli|Jul|August|Aug|September|Sep|Oktober|Okt|November|Nov|Dezember|Dez)\s*20\d{2}",
+    ]
+    for pat in patterns:
+        for m in re.finditer(pat, text, re.I):
+            dt = parse_date(m.group(0))
+            if dt:
+                dates.append(dt)
+    return dates
+
+
+def date_range_overlaps(dates: list) -> bool:
+    """True if any extracted date is inside the window; empty list = unknown = include."""
+    if not dates:
+        return True
+    return any(TODAY <= dt <= END_DATE for dt in dates)
+
+
+def in_date_range(date_str: str) -> bool:
+    """True if a date string is in-window, or unparseable (include-when-unknown)."""
+    dt = parse_date(date_str)
+    if dt is None:
+        return True
+    return TODAY <= dt <= END_DATE
+
+
+# ── Event construction + junk filter ────────────────────────────────
+
+def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
+               venue: str, city: str, description: str, link: str, source: str,
+               category: str, trust: float = 1.0, time_text: str = "") -> Optional[dict]:
+    """Build a scored event dict and apply window + radius + junk checks."""
+    if not title:
+        return None
+    if start_dt and end_dt and (end_dt < TODAY or start_dt > END_DATE):
+        return None
+    if start_dt and not end_dt and not (TODAY <= start_dt <= END_DATE):
+        return None
+    km = haversine(BONN_LAT, BONN_LON, *coords_for_city(city))
+    if km > MAX_RADIUS_KM:
+        return None
+    if start_dt and end_dt and start_dt.date() != end_dt.date():
+        date_text = f"{start_dt.strftime('%Y-%m-%d')}–{end_dt.strftime('%Y-%m-%d')}"
+    elif start_dt:
+        date_text = start_dt.strftime("%Y-%m-%d")
+    else:
+        date_text = ""
+    if not time_text and start_dt and (start_dt.hour or start_dt.minute):
+        time_text = start_dt.strftime("%H:%M")
+        if end_dt and (end_dt.hour or end_dt.minute):
+            time_text += "–" + end_dt.strftime("%H:%M")
+    full_text = f"{title} {venue} {city} {description} {category}"
+    ev = {
+        "title": clean_html(title)[:140],
+        "date": date_text,
+        "time": time_text,
+        "venue": clean_html(venue)[:120],
+        "city": clean_html(city).title(),
+        "description": clean_html(description)[:260],
+        "price": "",
+        "link": link,
+        "distance_km": round(km, 1),
+        "score": round(distance_score(km) * category_score(full_text) * trust, 2),
+        "source": source,
+        "category": category,
+    }
+    return None if is_junk_event(ev) else ev
+
+
+def is_junk_event(ev: dict) -> bool:
+    """Suppress legal pages, stale entries, classes, and low-signal sludge."""
+    title = (ev.get("title") or "").lower()
+    desc = (ev.get("description") or "").lower()
+    venue = (ev.get("venue") or "").lower()
+    link = (ev.get("link") or "").lower()
+    text = f"{title} {desc} {venue} {link}"
+
+    # Stale entries with a parseable out-of-window date. Date *ranges*
+    # ("start–end", en-dash) are kept whenever the span overlaps the window —
+    # e.g. a flea-market season or a months-long exhibition that started before
+    # today is still current and must not be dropped as "stale".
+    date_str = ev.get("date") or ""
+    if "–" in date_str:
+        parts = date_str.split("–", 1)
+        sdt, edt = parse_date(parts[0]), parse_date(parts[1])
+        if sdt and edt and (edt < TODAY or sdt > END_DATE):
+            return True
+    else:
+        dt = parse_date(date_str)
+        if dt and not (TODAY <= dt <= END_DATE):
+            return True
+
+    junk_title_bits = {
+        "privacy policy", "faq", "frequently asked questions", "contact", "kontakt",
+        "imprint", "impressum", "corruption prevention", "accessibility statement",
+        "newsletter", "jobs", "sitemap", "terms of use", "datenschutz",
+        "veranstaltungen aktuell", "auf einen blick", "10 best", "the best events",
+        "alle veranstaltungen", "veranstaltungskalender", "event calendar",
+    }
+    if any(bit in title for bit in junk_title_bits):
+        return True
+
+    junk_link_bits = {
+        "/privacy", "/faq", "/contact", "/imprint", "/jobs", "/search", "/sitemap",
+        "eventim.de/city", "livegigs.de", "news.de/lokales", "/metro-areas/",
+    }
+    if any(bit in link for bit in junk_link_bits):
+        return True
+
+    generic_low_value_bits = {
+        "fortgeschrittene", "sprachkurs", "italienisch", "französisch", "englischkurs",
+        "yogakurs", "offene sprechstunde", "beratung", "frauen in bewegung",
+    }
+    if any(bit in text for bit in generic_low_value_bits):
+        return True
+
+    # Web-search results are noisy: require topical + date/event signal, since they
+    # also return static venue/shop/route pages.
+    if ev.get("source") in {"Exa Search", "Grok Search"}:
+        strong_signal = any(k in text for k in [
+            "konzert", "concert", "ausstellung", "museum", "festival", "party", "dj",
+            "techno", "electronic", "führung", "tour", "theater", "comedy", "lesung",
+            "wein", "winzer", "weingut", "wanderung", "wandern", "wander", "walk",
+            "ahrtal", "ahrweiler", "stadtteilfest", "straßenfest", "strassenfest",
+            "dorffest", "kirmes", "poppelsdorf", "endenich", "beuel", "bad godesberg",
+            "siebengebirge", "königswinter", "koenigswinter", "drachenfels",
+            "petersberg", "heisterbach", "andernach", "namedy", "linz", "unkel",
+            "remagen", "rolandseck", "bad honnef", "dernau", "mayschoss", "altenahr",
+            "walporzheim", "weinprobe", "weinfest", "kottenforst", "natur", "rundgang",
+            "genussmeile", "weinmeile",
+        ])
+        explicit_local_event = any(k in text for k in [
+            "weinmeile", "genussmeile", "stadtteilfest", "straßenfest", "strassenfest",
+            "dorffest", "kirmes", "weinfest", "wirtefestival", "promenadenfest",
+        ])
+        date_signal = bool(re.search(
+            r"\b(20\d{2}|\d{1,2}\.\d{1,2}\.|\d{1,2}\s*(?:jan|feb|mär|mae|apr|mai|jun|jul|aug|sep|okt|nov|dez)|"
+            r"montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|wochenende|heute|morgen|am\s+\d)",
+            text, re.IGNORECASE,
+        ))
+        static_page_bits = [
+            "öffnungszeiten", "route planen", "unser sortiment", "wanderwege in der nähe",
+            "die besten", "wiki", "website", "hotels", "immobilien",
+        ]
+        if any(bit in text for bit in static_page_bits) and not explicit_local_event:
+            return True
+        if not strong_signal or (not date_signal and not explicit_local_event):
+            return True
+
+    return False
+
+
+# ── JSON-LD (schema.org) ────────────────────────────────────────────
+
+def jsonld_event_items(html: str) -> list:
+    """Extract schema.org Event objects from JSON-LD blobs."""
+    items = []
+
+    def walk(obj):
+        if isinstance(obj, list):
+            for x in obj:
+                walk(x)
+        elif isinstance(obj, dict):
+            typ = obj.get("@type")
+            types = typ if isinstance(typ, list) else [typ]
+            if any(t and "Event" in str(t) for t in types):
+                items.append(obj)
+            for key in ("@graph", "itemListElement"):
+                if key in obj:
+                    walk(obj[key])
+
+    for m in re.finditer(r"<script[^>]+application/ld\+json[^>]*>(.*?)</script>", html, re.S | re.I):
+        raw = m.group(1).strip()
+        try:
+            walk(json.loads(raw))
+        except Exception:
+            continue
+    return items
+
+
+def _jsonld_location(loc) -> tuple:
+    """Return (venue_name, city) from a schema.org location that may be a dict or list."""
+    if isinstance(loc, list):
+        loc = loc[0] if loc else {}
+    if not isinstance(loc, dict):
+        return "", ""
+    venue = loc.get("name", "") or ""
+    address = loc.get("address", {})
+    city = ""
+    if isinstance(address, dict):
+        city = address.get("addressLocality") or ""
+    city = re.sub(r"^\d{5}\s+", "", str(city)).strip()
+    return venue, city
+
+
+def events_from_jsonld(html: str, source: str, default_city: str, category: str,
+                       trust: float, default_link: str) -> list:
+    """Build events from every schema.org Event in a page's JSON-LD."""
+    events = []
+    for item in jsonld_event_items(html):
+        title = item.get("name", "")
+        start_dt = parse_iso_date(item.get("startDate", ""))
+        end_dt = parse_iso_date(item.get("endDate", "")) or start_dt
+        venue, city = _jsonld_location(item.get("location"))
+        city = city or default_city
+        desc = item.get("description", "")
+        link = item.get("url") or default_link
+        ev = make_event(title, start_dt, end_dt, venue, city, desc, link, source, category, trust)
+        if ev:
+            events.append(ev)
+    return events
+
+
+# ── iCal (RFC 5545) ─────────────────────────────────────────────────
+# Many German venues run WordPress + "The Events Calendar" (Tribe), exposing a
+# clean .ics feed at ?post_type=tribe_events&ical=1. iCal beats HTML scraping.
+
+def _ical_unfold(text: str) -> str:
+    """RFC 5545 line unfolding: CRLF + space/tab continues the previous line."""
+    return re.sub(r"\r?\n[ \t]", "", text)
+
+
+def _ical_unescape(text: str) -> str:
+    return (text.replace("\\n", " ").replace("\\N", " ")
+                .replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")).strip()
+
+
+def _ical_parse_dt(value: str) -> Optional[datetime]:
+    v = (value or "").strip()
+    if re.match(r"^\d{8}T\d{6}Z?$", v):
+        return datetime.strptime(v[:15], "%Y%m%dT%H%M%S")
+    if re.match(r"^\d{8}$", v):
+        return datetime.strptime(v, "%Y%m%d")
+    return parse_iso_date(v)
+
+
+def fetch_ical(url: str, source: str, default_city: str, category: str = "", trust: float = 1.0) -> list:
+    """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds)."""
+    raw = _ical_unfold(fetch_url(url, timeout=20))
+    events = []
+    for block in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S):
+        props = {}
+        for line in block.splitlines():
+            if ":" not in line:
+                continue
+            key, _, val = line.partition(":")
+            name = key.split(";")[0].strip().upper()
+            if name in ("SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL", "CATEGORIES"):
+                props.setdefault(name, val)
+        if not props.get("SUMMARY"):
+            continue
+        start_dt = _ical_parse_dt(props.get("DTSTART", ""))
+        end_dt = _ical_parse_dt(props.get("DTEND", "")) or start_dt
+        cat = category or _ical_unescape(props.get("CATEGORIES", ""))
+        ev = make_event(
+            _ical_unescape(props["SUMMARY"]),
+            start_dt, end_dt,
+            _ical_unescape(props.get("LOCATION", "")),
+            default_city,
+            _ical_unescape(props.get("DESCRIPTION", "")),
+            (props.get("URL", "") or url).strip(),
+            source, cat, trust,
+        )
+        if ev:
+            events.append(ev)
+    return events
+
+
+# ── Web-search helper (shared by Exa + Grok) ────────────────────────
+
+def search_result_event(title: str, link: str, desc: str, source: str, trust: float) -> Optional[dict]:
+    """Convert a search result into a low-trust event, or None if out-of-window/radius/junk."""
+    full_text = f"{title} {desc} {link}"
+    extracted_dates = extract_dates(full_text)
+    if not date_range_overlaps(extracted_dates):
+        return None
+    city_guess = guess_city_from_text(full_text) or "Bonn area"
+    km = haversine(BONN_LAT, BONN_LON, *coords_for_city(city_guess))
+    if km > MAX_RADIUS_KM:
+        return None
+    candidate = {
+        "title": unescape(clean_html(title))[:140],
+        "date": extracted_dates[0].strftime("%Y-%m-%d") if extracted_dates else "",
+        "time": "",
+        "venue": "",
+        "city": city_guess.title(),
+        "description": clean_html(desc)[:260],
+        "price": "",
+        "link": link,
+        "distance_km": round(km, 1),
+        "score": round(distance_score(km) * category_score(full_text) * trust, 2),
+        "source": source,
+        "category": "search fallback",
+    }
+    return None if is_junk_event(candidate) else candidate
+
+
+def log_source_error(source: str, err: Exception) -> None:
+    """Uniform stderr warning for a source that failed."""
+    import sys
+    print(f"⚠ {source}: {err}", file=sys.stderr)
