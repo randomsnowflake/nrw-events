@@ -260,7 +260,10 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     if km > MAX_RADIUS_KM:
         return None
     if start_dt and end_dt and start_dt.date() != end_dt.date():
-        date_text = f"{start_dt.strftime('%Y-%m-%d')}–{end_dt.strftime('%Y-%m-%d')}"
+        if start_dt < TODAY <= end_dt:
+            date_text = f"ongoing until {end_dt.strftime('%Y-%m-%d')}"
+        else:
+            date_text = f"{start_dt.strftime('%Y-%m-%d')}–{end_dt.strftime('%Y-%m-%d')}"
     elif start_dt:
         date_text = start_dt.strftime("%Y-%m-%d")
     else:
@@ -413,6 +416,37 @@ def _jsonld_location(loc) -> tuple:
     return venue, city
 
 
+def _jsonld_schedule_items(schedule) -> list:
+    """Return schema.org Schedule objects as a list, preserving source order."""
+    if isinstance(schedule, list):
+        return [s for s in schedule if isinstance(s, dict)]
+    if isinstance(schedule, dict):
+        return [schedule]
+    return []
+
+
+def _jsonld_schedule_dt(schedule: dict, date_key: str, time_key: str = "") -> Optional[datetime]:
+    """Parse a Schedule date and optional time into a naive datetime."""
+    dt = parse_iso_date(schedule.get(date_key, ""))
+    if not dt:
+        return None
+    time_value = (schedule.get(time_key, "") if time_key else "") or ""
+    m = re.match(r"^(\d{1,2}):(\d{2})", str(time_value).strip())
+    if m:
+        hour, minute = map(int, m.groups())
+        dt = dt.replace(hour=hour, minute=minute)
+    return dt
+
+
+def _jsonld_schedule_time_text(schedule: dict) -> str:
+    """Return a compact display time from schema.org Schedule start/end times."""
+    start = str(schedule.get("startTime", "") or "").strip()
+    end = str(schedule.get("endTime", "") or "").strip()
+    if start and end:
+        return f"{start}–{end}"
+    return start or end
+
+
 def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                        trust: float, default_link: str) -> list:
     """Build events from every schema.org Event in a page's JSON-LD."""
@@ -425,6 +459,23 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         city = city or default_city
         desc = item.get("description", "")
         link = item.get("url") or default_link
+
+        schedules = _jsonld_schedule_items(item.get("eventSchedule"))
+        if schedules:
+            for schedule in schedules:
+                sched_start = _jsonld_schedule_dt(schedule, "startDate", "startTime")
+                sched_end = _jsonld_schedule_dt(schedule, "endDate", "endTime") or sched_start
+                ev = make_event(
+                    title, sched_start, sched_end, venue, city, desc, link, source,
+                    category, trust, time_text=_jsonld_schedule_time_text(schedule),
+                )
+                if ev:
+                    events.append(ev)
+            # Explicit schedule entries are the real appointments. The top-level
+            # start/end often describes only a season span, e.g. Rheinauen-Flohmarkt
+            # April→October, and must not be emitted as a stale appointment.
+            continue
+
         ev = make_event(title, start_dt, end_dt, venue, city, desc, link, source, category, trust)
         if ev:
             events.append(ev)
