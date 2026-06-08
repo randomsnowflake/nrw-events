@@ -1,6 +1,20 @@
 ---
 name: nrw-events
 description: "Discover events, concerts, exhibitions, nightlife, outdoor activities, markets and festivals in Bonn and surrounding NRW cities (75km radius: Köln, Siegburg, Troisdorf, Königswinter, Düsseldorf, Aachen, etc). Use when: 'what's happening this weekend', 'events in Bonn', 'things to do', 'concerts near me', 'exhibitions Köln', 'weekend plans', 'what should we do', 'any cool events', 'nightlife Bonn', 'activities around here'. Also use when the user asks about activities, events, or things to do in or near Bonn. NOT for: trip planning to other regions, or deep-dives on a single venue."
+tags:
+  - bonn
+  - nrw
+  - events
+  - veranstaltungen
+  - weekend
+  - concerts
+  - exhibitions
+  - markets
+  - open-source
+  - python
+metadata:
+  hermes:
+    tags: [bonn, nrw, events, veranstaltungen, weekend, concerts, exhibitions, markets, open-source, python]
 ---
 
 # NRW Events

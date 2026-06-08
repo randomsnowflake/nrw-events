@@ -100,7 +100,7 @@ def fetch_rss() -> list:
                 "title": unescape(title),
                 "date": pub_date[:16] if pub_date else "",
                 "time": "", "venue": "", "city": "Bonn",
-                "description": unescape(re.sub(r"<[^>]+>", "", desc))[:200] if desc else "",
+                "description": unescape(re.sub(r"<[^>]+>", "", desc)) if desc else "",
                 "price": "",
                 "link": (item.findtext("link") or "").strip(),
                 "distance_km": 0,

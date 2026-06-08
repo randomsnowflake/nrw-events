@@ -271,12 +271,12 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
             time_text += "–" + end_dt.strftime("%H:%M")
     full_text = f"{title} {venue} {city} {description} {category}"
     ev = {
-        "title": clean_html(title)[:140],
+        "title": clean_html(title),
         "date": date_text,
         "time": time_text,
         "venue": clean_html(venue)[:120],
         "city": clean_html(city).title(),
-        "description": clean_html(description)[:260],
+        "description": clean_html(description),
         "price": "",
         "link": link,
         "distance_km": round(km, 1),
@@ -499,12 +499,12 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
     if km > MAX_RADIUS_KM:
         return None
     candidate = {
-        "title": unescape(clean_html(title))[:140],
+        "title": unescape(clean_html(title)),
         "date": extracted_dates[0].strftime("%Y-%m-%d") if extracted_dates else "",
         "time": "",
         "venue": "",
         "city": city_guess.title(),
-        "description": clean_html(desc)[:260],
+        "description": clean_html(desc),
         "price": "",
         "link": link,
         "distance_km": round(km, 1),

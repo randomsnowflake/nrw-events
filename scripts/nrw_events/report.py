@@ -120,7 +120,7 @@ def format_report(events: list) -> str:
         if ev.get("date"):
             parts.append(ev["date"])
         if ev.get("time"):
-            parts.append(ev["time"][:60])
+            parts.append(ev["time"])
         return " ".join(parts).strip()
 
     def format_section(title: str, emoji: str, items: list):
@@ -146,7 +146,7 @@ def format_report(events: list) -> str:
             lines.append(f"- **{ev['title']}**")
             lines.append(f"  {' · '.join(meta)}")
             if ev.get("description"):
-                lines.append(f"  _{ev['description'][:140]}_")
+                lines.append(f"  _{ev['description']}_")
             if ev.get("link"):
                 lines.append(f"  🔗 {ev['link']}")
             lines.append("")
