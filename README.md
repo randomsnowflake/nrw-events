@@ -223,6 +223,8 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
   Bewertung, Beschreibung und Link.
 - **JSON unter `/tmp/nrw-events-latest.json`:** vollständige deduplizierte und
   bewertete Eventliste.
+- **Metadaten-JSON unter `/tmp/nrw-events-latest-meta.json`:** Zeitfenster,
+  Radius, Quellenstatistiken, Fehler und die vollständige Eventliste.
 
 Standardmäßig wird die vollständige Liste ausgegeben. Gekürzt wird nur, wenn
 `NRW_EVENTS_MAX_PER_SECTION` explizit gesetzt wird.

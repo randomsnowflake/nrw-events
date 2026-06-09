@@ -17,6 +17,7 @@ from . import common, report
 from .sources import SOURCES
 
 JSON_OUT = "/tmp/nrw-events-latest.json"
+META_JSON_OUT = "/tmp/nrw-events-latest-meta.json"
 
 
 def _load_env_file() -> None:
@@ -79,7 +80,10 @@ def main() -> None:
 
     print(report.format_report(deduped))
 
-    # Rich JSON wrapper (drop-in schema for downstream tooling / the web page).
+    events_sorted = sorted(deduped, key=lambda x: -x["score"])
+
+    # Rich JSON wrapper for callers that want generation metadata without
+    # changing the documented top-level list contract of JSON_OUT.
     start = common.TODAY
     end = common.END_DATE
     has_weekend = any((start + timedelta(days=i)).weekday() >= 5
@@ -94,12 +98,17 @@ def main() -> None:
         "source_errors": source_errors,
         "pre_dedup_count": len(filtered),
         "event_count": len(deduped),
-        "events": sorted(deduped, key=lambda x: -x["score"]),
+        "events": events_sorted,
     }
     out_path = os.environ.get("NRW_EVENTS_JSON_OUT", JSON_OUT)
     with open(out_path, "w") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(events_sorted, f, ensure_ascii=False, indent=2)
     print(f"\nJSON saved: {out_path}", file=sys.stderr)
+
+    meta_out_path = os.environ.get("NRW_EVENTS_META_JSON_OUT", META_JSON_OUT)
+    with open(meta_out_path, "w") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"Metadata JSON saved: {meta_out_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
