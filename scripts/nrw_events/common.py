@@ -737,6 +737,8 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
     """Convert a search result into a low-trust event, or None if out-of-window/radius/junk."""
     full_text = f"{title} {desc} {link}"
     extracted_dates = extract_dates(full_text)
+    if not extracted_dates:
+        return None
     if not date_range_overlaps(extracted_dates):
         return None
     city_guess = guess_city_from_text(full_text) or "Bonn area"

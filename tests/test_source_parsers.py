@@ -112,6 +112,29 @@ END:VCALENDAR
         self.assertEqual(events[0]["title"], "Peter Hujar Eyes Open in the Dark")
         self.assertEqual(events[0]["link"], "https://www.bundeskunsthalle.de/en/hujar")
 
+    def test_search_fallback_requires_a_concrete_date(self):
+        event = common.search_result_event(
+            "Veranstaltungen Bonn dieses Wochenende – Alle Termine",
+            "https://www.anzeigenmarkt-bonn.de/events/wochenende/",
+            "Listing page for upcoming events in Bonn without a concrete date or venue",
+            "Exa Search",
+            0.58,
+        )
+
+        self.assertIsNone(event)
+
+    def test_search_fallback_keeps_in_window_dated_events(self):
+        event = common.search_result_event(
+            "Album Release-Konzert Cumulus – Brotfabrik Bühne Bonn",
+            "https://www.brotfabrik-theater.de/album-release-konzert-cumulus/",
+            "10. Juni 2026 20.00 Uhr Konzert Theatersaal Bonn",
+            "Exa Search",
+            0.58,
+        )
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event and event["date"], "2026-06-10")
+
     def test_requested_sources_are_registered(self):
         self.assertIn("Naturregion Sieg", SOURCES)
         self.assertIn("Troisdorf", SOURCES)
