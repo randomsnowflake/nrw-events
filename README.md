@@ -105,7 +105,8 @@ scripts/
       __init__.py          # SOURCES-Registry: Anzeigename -> fetch-Funktion
       koeln.py  bonn.py  songkick.py  meetup.py  harmonie.py
       koenigswinter.py  siebengebirge.py  bonnjetzt.py
-      flohmarkt.py  bundeskunsthalle.py  search.py
+      flohmarkt.py  bundeskunsthalle.py  naturregion_sieg.py
+      troisdorf.py  ruhrguide.py  search.py
 ```
 
 Jedes Quellenmodul stellt eine Funktion `fetch() -> list[dict]` bereit. Fehler in
@@ -189,8 +190,10 @@ Treffer werden live ermittelt.
 - **Jährliche Pressemitteilung:** Bonner Stadtteilfeste, Kirmes, Märkte und lokale
   Termine aus dem städtischen „Veranstaltungsjahr“ (`bonn.py`)
 - **JSON-LD / schema.org:** Rheinauen-Flohmarkt, VVS Siebengebirge, Songkick
-- **iCal / RFC 5545:** Harmonie Bonn und kuratierte Meetup-Gruppen
-- **Strukturiertes HTML:** Königswinter, Bundeskunsthalle, Bonn.jetzt
+- **iCal / RFC 5545:** Harmonie Bonn, Troisdorf, Siegburg und kuratierte
+  Meetup-Gruppen
+- **Strukturiertes HTML:** Königswinter, Naturregion Sieg, Ruhr-Guide,
+  Bundeskunsthalle, Bonn.jetzt
 - **Websuche als Fallback:** Exa standardmäßig, Grok optional (`search.py`)
 
 Das Ahrtal, z.B. Ahrweiler, Bad Neuenahr, Dernau und Mayschoss, ist trotz des

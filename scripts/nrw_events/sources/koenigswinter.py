@@ -1,7 +1,7 @@
 """
 Königswinter — official town calendar (GeoCMS).
 
-Reads:  koenigswinter.de/de/veranstaltungen.html
+Reads:  koenigswinter.de/de/veranstaltungskalender.html
 Yields: Siebengebirgsmuseum dates, guided tours, markets, hikes, small culture.
         Good Siebengebirge / Drachenfels coverage near Bonn.
 """
@@ -14,7 +14,7 @@ from .. import common
 
 def fetch() -> list:
     source = "Königswinter"
-    url = "https://www.koenigswinter.de/de/veranstaltungen.html"
+    url = "https://www.koenigswinter.de/de/veranstaltungskalender.html"
     try:
         html = common.fetch_url(url, timeout=25)
         events = []
