@@ -13,13 +13,13 @@ like one. Ordering is irrelevant — the runner fans them out in parallel.
 from . import (
     koeln, bonn, harmonie, meetup, bonnjetzt, songkick,
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
+    siegburg, hennef, meckenheim, wachtberg, much,
 )
 
 SOURCES = {
     # Structured APIs / feeds (highest trust)
     "Köln API": koeln.fetch,
-    "Bonn HTML": bonn.fetch_html,
-    "Bonn.de RSS": bonn.fetch_rss,
+    "Bonn.de Events": bonn.fetch_events_json,   # full official calendar (JSON) — primary
     "Harmonie Bonn": harmonie.fetch,
     "Meetup": meetup.fetch,
     "Songkick": songkick.fetch,
@@ -29,6 +29,11 @@ SOURCES = {
     "Bundeskunsthalle": bundeskunsthalle.fetch,
     "Königswinter": koenigswinter.fetch,
     "VVS Siebengebirge": siebengebirge.fetch_vvs,
+    "Siegburg": siegburg.fetch,        # Kreisstadt iCal (Rhein-Sieg)
+    "Hennef": hennef.fetch,            # town JSON-LD (Rhein-Sieg)
+    "Meckenheim": meckenheim.fetch,    # Voreifel HTML calendar
+    "Wachtberg": wachtberg.fetch,      # Voreifel iCal
+    "Much": much.fetch,                # Bergisches Land HTML calendar
     "Bonn.jetzt": bonnjetzt.fetch,
     # Web-search fallbacks (lowest trust)
     "Exa Search": search.fetch_exa,
