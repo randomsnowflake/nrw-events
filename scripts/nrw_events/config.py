@@ -61,6 +61,9 @@ VENUE_COORDS = {
     "meckenheim": (50.6314, 7.0289), "rheinbach": (50.6255, 6.9499),
     "hennef": (50.7752, 7.2836), "lohmar": (50.8377, 7.2136),
     "much": (50.9025, 7.4021), "eitorf": (50.7696, 7.4524), "brühl": (50.8282, 6.9063),
+    "windeck": (50.7978, 7.5726), "herchen": (50.7836, 7.5160),
+    "rosbach": (50.8039, 7.6087), "wissen": (50.7792, 7.7342),
+    "steinebach/sieg": (50.7390, 7.8152), "steinebach": (50.7390, 7.8152),
     "wachtberg": (50.6262, 7.1167), "alfter": (50.7339, 7.0011),
     "swisttal": (50.6300, 6.8870), "niederkassel": (50.8136, 7.0386),
     # Bonn districts
@@ -86,6 +89,10 @@ VENUE_COORDS = {
     "linz": (50.5686, 7.2849), "linz am rhein": (50.5686, 7.2849),
     "unkel": (50.6003, 7.2162), "bad hönningen": (50.5169, 7.3122),
     "bad hoenningen": (50.5169, 7.3122), "rolandseck": (50.6324, 7.2079),
+    # NRW / Ruhr-Guide locations that can still fall inside the Bonn radius
+    "wuppertal": (51.2562, 7.1508), "solingen": (51.1652, 7.0671),
+    "neuss": (51.2042, 6.6879), "monheim": (51.0916, 6.8925),
+    "monheim am rhein": (51.0916, 6.8925), "leichlingen": (51.1061, 7.0187),
 }
 
 # ── Curated Meetup groups ───────────────────────────────────────────
