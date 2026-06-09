@@ -27,13 +27,34 @@ _RANGE_RE = re.compile(
 )
 
 
-def _headings(html: str) -> list:
-    out = []
-    for m in re.finditer(r"<h[1-4][^>]*>(.*?)</h[1-4]>", html, re.S):
-        t = unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", m.group(1)))).strip()
-        if t:
-            out.append(t)
-    return out
+def _clean_heading(html: str) -> str:
+    return unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html))).strip()
+
+
+def _exhibition_cards(html: str) -> list:
+    """Return (title, date text, detail URL) cards from exhibition sections."""
+    cards = []
+    for section in re.findall(r"<section\b.*?</section>", html, re.S | re.I):
+        h2 = re.search(r"<h2[^>]*>(.*?)</h2>", section, re.S | re.I)
+        h3 = re.search(r"<h3[^>]*>(.*?)</h3>", section, re.S | re.I)
+        if not (h2 and h3):
+            continue
+        href = ""
+        # Prefer the readable detail page behind the explicit "More Information"
+        # button. Ticket-shop and image links are nearby but not event details.
+        more = re.search(
+            r'<a[^>]+href="([^"]+)"[^>]*aria-label="[^"]*exhibition page with further information[^"]*"',
+            section, re.S | re.I,
+        )
+        if more:
+            href = more.group(1)
+        else:
+            first_internal = re.search(r'<a[^>]+href="(/en/[^"]+)"', section, re.S | re.I)
+            if first_internal:
+                href = first_internal.group(1)
+        link = common.urllib.parse.urljoin(_URL, href) if href else _URL
+        cards.append((_clean_heading(h2.group(1)), _clean_heading(h3.group(1)), link))
+    return cards
 
 
 def _parse_range(text: str):
@@ -68,17 +89,17 @@ def _tidy_title(t: str) -> str:
 def fetch() -> list:
     source = "Bundeskunsthalle"
     try:
-        headings = _headings(common.fetch_url(_URL, timeout=25))
+        html = common.fetch_url(_URL, timeout=25)
     except Exception as e:
         common.log_source_error(source, e)
         return []
 
     events = []
-    for i in range(1, len(headings)):
-        start_dt, end_dt = _parse_range(headings[i])
+    for title_raw, date_text, link in _exhibition_cards(html):
+        start_dt, end_dt = _parse_range(date_text)
         if not end_dt:
             continue
-        title = _tidy_title(headings[i - 1])
+        title = _tidy_title(title_raw)
         if len(title) < 3 or _RANGE_RE.match(title):
             continue
         # Treat as an exhibition spanning [start, end]; make_event keeps it if the
@@ -86,7 +107,7 @@ def fetch() -> list:
         ev = common.make_event(
             title, start_dt or common.TODAY, end_dt,
             "Bundeskunsthalle", "Bonn",
-            "Museum Mile, Helmut-Kohl-Allee 4", _URL,
+            "Museum Mile, Helmut-Kohl-Allee 4", link,
             source, "exhibition museum art", 1.0,
         )
         if ev:

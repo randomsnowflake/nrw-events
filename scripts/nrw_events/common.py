@@ -635,6 +635,17 @@ def events_from_wp_event_manager_listing(html: str, source: str, category: str, 
     return events
 
 
+def _ical_content_line(line: str) -> tuple:
+    """Split an iCal content line at the first colon outside quoted params."""
+    in_quote = False
+    for idx, char in enumerate(line):
+        if char == '"':
+            in_quote = not in_quote
+        elif char == ":" and not in_quote:
+            return line[:idx], line[idx + 1:]
+    return line, ""
+
+
 def _ical_parse_dt(value: str) -> Optional[datetime]:
     v = (value or "").strip()
     if re.match(r"^\d{8}T\d{6}Z?$", v):
@@ -642,6 +653,48 @@ def _ical_parse_dt(value: str) -> Optional[datetime]:
     if re.match(r"^\d{8}$", v):
         return datetime.strptime(v, "%Y%m%d")
     return parse_iso_date(v)
+
+
+def _ical_attach_event_page(value: str) -> str:
+    """Return a human event-detail page derived from an iCal ATTACH URL.
+
+    Some municipal IONAS feeds put the organizer homepage in ``URL`` but include
+    an image attachment whose path lives under the real event detail page, e.g.
+    ``.../2026-06-12-jazzig-in-die-ferne-swingen/poster.jpg?cid=...``. The image
+    itself is a bad event link; its parent directory is the readable event page.
+    """
+    raw = _ical_unescape(value or "").strip()
+    if not raw.startswith(("http://", "https://")):
+        return ""
+    parsed = urllib.parse.urlparse(raw)
+    path = parsed.path or ""
+    if "/kalender/" not in path:
+        return ""
+    if path.rstrip("/").split("/")[-1].lower().endswith((
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".ics",
+    )):
+        path = path.rsplit("/", 1)[0] + "/"
+    elif not path.endswith("/"):
+        path += "/"
+    return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+
+def _ical_feed_page(url: str) -> str:
+    """Convert an iCal export URL to its human calendar page fallback."""
+    parsed = urllib.parse.urlparse(url or "")
+    path = parsed.path or ""
+    if path.endswith("/event.ics"):
+        path = path.rsplit("/", 1)[0] + "/"
+        return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+    return url
+
+
+def _ical_best_link(props: dict, feed_url: str) -> str:
+    """Choose the most useful human URL for an iCal event."""
+    attach_page = _ical_attach_event_page(props.get("ATTACH", ""))
+    if attach_page:
+        return attach_page
+    return (props.get("URL", "") or _ical_feed_page(feed_url)).strip()
 
 
 def fetch_ical(url: str, source: str, default_city: str, category: str = "", trust: float = 1.0) -> list:
@@ -653,9 +706,11 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
         for line in block.splitlines():
             if ":" not in line:
                 continue
-            key, _, val = line.partition(":")
+            key, val = _ical_content_line(line)
+            if not val:
+                continue
             name = key.split(";")[0].strip().upper()
-            if name in ("SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL", "CATEGORIES"):
+            if name in ("SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL", "CATEGORIES", "ATTACH"):
                 props.setdefault(name, val)
         if not props.get("SUMMARY"):
             continue
@@ -668,7 +723,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
             _ical_unescape(props.get("LOCATION", "")),
             default_city,
             _ical_unescape(props.get("DESCRIPTION", "")),
-            (props.get("URL", "") or url).strip(),
+            _ical_best_link(props, url),
             source, cat, trust,
         )
         if ev:
@@ -682,6 +737,8 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
     """Convert a search result into a low-trust event, or None if out-of-window/radius/junk."""
     full_text = f"{title} {desc} {link}"
     extracted_dates = extract_dates(full_text)
+    if not extracted_dates:
+        return None
     if not date_range_overlaps(extracted_dates):
         return None
     city_guess = guess_city_from_text(full_text) or "Bonn area"
