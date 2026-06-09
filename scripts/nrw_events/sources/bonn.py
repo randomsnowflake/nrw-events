@@ -1,20 +1,141 @@
 """
 Bonn.de — the city's official event channels.
 
-Three fetchers, all reading bonn.de:
-  fetch_html()             — Veranstaltungskalender HTML listing (event links)
-  fetch_rss()              — the same calendar as an RSS feed
+Fetchers, all reading bonn.de:
+  fetch_events_json()      — the FULL official calendar as structured JSON
+                             (≈5000 entries, category-tagged). Primary source.
+                             Activity-only + date-windowed + venue-pinned.
+  fetch_html()             — Veranstaltungskalender HTML listing (legacy fallback)
+  fetch_rss()              — the same calendar as an RSS feed (legacy fallback)
   fetch_press_festivals()  — the annual "Veranstaltungsjahr" press release, which
                              lists district festivals / markets / Kirmes as <li>
                              items. This is the *live* replacement for the old
                              hardcoded district-festival table — no baked dates.
 """
 
+import json
 import re
 from datetime import datetime
 from html import unescape
 
 from .. import common
+
+# Full official event calendar as structured JSON (≈5000 forward-looking entries,
+# category-tagged). Far richer than the RSS/HTML listings, so this is now the
+# primary Bonn source. We keep only genuine *activities* (see _ALLOW/_BLOCK) and
+# only events whose date overlaps the configured window.
+_EVENTS_JSON_URL = "https://www.bonn.de/citykey/events-json.php"
+
+# Two open-data GeoJSON layers of cultural venues (point + name). Used to pin an
+# event to its exact stage instead of the city centroid when the locationName
+# matches. Source: Offene Daten Bonn (stadtplan.bonn.de).
+_VENUE_GEOJSON_URLS = (
+    "https://stadtplan.bonn.de/geojson?OD=4490",  # Schauspiel / Theater / Oper
+    "https://stadtplan.bonn.de/geojson?OD=4489",  # Kleinkunst / Kabarett / Varieté
+)
+
+# Municipal category taxonomy → keep only real outings; drop civic/admin noise.
+_ALLOW = {
+    "Fest/Festival", "Musik/Konzert", "Kabarett", "Tanz", "Theater", "Ausstellungen",
+    "Führungen/Rundgänge/Touren", "Tour", "Lesung", "Vorträge/Lesungen/Diskussionen",
+    "Märkte/Messen", "Film/Medien", "Tag des offenen Denkmals", "Beethovenfest",
+    "Weihnachtsmarkt", "Wissenschaftsnacht-Vorträge",
+}
+_BLOCK = {
+    "Sprechstunde", "Sitzung", "Sitzungstermine Ausschüsse", "Sitzungstermine Bezirksvertretung",
+    "Informations-Veranstaltung", "Tagungen/Kongresse", "Stadtverwaltung", "Fortbildungen",
+    "Beratung", "Spendenaktion", "Online-Veranstaltung", "Bürger*innenbeteiligung",
+    "Next Stop Job", "Bürger*innensprechstunde OB Déus",
+}
+
+_venue_points_cache = None
+
+
+def _venue_points() -> dict:
+    """Lazy {venue_name_lower: (lat, lon)} from the two Bonn GeoJSON layers."""
+    global _venue_points_cache
+    if _venue_points_cache is not None:
+        return _venue_points_cache
+    pts: dict = {}
+    for url in _VENUE_GEOJSON_URLS:
+        try:
+            data = json.loads(common.fetch_url(url, timeout=15))
+        except Exception as e:
+            common.log_source_error("Bonn venue GeoJSON", e)
+            continue
+        for feat in data.get("features", []):
+            name = ((feat.get("properties") or {}).get("name") or "").strip().lower()
+            coords = (feat.get("geometry") or {}).get("coordinates") or []
+            if name and len(coords) == 2:
+                lon, lat = coords[0], coords[1]
+                pts[name] = (lat, lon)
+    _venue_points_cache = pts
+    return pts
+
+
+def _parse_dt(value: str):
+    """Parse the feed's 'YYYY-MM-DD HH:MM:SS' (or bare date) into a datetime."""
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        try:
+            return datetime.strptime(value[:10], "%Y-%m-%d")
+        except ValueError:
+            return None
+
+
+def fetch_events_json() -> list:
+    """Official Bonn events JSON → dated, activity-only, venue-pinned events."""
+    source = "Bonn.de Events"
+    try:
+        items = json.loads(common.fetch_url(_EVENTS_JSON_URL, timeout=25))
+    except Exception as e:
+        common.log_source_error(source, e)
+        return []
+    if not isinstance(items, list):
+        items = items.get("events", []) if isinstance(items, dict) else []
+
+    points = _venue_points()
+    events = []
+    for item in items:
+        title = (item.get("title") or "").strip()
+        if not title:
+            continue
+
+        tags = set(item.get("category") or [])
+        allow = tags & _ALLOW
+        if not allow or (tags & _BLOCK):
+            continue
+
+        start_dt = _parse_dt(item.get("startDate", ""))
+        end_dt = _parse_dt(item.get("endDate", "")) or start_dt
+        if not start_dt:
+            continue  # no date → not a short-term plannable activity
+
+        venue = (item.get("locationName") or "").strip()
+        parts = [p.strip() for p in (item.get("locationAddress") or "").split(",") if p.strip()]
+        town = re.sub(r"^\d{4,5}\s*", "", parts[-1]).strip() if parts else ""
+        city = town or "Bonn"
+
+        # Only the time string and the venue-coordinate pin are Bonn-specific;
+        # make_event owns the window/radius/date/dict/junk machinery.
+        time_text = ""
+        if item.get("hasStartTime") and (start_dt.hour or start_dt.minute):
+            time_text = f"{start_dt:%H:%M}"
+            if item.get("hasEndTime") and end_dt and (end_dt.hour or end_dt.minute):
+                time_text += f"–{end_dt:%H:%M}"
+
+        ev = common.make_event(
+            title, start_dt, end_dt, venue, city, "", (item.get("link") or "").strip(),
+            source, ", ".join(sorted(allow)), time_text=time_text,
+            coords=points.get(venue.lower()))
+        if ev:
+            events.append(ev)
+    return events
+
 
 _HTML_URL = "https://www.bonn.de/bonn-erleben/ausgehen-und-erleben/veranstaltungskalender.php"
 _RSS_URL = (_HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit")

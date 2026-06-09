@@ -10,12 +10,14 @@ import json
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import common, report
 from .sources import SOURCES
 
 JSON_OUT = "/tmp/nrw-events-latest.json"
+META_JSON_OUT = "/tmp/nrw-events-latest-meta.json"
 
 
 def _load_env_file() -> None:
@@ -52,15 +54,20 @@ def main() -> None:
     print(f"Radius: {common.MAX_RADIUS_KM}km from Bonn", file=sys.stderr)
 
     all_events = []
+    source_counts_raw: dict = {}
+    source_errors: dict = {}
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {pool.submit(fn): name for name, fn in SOURCES.items()}
         for future in as_completed(futures):
             name = futures[future]
             try:
                 result = future.result()
+                source_counts_raw[name] = len(result)
                 print(f"  ✓ {name}: {len(result)} events", file=sys.stderr)
                 all_events.extend(result)
             except Exception as e:
+                source_counts_raw[name] = 0
+                source_errors[name] = str(e)
                 print(f"  ✗ {name}: {e}", file=sys.stderr)
 
     score_floor = float(os.environ.get("NRW_EVENTS_SCORE_FLOOR", "0.4"))
@@ -73,9 +80,35 @@ def main() -> None:
 
     print(report.format_report(deduped))
 
-    with open(JSON_OUT, "w") as f:
-        json.dump(sorted(deduped, key=lambda x: -x["score"]), f, ensure_ascii=False, indent=2)
-    print(f"\nJSON saved: {JSON_OUT}", file=sys.stderr)
+    events_sorted = sorted(deduped, key=lambda x: -x["score"])
+
+    # Rich JSON wrapper for callers that want generation metadata without
+    # changing the documented top-level list contract of JSON_OUT.
+    start = common.TODAY
+    end = common.END_DATE
+    has_weekend = any((start + timedelta(days=i)).weekday() >= 5
+                      for i in range((end - start).days + 1))
+    label = "this weekend" if has_weekend else "short term"
+    payload = {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"), "label": label},
+        "radius_km_from_bonn": common.MAX_RADIUS_KM,
+        "score_floor": score_floor,
+        "source_counts_raw": source_counts_raw,
+        "source_errors": source_errors,
+        "pre_dedup_count": len(filtered),
+        "event_count": len(deduped),
+        "events": events_sorted,
+    }
+    out_path = os.environ.get("NRW_EVENTS_JSON_OUT", JSON_OUT)
+    with open(out_path, "w") as f:
+        json.dump(events_sorted, f, ensure_ascii=False, indent=2)
+    print(f"\nJSON saved: {out_path}", file=sys.stderr)
+
+    meta_out_path = os.environ.get("NRW_EVENTS_META_JSON_OUT", META_JSON_OUT)
+    with open(meta_out_path, "w") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"Metadata JSON saved: {meta_out_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":

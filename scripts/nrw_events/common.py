@@ -248,15 +248,20 @@ def in_date_range(date_str: str) -> bool:
 
 def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
                venue: str, city: str, description: str, link: str, source: str,
-               category: str, trust: float = 1.0, time_text: str = "") -> Optional[dict]:
-    """Build a scored event dict and apply window + radius + junk checks."""
+               category: str, trust: float = 1.0, time_text: str = "",
+               coords: Optional[tuple] = None) -> Optional[dict]:
+    """Build a scored event dict and apply window + radius + junk checks.
+
+    ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
+    point — instead of deriving it from ``city`` via :func:`coords_for_city`.
+    """
     if not title:
         return None
     if start_dt and end_dt and (end_dt < TODAY or start_dt > END_DATE):
         return None
     if start_dt and not end_dt and not (TODAY <= start_dt <= END_DATE):
         return None
-    km = haversine(BONN_LAT, BONN_LON, *coords_for_city(city))
+    km = haversine(BONN_LAT, BONN_LON, *(coords or coords_for_city(city)))
     if km > MAX_RADIUS_KM:
         return None
     if start_dt and end_dt and start_dt.date() != end_dt.date():
@@ -493,7 +498,51 @@ def _ical_unfold(text: str) -> str:
 
 def _ical_unescape(text: str) -> str:
     return (text.replace("\\n", " ").replace("\\N", " ")
+                .replace('\\"', '"')
                 .replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")).strip()
+
+
+def events_from_time_listing(html: str, source: str, default_city: str, category: str,
+                             trust: float, base_url: str, min_title: int = 6,
+                             max_chars: int = 900, anchor_pattern: Optional[str] = None) -> list:
+    """Scrape a server-rendered listing that pairs ``<time datetime="…">`` tags with
+    nearby title links — common in TYPO3 ``tx_news`` / municipal calendars that
+    expose no iCal or JSON-LD feed. Each ``<time>`` is matched to the closest
+    in-document anchor (within ``max_chars``) whose text looks like a real title.
+
+    By default every ``<a>`` is a title candidate, filtered by a denylist of
+    navigation labels. Pass ``anchor_pattern`` (a regex capturing href + inner
+    text) to scope candidates to a CMS-specific title wrapper instead, e.g.
+    ``result-list_object-title…<a href="(…)">(…)</a>``. Fails soft on unexpected
+    markup (returns the events it could pair, or []).
+    """
+    times = [(m.start(), m.group(1)) for m in re.finditer(r'<time[^>]*datetime="([^"]+)"', html)]
+    pattern = anchor_pattern or r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
+    anchors = [(m.start(), m.group(1), clean_html(m.group(2)))
+               for m in re.finditer(pattern, html, re.S | re.I)]
+    # A scoped title pattern already excludes nav links; only the broad default
+    # needs the denylist.
+    bad = () if anchor_pattern else (
+        "drucken", "session.", "weiterlesen", "mehr ", "mehr:", "details",
+        "zum kalender", "veranstaltungsliste", "impressum", "anmelden", "suche")
+    events, seen = [], set()
+    for tp, dt in times:
+        cand = sorted((abs(ap - tp), href, t) for ap, href, t in anchors
+                      if abs(ap - tp) < max_chars and len(t) >= min_title
+                      and not any(b in t.lower() for b in bad))
+        if not cand:
+            continue
+        _, href, title = cand[0]
+        key = (title.lower(), dt[:10])
+        if key in seen:
+            continue
+        seen.add(key)
+        start = parse_iso_date(dt)
+        link = href if href.startswith("http") else base_url.rstrip("/") + "/" + href.lstrip("/")
+        ev = make_event(title, start, None, "", default_city, "", link, source, category, trust)
+        if ev:
+            events.append(ev)
+    return events
 
 
 def _ical_parse_dt(value: str) -> Optional[datetime]:

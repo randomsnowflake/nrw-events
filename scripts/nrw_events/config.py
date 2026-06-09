@@ -61,6 +61,8 @@ VENUE_COORDS = {
     "meckenheim": (50.6314, 7.0289), "rheinbach": (50.6255, 6.9499),
     "hennef": (50.7752, 7.2836), "lohmar": (50.8377, 7.2136),
     "much": (50.9025, 7.4021), "eitorf": (50.7696, 7.4524), "brühl": (50.8282, 6.9063),
+    "wachtberg": (50.6262, 7.1167), "alfter": (50.7339, 7.0011),
+    "swisttal": (50.6300, 6.8870), "niederkassel": (50.8136, 7.0386),
     # Bonn districts
     "poppelsdorf": (50.7267, 7.0863), "endenich": (50.7272, 7.0650),
     "beuel": (50.7390, 7.1170), "bad godesberg": (50.6830, 7.1500),
