@@ -1,8 +1,10 @@
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
+from scripts.nrw_events.sources import bundeskunsthalle
 
 
 class SourceParserTests(unittest.TestCase):
@@ -67,6 +69,48 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["date"], "2026-06-17")
         self.assertEqual(events[0]["time"], "19:00-22:30")
         self.assertEqual(events[0]["city"], "Düsseldorf")
+
+    def test_ical_prefers_ionas_event_page_from_attachment_over_homepage_url(self):
+        ical = """
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART:20260612T190000
+DTEND:20260612T235900
+SUMMARY:Jazzig in die Ferne swingen
+DESCRIPTION:Jazz in 7 Sprachen
+LOCATION:Haus Helvetia
+URL:https://wachtberg-evangelisch.de/
+ATTACH;FMTTYPE=image/jpeg;X-COPYRIGHT="Grafik: Ioanna Giannaki":https://www.wachtberg.de/kalender/veranstaltungen/terminformulare/2026/06-juni/2026-06-12-jazzig-in-die-ferne-swingen/grafik.jpg?cid=toj.828s
+CATEGORIES:Jazz
+END:VEVENT
+END:VCALENDAR
+"""
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=ical):
+            events = common.fetch_ical("https://www.wachtberg.de/kalender/event.ics", "Wachtberg", "Wachtberg")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["link"],
+            "https://www.wachtberg.de/kalender/veranstaltungen/terminformulare/2026/06-juni/2026-06-12-jazzig-in-die-ferne-swingen/",
+        )
+
+    def test_bundeskunsthalle_uses_individual_exhibition_detail_links(self):
+        html = """
+<section>
+  <h2>Peter Hujar<br>Eyes Open in the Dark</h2>
+  <h3><span>27 February to 23 August 2026</span></h3>
+  <a href="/en/hujar" aria-label="This button will take you to the exhibition page with further information." class="btn">More Information</a>
+  <a href="https://bundeskunsthalle.ticketfritz.de/Shop/Index/tagesticket/28596">Buy Tickets</a>
+</section>
+"""
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+            events = bundeskunsthalle.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Peter Hujar Eyes Open in the Dark")
+        self.assertEqual(events[0]["link"], "https://www.bundeskunsthalle.de/en/hujar")
 
     def test_requested_sources_are_registered(self):
         self.assertIn("Naturregion Sieg", SOURCES)
