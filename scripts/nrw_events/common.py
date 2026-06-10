@@ -307,7 +307,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "city": clean_html(city).title(),
         "description": clean_html(description),
         "price": "",
-        "link": link,
+        "link": unescape(link or "").strip(),
         "distance_km": round(km, 1),
         "score": round(distance_score(km) * category_score(full_text) * trust, 2),
         "source": source,

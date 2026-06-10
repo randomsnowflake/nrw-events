@@ -34,6 +34,26 @@ class JsonLdScheduleTests(unittest.TestCase):
         self.assertEqual(ev["date"], "ongoing until 2026-08-01")
         self.assertNotIn("2026-04-01", ev["date"])
 
+    def test_event_links_decode_html_entities(self):
+        ev = common.make_event(
+            "Energie-Dialog",
+            datetime(2026, 6, 12),
+            None,
+            "",
+            "Meckenheim",
+            "",
+            "https://www.meckenheim.de/detail.php?object=tx,3947.4.1&amp;ModID=11&amp;FID=3947.579.1",
+            "Meckenheim",
+            "lokal",
+        )
+
+        self.assertIsNotNone(ev)
+        assert ev is not None
+        self.assertEqual(
+            ev["link"],
+            "https://www.meckenheim.de/detail.php?object=tx,3947.4.1&ModID=11&FID=3947.579.1",
+        )
+
     def test_event_schedule_expands_future_appointments_and_skips_season_span(self):
         payload = {
             "@context": "https://schema.org",
