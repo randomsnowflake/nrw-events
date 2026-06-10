@@ -20,7 +20,7 @@ from . import (
 
 SOURCES = {
     # Structured APIs / feeds (highest trust)
-    "Köln API": koeln.fetch,
+    "Köln Open Data": koeln.fetch,
     "Bonn.de Events": bonn.fetch_events_json,   # full official calendar (JSON) — primary
     "Harmonie Bonn": harmonie.fetch,
     "Meetup": meetup.fetch,

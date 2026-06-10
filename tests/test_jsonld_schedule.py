@@ -54,6 +54,23 @@ class JsonLdScheduleTests(unittest.TestCase):
             "https://www.meckenheim.de/detail.php?object=tx,3947.4.1&ModID=11&FID=3947.579.1",
         )
 
+    def test_event_links_encode_internationalized_hostnames(self):
+        ev = common.make_event(
+            "MittwochsTreff",
+            datetime(2026, 6, 17),
+            None,
+            "",
+            "Wachtberg",
+            "",
+            "https://www.flüchtlingshilfe-wachtberg.de",
+            "Wachtberg",
+            "Begegnung",
+        )
+
+        self.assertIsNotNone(ev)
+        assert ev is not None
+        self.assertEqual(ev["link"], "https://www.xn--flchtlingshilfe-wachtberg-gwc.de")
+
     def test_event_schedule_expands_future_appointments_and_skips_season_span(self):
         payload = {
             "@context": "https://schema.org",

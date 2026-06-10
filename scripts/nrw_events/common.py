@@ -172,6 +172,33 @@ def clean_html(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def normalize_url(url: str) -> str:
+    """Decode HTML entities and make internationalized hostnames link-safe."""
+    url = unescape(url or "").strip()
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in {"http", "https"} or not parts.hostname:
+        return url
+
+    try:
+        host = parts.hostname.encode("idna").decode("ascii")
+    except UnicodeError:
+        return url
+
+    userinfo = ""
+    if "@" in parts.netloc:
+        userinfo = parts.netloc.rsplit("@", 1)[0] + "@"
+
+    try:
+        port = f":{parts.port}" if parts.port else ""
+    except ValueError:
+        port = ""
+
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+
+    return urllib.parse.urlunsplit((parts.scheme, f"{userinfo}{host}{port}", parts.path, parts.query, parts.fragment))
+
+
 # ── Date parsing ────────────────────────────────────────────────────
 
 def parse_iso_date(text: str) -> Optional[datetime]:
@@ -307,7 +334,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "city": clean_html(city).title(),
         "description": clean_html(description),
         "price": "",
-        "link": unescape(link or "").strip(),
+        "link": normalize_url(link),
         "distance_km": round(km, 1),
         "score": round(distance_score(km) * category_score(full_text) * trust, 2),
         "source": source,
