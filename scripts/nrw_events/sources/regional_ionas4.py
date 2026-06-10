@@ -18,7 +18,13 @@ def fetch() -> list:
     events = []
     for city, url, trust in _CALENDARS:
         try:
-            items = json.loads(common.fetch_url(url, timeout=25))
+            items = json.loads(common.fetch_url(
+                url,
+                timeout=25,
+                accept="application/json,*/*;q=0.8",
+                sec_fetch_mode="cors",
+                sec_fetch_dest="empty",
+            ))
             if isinstance(items, list):
                 events.extend(_events_from_items(items, city, url, trust))
         except Exception as e:
