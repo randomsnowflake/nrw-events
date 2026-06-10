@@ -14,7 +14,8 @@ from . import (
     koeln, bonn, harmonie, meetup, bonnjetzt, songkick,
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
     siegburg, hennef, meckenheim, wachtberg, much, naturregion_sieg,
-    ruhrguide, troisdorf, regional,
+    ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
+    regional_sitekit, regional_tourism, regional_venues,
 )
 
 SOURCES = {
@@ -37,12 +38,12 @@ SOURCES = {
     "Meckenheim": meckenheim.fetch,    # Voreifel HTML calendar
     "Wachtberg": wachtberg.fetch,      # Voreifel iCal
     "Much": much.fetch,                # Bergisches Land HTML calendar
-    "ionas4 regional": regional.fetch_ionas4,
-    "SiteKit regional": regional.fetch_sitekit,
-    "Standard regional feeds": regional.fetch_standard_feeds,
-    "Regional HTML calendars": regional.fetch_html_sources,
-    "Deskline regional": regional.fetch_deskline_and_venues,
-    "Regional venues": regional.fetch_more_venues,
+    "ionas4 regional": regional_ionas4.fetch,
+    "SiteKit regional": regional_sitekit.fetch,
+    "Standard regional feeds": regional_feeds.fetch,
+    "Regional HTML calendars": regional_html.fetch,
+    "Deskline regional": regional_tourism.fetch,
+    "Regional venues": regional_venues.fetch,
     "Bonn.jetzt": bonnjetzt.fetch,
     "Ruhr-Guide": ruhrguide.fetch,
     # Web-search fallbacks (lowest trust)

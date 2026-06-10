@@ -136,9 +136,19 @@ END:VCALENDAR
         self.assertEqual(event and event["date"], "2026-06-10")
 
     def test_requested_sources_are_registered(self):
-        self.assertIn("Naturregion Sieg", SOURCES)
-        self.assertIn("Troisdorf", SOURCES)
-        self.assertIn("Ruhr-Guide", SOURCES)
+        expected_sources = {
+            "Naturregion Sieg",
+            "Troisdorf",
+            "Ruhr-Guide",
+            "ionas4 regional",
+            "SiteKit regional",
+            "Standard regional feeds",
+            "Regional HTML calendars",
+            "Deskline regional",
+            "Regional venues",
+        }
+
+        self.assertLessEqual(expected_sources, set(SOURCES))
 
 
 if __name__ == "__main__":
