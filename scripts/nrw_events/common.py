@@ -189,12 +189,24 @@ def browser_headers(
     return hdrs
 
 
-def fetch_url(url: str, timeout: int = 15, headers: Optional[dict] = None) -> str:
-    """GET a URL and return decoded text. Raises on network/HTTP error."""
+def fetch_url(
+    url: str,
+    timeout: int = 15,
+    headers: Optional[dict] = None,
+    accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    sec_fetch_mode: str = "navigate",
+    sec_fetch_dest: str = "document",
+) -> str:
+    """GET a URL and return decoded text. Raises on network/HTTP error.
+
+    Defaults model a browser document navigation for HTML event pages. Feed/API
+    callers should pass a content-specific ``accept`` value so negotiating
+    endpoints do not return their human HTML fallback instead of data.
+    """
     hdrs = browser_headers(
-        accept="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        sec_fetch_mode="navigate",
-        sec_fetch_dest="document",
+        accept=accept,
+        sec_fetch_mode=sec_fetch_mode,
+        sec_fetch_dest=sec_fetch_dest,
         extra=headers,
     )
     req = urllib.request.Request(url, headers=hdrs)
@@ -822,7 +834,13 @@ def _ical_best_link(props: dict, feed_url: str) -> str:
 
 def fetch_ical(url: str, source: str, default_city: str, category: str = "", trust: float = 1.0) -> list:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds)."""
-    raw = _ical_unfold(fetch_url(url, timeout=20))
+    raw = _ical_unfold(fetch_url(
+        url,
+        timeout=20,
+        accept="text/calendar,application/calendar+json;q=0.9,*/*;q=0.8",
+        sec_fetch_mode="no-cors",
+        sec_fetch_dest="empty",
+    ))
     events = []
     for block in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S):
         props = {}

@@ -62,7 +62,13 @@ def _venue_points() -> dict:
     pts: dict = {}
     for url in _VENUE_GEOJSON_URLS:
         try:
-            data = json.loads(common.fetch_url(url, timeout=15))
+            data = json.loads(common.fetch_url(
+                url,
+                timeout=15,
+                accept="application/geo+json,application/json,*/*;q=0.8",
+                sec_fetch_mode="cors",
+                sec_fetch_dest="empty",
+            ))
         except Exception as e:
             common.log_source_error("Bonn venue GeoJSON", e)
             continue
@@ -94,7 +100,13 @@ def fetch_events_json() -> list:
     """Official Bonn events JSON → dated, activity-only, venue-pinned events."""
     source = "Bonn.de Events"
     try:
-        items = json.loads(common.fetch_url(_EVENTS_JSON_URL, timeout=25))
+        items = json.loads(common.fetch_url(
+            _EVENTS_JSON_URL,
+            timeout=25,
+            accept="application/json,*/*;q=0.8",
+            sec_fetch_mode="cors",
+            sec_fetch_dest="empty",
+        ))
     except Exception as e:
         common.log_source_error(source, e)
         return []
@@ -262,7 +274,12 @@ def fetch_rss() -> list:
     import xml.etree.ElementTree as ET
     source = "Bonn.de RSS"
     try:
-        root = ET.fromstring(common.fetch_url(_RSS_URL))
+        root = ET.fromstring(common.fetch_url(
+            _RSS_URL,
+            accept="application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
+            sec_fetch_mode="no-cors",
+            sec_fetch_dest="empty",
+        ))
         events = []
         for item in root.findall(".//item"):
             title = (item.findtext("title") or "").strip()

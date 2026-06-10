@@ -52,7 +52,13 @@ def _fetch_neunkirchen_seelscheid() -> list:
 
 def _fetch_unkel_rss() -> list:
     try:
-        root = ET.fromstring(common.fetch_url(_UNKEL_RSS, timeout=25))
+        root = ET.fromstring(common.fetch_url(
+            _UNKEL_RSS,
+            timeout=25,
+            accept="application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
+            sec_fetch_mode="no-cors",
+            sec_fetch_dest="empty",
+        ))
     except Exception as e:
         common.log_source_error("VG Unkel", e)
         return []
