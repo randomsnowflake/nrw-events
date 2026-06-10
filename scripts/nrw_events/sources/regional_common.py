@@ -43,6 +43,24 @@ def with_time(dt, text: str):
     return dt.replace(hour=int(m.group(1)), minute=int(m.group(2))) if m else dt
 
 
+def date_for_window(day: int, month: int):
+    """Resolve a yearless day/month to the year that keeps it current.
+
+    Listings that omit the year (e.g. the LVR calendar) otherwise default to
+    ``TODAY.year``; during a late-December run a January date then lands in the
+    year that is ending and gets dropped as stale. Pick the first of this year /
+    next year that is not already past so the New-Year rollover is handled.
+    """
+    for year in (common.TODAY.year, common.TODAY.year + 1):
+        try:
+            dt = datetime(year, month, day)
+        except ValueError:
+            return None
+        if dt >= common.TODAY:
+            return dt
+    return None
+
+
 def time_text(text: str) -> str:
     times = re.findall(r"\d{1,2}:\d{2}", text or "")
     if len(times) >= 2:

@@ -187,13 +187,13 @@ def _event_from_lvr_body(body: str):
     hay = rc.clean(data.group(1) if data else text)
     parts = [part.strip() for part in hay.split(",")]
     title = parts[1] if len(parts) > 1 else ""
-    date = re.search(r"(\d{1,2}\.\d{1,2}\.)\s*(\d{1,2}:\d{2})", hay)
+    date = re.search(r"(\d{1,2})\.(\d{1,2})\.\s*(\d{1,2}:\d{2})", hay)
     if not (title and date):
         return None
-    dt = common.parse_date(f"{date.group(1)}{common.TODAY.year}")
+    dt = rc.date_for_window(int(date.group(1)), int(date.group(2)))
     return common.make_event(
         title,
-        rc.with_time(dt, date.group(2)),
+        rc.with_time(dt, date.group(3)),
         None,
         "LVR-LandesMuseum Bonn",
         "Bonn",
@@ -202,5 +202,5 @@ def _event_from_lvr_body(body: str):
         "LVR-LandesMuseum",
         "museum ausstellung führung kino vortrag",
         0.92,
-        date.group(2),
+        date.group(3),
     )
