@@ -186,7 +186,7 @@ Strukturierte Quellen werden bevorzugt, danach HTML-Scraping, danach Suche. Alle
 Treffer werden live ermittelt.
 
 - **Open-Data-API:** Köln Open Data Events (`koeln.py`)
-- **RSS / HTML:** Bonn.de Veranstaltungskalender (`bonn.py`)
+- **RSS / HTML:** Bonn.de Veranstaltungskalender und Sportveranstaltungen (`bonn.py`)
 - **Jährliche Pressemitteilung:** Bonner Stadtteilfeste, Kirmes, Märkte und lokale
   Termine aus dem städtischen „Veranstaltungsjahr“ (`bonn.py`)
 - **JSON-LD / schema.org:** Rheinauen-Flohmarkt, VVS Siebengebirge, Songkick

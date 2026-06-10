@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
-from scripts.nrw_events.sources import bundeskunsthalle
+from scripts.nrw_events.sources import bonn, bundeskunsthalle
 
 
 class SourceParserTests(unittest.TestCase):
@@ -148,6 +148,32 @@ END:VCALENDAR
         common.END_DATE = datetime(2026, 6, 21)
         self.assertEqual(rc.date_for_window(15, 6), datetime(2026, 6, 15))
 
+    def test_bonn_sport_page_teasers_create_dated_events(self):
+        html = """
+<li class="SP-TeaserList__item"><article class="SP-Teaser SP-Teaser--textual SP-Teaser--hasFeatureIcons">
+  <a class="SP-Teaser__inner SPbg-accent--before" rel="bookmark"
+     href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Fahrradexkursion-durch-das-Klimaviertel-Bonn.php?p=sig%3Aabc">
+    <div class="SP-Teaser__text"><header class="SP-Teaser__header">
+      <div class="SP-Teaser__kicker SP-Kicker"><span class="SP-Kicker__text">Aktion/Workshop | Fortbildung</span></div>
+      <div class="SP-Scheduling SP-Teaser__scheduling SPc-accent"><span><span class="SP-Scheduling__date">13.06.2026</span><span class="SP-Scheduling__time"> 12:00 Uhr</span></span></div>
+      <h1 class="SP-Teaser__headline">Fahrradexkursion durch das Klimaviertel Bonn</h1>
+    </header></div>
+  </a>
+</article></li>
+"""
+
+        events = bonn.events_from_sport_teasers(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Fahrradexkursion durch das Klimaviertel Bonn")
+        self.assertEqual(events[0]["date"], "2026-06-13")
+        self.assertEqual(events[0]["time"], "12:00")
+        self.assertEqual(
+            events[0]["link"],
+            "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Fahrradexkursion-durch-das-Klimaviertel-Bonn.php",
+        )
+        self.assertEqual(events[0]["source"], "Bonn.de Sports")
+
     def test_requested_sources_are_registered(self):
         expected_sources = {
             "Naturregion Sieg",
@@ -159,6 +185,7 @@ END:VCALENDAR
             "Regional HTML calendars",
             "Deskline regional",
             "Regional venues",
+            "Bonn.de Sports",
         }
 
         self.assertLessEqual(expected_sources, set(SOURCES))

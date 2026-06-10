@@ -22,6 +22,7 @@ SOURCES = {
     # Structured APIs / feeds (highest trust)
     "Köln Open Data": koeln.fetch,
     "Bonn.de Events": bonn.fetch_events_json,   # full official calendar (JSON) — primary
+    "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by JSON allowlist
     "Harmonie Bonn": harmonie.fetch,
     "Meetup": meetup.fetch,
     "Songkick": songkick.fetch,

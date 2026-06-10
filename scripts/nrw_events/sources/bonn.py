@@ -11,6 +11,9 @@ Fetchers, all reading bonn.de:
                              lists district festivals / markets / Kirmes as <li>
                              items. This is the *live* replacement for the old
                              hardcoded district-festival table — no baked dates.
+  fetch_sports()           — the public Sportveranstaltungen teaser page. This
+                             exposes sport/active events that the primary JSON
+                             source intentionally filters out.
 """
 
 import json
@@ -138,6 +141,7 @@ def fetch_events_json() -> list:
 
 
 _HTML_URL = "https://www.bonn.de/bonn-erleben/ausgehen-und-erleben/veranstaltungskalender.php"
+_SPORTS_URL = "https://www.bonn.de/bonn-erleben/aktiv-und-unterwegs/sportveranstaltungen.php"
 _RSS_URL = (_HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit")
 # Annual press release. The slug embeds the year; we build it dynamically so the
 # source keeps working in future years with no code change (no dates hardcoded).
@@ -197,6 +201,58 @@ def fetch_html() -> list:
                 "category": category,
             })
         return events
+    except Exception as e:
+        common.log_source_error(source, e)
+        return []
+
+
+def _parse_sport_time(text: str) -> str:
+    m = re.search(r"(\d{1,2}):(\d{2})", text or "")
+    return f"{int(m.group(1)):02d}:{m.group(2)}" if m else ""
+
+
+def events_from_sport_teasers(html: str) -> list:
+    """Parse the Bonn.de Sportveranstaltungen teaser list into dated events."""
+    source = "Bonn.de Sports"
+    events, seen = [], set()
+    for m in re.finditer(r'<article class="SP-Teaser\b.*?</article>', html, re.S | re.I):
+        body = m.group(0)
+        href_m = re.search(r'<a[^>]+class="[^"]*SP-Teaser__inner[^"]*"[^>]+href="([^"]+)"', body, re.S | re.I)
+        title_m = re.search(r'<h1[^>]+class="[^"]*SP-Teaser__headline[^"]*"[^>]*>(.*?)</h1>', body, re.S | re.I)
+        cat_m = re.search(r'<span[^>]+class="[^"]*SP-Kicker__text[^"]*"[^>]*>(.*?)</span>', body, re.S | re.I)
+        if not (href_m and title_m):
+            continue
+        title = common.clean_html(title_m.group(1))
+        category = common.clean_html(cat_m.group(1) if cat_m else "Sport") or "Sport"
+        href = href_m.group(1).split("?", 1)[0]
+        link = common.urllib.parse.urljoin("https://www.bonn.de", href)
+        for date_text, time_raw in re.findall(
+            r'<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
+            r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?',
+            body, re.S | re.I,
+        ):
+            start = common.parse_date(date_text)
+            time_text = _parse_sport_time(common.clean_html(time_raw))
+            if start and time_text:
+                hour, minute = map(int, time_text.split(":"))
+                start = start.replace(hour=hour, minute=minute)
+            key = (title.lower(), start.strftime("%Y-%m-%d") if start else date_text, time_text)
+            if key in seen:
+                continue
+            seen.add(key)
+            ev = common.make_event(
+                title, start, start, "", "Bonn", "", link,
+                source, category, trust=0.8, time_text=time_text,
+            )
+            if ev:
+                events.append(ev)
+    return events
+
+
+def fetch_sports() -> list:
+    source = "Bonn.de Sports"
+    try:
+        return events_from_sport_teasers(common.fetch_url(_SPORTS_URL, timeout=20))
     except Exception as e:
         common.log_source_error(source, e)
         return []
