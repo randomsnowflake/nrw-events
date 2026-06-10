@@ -194,15 +194,36 @@ def parse_date(text: str) -> Optional[datetime]:
         return None
     # For ranges, parse the first date.
     text = re.split(r"\s*(?:–|\bbis\b)\s*", text, maxsplit=1)[0].strip()
+    text = re.sub(r"^(?:mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\.?,?\s*",
+                  "", text, flags=re.I)
     for fmt in ["%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y", "%a, %d %b %Y %H:%M:%S %z"]:
         try:
             return datetime.strptime(text[:len(fmt) + 5], fmt).replace(tzinfo=None)
         except (ValueError, IndexError):
             continue
+    m = re.search(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
+    if m:
+        day, mon, year = map(int, m.groups())
+        try:
+            return datetime(year, mon, day)
+        except ValueError:
+            return None
     m = re.search(r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s*(20\d{2})", text)
     if m:
         day, mon, year = m.groups()
         mon_num = MONTH_DE.get(mon.lower())
+        if mon_num:
+            return datetime(int(year), mon_num, int(day))
+    m = re.search(r"(\d{1,2})\s+([A-Za-zäöüÄÖÜ]+)\s*(20\d{2})", text)
+    if m:
+        day, mon, year = m.groups()
+        key = mon.lower().rstrip(".")
+        mon_num = MONTH_DE.get(key) or MONTH_EN.get(key)
+        mon_num = mon_num or {
+            "jan": 1, "feb": 2, "mar": 3, "mär": 3, "maerz": 3, "apr": 4,
+            "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10,
+            "okt": 10, "nov": 11, "dec": 12, "dez": 12,
+        }.get(key)
         if mon_num:
             return datetime(int(year), mon_num, int(day))
     try:
@@ -650,6 +671,8 @@ def _ical_parse_dt(value: str) -> Optional[datetime]:
     v = (value or "").strip()
     if re.match(r"^\d{8}T\d{6}Z?$", v):
         return datetime.strptime(v[:15], "%Y%m%dT%H%M%S")
+    if re.match(r"^\d{8}T\d{4}Z?$", v):
+        return datetime.strptime(v[:13], "%Y%m%dT%H%M")
     if re.match(r"^\d{8}$", v):
         return datetime.strptime(v, "%Y%m%d")
     return parse_iso_date(v)

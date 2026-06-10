@@ -135,10 +135,33 @@ END:VCALENDAR
         self.assertIsNotNone(event)
         self.assertEqual(event and event["date"], "2026-06-10")
 
+    def test_date_for_window_rolls_over_new_year(self):
+        from scripts.nrw_events.sources import regional_common as rc
+
+        # Late-December run: a January date must resolve to the coming year,
+        # not the year that is ending (which would be dropped as stale).
+        common.TODAY = datetime(2026, 12, 28)
+        common.END_DATE = datetime(2027, 1, 4)
+        self.assertEqual(rc.date_for_window(3, 1), datetime(2027, 1, 3))
+        # A mid-year run keeps the current year.
+        common.TODAY = datetime(2026, 6, 9)
+        common.END_DATE = datetime(2026, 6, 21)
+        self.assertEqual(rc.date_for_window(15, 6), datetime(2026, 6, 15))
+
     def test_requested_sources_are_registered(self):
-        self.assertIn("Naturregion Sieg", SOURCES)
-        self.assertIn("Troisdorf", SOURCES)
-        self.assertIn("Ruhr-Guide", SOURCES)
+        expected_sources = {
+            "Naturregion Sieg",
+            "Troisdorf",
+            "Ruhr-Guide",
+            "ionas4 regional",
+            "SiteKit regional",
+            "Standard regional feeds",
+            "Regional HTML calendars",
+            "Deskline regional",
+            "Regional venues",
+        }
+
+        self.assertLessEqual(expected_sources, set(SOURCES))
 
 
 if __name__ == "__main__":
