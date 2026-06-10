@@ -58,6 +58,10 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(events_payload[0]["title"], "Concert")
         self.assertIsInstance(meta_payload, dict)
         self.assertEqual(meta_payload["events"][0]["title"], "Concert")
+        self.assertEqual(meta_payload["events"][0]["category_key"], "concert")
+        self.assertEqual(meta_payload["events"][0]["category_label"], "Konzert")
+        self.assertGreaterEqual(len(meta_payload["categories"]), 12)
+        self.assertIn({"key": "concert", "label": "Konzert"}, meta_payload["categories"])
         self.assertEqual(meta_payload["event_count"], 1)
 
 

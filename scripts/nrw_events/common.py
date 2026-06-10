@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 from html import unescape
 from typing import Optional
 
-from . import config
+from . import category_taxonomy, config
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -411,6 +411,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         if end_dt and (end_dt.hour or end_dt.minute):
             time_text += "–" + end_dt.strftime("%H:%M")
     full_text = f"{title} {venue} {city} {description} {category}"
+    canonical_category = category_taxonomy.categorize_event(category, title, description)
     ev = {
         "title": clean_html(title),
         "date": date_text,
@@ -424,6 +425,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "score": round(distance_score(km) * category_score(full_text) * trust, 2),
         "source": source,
         "category": category,
+        "category_key": canonical_category["key"],
+        "category_label": canonical_category["label"],
     }
     return None if is_junk_event(ev) else ev
 

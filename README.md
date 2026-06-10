@@ -55,7 +55,11 @@ bash scripts/nrw-events.sh 1
 ```
 
 Die Ausgabe erscheint als Markdown auf stdout. Eine vollständige JSON-Kopie wird
-unter `/tmp/nrw-events-latest.json` gespeichert.
+unter `/tmp/nrw-events-latest.json` gespeichert. Zusätzlich schreibt der
+Metadaten-Export unter `/tmp/nrw-events-latest-meta.json` die stabile
+Kategorieliste (`categories`) und je Event die kanonischen Felder
+`category_key`/`category_label`; das rohe Quellenfeld `category` bleibt für
+Debugging und Rückwärtskompatibilität erhalten.
 
 Direkter Python-Aufruf:
 
@@ -97,6 +101,7 @@ scripts/
   nrw-events.py            # dünner Einstiegspunkt
   nrw-events.sh            # Shell-Wrapper, lädt .env und startet Python
   nrw_events/
+    category_taxonomy.py   # stabile Kategorie-Keys, Labels und Keyword-Klassifizierung
     config.py              # Geodaten, Kategoriegewichte, Venue-Koordinaten, Gruppenlisten
     common.py              # HTTP, HTML/JSON-LD/iCal, Datumslogik, Scoring, Event-Erzeugung
     report.py              # Entdoppelung + Markdown-Ausgabe
