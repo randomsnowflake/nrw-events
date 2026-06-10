@@ -148,6 +148,7 @@ kein Limit.
 | `NRW_EVENTS_SCORE_FLOOR`      | `0.4`    | Mindestscore. Niedriger = mehr Treffer und mehr Rauschen. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
+| `NRW_EVENTS_USER_AGENT`       | moderner Chrome UA | Optionaler Override für HTTP-Requests an öffentliche Quellen. |
 | `NRW_EVENTS_ENV_FILE`         | nicht gesetzt | Expliziter Pfad zu einer `.env`-Datei. |
 
 Beispiel für eine absichtlich kurze, strenge Liste:
@@ -183,7 +184,10 @@ wirklich reine Kinderveranstaltungen werden niedriger bewertet.
 ## Quellen
 
 Strukturierte Quellen werden bevorzugt, danach HTML-Scraping, danach Suche. Alle
-Treffer werden live ermittelt.
+Treffer werden live ermittelt. HTTP-Requests verwenden standardmäßig einen
+konsistenten, browserähnlichen Header-Satz mit deutscher `Accept-Language` statt
+des auffälligen Python-Standard-User-Agents; Quellmodule können Header bei Bedarf
+weiterhin gezielt überschreiben.
 
 - **Open-Data-API:** Köln Open Data Events (`koeln.py`)
 - **RSS / HTML:** Bonn.de Veranstaltungskalender und Sportveranstaltungen (`bonn.py`)

@@ -15,6 +15,8 @@ set once by the runner via :func:`set_window`. Always reference it as
 
 import json
 import math
+import os
+import random
 import re
 import urllib.request
 import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
@@ -118,11 +120,83 @@ def guess_city_from_text(text: str) -> Optional[str]:
 
 # ── HTTP ────────────────────────────────────────────────────────────
 
+_BROWSER_PROFILES = [
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "Sec-CH-UA": (
+            '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"'
+        ),
+        "Sec-CH-UA-Platform": '"Windows"',
+    },
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "Sec-CH-UA": (
+            '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"'
+        ),
+        "Sec-CH-UA-Platform": '"macOS"',
+    },
+    {
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        ),
+        "Sec-CH-UA": (
+            '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"'
+        ),
+        "Sec-CH-UA-Platform": '"Linux"',
+    },
+]
+_BROWSER_PROFILE = random.SystemRandom().choice(_BROWSER_PROFILES)
+
+
+def browser_headers(
+    *,
+    accept: str,
+    sec_fetch_mode: str,
+    sec_fetch_dest: str,
+    extra: Optional[dict] = None,
+) -> dict:
+    """Return realistic browser request headers for public event-source fetches.
+
+    The default urllib user agent advertises Python and is easy for sites to
+    reject. Use one coherent browser profile for the whole process instead of
+    changing identity on every request; callers can still override individual
+    headers when a feed/API needs a source-specific ``Accept`` or auth header.
+    """
+    hdrs = {
+        **_BROWSER_PROFILE,
+        "User-Agent": os.environ.get("NRW_EVENTS_USER_AGENT", _BROWSER_PROFILE["User-Agent"]),
+        "Accept": accept,
+        "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Sec-CH-UA-Mobile": "?0",
+        "Sec-Fetch-Dest": sec_fetch_dest,
+        "Sec-Fetch-Mode": sec_fetch_mode,
+        "Sec-Fetch-Site": "none",
+    }
+    if sec_fetch_mode == "navigate":
+        hdrs["Upgrade-Insecure-Requests"] = "1"
+        hdrs["Sec-Fetch-User"] = "?1"
+    if extra:
+        hdrs.update(extra)
+    return hdrs
+
+
 def fetch_url(url: str, timeout: int = 15, headers: Optional[dict] = None) -> str:
     """GET a URL and return decoded text. Raises on network/HTTP error."""
-    hdrs = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-    if headers:
-        hdrs.update(headers)
+    hdrs = browser_headers(
+        accept="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        sec_fetch_mode="navigate",
+        sec_fetch_dest="document",
+        extra=headers,
+    )
     req = urllib.request.Request(url, headers=hdrs)
     resp = urllib.request.urlopen(req, timeout=timeout)
     return resp.read().decode("utf-8", "ignore")
@@ -130,13 +204,12 @@ def fetch_url(url: str, timeout: int = 15, headers: Optional[dict] = None) -> st
 
 def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict] = None) -> dict:
     """POST a JSON body and parse the JSON response."""
-    hdrs = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-    if headers:
-        hdrs.update(headers)
+    hdrs = browser_headers(
+        accept="application/json",
+        sec_fetch_mode="cors",
+        sec_fetch_dest="empty",
+        extra={"Content-Type": "application/json", **(headers or {})},
+    )
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
     resp = urllib.request.urlopen(req, timeout=timeout)
