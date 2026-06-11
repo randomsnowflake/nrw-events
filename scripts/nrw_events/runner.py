@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from . import common, report
+from .category_taxonomy import CATEGORIES, categorize_event
 from .sources import SOURCES
 
 JSON_OUT = "/tmp/nrw-events-latest.json"
@@ -42,6 +43,21 @@ def _load_env_file() -> None:
                     if key and key not in os.environ:
                         os.environ[key] = value
         break
+
+
+def _with_canonical_category(event: dict) -> dict:
+    if event.get("category_key") and event.get("category_label"):
+        return event
+    canonical = categorize_event(
+        event.get("category", ""),
+        event.get("title", ""),
+        event.get("description", ""),
+    )
+    return {
+        **event,
+        "category_key": canonical["key"],
+        "category_label": canonical["label"],
+    }
 
 
 def main() -> None:
@@ -80,7 +96,7 @@ def main() -> None:
 
     print(report.format_report(deduped))
 
-    events_sorted = sorted(deduped, key=lambda x: -x["score"])
+    events_sorted = sorted((_with_canonical_category(event) for event in deduped), key=lambda x: -x["score"])
 
     # Rich JSON wrapper for callers that want generation metadata without
     # changing the documented top-level list contract of JSON_OUT.
@@ -96,6 +112,7 @@ def main() -> None:
         "score_floor": score_floor,
         "source_counts_raw": source_counts_raw,
         "source_errors": source_errors,
+        "categories": CATEGORIES,
         "pre_dedup_count": len(filtered),
         "event_count": len(deduped),
         "events": events_sorted,
