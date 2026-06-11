@@ -174,6 +174,21 @@ END:VCALENDAR
         )
         self.assertEqual(events[0]["source"], "Bonn.de Sports")
 
+    def test_make_event_skips_regular_wochenmarkt_entries(self):
+        event = common.make_event(
+            "Wochenmarkt in Bonn-Duisdorf",
+            datetime(2026, 6, 12, 8),
+            datetime(2026, 6, 12, 13),
+            "Duisdorfer Rathausplatz",
+            "Bonn",
+            "Regelmäßiger Wochenmarkt mit regionalen Waren",
+            "https://www.bonn.de/veranstaltungen/wochenmarkt-duisdorf.php",
+            "Bonn.de",
+            "markt wochenmarkt",
+        )
+
+        self.assertIsNone(event)
+
     def test_bad_muenstereifel_skips_broad_recurring_listing_ranges(self):
         html = """
         <div class="veranst_singleItem clearfix">
