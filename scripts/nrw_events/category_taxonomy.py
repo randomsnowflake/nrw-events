@@ -154,7 +154,10 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
         hint_matches = _matched_values(hint_text, rule.keywords, is_title=False)
         score = 3 * len(title_matches)
         score += 2 * len(description_matches)
-        score += 1 if hint_matches else 0
+        # Source categories are weak fallbacks. They should classify otherwise
+        # ambiguous records, but must not outvote a competing title/description
+        # signal from another rule.
+        score += 1 if hint_matches and not title_matches and not description_matches else 0
         if score == 0:
             continue
         if score > best_score or (score == best_score and rule.priority > best_priority):
