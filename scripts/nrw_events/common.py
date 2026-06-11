@@ -471,6 +471,21 @@ def is_junk_event(ev: dict) -> bool:
     if any(bit in link for bit in junk_link_bits):
         return True
 
+    regular_low_value_bits = {
+        # Recurring basic markets are useful civic infrastructure, not a
+        # destination-worthy event for this report. Keep explicit flea/special
+        # markets covered by the normal market/festival signals.
+        "wochenmarkt",
+    }
+    destination_market_bits = {
+        "antikmarkt", "feierabendmarkt", "festival", "flohmarkt", "jahrmarkt",
+        "kirmes", "kunstmarkt", "spezialmarkt", "stadtteilfest", "strassenfest",
+        "straßenfest", "street food", "trödelmarkt", "troedelmarkt", "weihnachtsmarkt",
+    }
+    if (any(bit in text for bit in regular_low_value_bits)
+            and not any(bit in text for bit in destination_market_bits)):
+        return True
+
     generic_low_value_bits = {
         "fortgeschrittene", "sprachkurs", "italienisch", "französisch", "englischkurs",
         "yogakurs", "offene sprechstunde", "beratung", "frauen in bewegung",
