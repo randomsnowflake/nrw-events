@@ -411,7 +411,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         if end_dt and (end_dt.hour or end_dt.minute):
             time_text += "–" + end_dt.strftime("%H:%M")
     full_text = f"{title} {venue} {city} {description} {category}"
-    canonical_category = category_taxonomy.categorize_event(category, title, description)
+    canonical_category = category_taxonomy.categorize_event(category, title, f"{venue} {description} {link}")
     ev = {
         "title": clean_html(title),
         "date": date_text,
