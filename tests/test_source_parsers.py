@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
-from scripts.nrw_events.sources import bonn, bundeskunsthalle
+from scripts.nrw_events.sources import bonn, bundeskunsthalle, regional_tourism
 
 
 class SourceParserTests(unittest.TestCase):
@@ -173,6 +173,27 @@ END:VCALENDAR
             "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Fahrradexkursion-durch-das-Klimaviertel-Bonn.php",
         )
         self.assertEqual(events[0]["source"], "Bonn.de Sports")
+
+    def test_bad_muenstereifel_skips_broad_recurring_listing_ranges(self):
+        html = """
+        <div class="veranst_singleItem clearfix">
+          <div class="veranst_singleItem_Headline_Dateline">01.01.2026 - 31.12.2026</div>
+          <div class="veranst_singleItem_Headline">Montagswanderung</div>
+          <div class="veranst_singleItem_Ort">Rathaus</div>
+          <a href="/tourismus/veranstaltungen/montagswanderung">mehr</a>
+        </div></div></div>
+        <div class="veranst_singleItem clearfix">
+          <div class="veranst_singleItem_Headline_Dateline">13.06.2026 - 14.06.2026</div>
+          <div class="veranst_singleItem_Headline">Historisches Stadtfest</div>
+          <div class="veranst_singleItem_Ort">Altstadt</div>
+          <a href="/tourismus/veranstaltungen/stadtfest">mehr</a>
+        </div></div></div>
+        """
+
+        events = regional_tourism._events_from_bad_muenstereifel(html)
+
+        self.assertEqual([event["title"] for event in events], ["Historisches Stadtfest"])
+        self.assertEqual(events[0]["date"], "2026-06-13–2026-06-14")
 
     def test_requested_sources_are_registered(self):
         expected_sources = {

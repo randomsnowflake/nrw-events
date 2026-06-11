@@ -108,6 +108,8 @@ def _events_from_bad_muenstereifel(html: str) -> list:
         if not (date and title):
             continue
         start, end = rc.range_dates(date.group(1))
+        if _is_broad_bad_muenstereifel_listing_range(start, end):
+            continue
         ev = common.make_event(
             rc.clean(title.group(1)),
             start,
@@ -123,6 +125,18 @@ def _events_from_bad_muenstereifel(html: str) -> list:
         if ev:
             events.append(ev)
     return events
+
+
+def _is_broad_bad_muenstereifel_listing_range(start, end) -> bool:
+    """Suppress Deskline availability ranges that are recurring listings, not events.
+
+    The Bad Münstereifel calendar includes rows such as ``01.01.2026 -
+    31.12.2026 Montagswanderung``. Those are recurring series/listing
+    availability ranges; treating them as continuous multi-day events makes
+    them show up as "ongoing" in every short report window. Keep normal
+    multi-day festivals while dropping broad ranges that span weeks or months.
+    """
+    return bool(start and end and (end - start).days > 14)
 
 
 def _events_from_euskirchen(html: str) -> list:
