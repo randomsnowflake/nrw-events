@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
-from scripts.nrw_events.sources import bonn, bundeskunsthalle, regional_tourism
+from scripts.nrw_events.sources import bonn, bonnjetzt, bundeskunsthalle, regional_tourism
 
 
 class SourceParserTests(unittest.TestCase):
@@ -173,6 +173,48 @@ END:VCALENDAR
             "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Fahrradexkursion-durch-das-Klimaviertel-Bonn.php",
         )
         self.assertEqual(events[0]["source"], "Bonn.de Sports")
+
+    def test_bonnjetzt_skips_gruene_jugend_events(self):
+        html = """
+<article itemtype="https://schema.org/Event">
+  <a href="/event/grune-jugend-bonn-aktiventreffen-9" itemprop="url">
+    <h2 class="title p-name">Grüne Jugend Bonn Aktiventreffen</h2>
+  </a>
+  <time datetime="2026-06-12" itemprop="startDate">Fr., 12. Juni, 18:00</time>
+  <time itemprop="endDate" content="2026-06-12T20:00:00"></time>
+  <span itemprop="name">Kreisgeschäftsstelle der Grünen Bonn</span>
+  <div itemprop="address">Bonn</div>
+  <span class="v-chip__content">Bonn</span>
+  <span class="v-chip__content">Grüne</span>
+  <span class="v-chip__content">Politik</span>
+</article>
+"""
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+            events = bonnjetzt.fetch()
+
+        self.assertEqual(events, [])
+
+    def test_bonnjetzt_keeps_multiday_events_that_end_in_window(self):
+        html = """
+<article itemtype="https://schema.org/Event">
+  <a href="/event/bonner-sommer-ausstellung" itemprop="url">
+    <h2 class="title p-name">Bonner Sommer Ausstellung</h2>
+  </a>
+  <time datetime="2026-06-01" itemprop="startDate">Mo., 1. Juni</time>
+  <time itemprop="endDate" content="2026-06-12T20:00:00"></time>
+  <span itemprop="name">Kunsthaus Bonn</span>
+  <div itemprop="address">Bonn</div>
+  <span class="v-chip__content">Ausstellung</span>
+  <span class="v-chip__content">Kultur</span>
+</article>
+"""
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+            events = bonnjetzt.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertFalse(common.is_junk_event(events[0]))
 
     def test_make_event_skips_regular_wochenmarkt_entries(self):
         event = common.make_event(

@@ -48,15 +48,26 @@ def fetch() -> list:
 
             tag_text = ' '.join(unescape(t).strip() for t in tags)
             full_text = f"{title} {venue} {address} {tag_text}"
-            events.append({
-                "title": title, "date": start_raw, "time": start_text,
+            start_dt = common.parse_date(start_raw)
+            end_dt = common.parse_date(end_raw)
+            date_text = start_raw
+            if start_dt and end_dt and start_dt.date() != end_dt.date():
+                if start_dt < common.TODAY <= end_dt:
+                    date_text = f"ongoing until {end_dt.strftime('%Y-%m-%d')}"
+                else:
+                    date_text = f"{start_dt.strftime('%Y-%m-%d')}–{end_dt.strftime('%Y-%m-%d')}"
+            event = {
+                "title": title, "date": date_text, "time": start_text,
                 "venue": venue, "city": city.title() if city else "Bonn",
                 "description": tag_text, "price": "",
                 "link": f"https://bonn.jetzt{link_match.group(1)}" if link_match else "https://bonn.jetzt/",
                 "distance_km": round(km, 1),
                 "score": round(common.distance_score(km) * common.category_score(full_text), 2),
                 "source": source, "category": ", ".join(tags[:3]),
-            })
+            }
+            if common.is_junk_event(event):
+                continue
+            events.append(event)
         return events
     except Exception as e:
         common.log_source_error(source, e)
