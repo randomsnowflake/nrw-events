@@ -49,7 +49,7 @@ def _with_canonical_category(event: dict) -> dict:
     canonical = categorize_event(
         event.get("category", ""),
         event.get("title", ""),
-        event.get("description", ""),
+        f"{event.get('description', '')} {event.get('link', '')}",
     )
     return {
         **event,

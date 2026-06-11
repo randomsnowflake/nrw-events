@@ -62,6 +62,11 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
         self.assertEqual(category["key"], "exhibition")
 
+    def test_source_hint_does_not_turn_workshop_with_dance_word_into_stage(self):
+        category = categorize_event("Tanz", "Linedance-Schnupperworkshops Donnerstags", "")
+
+        self.assertEqual(category["key"], "workshop")
+
 
 if __name__ == "__main__":
     unittest.main()
