@@ -60,6 +60,8 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(meta_payload["events"][0]["title"], "Concert")
         self.assertEqual(meta_payload["events"][0]["category_key"], "concert")
         self.assertEqual(meta_payload["events"][0]["category_label"], "Konzert")
+        self.assertGreater(meta_payload["events"][0]["category_confidence"], 0)
+        self.assertIn("concert", meta_payload["events"][0]["category_reason"])
         self.assertGreaterEqual(len(meta_payload["categories"]), 12)
         self.assertIn({"key": "concert", "label": "Konzert"}, meta_payload["categories"])
         self.assertEqual(meta_payload["event_count"], 1)

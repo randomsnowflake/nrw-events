@@ -427,6 +427,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "category": category,
         "category_key": canonical_category["key"],
         "category_label": canonical_category["label"],
+        "category_confidence": canonical_category.get("confidence", 0),
+        "category_reason": canonical_category.get("reason", ""),
     }
     return None if is_junk_event(ev) else ev
 

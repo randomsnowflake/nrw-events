@@ -46,8 +46,6 @@ def _load_env_file() -> None:
 
 
 def _with_canonical_category(event: dict) -> dict:
-    if event.get("category_key") and event.get("category_label"):
-        return event
     canonical = categorize_event(
         event.get("category", ""),
         event.get("title", ""),
@@ -55,8 +53,10 @@ def _with_canonical_category(event: dict) -> dict:
     )
     return {
         **event,
-        "category_key": canonical["key"],
-        "category_label": canonical["label"],
+        "category_key": event.get("category_key") or canonical["key"],
+        "category_label": event.get("category_label") or canonical["label"],
+        "category_confidence": event.get("category_confidence", canonical.get("confidence", 0)),
+        "category_reason": event.get("category_reason", canonical.get("reason", "")),
     }
 
 
