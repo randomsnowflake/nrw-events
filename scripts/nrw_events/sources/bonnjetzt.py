@@ -48,7 +48,7 @@ def fetch() -> list:
 
             tag_text = ' '.join(unescape(t).strip() for t in tags)
             full_text = f"{title} {venue} {address} {tag_text}"
-            events.append({
+            event = {
                 "title": title, "date": start_raw, "time": start_text,
                 "venue": venue, "city": city.title() if city else "Bonn",
                 "description": tag_text, "price": "",
@@ -56,7 +56,10 @@ def fetch() -> list:
                 "distance_km": round(km, 1),
                 "score": round(common.distance_score(km) * common.category_score(full_text), 2),
                 "source": source, "category": ", ".join(tags[:3]),
-            })
+            }
+            if common.is_junk_event(event):
+                continue
+            events.append(event)
         return events
     except Exception as e:
         common.log_source_error(source, e)

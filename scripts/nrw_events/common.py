@@ -473,6 +473,9 @@ def is_junk_event(ev: dict) -> bool:
     if any(bit in link for bit in junk_link_bits):
         return True
 
+    if "grüne jugend" in text or "gruene jugend" in text:
+        return True
+
     regular_low_value_bits = {
         # Recurring basic markets are useful civic infrastructure, not a
         # destination-worthy event for this report. Keep explicit flea/special
