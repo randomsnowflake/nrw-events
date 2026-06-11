@@ -189,6 +189,21 @@ END:VCALENDAR
 
         self.assertIsNone(event)
 
+    def test_make_event_keeps_special_markets_that_mention_wochenmarkt(self):
+        event = common.make_event(
+            "Wochenmarkt-Spezial: Feierabendmarkt und Flohmarkt",
+            datetime(2026, 6, 12, 18),
+            datetime(2026, 6, 12, 22),
+            "Marktplatz",
+            "Bonn",
+            "Spezialmarkt mit Live-Musik nach dem regulären Wochenmarkt",
+            "https://www.bonn.de/veranstaltungen/feierabendmarkt-flohmarkt.php",
+            "Bonn.de",
+            "markt wochenmarkt flohmarkt",
+        )
+
+        self.assertIsNotNone(event)
+
     def test_bad_muenstereifel_skips_broad_recurring_listing_ranges(self):
         html = """
         <div class="veranst_singleItem clearfix">

@@ -477,7 +477,13 @@ def is_junk_event(ev: dict) -> bool:
         # markets covered by the normal market/festival signals.
         "wochenmarkt",
     }
-    if any(bit in text for bit in regular_low_value_bits):
+    destination_market_bits = {
+        "antikmarkt", "feierabendmarkt", "festival", "flohmarkt", "jahrmarkt",
+        "kirmes", "kunstmarkt", "spezialmarkt", "stadtteilfest", "strassenfest",
+        "straßenfest", "street food", "trödelmarkt", "troedelmarkt", "weihnachtsmarkt",
+    }
+    if (any(bit in text for bit in regular_low_value_bits)
+            and not any(bit in text for bit in destination_market_bits)):
         return True
 
     generic_low_value_bits = {
