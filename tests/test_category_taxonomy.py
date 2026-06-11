@@ -53,6 +53,15 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
         self.assertEqual(category["key"], "other")
 
+    def test_generic_source_hint_with_many_categories_does_not_overpower_specific_page_context(self):
+        category = categorize_event(
+            "kommunal kultur markt ausstellung konzert führung",
+            "New Perspectives in der Sammlung",
+            "Frauke Dannert im Max Ernst Museum",
+        )
+
+        self.assertEqual(category["key"], "exhibition")
+
 
 if __name__ == "__main__":
     unittest.main()
