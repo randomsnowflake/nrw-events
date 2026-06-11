@@ -195,6 +195,27 @@ END:VCALENDAR
 
         self.assertEqual(events, [])
 
+    def test_bonnjetzt_keeps_multiday_events_that_end_in_window(self):
+        html = """
+<article itemtype="https://schema.org/Event">
+  <a href="/event/bonner-sommer-ausstellung" itemprop="url">
+    <h2 class="title p-name">Bonner Sommer Ausstellung</h2>
+  </a>
+  <time datetime="2026-06-01" itemprop="startDate">Mo., 1. Juni</time>
+  <time itemprop="endDate" content="2026-06-12T20:00:00"></time>
+  <span itemprop="name">Kunsthaus Bonn</span>
+  <div itemprop="address">Bonn</div>
+  <span class="v-chip__content">Ausstellung</span>
+  <span class="v-chip__content">Kultur</span>
+</article>
+"""
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+            events = bonnjetzt.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertFalse(common.is_junk_event(events[0]))
+
     def test_make_event_skips_regular_wochenmarkt_entries(self):
         event = common.make_event(
             "Wochenmarkt in Bonn-Duisdorf",

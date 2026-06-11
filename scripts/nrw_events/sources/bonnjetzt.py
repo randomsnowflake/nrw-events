@@ -48,8 +48,16 @@ def fetch() -> list:
 
             tag_text = ' '.join(unescape(t).strip() for t in tags)
             full_text = f"{title} {venue} {address} {tag_text}"
+            start_dt = common.parse_date(start_raw)
+            end_dt = common.parse_date(end_raw)
+            date_text = start_raw
+            if start_dt and end_dt and start_dt.date() != end_dt.date():
+                if start_dt < common.TODAY <= end_dt:
+                    date_text = f"ongoing until {end_dt.strftime('%Y-%m-%d')}"
+                else:
+                    date_text = f"{start_dt.strftime('%Y-%m-%d')}–{end_dt.strftime('%Y-%m-%d')}"
             event = {
-                "title": title, "date": start_raw, "time": start_text,
+                "title": title, "date": date_text, "time": start_text,
                 "venue": venue, "city": city.title() if city else "Bonn",
                 "description": tag_text, "price": "",
                 "link": f"https://bonn.jetzt{link_match.group(1)}" if link_match else "https://bonn.jetzt/",
