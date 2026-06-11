@@ -17,6 +17,11 @@ class Category(TypedDict):
     label: str
 
 
+class CategoryResult(Category, total=False):
+    confidence: float
+    reason: str
+
+
 @dataclass(frozen=True)
 class Keyword:
     value: str
@@ -59,29 +64,32 @@ def title_only(value: str) -> Keyword:
     return Keyword(value=value, title_only=True)
 
 
+# The priority only breaks equal scores. More specific commercial/category intent
+# should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
+# is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
+    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "kunstmarkt", "spezialmarkt", title_only("markt"))),
+    Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "wein", "wine", "winzer", "weinprobe", "weinfest", "bier", "tasting")),
     Rule(
         "kids",
-        13,
+        12,
         (
-            "kinder", "kinderbuch", "kinderbücher", "kids", "familie", "family", "jugend",
+            "kinder", "kids", "familie", "family", "jugend",
             "mitmach", "märchen", "maerchen", "puppentheater", "kasper", "vorlesen",
             "bambini", "krabbel", "ferienprogramm", "lego", "zauberwürfel", "zauberwuerfel",
             "storytime", "dino",
         ),
     ),
-    Rule("workshop", 12, ("workshop", "werkstatt", "kurs", "seminar", "training", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik")),
-    Rule("talk", 11, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "symposium", "podium", "bildung", "informationsveranstaltung", "chatgpt", "canva", "digital", "3d-druck", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
-    Rule("sports", 10, ("sport", "lauf", "rennen", "marathon", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "klettern", "schwimmen")),
-    Rule("cinema", 9, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
-    Rule("concert", 8, ("konzert", "concert", "musik", "music", "songkick", "jazz", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", word("chor"), word("band"), word("live"))),
-    Rule("nightlife", 7, ("techno", "electronic", "elektro", "party", "club", "dj", "nightlife", "rave", "disco", "beats", "lounge")),
-    Rule("stage", 6, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "tanz", "dance", "musical", "show", "improtheater", word("oper"), word("stage"), word("slam"))),
-    Rule("exhibition", 5, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "vernissage", "atelier", "installation", word("art"))),
-    Rule("food", 4, ("street food", "foodtruck", "kulinar", "genuss", "wein", "wine", "winzer", "weinprobe", "weinfest", "bier", "tasting")),
-    Rule("market", 3, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "kunstmarkt", "spezialmarkt", title_only("markt"))),
+    Rule("workshop", 11, ("workshop", "werkstatt", "kurs", "seminar", "training", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik")),
+    Rule("talk", 10, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "symposium", "podium", "bildung", "informationsveranstaltung", "chatgpt", "canva", "digital", "3d-druck", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
+    Rule("sports", 9, (word("sport"), "sportveranstaltung", "lauf", "joggen", "running", "rennen", "marathon", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen")),
+    Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
+    Rule("concert", 7, ("konzert", "concert", "musik", "music", "songkick", "jazz", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", word("chor"), word("band"), word("live"))),
+    Rule("nightlife", 6, ("techno", "electronic", "elektro", "party", "club", "dj", "nightlife", "rave", "disco", "beats", "lounge")),
+    Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "tanz", "dance", "musical", "show", "improtheater", word("oper"), word("stage"), word("slam"))),
+    Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "vernissage", "atelier", "installation", word("art"))),
     Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "führung", "fuehrung", "tour", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", "garten", "exkursion", "ausflug", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga")),
-    Rule("festival", 1, ("fest", "kirmes", "kerb", "meile", "public viewing", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
+    Rule("festival", 1, ("fest", "festival", "kirmes", "kerb", "meile", "public viewing", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
 )
 
 _NON_WORD = r"[^\wäöüÄÖÜß]"
@@ -116,7 +124,15 @@ def _has_hit(text: str, keywords: Iterable[str | Keyword]) -> bool:
     return any(_matches(text, keyword, is_title=False) for keyword in keywords)
 
 
-def categorize_event(source_category: str, title: str, description: str = "") -> Category:
+def _matched_values(text: str, keywords: Iterable[str | Keyword], *, is_title: bool) -> list[str]:
+    values: list[str] = []
+    for keyword in keywords:
+        if _matches(text, keyword, is_title=is_title):
+            values.append(keyword if isinstance(keyword, str) else keyword.value)
+    return values
+
+
+def categorize_event(source_category: str, title: str, description: str = "") -> CategoryResult:
     """Return the canonical category for an event.
 
     Titles are the strongest signal, descriptions are moderate, and source
@@ -131,15 +147,33 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
     best_key = "other"
     best_score = 0
     best_priority = -1
+    best_reason = "other:no-match"
     for rule in RULES:
-        score = 3 * _count_hits(title_text, rule.keywords, is_title=True)
-        score += 2 * _count_hits(description_text, rule.keywords, is_title=False)
-        score += 1 if _has_hit(hint_text, rule.keywords) else 0
+        title_matches = _matched_values(title_text, rule.keywords, is_title=True)
+        description_matches = _matched_values(description_text, rule.keywords, is_title=False)
+        hint_matches = _matched_values(hint_text, rule.keywords, is_title=False)
+        score = 3 * len(title_matches)
+        score += 2 * len(description_matches)
+        score += 1 if hint_matches else 0
         if score == 0:
             continue
         if score > best_score or (score == best_score and rule.priority > best_priority):
             best_key = rule.key
             best_score = score
             best_priority = rule.priority
+            bits = []
+            if title_matches:
+                bits.append("title=" + ",".join(title_matches[:3]))
+            if description_matches:
+                bits.append("description=" + ",".join(description_matches[:3]))
+            if hint_matches:
+                bits.append("source_category=" + ",".join(hint_matches[:3]))
+            best_reason = f"{rule.key}:" + ";".join(bits)
 
-    return CATEGORY_BY_KEY[best_key]
+    category = CATEGORY_BY_KEY[best_key]
+    return {
+        "key": category["key"],
+        "label": category["label"],
+        "confidence": round(min(1.0, best_score / 6), 2),
+        "reason": best_reason,
+    }

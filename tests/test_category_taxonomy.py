@@ -16,7 +16,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
         cases = [
             ("", "Techno Party im Club", "", "nightlife"),
             ("", "Wochenmarkt Münsterplatz", "", "market"),
-            ("", "Street Food Festival", "", "food"),
+            ("", "Streetfood-Festival in Eitorf", "", "food"),
             ("", "Open-Air Kino Rheinaue", "", "cinema"),
             ("", "Rennradeln nach Feierabend", "", "sports"),
             ("", "Keramik-Workshop", "", "workshop"),
@@ -27,6 +27,26 @@ class CategoryTaxonomyTests(unittest.TestCase):
         for source_category, title, description, expected in cases:
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
+    def test_known_bonn_fixture_regressions_use_specific_intent_before_broad_family_or_stage_terms(self):
+        cases = [
+            ("Märkte/Messen", "Kinderbücher-Flohmarkt", "", "market"),
+            ("", "Linedance-Schnupperworkshops Donnerstags", "", "workshop"),
+            ("", "Offener Theaterworkshop", "", "workshop"),
+            ("", "Running City Tours - Joggen & Sightseeing verbinden", "", "sports"),
+            ("", "Public Viewing Fußball Weltmeisterschaft 2026", "", "festival"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
+    def test_category_result_exposes_debug_reason_and_confidence(self):
+        result = categorize_event("Märkte/Messen", "Kinderbücher-Flohmarkt", "")
+
+        self.assertEqual(result["key"], "market")
+        self.assertGreater(result["confidence"], 0)
+        self.assertIn("market", result["reason"])
 
     def test_title_only_keywords_do_not_match_descriptions(self):
         category = categorize_event("", "Unklare Veranstaltung", "Treffpunkt am Markt")
