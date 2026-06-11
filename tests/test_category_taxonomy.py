@@ -28,6 +28,11 @@ class CategoryTaxonomyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
+    def test_title_only_keywords_do_not_match_descriptions(self):
+        category = categorize_event("", "Unklare Veranstaltung", "Treffpunkt am Markt")
+
+        self.assertEqual(category["key"], "other")
+
 
 if __name__ == "__main__":
     unittest.main()

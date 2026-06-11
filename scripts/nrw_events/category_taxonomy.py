@@ -108,8 +108,8 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
     return keyword.value in text
 
 
-def _count_hits(text: str, keywords: Iterable[str | Keyword]) -> int:
-    return sum(1 for keyword in keywords if _matches(text, keyword, is_title=True))
+def _count_hits(text: str, keywords: Iterable[str | Keyword], *, is_title: bool) -> int:
+    return sum(1 for keyword in keywords if _matches(text, keyword, is_title=is_title))
 
 
 def _has_hit(text: str, keywords: Iterable[str | Keyword]) -> bool:
@@ -132,8 +132,8 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
     best_score = 0
     best_priority = -1
     for rule in RULES:
-        score = 3 * _count_hits(title_text, rule.keywords)
-        score += 2 * _count_hits(description_text, rule.keywords)
+        score = 3 * _count_hits(title_text, rule.keywords, is_title=True)
+        score += 2 * _count_hits(description_text, rule.keywords, is_title=False)
         score += 1 if _has_hit(hint_text, rule.keywords) else 0
         if score == 0:
             continue
