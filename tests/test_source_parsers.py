@@ -288,13 +288,13 @@ END:VCALENDAR
 
     def test_make_event_keeps_actual_political_culture_events(self):
         event = common.make_event(
-            "Kabarett zur Kommunalwahl",
+            "Kabarett zur Kommunalwahl und Ratssitzung",
             datetime(2026, 6, 12, 20),
             datetime(2026, 6, 12, 22),
             "Pantheon",
             "Bonn",
-            "Satirischer Bühnenabend mit Musik",
-            "https://www.pantheon.de/event/kabarett-kommunalwahl",
+            "Satirischer Bühnenabend über Fraktion und Ausschuss mit Musik",
+            "https://www.pantheon.de/event/kabarett-kommunalwahl-ratssitzung",
             "Pantheon",
             "Kabarett Theater",
         )

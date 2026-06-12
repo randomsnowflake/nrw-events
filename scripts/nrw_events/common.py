@@ -486,13 +486,15 @@ def is_junk_event(ev: dict) -> bool:
         "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
         "seniorengymnastik", "offener treff",
     }
-    if any(bit in text for bit in routine_or_political_bits):
+    cultural_event_bits = {
+        "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt", "lesung", "live-musik",
+        "markt", "theater", "vernissage",
+    }
+    if (any(bit in text for bit in routine_or_political_bits)
+            and not any(bit in text for bit in cultural_event_bits)):
         return True
     if any(bit in text for bit in routine_phrase_bits) and not any(
-        bit in text for bit in [
-            "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt", "lesung", "live-musik",
-            "markt", "theater", "vernissage",
-        ]
+        bit in text for bit in cultural_event_bits
     ):
         return True
 
