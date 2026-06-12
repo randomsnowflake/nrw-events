@@ -284,6 +284,33 @@ def normalize_url(url: str) -> str:
     return urllib.parse.urlunsplit((parts.scheme, f"{userinfo}{host}{port}", parts.path, parts.query, parts.fragment))
 
 
+def is_raw_api_url(url: str) -> bool:
+    """True when an event link points to machine data rather than a human page."""
+    parts = urllib.parse.urlsplit(url or "")
+    path = (parts.path or "").lower()
+    query = (parts.query or "").lower()
+    if path.endswith((".json", ".xml")):
+        return True
+    if "/api/" in path or path.startswith("/api"):
+        return True
+    if path in {"", "/"} and query and any(bit in query for bit in ("format=json", "output=json", "type=json", "eventid=")):
+        return True
+    return False
+
+
+def normalize_venue_name(value: str) -> str:
+    """Clean venue text and fix obvious casing/known town typos."""
+    cleaned = clean_html(value)[:120]
+    if cleaned and cleaned == cleaned.lower():
+        cleaned = cleaned.title()
+    replacements = {
+        "remagen": "Remagen",
+    }
+    for wrong, right in replacements.items():
+        cleaned = re.sub(rf"\b{re.escape(wrong)}\b", right, cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
 # ── Date parsing ────────────────────────────────────────────────────
 
 def parse_iso_date(text: str) -> Optional[datetime]:
@@ -468,15 +495,18 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     time_text = sanitize_time_text(time_text)
     full_text = f"{title} {venue} {city} {description} {category}"
     canonical_category = category_taxonomy.categorize_event(category, title, f"{description} {link}")
+    event_link = normalize_url(link)
+    if is_raw_api_url(event_link):
+        event_link = ""
     ev = {
         "title": clean_html(title),
         "date": date_text,
         "time": time_text,
-        "venue": clean_html(venue)[:120],
+        "venue": normalize_venue_name(venue),
         "city": clean_html(city).title(),
         "description": clean_html(description),
         "price": "",
-        "link": normalize_url(link),
+        "link": event_link,
         "distance_km": round(km, 1),
         "score": round(distance_score(km) * category_score(full_text) * trust, 2),
         "source": source,
