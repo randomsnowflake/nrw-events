@@ -64,6 +64,14 @@ def title_only(value: str) -> Keyword:
     return Keyword(value=value, title_only=True)
 
 
+FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # Public health / expert livestream formats tend to carry generic source
+    # bags like "Kultur Konzert". The title is the useful signal here: it is a
+    # talk, not a concert just because it contains "live".
+    ("talk", ("livetalk", "live-talk")),
+)
+
+
 # The priority only breaks equal scores. More specific commercial/category intent
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
@@ -143,6 +151,17 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
     title_text = normalize_text(title)
     hint_text = normalize_text(source_category)
     description_text = normalize_text(description)
+
+    combined_text = f"{title_text} {description_text} {hint_text}"
+    for forced_key, needles in FORCED_CATEGORY_RULES:
+        if any(needle in combined_text for needle in needles):
+            category = CATEGORY_BY_KEY[forced_key]
+            return {
+                "key": category["key"],
+                "label": category["label"],
+                "confidence": 1.0,
+                "reason": f"forced:{forced_key}",
+            }
 
     best_key = "other"
     best_score = 0

@@ -67,6 +67,17 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
         self.assertEqual(category["key"], "workshop")
 
+    def test_livetalk_is_forced_to_talk_not_concert(self):
+        category = categorize_event(
+            "kommunal kultur konzert",
+            "Livetalk: Arthrose – was hilft wirklich?",
+            "Live aus der Klinik mit Expertengespräch",
+        )
+
+        self.assertEqual(category["key"], "talk")
+        self.assertEqual(category.get("confidence"), 1.0)
+        self.assertEqual(category.get("reason"), "forced:talk")
+
 
 if __name__ == "__main__":
     unittest.main()

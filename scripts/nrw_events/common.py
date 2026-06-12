@@ -590,10 +590,22 @@ def is_junk_event(ev: dict) -> bool:
     if has_cancelled_status(ev.get("title") or "", ev.get("description") or ""):
         return True
 
+    hard_block_bits = {
+        # Static attraction pages and routine social meetups kept leaking from
+        # municipal calendars as if they were one-off events. These are not
+        # useful destination listings for veranstaltungen-bonn.de.
+        "phantasialand",
+        "phantasia land",
+        "phantasia-land",
+        "stammtisch",
+    }
+    if any(bit in text for bit in hard_block_bits):
+        return True
+
     routine_or_political_bits = {
         "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
         "fraktion", "ratssitzung", "ratsinformationssystem", "seniorenbeirat",
-        "seniorenvertretung", "sitzung", "sprechstunde", "sprechtag", "stammtisch",
+        "seniorenvertretung", "sitzung", "sprechstunde", "sprechtag",
         "stadtverordnete", "tagesordnung",
     }
     routine_phrase_bits = {

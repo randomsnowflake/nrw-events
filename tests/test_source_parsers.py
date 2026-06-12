@@ -354,6 +354,39 @@ END:VCALENDAR
                 self.assertIsNotNone(event)
                 self.assertEqual(event and event["link"], "")
 
+    def test_make_event_hard_blocks_static_attraction_and_stammtisch_noise(self):
+        cases = [
+            (
+                "Phantasialand Brühl",
+                "Brühl",
+                "Freizeitpark-Seite aus dem kommunalen Kalender",
+                "https://www.bruehl.de/veranstaltungskalender/veranstaltungen/hauptkalender/phantasialand-bruehl.php",
+                "kommunal kultur markt ausstellung konzert führung",
+            ),
+            (
+                "Inklusiver Stammtisch",
+                "Bonn",
+                "Offener Treff ohne Kulturprogramm",
+                "https://example.org/events/inklusiver-stammtisch",
+                "Soziales Treffpunkt",
+            ),
+        ]
+
+        for title, venue, description, link, category in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title,
+                    datetime(2026, 6, 12, 18),
+                    datetime(2026, 6, 12, 20),
+                    venue,
+                    "Bonn",
+                    description,
+                    link,
+                    "SiteKit regional",
+                    category,
+                )
+                self.assertIsNone(event)
+
     def test_make_event_skips_cancelled_or_postponed_events(self):
         cases = [
             ("-ABGESAGT- Jazzabend im Pantheon", "Heute leider abgesagt"),
