@@ -354,6 +354,50 @@ END:VCALENDAR
                 self.assertIsNotNone(event)
                 self.assertEqual(event and event["link"], "")
 
+    def test_make_event_skips_cancelled_or_postponed_events(self):
+        cases = [
+            ("-ABGESAGT- Jazzabend im Pantheon", "Heute leider abgesagt"),
+            ("Konzert im Park", "Die Veranstaltung entfällt krankheitsbedingt."),
+            ("Lesung mit Autorin", "Der Termin fällt aus und wird nachgeholt."),
+            ("Theaterabend verschoben", "Neuer Termin folgt"),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title,
+                    datetime(2026, 6, 12, 20),
+                    datetime(2026, 6, 12, 22),
+                    "Pantheon",
+                    "Bonn",
+                    description,
+                    "https://www.pantheon.de/event/jazzabend",
+                    "Pantheon",
+                    "Konzert Kultur",
+                )
+                self.assertIsNone(event)
+
+    def test_make_event_keeps_live_events_with_non_status_cancel_words(self):
+        cases = [
+            ("Ausstellung: Abgesagte Pläne der Stadtgeschichte", "Historische Ausstellung."),
+            ("Performance: Fällt aus dem Rahmen", "Der Eintritt entfällt für Mitglieder."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title,
+                    datetime(2026, 6, 12, 18),
+                    datetime(2026, 6, 12, 20),
+                    "Stadtmuseum",
+                    "Bonn",
+                    description,
+                    "https://stadtmuseum.example/events/ausstellung",
+                    "Stadtmuseum",
+                    "Ausstellung",
+                )
+                self.assertIsNotNone(event)
+
     def test_make_event_normalizes_known_venue_casing(self):
         event = common.make_event(
             "Sommerkonzert",

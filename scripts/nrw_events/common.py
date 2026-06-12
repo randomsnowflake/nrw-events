@@ -311,6 +311,31 @@ def normalize_venue_name(value: str) -> str:
     return cleaned
 
 
+_CANCELLED_STATUS_WORDS = r"abgesagt|entfällt|entfaellt|fällt\s+aus|faellt\s+aus|verschoben"
+_CANCELLED_STATUS_SUBJECTS = (
+    r"veranstaltung|termin|event|konzert|lesung|theaterabend|show|kurs|workshop|"
+    r"führung|fuehrung|rundgang"
+)
+_CANCELLED_TITLE_PATTERN = re.compile(
+    rf"^\s*[-–—:()]*\s*(?:{_CANCELLED_STATUS_WORDS})\b"
+    rf"|\b(?:{_CANCELLED_STATUS_WORDS})\b\s*[-–—:()]*$",
+    re.IGNORECASE,
+)
+_CANCELLED_CONTEXT_PATTERN = re.compile(
+    rf"\b(?:{_CANCELLED_STATUS_SUBJECTS})\b[^\n.!?]{{0,80}}\b(?:{_CANCELLED_STATUS_WORDS})\b"
+    rf"|\b(?:{_CANCELLED_STATUS_WORDS})\b[^\n.!?]{{0,80}}\b(?:krankheitsbedingt|neuer\s+termin|nachgeholt)\b",
+    re.IGNORECASE,
+)
+
+
+def has_cancelled_status(title: str, description: str) -> bool:
+    """True when text marks this event as cancelled/postponed."""
+    return bool(
+        _CANCELLED_TITLE_PATTERN.search(title or "")
+        or _CANCELLED_CONTEXT_PATTERN.search(description or "")
+    )
+
+
 # ── Date parsing ────────────────────────────────────────────────────
 
 def parse_iso_date(text: str) -> Optional[datetime]:
@@ -560,6 +585,9 @@ def is_junk_event(ev: dict) -> bool:
         return True
 
     if "grüne jugend" in text or "gruene jugend" in text:
+        return True
+
+    if has_cancelled_status(ev.get("title") or "", ev.get("description") or ""):
         return True
 
     routine_or_political_bits = {
