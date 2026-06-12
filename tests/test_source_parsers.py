@@ -331,6 +331,46 @@ END:VCALENDAR
                 self.assertIsNotNone(event)
                 self.assertEqual(event and event["time"], expected)
 
+    def test_make_event_suppresses_raw_api_outbound_links(self):
+        links = [
+            "https://example.org/events.json",
+            "https://example.org/api/events/123",
+            "https://example.org/?eventId=123&format=json",
+        ]
+
+        for link in links:
+            with self.subTest(link=link):
+                event = common.make_event(
+                    "Jazzsommer Bonn",
+                    datetime(2026, 6, 12, 20),
+                    datetime(2026, 6, 12, 22),
+                    "Pantheon",
+                    "Bonn",
+                    "Live-Musik",
+                    link,
+                    "Test",
+                    "Konzert",
+                )
+                self.assertIsNotNone(event)
+                self.assertEqual(event and event["link"], "")
+
+    def test_make_event_normalizes_known_venue_casing(self):
+        event = common.make_event(
+            "Sommerkonzert",
+            datetime(2026, 6, 12, 20),
+            datetime(2026, 6, 12, 22),
+            "stadthalle remagen",
+            "remagen",
+            "Live-Musik",
+            "https://example.org/events/sommerkonzert",
+            "Test",
+            "Konzert",
+        )
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event and event["venue"], "Stadthalle Remagen")
+        self.assertEqual(event and event["city"], "Remagen")
+
     def test_bad_muenstereifel_skips_broad_recurring_listing_ranges(self):
         html = """
         <div class="veranst_singleItem clearfix">
