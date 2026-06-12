@@ -69,6 +69,26 @@ FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # bags like "Kultur Konzert". The title is the useful signal here: it is a
     # talk, not a concert just because it contains "live".
     ("talk", ("livetalk", "live-talk")),
+    # Walking/listening formats are tours even when a place name contains
+    # "markt" (e.g. Cologne's Waidmarkt) or the source uses a broad culture bag.
+    ("outdoor", ("soundwalk",)),
+    # Basic movement/gymnastics terms should not be mistaken for talks
+    # ("Rückbildung") or exhibitions (English "art" inside German prose).
+    ("sports", ("gymnastik", "pilates", "hatha yoga")),
+    # Meetups around vehicles are destination-style local gatherings, but not
+    # concerts just because the description mentions live music later in the day.
+    ("festival", ("biker-treffen", "fiat-treffen")),
+)
+
+LOW_VALUE_TITLE_CONTEXT = (
+    "treff", "frühstück", "fruehstueck", "senioren", "cafe", "café",
+    "sprachkurs", "deutschkurs", "english club", "sprechstunde", "beratung",
+)
+
+DESTINATION_TITLE_CONTEXT = (
+    "festival", "flohmarkt", "konzert", "theater", "kino", "ausstellung", "vernissage",
+    "führung", "fuehrung", "tour", "soundwalk", "tag der offenen tür", "tag der offenen tuer",
+    "repair café", "repair cafe", "biker-treffen",
 )
 
 
@@ -76,7 +96,7 @@ FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "kunstmarkt", "spezialmarkt", title_only("markt"))),
+    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "kunstmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", Keyword("markt", title_only=True, word=True))),
     Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "wein", "wine", "winzer", "weinprobe", "weinfest", "bier", "tasting")),
     Rule(
         "kids",
@@ -85,18 +105,18 @@ RULES: tuple[Rule, ...] = (
             "kinder", "kids", "familie", "family", "jugend",
             "mitmach", "märchen", "maerchen", "puppentheater", "kasper", "vorlesen",
             "bambini", "krabbel", "ferienprogramm", "lego", "zauberwürfel", "zauberwuerfel",
-            "storytime", "dino",
+            "storytime", word("dino"),
         ),
     ),
     Rule("workshop", 11, ("workshop", "werkstatt", "kurs", "seminar", "training", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik")),
-    Rule("talk", 10, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "symposium", "podium", "bildung", "informationsveranstaltung", "chatgpt", "canva", "digital", "3d-druck", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
-    Rule("sports", 9, (word("sport"), "sportveranstaltung", "lauf", "joggen", "running", "rennen", "marathon", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen")),
+    Rule("talk", 10, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "symposium", "podium", word("bildung"), "informationsveranstaltung", "chatgpt", "canva", "digital", "3d-druck", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
+    Rule("sports", 9, (word("sport"), "sportveranstaltung", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen")),
     Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
-    Rule("concert", 7, ("konzert", "concert", "musik", "music", "songkick", "jazz", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", word("chor"), word("band"), word("live"))),
-    Rule("nightlife", 6, ("techno", "electronic", "elektro", "party", "club", "dj", "nightlife", "rave", "disco", "beats", "lounge")),
+    Rule("concert", 7, ("konzert", "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "musik", "music", "songkick", "jazz", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", word("chor"), word("band"))),
+    Rule("nightlife", 6, ("techno", "electronic", "elektro", "party", "clubnacht", "clubabend", "club party", "dj", "nightlife", "rave", "disco", "beats", "lounge")),
     Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "tanz", "dance", "musical", "show", "improtheater", word("oper"), word("stage"), word("slam"))),
-    Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "vernissage", "atelier", "installation", word("art"))),
-    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "führung", "fuehrung", "tour", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", "garten", "exkursion", "ausflug", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga")),
+    Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "vernissage", "atelier", "installation")),
+    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "führung", "fuehrung", "tour", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", "garten", "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga")),
     Rule("festival", 1, ("fest", "festival", "kirmes", "kerb", "meile", "public viewing", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
 )
 
@@ -151,6 +171,13 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
     title_text = normalize_text(title)
     hint_text = normalize_text(source_category)
     description_text = normalize_text(description)
+
+    if (any(bit in title_text for bit in LOW_VALUE_TITLE_CONTEXT)
+            and not any(bit in title_text for bit in DESTINATION_TITLE_CONTEXT)):
+        # Municipal sources often attach broad all-purpose category bags like
+        # "Kultur Konzert" to routine meetups/courses. For those low-value title
+        # shapes, only classify from the actual title/description.
+        hint_text = ""
 
     combined_text = f"{title_text} {description_text} {hint_text}"
     for forced_key, needles in FORCED_CATEGORY_RULES:

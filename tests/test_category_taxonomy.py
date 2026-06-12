@@ -78,6 +78,25 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertEqual(category.get("confidence"), 1.0)
         self.assertEqual(category.get("reason"), "forced:talk")
 
+    def test_current_classifier_regressions_avoid_broad_substring_traps(self):
+        cases = [
+            ("konzert", 'Handarbeitstreff "Em Ahle Kluster"', "", "other"),
+            ("konzert", 'Frühstückszeit "Em Ahle Kluster"', "", "other"),
+            ("", "Künstlerische Intervention: Mapping Waidmarkt – Soundwalk", "", "outdoor"),
+            ("", "NEU! Die sanfte Art sich zu bewegen: Gymnastik mal tänzerisch!", "", "sports"),
+            ("", "Rückbildungsgymnastik mit Babybetreuung", "", "sports"),
+            ("", "English Club am Vormittag B1-B2", "", "other"),
+            ("kommunal kultur konzert", "Livetalk: Arthrose der großen Gelenke", "Live aus der Klinik", "talk"),
+            ("", "52. Jazz für Ohr und Gaumen: Andino Project", "", "concert"),
+            ("", "TruckScout24 EHF FINAL4", "europäisches Spitzenhandball", "sports"),
+            ("", "Hohes Venn 463", "Treffpunkt Himmeroder Wall", "outdoor"),
+            ("", "18. Biker-Treffen der Biker in der Bundespolizei Sankt Augustin", "Live Musik am Abend", "festival"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
 
 if __name__ == "__main__":
     unittest.main()

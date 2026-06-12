@@ -604,17 +604,24 @@ def is_junk_event(ev: dict) -> bool:
 
     routine_or_political_bits = {
         "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
-        "fraktion", "ratssitzung", "ratsinformationssystem", "seniorenbeirat",
-        "seniorenvertretung", "sitzung", "sprechstunde", "sprechtag",
-        "stadtverordnete", "tagesordnung",
+        "fraktion", "infostand", "kreistag", "mitgliederversammlung", "ortsbeirat", "parteitag",
+        "ratssitzung", "ratsinformationssystem", "seniorenbeirat", "seniorenvertretung", "sitzung",
+        "sprechstunde", "sprechtag", "stadtrat", "stadtverordnete", "tagesordnung",
+        "wahlkampf", "wahlstand",
     }
     routine_phrase_bits = {
         "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
-        "seniorengymnastik", "offener treff",
+        "frauentreff", "handarbeitstreff", "frühstückstreff", "fruehstueckstreff", "frühstückszeit",
+        "fruehstueckszeit", "frauenfrühstück", "frauenfruehstueck", "häkel-treff", "haekel-treff", "kindertreff", "offener treff",
+        "offener puzzle-treff", "offenes ohr", "klaaferei", "seniorencafe", "seniorencafé",
+        "seniorennachmittag", "seniorengymnastik", "spielezeit", "stricken und klönen",
+        "stricken und kloenen", "treffen der bad honnefer funkamateure",
+        "treffen pflegender angehöriger", "treffen pflegender angehoeriger",
+        "veranstaltung der senioreninformation",
     }
     cultural_event_bits = {
         "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt", "lesung", "live-musik",
-        "markt", "theater", "vernissage",
+        "theater", "vernissage", "tag der offenen tür", "tag der offenen tuer",
     }
     if (any(bit in text for bit in routine_or_political_bits)
             and not any(bit in text for bit in cultural_event_bits)):
@@ -642,6 +649,10 @@ def is_junk_event(ev: dict) -> bool:
     generic_low_value_bits = {
         "fortgeschrittene", "sprachkurs", "italienisch", "französisch", "englischkurs",
         "yogakurs", "offene sprechstunde", "beratung", "frauen in bewegung",
+        "gedächtnistraining", "gedaechtnistraining", "deutschkurs", "pilates-training",
+        "sitzgymnastik", "rückbildungsgymnastik", "rueckbildungsgymnastik",
+        "wirbelsäulengymnastik", "wirbelsaeulengymnastik", "patientenveranstaltung",
+        "english club am vormittag", "gymnastik mal", "yoga mit kleinkindern",
     }
     if any(bit in text for bit in generic_low_value_bits):
         return True
