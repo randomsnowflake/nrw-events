@@ -476,6 +476,26 @@ def is_junk_event(ev: dict) -> bool:
     if "grüne jugend" in text or "gruene jugend" in text:
         return True
 
+    routine_or_political_bits = {
+        "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
+        "fraktion", "ratssitzung", "ratsinformationssystem", "seniorenbeirat",
+        "seniorenvertretung", "sitzung", "sprechstunde", "sprechtag", "stammtisch",
+        "stadtverordnete", "tagesordnung",
+    }
+    routine_phrase_bits = {
+        "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
+        "seniorengymnastik", "offener treff",
+    }
+    if any(bit in text for bit in routine_or_political_bits):
+        return True
+    if any(bit in text for bit in routine_phrase_bits) and not any(
+        bit in text for bit in [
+            "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt", "lesung", "live-musik",
+            "markt", "theater", "vernissage",
+        ]
+    ):
+        return True
+
     regular_low_value_bits = {
         # Recurring basic markets are useful civic infrastructure, not a
         # destination-worthy event for this report. Keep explicit flea/special

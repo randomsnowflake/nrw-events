@@ -246,6 +246,61 @@ END:VCALENDAR
 
         self.assertIsNotNone(event)
 
+    def test_make_event_skips_routine_and_political_calendar_noise(self):
+        cases = [
+            (
+                "Sitzung des Ausschusses für Umwelt",
+                "Rathaus",
+                "Tagesordnung und politische Beratung der Stadtverordneten",
+                "https://www.bonn.de/ratsinformationssystem/sitzung.php",
+                "Politik Sitzung Ausschuss",
+            ),
+            (
+                "Sprechtag Seniorenvertretung",
+                "Stadthaus",
+                "Regelmäßige Beratung ohne Kulturprogramm",
+                "https://www.bonn.de/sprechstunde-seniorenvertretung.php",
+                "Beratung",
+            ),
+            (
+                "Seniorengymnastik im Quartier",
+                "Begegnungszentrum",
+                "Wöchentlich wiederkehrender Kurs",
+                "https://www.bonn.de/seniorengymnastik.php",
+                "Sport Kurs",
+            ),
+        ]
+
+        for title, venue, description, link, category in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title,
+                    datetime(2026, 6, 12, 10),
+                    datetime(2026, 6, 12, 11),
+                    venue,
+                    "Bonn",
+                    description,
+                    link,
+                    "Bonn.de",
+                    category,
+                )
+                self.assertIsNone(event)
+
+    def test_make_event_keeps_actual_political_culture_events(self):
+        event = common.make_event(
+            "Kabarett zur Kommunalwahl",
+            datetime(2026, 6, 12, 20),
+            datetime(2026, 6, 12, 22),
+            "Pantheon",
+            "Bonn",
+            "Satirischer Bühnenabend mit Musik",
+            "https://www.pantheon.de/event/kabarett-kommunalwahl",
+            "Pantheon",
+            "Kabarett Theater",
+        )
+
+        self.assertIsNotNone(event)
+
     def test_bad_muenstereifel_skips_broad_recurring_listing_ranges(self):
         html = """
         <div class="veranst_singleItem clearfix">
