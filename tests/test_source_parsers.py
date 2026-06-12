@@ -246,6 +246,44 @@ END:VCALENDAR
 
         self.assertIsNotNone(event)
 
+    def test_make_event_skips_cancelled_or_postponed_events(self):
+        cases = [
+            ("-ABGESAGT- Jazzabend im Pantheon", "Heute leider abgesagt"),
+            ("Konzert im Park", "Die Veranstaltung entfällt krankheitsbedingt."),
+            ("Lesung mit Autorin", "Der Termin fällt aus und wird nachgeholt."),
+            ("Theaterabend verschoben", "Neuer Termin folgt"),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title,
+                    datetime(2026, 6, 12, 20),
+                    datetime(2026, 6, 12, 22),
+                    "Pantheon",
+                    "Bonn",
+                    description,
+                    "https://www.pantheon.de/event/jazzabend",
+                    "Pantheon",
+                    "Konzert Kultur",
+                )
+                self.assertIsNone(event)
+
+    def test_make_event_keeps_live_events_that_discuss_cancelled_history(self):
+        event = common.make_event(
+            "Ausstellung: Abgesagte Pläne der Stadtgeschichte",
+            datetime(2026, 6, 12, 18),
+            datetime(2026, 6, 12, 20),
+            "Stadtmuseum",
+            "Bonn",
+            "Historische Ausstellung über verworfene Bauprojekte.",
+            "https://stadtmuseum.example/events/ausstellung",
+            "Stadtmuseum",
+            "Ausstellung",
+        )
+
+        self.assertIsNotNone(event)
+
     def test_bad_muenstereifel_skips_broad_recurring_listing_ranges(self):
         html = """
         <div class="veranst_singleItem clearfix">

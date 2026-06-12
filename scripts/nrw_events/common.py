@@ -476,6 +476,13 @@ def is_junk_event(ev: dict) -> bool:
     if "grüne jugend" in text or "gruene jugend" in text:
         return True
 
+    cancelled_status_pattern = re.compile(
+        r"(^|\b)(?:-?\s*abgesagt\s*-?|entfällt|entfaellt|fällt\s+aus|faellt\s+aus|verschoben)(\b|$)",
+        re.IGNORECASE,
+    )
+    if cancelled_status_pattern.search(f"{title} {desc}"):
+        return True
+
     regular_low_value_bits = {
         # Recurring basic markets are useful civic infrastructure, not a
         # destination-worthy event for this report. Keep explicit flea/special
