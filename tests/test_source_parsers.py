@@ -301,6 +301,36 @@ END:VCALENDAR
 
         self.assertIsNotNone(event)
 
+    def test_make_event_sanitizes_scraper_time_artifacts(self):
+        cases = [
+            (datetime(2026, 6, 12, 19, 0), datetime(2026, 6, 12, 23, 59), "", "19:00"),
+            (datetime(2026, 6, 12, 19, 0), datetime(2026, 6, 13, 0, 0), "", "19:00"),
+            (datetime(2026, 6, 12, 16, 18), datetime(2026, 6, 12, 16, 30), "", "16:15"),
+            (datetime(2026, 6, 12, 19, 31), None, "", "19:30"),
+            (datetime(2026, 6, 12, 19, 31), datetime(2026, 6, 12, 22, 30), "", "19:30–22:30"),
+            (datetime(2026, 6, 12, 20, 0), datetime(2026, 6, 12, 22, 30), "", "20:00–22:30"),
+            (None, None, "16:18 bis 16:30", "16:15"),
+            (None, None, "19:31 bis 22:30", "19:30 bis 22:30"),
+            (None, None, "19:00 bis 23:59", "19:00"),
+        ]
+
+        for start_dt, end_dt, time_text, expected in cases:
+            with self.subTest(time_text=time_text, start=start_dt, end=end_dt):
+                event = common.make_event(
+                    "Testkonzert",
+                    start_dt,
+                    end_dt,
+                    "Pantheon",
+                    "Bonn",
+                    "Live-Musik",
+                    "https://www.pantheon.de/event/testkonzert",
+                    "Pantheon",
+                    "Konzert",
+                    time_text=time_text,
+                )
+                self.assertIsNotNone(event)
+                self.assertEqual(event and event["time"], expected)
+
     def test_bad_muenstereifel_skips_broad_recurring_listing_ranges(self):
         html = """
         <div class="veranst_singleItem clearfix">

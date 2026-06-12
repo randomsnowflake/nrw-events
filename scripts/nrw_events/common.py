@@ -377,6 +377,61 @@ def in_date_range(date_str: str) -> bool:
     return TODAY <= dt <= END_DATE
 
 
+_TIME_PATTERN = re.compile(r"\b(\d{1,2}):(\d{2})\b")
+
+
+def _round_time_to_quarter(hour: int, minute: int) -> tuple[int, int]:
+    total = hour * 60 + minute
+    rounded = int(round(total / 15) * 15) % (24 * 60)
+    return divmod(rounded, 60)
+
+
+def _format_hhmm(hour: int, minute: int) -> str:
+    return f"{hour:02d}:{minute:02d}"
+
+
+def sanitize_time_text(time_text: str) -> str:
+    """Suppress common scraper time artifacts while preserving useful ranges."""
+    text = (time_text or "").strip()
+    if not text:
+        return text
+
+    matches = list(_TIME_PATTERN.finditer(text))
+    if not matches:
+        return text
+
+    parsed = [(int(match.group(1)), int(match.group(2))) for match in matches[:2]]
+    start_hour, start_minute = parsed[0]
+    if start_hour > 23 or start_minute > 59:
+        return text
+
+    rounded_start = (start_hour, start_minute)
+    has_odd_start = start_minute % 5 != 0
+    if has_odd_start:
+        rounded_start = _round_time_to_quarter(start_hour, start_minute)
+
+    if len(parsed) >= 2:
+        end_hour, end_minute = parsed[1]
+        if end_hour > 23 or end_minute > 59:
+            return _format_hhmm(*rounded_start)
+        start_total = start_hour * 60 + start_minute
+        end_total = end_hour * 60 + end_minute
+        if end_total < start_total:
+            end_total += 24 * 60
+        duration = end_total - start_total
+        if (end_hour, end_minute) in {(23, 59), (0, 0)} or duration < 20 or end_minute % 5 != 0:
+            return _format_hhmm(*rounded_start)
+        if " bis " in text:
+            separator = " bis "
+        elif "-" in text:
+            separator = "-"
+        else:
+            separator = "–"
+        return f"{_format_hhmm(*rounded_start)}{separator}{_format_hhmm(end_hour, end_minute)}"
+
+    return _format_hhmm(*rounded_start)
+
+
 # ── Event construction + junk filter ────────────────────────────────
 
 def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
@@ -410,6 +465,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         time_text = start_dt.strftime("%H:%M")
         if end_dt and (end_dt.hour or end_dt.minute):
             time_text += "–" + end_dt.strftime("%H:%M")
+    time_text = sanitize_time_text(time_text)
     full_text = f"{title} {venue} {city} {description} {category}"
     canonical_category = category_taxonomy.categorize_event(category, title, f"{description} {link}")
     ev = {
