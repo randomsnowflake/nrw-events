@@ -72,6 +72,19 @@ class JunkFilterTests(unittest.TestCase):
         self.assertTrue(common.is_junk_event(event("Fraktionssitzung der Ratsfraktion")))
         self.assertTrue(common.is_junk_event(event("Wahlkampf-Infostand am Marktplatz")))
         self.assertFalse(common.is_junk_event(event("Tag der offenen Tür im Stadtratssaal")))
+        self.assertFalse(common.is_junk_event(event(
+            "Ausstellung: Geschichte des Stadtrats",
+            description="Museumsausstellung über Ratssitzung und Stadtverordnete",
+            category="Ausstellung Museum",
+        )))
+
+    def test_keeps_cultural_stammtisch_events(self):
+        self.assertTrue(common.is_junk_event(event("Offener Stammtisch im Bürgerzentrum")))
+        self.assertFalse(common.is_junk_event(event(
+            "Literarischer Stammtisch mit Lesung",
+            description="Lesung und Gespräch im Literaturhaus",
+            category="Lesung",
+        )))
 
 
 if __name__ == "__main__":

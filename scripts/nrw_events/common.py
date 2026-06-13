@@ -597,7 +597,6 @@ def is_junk_event(ev: dict) -> bool:
         "phantasialand",
         "phantasia land",
         "phantasia-land",
-        "stammtisch",
     }
     if any(bit in text for bit in hard_block_bits):
         return True
@@ -614,14 +613,15 @@ def is_junk_event(ev: dict) -> bool:
         "frauentreff", "handarbeitstreff", "frühstückstreff", "fruehstueckstreff", "frühstückszeit",
         "fruehstueckszeit", "frauenfrühstück", "frauenfruehstueck", "häkel-treff", "haekel-treff", "kindertreff", "offener treff",
         "offener puzzle-treff", "offenes ohr", "klaaferei", "seniorencafe", "seniorencafé",
-        "seniorennachmittag", "seniorengymnastik", "spielezeit", "stricken und klönen",
+        "seniorennachmittag", "seniorengymnastik", "spielezeit", "stammtisch", "stricken und klönen",
         "stricken und kloenen", "treffen der bad honnefer funkamateure",
         "treffen pflegender angehöriger", "treffen pflegender angehoeriger",
         "veranstaltung der senioreninformation",
     }
     cultural_event_bits = {
-        "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt", "lesung", "live-musik",
-        "theater", "vernissage", "tag der offenen tür", "tag der offenen tuer",
+        "ausstellung", "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt",
+        "lesung", "live-musik", "museum", "theater", "vernissage",
+        "tag der offenen tür", "tag der offenen tuer",
     }
     if (any(bit in text for bit in routine_or_political_bits)
             and not any(bit in text for bit in cultural_event_bits)):
