@@ -550,7 +550,11 @@ def is_junk_event(ev: dict) -> bool:
     desc = (ev.get("description") or "").lower()
     venue = (ev.get("venue") or "").lower()
     link = (ev.get("link") or "").lower()
+    category = (ev.get("category") or "").lower()
     text = f"{title} {desc} {venue} {link}"
+    # Cultural exceptions should come from the event content/category, not from a
+    # venue name or URL path like `/museum/` that can also host civic meetings.
+    content_text = f"{title} {desc} {category}"
 
     # Stale entries with a parseable out-of-window date. Date *ranges*
     # ("start–end", en-dash) are kept whenever the span overlaps the window —
@@ -624,10 +628,10 @@ def is_junk_event(ev: dict) -> bool:
         "tag der offenen tür", "tag der offenen tuer",
     }
     if (any(bit in text for bit in routine_or_political_bits)
-            and not any(bit in text for bit in cultural_event_bits)):
+            and not any(bit in content_text for bit in cultural_event_bits)):
         return True
     if any(bit in text for bit in routine_phrase_bits) and not any(
-        bit in text for bit in cultural_event_bits
+        bit in content_text for bit in cultural_event_bits
     ):
         return True
 
