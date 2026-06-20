@@ -96,6 +96,17 @@ class JunkFilterTests(unittest.TestCase):
             category="Lesung",
         )))
 
+    def test_blocks_abi_and_graduation_balls(self):
+        blocked_titles = [
+            "Abiball Helmholtz Gymnasium",
+            "Abi-Ball Europa Schule",
+            "Abschlussball der Stufe Q2",
+        ]
+
+        for title in blocked_titles:
+            with self.subTest(title=title):
+                self.assertTrue(common.is_junk_event(event(title, category="Ball/Abiball")))
+
 
 if __name__ == "__main__":
     unittest.main()

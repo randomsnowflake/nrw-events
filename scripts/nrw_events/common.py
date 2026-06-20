@@ -497,9 +497,10 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     """
     if not title:
         return None
-    if start_dt and end_dt and (end_dt < TODAY or start_dt > END_DATE):
+    window_end = END_DATE.replace(hour=23, minute=59, second=59, microsecond=999999)
+    if start_dt and end_dt and (end_dt < TODAY or start_dt > window_end):
         return None
-    if start_dt and not end_dt and not (TODAY <= start_dt <= END_DATE):
+    if start_dt and not end_dt and not (TODAY <= start_dt <= window_end):
         return None
     km = haversine(BONN_LAT, BONN_LON, *(coords or coords_for_city(city)))
     if km > MAX_RADIUS_KM:
@@ -589,6 +590,13 @@ def is_junk_event(ev: dict) -> bool:
         return True
 
     if "grüne jugend" in text or "gruene jugend" in text:
+        return True
+
+    narrow_private_event_bits = {
+        "abiball", "abi-ball", "abi ball", "abschlussball", "abschluss-ball",
+        "abiturball", "abitur-ball",
+    }
+    if any(bit in text for bit in narrow_private_event_bits):
         return True
 
     if has_cancelled_status(ev.get("title") or "", ev.get("description") or ""):

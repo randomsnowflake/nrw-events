@@ -15,7 +15,7 @@ from . import (
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
     siegburg, hennef, meckenheim, wachtberg, much, naturregion_sieg,
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
-    regional_sitekit, regional_tourism, regional_venues,
+    regional_sitekit, regional_tourism, regional_venues, requested_venues,
 )
 
 SOURCES = {
@@ -45,6 +45,7 @@ SOURCES = {
     "Regional HTML calendars": regional_html.fetch,
     "Deskline regional": regional_tourism.fetch,
     "Regional venues": regional_venues.fetch,
+    "Requested venue calendars": requested_venues.fetch,
     "Bonn.jetzt": bonnjetzt.fetch,
     "Ruhr-Guide": ruhrguide.fetch,
     # Web-search fallbacks (lowest trust)

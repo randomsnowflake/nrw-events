@@ -4,7 +4,9 @@ from unittest.mock import patch
 
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
-from scripts.nrw_events.sources import bonn, bonnjetzt, bundeskunsthalle, regional_tourism
+from scripts.nrw_events.sources import (
+    bonn, bonnjetzt, bundeskunsthalle, regional_tourism, requested_venues,
+)
 
 
 class SourceParserTests(unittest.TestCase):
@@ -331,6 +333,23 @@ END:VCALENDAR
                 self.assertIsNotNone(event)
                 self.assertEqual(event and event["time"], expected)
 
+    def test_make_event_keeps_timed_events_on_window_end_date(self):
+        event = common.make_event(
+            "Abendkonzert am letzten Fenstertag",
+            datetime(2026, 6, 21, 20),
+            datetime(2026, 6, 21, 22),
+            "Pantheon",
+            "Bonn",
+            "Live-Musik",
+            "https://www.pantheon.de/programm/#t1",
+            "Pantheon",
+            "Konzert",
+        )
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event and event["date"], "2026-06-21")
+        self.assertEqual(event and event["time"], "20:00–22:00")
+
     def test_make_event_suppresses_raw_api_outbound_links(self):
         links = [
             "https://example.org/events.json",
@@ -469,6 +488,132 @@ END:VCALENDAR
         self.assertEqual([event["title"] for event in events], ["Historisches Stadtfest"])
         self.assertEqual(events[0]["date"], "2026-06-13–2026-06-14")
 
+    def test_kunstmuseum_bonn_calendar_teasers_create_events(self):
+        html = """
+        <a href="https://www.kunstmuseum-bonn.de/de/besuch/kalender/eroeffnung-human-ai-art-award-2026/">
+          <figure>
+            <figcaption class="teaser-caption">
+              <p class="teaser-date">Sa. 20.06.2026, 19:00 Uhr</p>
+              <h4 class="teaser-title">ERÖFFNUNG – HUMAN AI ART AWARD 2026</h4>
+              <p class="teaser-meta">Eröffnung</p>
+            </figcaption>
+          </figure>
+        </a>
+        """
+
+        events = requested_venues._events_from_kunstmuseum_bonn(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "ERÖFFNUNG – HUMAN AI ART AWARD 2026")
+        self.assertEqual(events[0]["date"], "2026-06-20")
+        self.assertEqual(events[0]["time"], "19:00")
+        self.assertEqual(events[0]["venue"], "Kunstmuseum Bonn")
+
+    def test_sankt_augustin_mec_articles_create_events_and_junk_filter_applies(self):
+        html = """
+        <article class="mec-event-article mec-clear" itemscope>
+          <div class="mec-event-content">
+            <h3 class="mec-event-title">
+              <a class="mec-color-hover" href="https://www.sankt-augustin.de/veranstaltungen/hunnenlager-2/?occurrence=2026-06-20&time=1781960400">Hunnenlager</a>
+            </h3>
+            <div class="mec-event-description">Der Hunnen aus dem Siegtal <span>...</span></div>
+          </div>
+          <span class="mec-start-date-label" itemprop="startDate">20 Juni</span>
+          <div class="mec-time-details"><span class="mec-start-time">13:00</span></div>
+          <div class="mec-venue-details"> <span>Stadtpark am Jugendzentrum</span>
+            <address class="mec-event-address"><span>Bonner Straße 104, 53757 Sankt Augustin</span></address>
+          </div>
+        </article>
+        <article class="mec-event-article mec-clear" itemscope>
+          <h3 class="mec-event-title">
+            <a href="https://www.sankt-augustin.de/veranstaltungen/wer-rastet-der-rostet-23/?occurrence=2026-06-22">Wer rastet, der rostet</a>
+          </h3>
+          <div class="mec-event-description">Gleichgewichts- und Sturzprophylaxe-Kur.</div>
+          <span class="mec-start-date-label" itemprop="startDate">22 Juni</span>
+          <div class="mec-time-details"><span class="mec-start-time">10:00</span> - <span class="mec-end-time">11:00</span></div>
+          <div class="mec-venue-details"> <span>Ballettsaal Musikschule</span></div>
+        </article>
+        """
+
+        events = requested_venues._events_from_sankt_augustin(html)
+
+        self.assertEqual([event["title"] for event in events], ["Hunnenlager"])
+        self.assertEqual(events[0]["date"], "2026-06-20")
+        self.assertEqual(events[0]["time"], "13:00")
+        self.assertEqual(events[0]["city"], "Sankt Augustin")
+
+    def test_pantheon_program_items_create_anchor_links_and_skip_rescheduled_old_date(self):
+        html = """
+        <a href="/programm/?date=2026-06">Juni 2026</a>
+        <li id="t597636">
+          <div class="event-date-1">20.</div><div class="event-date-3">Juni</div><div class="event-time">18:00</div>
+          <div class="event-location outwards"><a name="t597636">Pantheon</a></div>
+          <h2 class="event-title">Dr. Pop Special</h2>
+          <h3 class="event-type">Veranstaltung wurde vom 20.6. auf den 28.8. verlegt</h3>
+          <div class="event-message event-reschedule"><p>VERSCHOBEN! Neuer Termin am "28.08.2026 20:00"</p></div>
+        </li>
+        <li id="t637485">
+          <div class="event-date-1">21.</div><div class="event-date-3">Juni</div><div class="event-time">17:30</div>
+          <div class="event-location outwards"><a name="t637485">Pantheon</a></div>
+          <h2 class="event-title">International Voices Choir - Let's Go to the Movies</h2>
+        </li>
+        """
+
+        events = requested_venues._events_from_pantheon(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "International Voices Choir - Let's Go to the Movies")
+        self.assertEqual(events[0]["date"], "2026-06-21")
+        self.assertEqual(events[0]["link"], "https://www.pantheon.de/programm/#t637485")
+
+    def test_springmaus_program_cards_create_events(self):
+        html = """
+        <div class="bg-[#aba199] p-2 mb-2.5">
+          <a class="flex text-lg sm:text-xl leading-tight divide-x-2 divide-brand-primary mb-2" href="events/alles-bleibt-anders-1348.html">
+            <div class="pr-2">Sa <span class="">20.</span> Jun. 2026</div>
+            <div class="pl-2">20:00 Uhr</div>
+          </a>
+          <h3 class="text-2xl leading-tight font-bold mb-1">
+            <a href="events/alles-bleibt-anders-1348.html">Springmaus Improvisationstheater - Alles bleibt anders</a>
+          </h3>
+          <div class="leading-tight">ab 30,00 €</div>
+        </div>
+        """
+
+        events = requested_venues._events_from_springmaus(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Springmaus Improvisationstheater - Alles bleibt anders")
+        self.assertEqual(events[0]["date"], "2026-06-20")
+        self.assertEqual(events[0]["time"], "20:00")
+
+    def test_brueckenforum_cards_skip_abiball_and_keep_public_events(self):
+        html = """
+        <div class="col module"><div class="event-single">
+          <div class="event-info">
+            <h3 class="event-headline live-show">LIVE-SHOW</h3><span class="d-block">–</span>
+            <h4>Summer Dance Show · 2026</h4>
+          </div>
+          <div class="row event-date"><div><span class="date">20/06/2026</span></div>
+            <div><a href="https://www.brueckenforum.de/events/summer-dance-show-%c2%b7-2026/"><i></i></a></div>
+          </div>
+        </div></div></div>
+        <div class="col module"><div class="event-single">
+          <div class="event-info">
+            <h3 class="event-headline abiball">Ball/Abiball</h3><span class="d-block">–</span>
+            <h4>Abiball Helmholtz Gymnasium</h4>
+          </div>
+          <div class="row event-date"><div><span class="date">28/06/2026</span></div>
+            <div><a href="https://www.brueckenforum.de/events/abiball-helmholtz-gymnasium/"><i></i></a></div>
+          </div>
+        </div></div></div>
+        """
+
+        events = requested_venues._events_from_brueckenforum(html)
+
+        self.assertEqual([event["title"] for event in events], ["Summer Dance Show · 2026"])
+        self.assertEqual(events[0]["date"], "2026-06-20")
+
     def test_requested_sources_are_registered(self):
         expected_sources = {
             "Naturregion Sieg",
@@ -481,6 +626,7 @@ END:VCALENDAR
             "Deskline regional",
             "Regional venues",
             "Bonn.de Sports",
+            "Requested venue calendars",
         }
 
         self.assertLessEqual(expected_sources, set(SOURCES))
