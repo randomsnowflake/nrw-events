@@ -124,6 +124,9 @@ def fetch_events_json() -> list:
             sec_fetch_dest="empty",
         ))
     except Exception as e:
+        fallback = _fetch_rss_events(source)
+        if fallback:
+            return fallback
         common.log_source_error(source, e)
         return []
     if not isinstance(items, list):
@@ -165,6 +168,8 @@ def fetch_events_json() -> list:
             coords=points.get(venue.lower()))
         if ev:
             events.append(ev)
+    if len(events) < 20:
+        events = _merge_fallback_events(events, _fetch_rss_events(source))
     return events
 
 
@@ -286,9 +291,8 @@ def fetch_sports() -> list:
         return []
 
 
-def fetch_rss() -> list:
+def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
     import xml.etree.ElementTree as ET
-    source = "Bonn.de RSS"
     try:
         root = ET.fromstring(common.fetch_url(
             _RSS_URL,
@@ -302,26 +306,44 @@ def fetch_rss() -> list:
             if not title:
                 continue
             pub_date = (item.findtext("pubDate") or "").strip()
-            if pub_date and not common.in_date_range(pub_date):
-                continue
             desc = (item.findtext("description") or "").strip()
-            full_text = f"{title} {desc}"
-            events.append({
-                "title": unescape(title),
-                "date": pub_date[:16] if pub_date else "",
-                "time": "", "venue": "", "city": "Bonn",
-                "description": unescape(re.sub(r"<[^>]+>", "", desc)) if desc else "",
-                "price": "",
-                "link": (item.findtext("link") or "").strip(),
-                "distance_km": 0,
-                "score": round(common.distance_score(0) * common.category_score(full_text), 2),
-                "source": source,
-                "category": "",
-            })
+            ev = common.make_event(
+                unescape(title),
+                common.parse_date(pub_date),
+                common.parse_date(pub_date),
+                "",
+                "Bonn",
+                unescape(re.sub(r"<[^>]+>", "", desc)) if desc else "",
+                (item.findtext("link") or "").strip(),
+                source,
+                "official calendar rss bonn",
+                trust=0.76,
+            )
+            if ev:
+                events.append(ev)
         return events
     except Exception as e:
         common.log_source_error(source, e)
         return []
+
+
+def _merge_fallback_events(primary: list, fallback: list) -> list:
+    seen = {
+        (event.get("link") or "", event.get("title") or "", event.get("date") or "")
+        for event in primary
+    }
+    merged = list(primary)
+    for event in fallback:
+        key = (event.get("link") or "", event.get("title") or "", event.get("date") or "")
+        if key in seen:
+            continue
+        merged.append(event)
+        seen.add(key)
+    return merged
+
+
+def fetch_rss() -> list:
+    return _fetch_rss_events("Bonn.de RSS")
 
 
 def fetch_press_festivals() -> list:

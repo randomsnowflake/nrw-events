@@ -6,7 +6,7 @@ from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
 from scripts.nrw_events.sources import (
     bonn, bonnjetzt, bundeskunsthalle, koeln, regional_feeds, regional_ionas4,
-    regional_tourism, requested_venues,
+    rausgegangen, regional_tourism, requested_venues,
 )
 
 
@@ -28,6 +28,46 @@ class SourceParserTests(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Bonner Konzert")
+
+    def test_bonn_events_json_merges_rss_when_json_is_truncated(self):
+        json_payload = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
+        rss_payload = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <item><title>Ausstellung im Stadtmuseum</title><link>https://www.bonn.de/rss-event.php</link><pubDate>Fri, 12 Jun 2026 00:00:00 +0200</pubDate></item>
+</channel></rss>"""
+
+        def fake_fetch(url, *args, **kwargs):
+            return rss_payload if "sp%3Aout=rss" in url else json_payload
+
+        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+            events = bonn.fetch_events_json()
+
+        self.assertEqual([event["source"] for event in events], ["Bonn.de Events", "Bonn.de Events"])
+        self.assertEqual(events[1]["title"], "Ausstellung im Stadtmuseum")
+
+    def test_rausgegangen_party_tiles_emit_nightlife_events(self):
+        html = """
+<div class="tile tile-medium hover-lift" data-testid="event-tile">
+  <a data-testid="event-tile-link" href="/events/depeche-mode-party-bonn-4/">
+    <p data-testid="event-tile-datetime">
+      <span class="font-bold">Fr, 12. Jun | </span>
+      <span>22:00</span>
+    </p>
+    <span data-testid="event-tile-name">Depeche Mode Party : Bonn</span>
+    <p data-testid="event-tile-location">N8Lounge</p>
+    <p data-testid="event-tile-price">Preis an AK</p>
+  </a>
+</div></div></div></a></div>
+"""
+
+        events = rausgegangen.events_from_party_page(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["date"], "2026-06-12")
+        self.assertEqual(events[0]["time"], "22:00")
+        self.assertEqual(events[0]["category_key"], "nightlife")
+        self.assertEqual(events[0]["price"], "Preis an AK")
 
     def test_koeln_open_data_accepts_decimal_comma_coordinates(self):
         payload = {

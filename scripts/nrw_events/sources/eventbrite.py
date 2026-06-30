@@ -1,5 +1,7 @@
 """Eventbrite public party listing for Bonn and nearby NRW nightlife."""
 
+import urllib.error
+
 from .. import common
 
 
@@ -9,6 +11,13 @@ URL = "https://www.eventbrite.de/d/germany--bonn/party/"
 def fetch() -> list:
     try:
         html = common.fetch_url(URL, timeout=25)
+    except urllib.error.HTTPError as e:
+        if e.code == 405:
+            # Eventbrite serves a bot-check/405 to some server networks. Treat it
+            # as an opportunistic miss; Rausgegangen Party is the stable source.
+            return []
+        common.log_source_error("Eventbrite Party", e)
+        return []
     except Exception as e:
         common.log_source_error("Eventbrite Party", e)
         return []
