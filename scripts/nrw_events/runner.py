@@ -63,6 +63,7 @@ def _with_canonical_category(event: dict) -> dict:
 def main() -> None:
     days_ahead = int(sys.argv[1]) if len(sys.argv) > 1 else 3
     common.set_window(days_ahead)
+    common.reset_source_warnings()
     _load_env_file()
 
     print(f"Fetching events for {common.TODAY.strftime('%d %b')} → "
@@ -112,6 +113,7 @@ def main() -> None:
         "score_floor": score_floor,
         "source_counts_raw": source_counts_raw,
         "source_errors": source_errors,
+        "source_warnings": common.get_source_warnings(),
         "categories": CATEGORIES,
         "pre_dedup_count": len(filtered),
         "event_count": len(deduped),

@@ -54,6 +54,22 @@ _BLOCK = {
 _venue_points_cache = None
 
 
+def _loads_event_items(raw: str):
+    """Parse Bonn's event payload, tolerating server log lines appended after JSON.
+
+    The city endpoint has occasionally emitted a valid JSON array prefix followed
+    by PHP/SiteKit log text when its server is unhealthy. Keep the source useful
+    by trimming only that clearly marked trailing log tail.
+    """
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"(?<=\})(?:\r?\n)?\[\d{4}-\d{2}-\d{2}T", raw)
+        if not (raw.lstrip().startswith("[") and match):
+            raise
+        return json.loads(raw[:match.start()] + "]")
+
+
 def _venue_points() -> dict:
     """Lazy {venue_name_lower: (lat, lon)} from the two Bonn GeoJSON layers."""
     global _venue_points_cache
@@ -100,7 +116,7 @@ def fetch_events_json() -> list:
     """Official Bonn events JSON → dated, activity-only, venue-pinned events."""
     source = "Bonn.de Events"
     try:
-        items = json.loads(common.fetch_url(
+        items = _loads_event_items(common.fetch_url(
             _EVENTS_JSON_URL,
             timeout=25,
             accept="application/json,*/*;q=0.8",

@@ -58,6 +58,11 @@ MONTH_EN = {
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
 MAX_RADIUS_KM = config.MAX_RADIUS_KM
 
+# Per-run source telemetry. Source modules intentionally keep the overall import
+# alive when one remote page breaks; this records those partial failures so the
+# caller can alert on a degraded but otherwise successful run.
+SOURCE_WARNINGS: list[dict[str, str]] = []
+
 
 # ── Geo + scoring ───────────────────────────────────────────────────
 
@@ -212,6 +217,26 @@ def fetch_url(
     req = urllib.request.Request(url, headers=hdrs)
     resp = urllib.request.urlopen(req, timeout=timeout)
     return resp.read().decode("utf-8", "ignore")
+
+
+def reset_source_warnings() -> None:
+    """Clear source warning telemetry before a new runner pass."""
+    SOURCE_WARNINGS.clear()
+
+
+def get_source_warnings() -> list[dict[str, str]]:
+    """Return warnings recorded by source modules during the current run."""
+    return list(SOURCE_WARNINGS)
+
+
+def parse_float(value, default: float = 0.0) -> float:
+    """Parse source-provided numeric values, accepting German decimal commas."""
+    if value is None or value == "":
+        return default
+    try:
+        return float(str(value).strip().replace(",", "."))
+    except (TypeError, ValueError):
+        return default
 
 
 def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict] = None) -> dict:
@@ -1100,4 +1125,6 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
 def log_source_error(source: str, err: Exception) -> None:
     """Uniform stderr warning for a source that failed."""
     import sys
-    print(f"⚠ {source}: {err}", file=sys.stderr)
+    message = str(err)
+    SOURCE_WARNINGS.append({"source": source, "error": message})
+    print(f"⚠ {source}: {message}", file=sys.stderr)

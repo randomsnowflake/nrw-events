@@ -5,7 +5,7 @@ from unittest.mock import patch
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
 from scripts.nrw_events.sources import (
-    bonn, bonnjetzt, bundeskunsthalle, regional_tourism, requested_venues,
+    bonn, bonnjetzt, bundeskunsthalle, koeln, regional_tourism, requested_venues,
 )
 
 
@@ -19,6 +19,37 @@ class SourceParserTests(unittest.TestCase):
     def tearDown(self):
         common.TODAY = self.old_today
         common.END_DATE = self.old_end_date
+
+    def test_bonn_events_json_tolerates_appended_server_log_noise(self):
+        raw = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
+
+        events = bonn._loads_event_items(raw)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Bonner Konzert")
+
+    def test_koeln_open_data_accepts_decimal_comma_coordinates(self):
+        payload = {
+            "items": [{
+                "title": "Kölner Konzert",
+                "beginndatum": "2026-06-12",
+                "endedatum": "2026-06-12",
+                "latitude": "50,94701",
+                "longitude": "6,95831",
+                "veranstaltungsort": "Kölner Bühne",
+                "description": "Konzert",
+                "preis": "",
+                "uhrzeit": "20:00 Uhr",
+                "stadtteil": "Innenstadt",
+                "link": "https://example.test/koeln",
+            }]
+        }
+        with patch("scripts.nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
+            events = koeln.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Kölner Konzert")
+        self.assertGreater(events[0]["distance_km"], 0)
 
     def test_ecmaps_tiles_create_events_from_dated_destination_one_cards(self):
         html = """

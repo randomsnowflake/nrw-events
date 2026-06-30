@@ -40,8 +40,8 @@ def fetch() -> list:
             elif begin_dt and begin_dt > common.END_DATE:
                 continue
 
-            lat = float(item.get("latitude", 0) or 0)
-            lon = float(item.get("longitude", 0) or 0)
+            lat = common.parse_float(item.get("latitude"))
+            lon = common.parse_float(item.get("longitude"))
             if lat and lon:
                 km = common.haversine(common.BONN_LAT, common.BONN_LON, lat, lon)
             else:

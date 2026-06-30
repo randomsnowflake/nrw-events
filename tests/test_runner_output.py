@@ -66,6 +66,31 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertIn({"key": "concert", "label": "Konzert"}, meta_payload["categories"])
         self.assertEqual(meta_payload["event_count"], 1)
 
+    def test_metadata_includes_source_warnings_from_swallowed_source_errors(self):
+        def fetch_with_warning():
+            runner.common.log_source_error("Fragile Source", RuntimeError("layout changed"))
+            return []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            json_out = os.path.join(tmpdir, "events.json")
+            meta_out = os.path.join(tmpdir, "events-meta.json")
+            with mock.patch.dict(os.environ, {
+                "NRW_EVENTS_JSON_OUT": json_out,
+                "NRW_EVENTS_META_JSON_OUT": meta_out,
+            }, clear=False):
+                with mock.patch.object(runner, "SOURCES", {"Fragile Source": fetch_with_warning}):
+                    with mock.patch.object(runner.report, "format_report", lambda events: ""):
+                        with mock.patch.object(sys, "argv", ["runner"]):
+                            runner.main()
+
+            with open(meta_out) as f:
+                meta_payload = json.load(f)
+
+        self.assertEqual(
+            meta_payload["source_warnings"],
+            [{"source": "Fragile Source", "error": "layout changed"}],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
