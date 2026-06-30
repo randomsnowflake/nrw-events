@@ -745,7 +745,7 @@ def jsonld_event_items(html: str) -> list:
             types = typ if isinstance(typ, list) else [typ]
             if any(t and "Event" in str(t) for t in types):
                 items.append(obj)
-            for key in ("@graph", "itemListElement"):
+            for key in ("@graph", "itemListElement", "item"):
                 if key in obj:
                     walk(obj[key])
 

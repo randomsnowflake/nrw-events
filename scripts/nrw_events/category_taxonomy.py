@@ -43,12 +43,12 @@ CATEGORIES: list[Category] = [
     {"key": "cinema", "label": "Kino & Film"},
     {"key": "exhibition", "label": "Ausstellung"},
     {"key": "festival", "label": "Feste & Stadtleben"},
-    {"key": "market", "label": "Märkte & Flohmarkt"},
+    {"key": "market", "label": "Märkte & Flohmärkte"},
     {"key": "food", "label": "Food & Genuss"},
     {"key": "outdoor", "label": "Führungen & Outdoor"},
     {"key": "sports", "label": "Sport & Bewegung"},
     {"key": "talk", "label": "Vorträge & Lesungen"},
-    {"key": "workshop", "label": "Workshop & Kurse"},
+    {"key": "workshop", "label": "Workshops & Kurse"},
     {"key": "kids", "label": "Familie & Kinder"},
     {"key": "other", "label": "Sonstiges"},
 ]
@@ -65,6 +65,11 @@ def title_only(value: str) -> Keyword:
 
 
 FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # Photo-club meetings are recurring community meetups, not club nights.
+    ("other", ("fotoclub", "foto club")),
+    # KUNST!RASEN is a Bonn concert venue; the "kunst" substring is not an
+    # exhibition signal in Songkick-style "artist @ venue" titles.
+    ("concert", ("kunst!rasen", "kunstrasen")),
     # Public health / expert livestream formats tend to carry generic source
     # bags like "Kultur Konzert". The title is the useful signal here: it is a
     # talk, not a concert just because it contains "live".
@@ -96,28 +101,28 @@ DESTINATION_TITLE_CONTEXT = (
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "kunstmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", Keyword("markt", title_only=True, word=True))),
-    Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "wein", "wine", "winzer", "weinprobe", "weinfest", "bier", "tasting")),
+    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", Keyword("markt", title_only=True, word=True))),
+    Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "schlemmer", "grillen", "dîner", "diner en blanc", "wine", "winzer", "weinprobe", "weinfest", "weinmoment", "weinlounge", "biergarten", "tasting", word("wein"), word("bier"))),
     Rule(
         "kids",
         12,
         (
             "kinder", "kids", "familie", "family", "jugend",
-            "mitmach", "märchen", "maerchen", "puppentheater", "kasper", "vorlesen",
+            "mitmach", "märchen", "maerchen", "puppentheater", "puppenspiel", "kinderbühne", "kinderbuehne", "kasper", "vorlesen",
             "bambini", "krabbel", "ferienprogramm", "lego", "zauberwürfel", "zauberwuerfel",
             "storytime", word("dino"),
         ),
     ),
-    Rule("workshop", 11, ("workshop", "werkstatt", "kurs", "seminar", "training", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik")),
-    Rule("talk", 10, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "symposium", "podium", word("bildung"), "informationsveranstaltung", "chatgpt", "canva", "digital", "3d-druck", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
-    Rule("sports", 9, (word("sport"), "sportveranstaltung", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen")),
+    Rule("workshop", 11, ("workshop", "werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik", "malen")),
+    Rule("talk", 10, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("liest"), word("bildung"), "informationsveranstaltung", "chatgpt", "canva", "digital", "hackerspace", "3d-druck", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
+    Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwochenende", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen", "boule", "schach")),
     Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
-    Rule("concert", 7, ("konzert", "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "musik", "music", "songkick", "jazz", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", word("chor"), word("band"))),
-    Rule("nightlife", 6, ("techno", "electronic", "elektro", "party", "clubnacht", "clubabend", "club party", "dj", "nightlife", "rave", "disco", "beats", "lounge")),
-    Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "tanz", "dance", "musical", "show", "improtheater", word("oper"), word("stage"), word("slam"))),
+    Rule("concert", 7, ("konzert", "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "songkick", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
+    Rule("nightlife", 6, ("techno", "electronic", "elektro", "party", "clubnacht", "clubabend", "club party", "dj", "nightlife", word("rave"), "disco", "beats", "lounge", "barhopping", "speeddating", "singles")),
+    Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "zirkus", "cirque", "tanz", "dance", "musical", "show", "improtheater", word("oper"), word("stage"), word("slam"))),
     Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "vernissage", "atelier", "installation")),
-    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "führung", "fuehrung", "tour", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", "garten", "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga")),
-    Rule("festival", 1, ("fest", "festival", "kirmes", "kerb", "meile", "public viewing", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
+    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", "garten", "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga")),
+    Rule("festival", 1, ("fest", "festival", "kirmes", "kerb", "meile", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
 )
 
 _NON_WORD = r"[^\wäöüÄÖÜß]"

@@ -5,7 +5,8 @@ from unittest.mock import patch
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
 from scripts.nrw_events.sources import (
-    bonn, bonnjetzt, bundeskunsthalle, koeln, regional_tourism, requested_venues,
+    bonn, bonnjetzt, bundeskunsthalle, koeln, regional_feeds, regional_ionas4,
+    regional_tourism, requested_venues,
 )
 
 
@@ -181,6 +182,73 @@ END:VCALENDAR
         common.END_DATE = datetime(2026, 6, 21)
         self.assertEqual(rc.date_for_window(15, 6), datetime(2026, 6, 15))
 
+    def test_regional_range_dates_handles_compact_start_without_year(self):
+        from scripts.nrw_events.sources import regional_common as rc
+
+        start, end = rc.range_dates("06.07. – 10.07.2026")
+
+        self.assertEqual(start, datetime(2026, 7, 6))
+        self.assertEqual(end, datetime(2026, 7, 10))
+
+    def test_ionas4_uses_public_calendar_when_item_has_no_detail_website(self):
+        events = regional_ionas4._events_from_items(
+            [
+                {
+                    "title": "Boule auf der Insel Grafenwerth",
+                    "start": "2026-06-12T14:00",
+                    "end": "2026-06-12T17:00",
+                    "website": "",
+                    "location": {"name": "Insel Grafenwerth"},
+                    "category": {"name": "Sport"},
+                    "tags": [],
+                }
+            ],
+            "Bad Honnef",
+            "https://meinbadhonnef.de/kalender/veranstaltungen/",
+            0.98,
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["link"], "https://meinbadhonnef.de/kalender/veranstaltungen/")
+
+    def test_unkel_rss_uses_stable_event_listing_url(self):
+        import xml.etree.ElementTree as ET
+
+        item = ET.fromstring("""
+<item>
+  <title>Konzert am Salmenfang</title>
+  <link>https://rhein.info/veranstaltungen/dead-detail/</link>
+  <description>20.06.2026&lt;br/&gt;Unkel&lt;br/&gt;Konzert am Rhein</description>
+</item>
+""")
+
+        event = regional_feeds._event_from_unkel_item(item)
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event and event["link"], "https://rhein.info/?post_type=event")
+
+    def test_ahrtal_shapehub_uses_stable_listing_url_for_cards(self):
+        html = """
+<a href="/de/events/stale-detail/eventtermin.html" class="shapehub-card-link">
+  <div class="shapehub-date-badge">20.06.2026</div>
+  <div class="shapehub-card-title">Ahrtal Konzert</div>
+  <span>Ahrweiler</span>
+</a>
+"""
+
+        events = regional_tourism._events_from_shapehub(
+            html,
+            "Ahrtal",
+            "https://www.ahrtal.com",
+            "https://www.ahrtal.com/de/events",
+            "Ahrweiler",
+            "ahrtal kultur konzert",
+            0.86,
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["link"], "https://www.ahrtal.com/de/events")
+
     def test_bonn_sport_page_teasers_create_dated_events(self):
         html = """
 <li class="SP-TeaserList__item"><article class="SP-Teaser SP-Teaser--textual SP-Teaser--hasFeatureIcons">
@@ -248,6 +316,27 @@ END:VCALENDAR
 
         self.assertEqual(len(events), 1)
         self.assertFalse(common.is_junk_event(events[0]))
+
+    def test_bonnjetzt_emits_date_only_iso_date_and_keeps_time_label(self):
+        html = """
+<article itemtype="https://schema.org/Event">
+  <a href="/event/garagenflohmarkt" itemprop="url">
+    <h2 class="title p-name">Garagenflohmarkt</h2>
+  </a>
+  <time datetime="2026-06-12 11:00" itemprop="startDate">Freitag, 12. Juni, 11:00-16:00</time>
+  <time itemprop="endDate" content="2026-06-12T16:00:00"></time>
+  <span itemprop="name">Bonn Hoholz</span>
+  <div itemprop="address">Bonn</div>
+  <span class="v-chip__content">Flohmarkt</span>
+</article>
+"""
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+            events = bonnjetzt.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["date"], "2026-06-12")
+        self.assertEqual(events[0]["time"], "Freitag, 12. Juni, 11:00-16:00")
 
     def test_make_event_skips_regular_wochenmarkt_entries(self):
         event = common.make_event(

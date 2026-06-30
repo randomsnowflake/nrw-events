@@ -92,6 +92,10 @@ def title_from_href(href: str) -> str:
 
 def range_dates(text: str):
     text = clean(text)
+    m = re.search(r"(\d{1,2})\.(\d{1,2})\.\s*[–-]\s*(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
+    if m:
+        start_day, start_month, end_day, end_month, year = (int(part) for part in m.groups())
+        return datetime(year, start_month, start_day), datetime(year, end_month, end_day)
     dates = re.findall(r"\d{1,2}\.\d{1,2}\.20\d{2}", text)
     if dates:
         start = common.parse_date(dates[0])

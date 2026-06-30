@@ -7,14 +7,16 @@ from . import regional_common as rc
 
 
 def fetch() -> list:
+    ahrtal_url = "https://www.ahrtal.com/de/events"
     events = []
     events.extend(rc.fetch_html_events(
         "Ahrtal",
-        "https://www.ahrtal.com/de/events",
+        ahrtal_url,
         lambda html: _events_from_shapehub(
             html,
             "Ahrtal",
             "https://www.ahrtal.com",
+            ahrtal_url,
             "Ahrweiler",
             "ahrtal wein wanderung führung kultur ausstellung",
             0.86,
@@ -38,8 +40,8 @@ def fetch() -> list:
     return rc.dedupe(events)
 
 
-def _events_from_shapehub(html: str, source: str, base: str, default_city: str, category: str,
-                          trust: float) -> list:
+def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
+                          default_city: str, category: str, trust: float) -> list:
     events = []
     card_re = re.compile(r'<a href="(?P<href>[^"]+)" class="shapehub-card-link">(?P<body>.*?)</a>',
                          re.S | re.I)
@@ -58,7 +60,7 @@ def _events_from_shapehub(html: str, source: str, base: str, default_city: str, 
             city,
             city,
             text[:500],
-            rc.abs_url(base, m.group("href")),
+            listing_url or rc.abs_url(base, m.group("href")),
             source,
             category,
             trust,

@@ -50,7 +50,7 @@ def fetch() -> list:
             full_text = f"{title} {venue} {address} {tag_text}"
             start_dt = common.parse_date(start_raw)
             end_dt = common.parse_date(end_raw)
-            date_text = start_raw
+            date_text = start_dt.strftime("%Y-%m-%d") if start_dt else start_raw
             if start_dt and end_dt and start_dt.date() != end_dt.date():
                 if start_dt < common.TODAY <= end_dt:
                     date_text = f"ongoing until {end_dt.strftime('%Y-%m-%d')}"

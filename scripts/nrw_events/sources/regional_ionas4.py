@@ -8,15 +8,30 @@ from . import regional_common as rc
 _SOURCE = "ionas4 regional"
 
 _CALENDARS = [
-    ("Bad Honnef", "https://meinbadhonnef.de/kalender/veranstaltungen/events.json", 0.98),
-    ("Grafschaft", "https://www.gemeinde-grafschaft.de/kalender/kalendergrafschaft/events.json", 0.9),
-    ("Sinzig", "https://tourismus.sinzig.de/kalender/events.json?weekends=false&tagMode=ALL", 0.82),
+    (
+        "Bad Honnef",
+        "https://meinbadhonnef.de/kalender/veranstaltungen/events.json",
+        "https://meinbadhonnef.de/kalender/veranstaltungen/",
+        0.98,
+    ),
+    (
+        "Grafschaft",
+        "https://www.gemeinde-grafschaft.de/kalender/kalendergrafschaft/events.json",
+        "https://www.gemeinde-grafschaft.de/kalender/kalendergrafschaft/",
+        0.9,
+    ),
+    (
+        "Sinzig",
+        "https://tourismus.sinzig.de/kalender/events.json?weekends=false&tagMode=ALL",
+        "https://tourismus.sinzig.de/kalender/",
+        0.82,
+    ),
 ]
 
 
 def fetch() -> list:
     events = []
-    for city, url, trust in _CALENDARS:
+    for city, url, calendar_url, trust in _CALENDARS:
         try:
             items = json.loads(common.fetch_url(
                 url,
@@ -26,13 +41,13 @@ def fetch() -> list:
                 sec_fetch_dest="empty",
             ))
             if isinstance(items, list):
-                events.extend(_events_from_items(items, city, url, trust))
+                events.extend(_events_from_items(items, city, calendar_url, trust))
         except Exception as e:
             common.log_source_error(f"{_SOURCE} ({city})", e)
     return rc.dedupe(events)
 
 
-def _events_from_items(items: list, city: str, url: str, trust: float) -> list:
+def _events_from_items(items: list, city: str, calendar_url: str, trust: float) -> list:
     events = []
     for item in items:
         start = common.parse_iso_date(item.get("start", ""))
@@ -52,7 +67,7 @@ def _events_from_items(items: list, city: str, url: str, trust: float) -> list:
             loc.get("name") or "",
             city,
             tag_text,
-            item.get("website") or url,
+            item.get("website") or calendar_url,
             _SOURCE,
             category,
             trust,

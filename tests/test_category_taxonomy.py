@@ -97,6 +97,53 @@ class CategoryTaxonomyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
+    def test_general_imported_edge_case_signals_land_on_better_fit_pages(self):
+        cases = [
+            ("Musik/Konzert", "Indie Band EP Release Show", "", "concert"),
+            ("Tanz", "Barhopping für Singles", "", "nightlife"),
+            ("Bildung / Weiterbildung", "Freies Malen für Erwachsene", "", "workshop"),
+            ("open air", "Puppenspiel auf der Kinderbühne", "", "kids"),
+            ("", "Jazz für Ohr und Gaumen", "", "concert"),
+            ("", "Autorenlesung Udo Weinbörner", "", "talk"),
+            ("", "Spiele ausprobieren", "Brettspiel-Event zum Ausprobieren der nominierten Spiele", "other"),
+            ("", "Wanderung mit Weinmomenten", "", "food"),
+            ("", "Andino Project", "", "other"),
+            ("", "Live-Band im Biergarten", "", "concert"),
+            ("", "Garden Party im Stadtgarten", "", "outdoor"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
+    def test_current_feed_qa_keyword_regressions(self):
+        cases = [
+            ("", "Bad Bodendorfer Freitagsmarkt", "", "market"),
+            ("", "Büchermarkt zur Reisezeit", "", "market"),
+            ("", "Boule auf der Insel Grafenwerth", "", "sports"),
+            ("", "Schlemmerabend", "", "food"),
+            ("", "Singen & Grillen am Bach", "", "food"),
+            ("", "Jubiläum Sing & Swing", "", "concert"),
+            ("", "Brasilianische Hits mit dem Duo Bailae", "Brasilien Forro Samba", "concert"),
+            ("", "Look at my toys!", "HackerSpace Meetup", "talk"),
+            ("", "Cirque Buffon - Carrousel", "", "stage"),
+            ("", "Literatur-Klatsch: Born this way", "", "talk"),
+            ("", "Chris Warnat liest aus ihren Krimis", "", "talk"),
+            ("", "Blick hinter die Kulissen der Steyler Mission", "", "outdoor"),
+            ("", "Animany Convention Troisdorf 2026", "", "festival"),
+            ("", "Sportwochenende des SV Leimersdorf", "", "sports"),
+            ("", "Gag-Schreiben", "", "workshop"),
+            ("", "SchachXperten", "", "sports"),
+            ("Sonstige Veranstaltung", "Foto Club Wachtberg - Clubabend", "Im Fotoclub Wachtberg treffen sich Fotoamateure.", "other"),
+            ("", 'Schumanns Carneval und von Ravel die "mirroirs"', "Klavierabend", "concert"),
+            ("", "Pop-up-WeinLounge im Park", "Sommerlicher Weinausschank", "food"),
+            ("concert", "Montez @ KUNST!RASEN", "", "concert"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
 
 if __name__ == "__main__":
     unittest.main()

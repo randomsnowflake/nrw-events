@@ -165,15 +165,15 @@ def _events_from_broeltal(html: str, base: str) -> list:
                         html, re.S | re.I)
     for href, body in blocks:
         text = rc.clean(body)
-        date_match = re.search(r"\d{1,2}\.\d{1,2}\.(?:\s*–\s*\d{1,2}\.\d{1,2}\.)?20\d{2}", text)
+        start, end = rc.range_dates(text)
         title = re.search(r'<h[1-6][^>]*>(.*?)</h[1-6]>', body, re.S | re.I)
         title_text = rc.clean(title.group(1)) if title else re.sub(r"\d{1,2}\.\d{1,2}\..*", "", text).strip()
-        if not (date_match and title_text):
+        if not (start and title_text):
             continue
         ev = common.make_event(
             title_text,
-            rc.with_time(rc.parse_dt(date_match.group(0)), text),
-            None,
+            rc.with_time(start, text),
+            end,
             "",
             "Ruppichteroth",
             text[:500],
