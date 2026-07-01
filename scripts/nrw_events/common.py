@@ -131,43 +131,43 @@ _BROWSER_PROFILES = [
     {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
         "Sec-CH-UA": (
-            '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"'
+            '"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'
         ),
         "Sec-CH-UA-Platform": '"Windows"',
     },
     {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
         "Sec-CH-UA": (
-            '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"'
+            '"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'
         ),
         "Sec-CH-UA-Platform": '"macOS"',
     },
     {
         "User-Agent": (
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
         "Sec-CH-UA": (
-            '"Google Chrome";v="125", "Chromium";v="125", "Not.A/Brand";v="24"'
+            '"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'
         ),
         "Sec-CH-UA-Platform": '"Linux"',
     },
 ]
 _BROWSER_PROFILE = random.SystemRandom().choice(_BROWSER_PROFILES)
 _TRANSIENT_HTTP_STATUSES = {408, 425, 429, 500, 502, 503, 504}
-_HTTP_RETRY_ATTEMPTS = max(int(os.environ.get("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", "3")), 1)
+_HTTP_RETRY_ATTEMPTS = max(int(os.environ.get("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", "5")), 1)
 _HTTP_RETRY_BASE_SECONDS = max(float(os.environ.get("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", "1.0")), 0.0)
 _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
     # Bonn.de's MyraCDN/backend intermittently returns 503 when the nightly run
     # fans out multiple official Bonn sources at once. Keep those requests
     # browser-like *and* human-paced; the importer is nightly, not latency-bound.
-    "bonn.de": max(float(os.environ.get("NRW_EVENTS_BONN_DE_DELAY_SECONDS", "1.0")), 0.0),
+    "bonn.de": max(float(os.environ.get("NRW_EVENTS_BONN_DE_DELAY_SECONDS", "2.0")), 0.0),
 }
 _HOST_FETCH_LOCK = threading.Lock()
 _HOST_LAST_FETCH_AT: dict[str, float] = {}

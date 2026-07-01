@@ -154,6 +154,9 @@ kein Limit.
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
 | `NRW_EVENTS_USER_AGENT`       | moderner Chrome UA | Optionaler Override für HTTP-Requests an öffentliche Quellen. |
+| `NRW_EVENTS_HTTP_RETRY_ATTEMPTS` | `5` | Maximale Versuche für temporäre HTTP-/Netzwerkfehler (`429`, `5xx`, Timeouts). |
+| `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS` | `1.0` | Basis für exponentielles Retry-Backoff mit Jitter. |
+| `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
 | `NRW_EVENTS_ENV_FILE`         | nicht gesetzt | Expliziter Pfad zu einer `.env`-Datei. |
 
 Beispiel für eine absichtlich kurze, strenge Liste:

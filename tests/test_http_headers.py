@@ -18,6 +18,8 @@ class HttpHeaderTests(unittest.TestCase):
         _, kwargs = request.call_args
         headers = kwargs["headers"]
         self.assertIn("Mozilla/5.0", headers["User-Agent"])
+        self.assertIn("Chrome/131.0.0.0", headers["User-Agent"])
+        self.assertIn('v="131"', headers["Sec-CH-UA"])
         self.assertNotIn("Python-urllib", headers["User-Agent"])
         self.assertEqual(headers["Accept-Language"], "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7")
         self.assertIn("text/html", headers["Accept"])
