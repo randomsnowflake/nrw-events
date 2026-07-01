@@ -18,6 +18,8 @@ import math
 import os
 import random
 import re
+import threading
+import time
 import urllib.request
 import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
 import urllib.error
@@ -158,6 +160,56 @@ _BROWSER_PROFILES = [
     },
 ]
 _BROWSER_PROFILE = random.SystemRandom().choice(_BROWSER_PROFILES)
+_TRANSIENT_HTTP_STATUSES = {408, 425, 429, 500, 502, 503, 504}
+_HTTP_RETRY_ATTEMPTS = max(int(os.environ.get("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", "3")), 1)
+_HTTP_RETRY_BASE_SECONDS = max(float(os.environ.get("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", "1.0")), 0.0)
+_HOST_THROTTLE_SECONDS_BY_SUFFIX = {
+    # Bonn.de's MyraCDN/backend intermittently returns 503 when the nightly run
+    # fans out multiple official Bonn sources at once. Keep those requests
+    # browser-like *and* human-paced; the importer is nightly, not latency-bound.
+    "bonn.de": max(float(os.environ.get("NRW_EVENTS_BONN_DE_DELAY_SECONDS", "1.0")), 0.0),
+}
+_HOST_FETCH_LOCK = threading.Lock()
+_HOST_LAST_FETCH_AT: dict[str, float] = {}
+
+
+def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
+    hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
+    for suffix, delay in _HOST_THROTTLE_SECONDS_BY_SUFFIX.items():
+        if hostname == suffix or hostname.endswith(f".{suffix}"):
+            return suffix, delay
+    return None, 0.0
+
+
+def _throttle_before_request(url: str) -> None:
+    bucket, delay = _throttle_bucket(url)
+    if not bucket or delay <= 0:
+        return
+    with _HOST_FETCH_LOCK:
+        now = time.monotonic()
+        wait = max(0.0, _HOST_LAST_FETCH_AT.get(bucket, 0.0) + delay - now)
+        if wait > 0:
+            time.sleep(wait)
+            now = time.monotonic()
+        _HOST_LAST_FETCH_AT[bucket] = now
+
+
+def _retry_delay(exc: Exception, attempt_index: int) -> float:
+    if isinstance(exc, urllib.error.HTTPError):
+        retry_after = exc.headers.get("Retry-After") if exc.headers else None
+        if retry_after:
+            try:
+                return max(float(retry_after), 0.0)
+            except ValueError:
+                pass
+    jitter = random.SystemRandom().uniform(0, _HTTP_RETRY_BASE_SECONDS / 2) if _HTTP_RETRY_BASE_SECONDS else 0.0
+    return _HTTP_RETRY_BASE_SECONDS * (2 ** attempt_index) + jitter
+
+
+def _is_retryable_fetch_error(exc: Exception) -> bool:
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in _TRANSIENT_HTTP_STATUSES
+    return isinstance(exc, (urllib.error.URLError, TimeoutError, ConnectionError))
 
 
 def browser_headers(
@@ -214,9 +266,17 @@ def fetch_url(
         sec_fetch_dest=sec_fetch_dest,
         extra=headers,
     )
-    req = urllib.request.Request(url, headers=hdrs)
-    resp = urllib.request.urlopen(req, timeout=timeout)
-    return resp.read().decode("utf-8", "ignore")
+    for attempt in range(_HTTP_RETRY_ATTEMPTS):
+        try:
+            _throttle_before_request(url)
+            req = urllib.request.Request(url, headers=hdrs)
+            resp = urllib.request.urlopen(req, timeout=timeout)
+            return resp.read().decode("utf-8", "ignore")
+        except Exception as exc:
+            if attempt >= _HTTP_RETRY_ATTEMPTS - 1 or not _is_retryable_fetch_error(exc):
+                raise
+            time.sleep(_retry_delay(exc, attempt))
+    raise RuntimeError("fetch_url retry loop exhausted unexpectedly")  # pragma: no cover
 
 
 def reset_source_warnings() -> None:
