@@ -28,20 +28,23 @@ bash {baseDir}/scripts/nrw-events.sh [days_ahead]   # default: 3 (weekend)
 ```
 
 Every event is discovered **live** at run time — there are no hardcoded event
-names or dates anywhere in the code. The script fans out across these sources in
-parallel: Köln Open Data API, Bonn.de HTML + RSS calendar, the annual Bonn
-"Veranstaltungsjahr" press release (district festivals / Kirmes / markets, parsed
-live), the official Rheinauen-Flohmarkt page (schema.org JSON-LD season dates),
-Bundeskunsthalle current exhibitions (live HTML scrape), Harmonie Bonn (Tribe
-iCal), curated Bonn-area Meetup groups (per-group iCal), the Königswinter official
-calendar, VVS Siebengebirge guided hikes (JSON-LD), Bonn.jetzt, Songkick, Exa
-Search, and optional Grok Search. Bonn.jetzt is especially useful for Bonn's local
-digital/community events and weekend oddities that bigger feeds miss. Scores by
-distance (Bonn=1.0, Königswinter≈0.9, Ahrweiler≈0.74, Köln=0.7, Düsseldorf=0.4) ×
-category preference (electronic/techno=1.8x, wine/winery/wine-walk=1.4–1.55x,
-hiking/guided walks/Drachenfels/Siebengebirge=1.3–1.45x, architecture=1.6x,
-concerts=1.5x, exhibitions=1.4x, kids-only=0.2x). Output: markdown report grouped
-by category + JSON at `/tmp/nrw-events-latest.json`.
+names or dates anywhere in the code. The script fans out across official APIs,
+JSON-LD pages, iCal feeds, municipal/regional calendars, venue calendars,
+nightlife sources, and web-search fallbacks. Current sources include Köln Open
+Data, Bonn.de JSON + sports + annual "Veranstaltungsjahr" listings, Harmonie
+Bonn, Meetup, Songkick, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
+VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
+Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
+tourism calendars, requested venue calendars, Rausgegangen, Eventbrite,
+Bonn.jetzt, Ruhr-Guide, Exa Search, and optional Grok Search. Bonn.jetzt is
+especially useful for Bonn's local digital/community events and weekend oddities
+that bigger feeds miss. Scores by distance (Bonn=1.0, Königswinter≈0.9,
+Ahrweiler≈0.74, Köln=0.7, Düsseldorf=0.4) × category preference
+(electronic/techno=1.8x, wine/winery/wine-walk=1.4–1.55x, hiking/guided
+walks/Drachenfels/Siebengebirge=1.3–1.45x, architecture=1.6x, concerts=1.5x,
+exhibitions=1.4x, kids-only=0.2x). Output: markdown report grouped by category +
+JSON event list at `/tmp/nrw-events-latest.json` + metadata JSON at
+`/tmp/nrw-events-latest-meta.json`.
 
 ## Architecture (one file per source)
 
@@ -118,8 +121,13 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_SCORE_FLOOR=0.4` — minimum score to keep. Lower = more/noisier.
 - `NRW_EVENTS_EXA_QUERIES=10` — how many `search_queries()` to send to Exa (~5 results each).
 - `NRW_EVENTS_ENABLE_GROK=1` — enable the slow/costly agentic Grok sweep (off by default).
+- `NRW_EVENTS_USER_AGENT` — override the default browser-like user agent.
+- `NRW_EVENTS_HTTP_RETRY_ATTEMPTS=5` — transient HTTP/network retry limit.
+- `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS=1.0` — exponential backoff base with jitter.
+- `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
+- `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 
-API keys are read from the environment or a `.env` file. See [.env.example](.env.example).
+API keys and tuning values are read from the environment or a `.env` file. See [.env.example](.env.example).
 
 ## Adding new sources (esp. iCal / Tribe Events)
 

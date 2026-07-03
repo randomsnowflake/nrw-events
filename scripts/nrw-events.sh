@@ -17,19 +17,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DAYS="${1:-3}"
 
-# Optionally load a .env file. Real environment variables take precedence.
-# Lookup order: NRW_EVENTS_ENV_FILE, repo-root .env, current-directory .env.
-for envfile in "${NRW_EVENTS_ENV_FILE:-}" "$REPO_ROOT/.env" "$PWD/.env"; do
-    if [ -n "$envfile" ] && [ -f "$envfile" ]; then
-        set -a
-        # shellcheck disable=SC1090
-        source "$envfile"
-        set +a
-        break
-    fi
-done
-
+# The Python runner loads .env files itself while preserving real environment
+# variables. Keep the shell wrapper thin so `EXA_API_KEY=... bash ...` cannot be
+# accidentally overwritten by a blank key in a local .env file.
 python3 "$SCRIPT_DIR/nrw-events.py" "$DAYS"

@@ -12,7 +12,9 @@ venv/
 
 # Script output
 nrw-events-latest.json
+nrw-events-latest-meta.json
 /tmp/nrw-events-latest.json
+/tmp/nrw-events-latest-meta.json
 
 # Editor / OS cruft
 .DS_Store

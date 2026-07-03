@@ -99,7 +99,7 @@ Datei.
 ```text
 scripts/
   nrw-events.py            # dünner Einstiegspunkt
-  nrw-events.sh            # Shell-Wrapper, lädt .env und startet Python
+  nrw-events.sh            # Shell-Wrapper; Python lädt .env und startet den Runner
   nrw_events/
     category_taxonomy.py   # stabile Kategorie-Keys, Labels und Keyword-Klassifizierung
     config.py              # Geodaten, Kategoriegewichte, Venue-Koordinaten, Gruppenlisten
@@ -108,10 +108,12 @@ scripts/
     runner.py              # Orchestrierung: Quellen parallel abfragen, filtern, schreiben
     sources/
       __init__.py          # SOURCES-Registry: Anzeigename -> fetch-Funktion
-      koeln.py  bonn.py  songkick.py  meetup.py  harmonie.py
-      koenigswinter.py  siebengebirge.py  bonnjetzt.py
-      flohmarkt.py  bundeskunsthalle.py  naturregion_sieg.py
-      troisdorf.py  ruhrguide.py  search.py
+      bonn.py  koeln.py  harmonie.py  meetup.py  songkick.py
+      flohmarkt.py  bundeskunsthalle.py  bonnjetzt.py
+      koenigswinter.py  siebengebirge.py  siegburg.py  troisdorf.py
+      hennef.py  meckenheim.py  wachtberg.py  much.py  naturregion_sieg.py
+      regional_*.py  requested_venues.py  eventbrite.py  rausgegangen.py
+      ruhrguide.py  search.py
 ```
 
 Jedes Quellenmodul stellt eine Funktion `fetch() -> list[dict]` bereit. Fehler in
@@ -157,6 +159,8 @@ kein Limit.
 | `NRW_EVENTS_HTTP_RETRY_ATTEMPTS` | `5` | Maximale Versuche für temporäre HTTP-/Netzwerkfehler (`429`, `5xx`, Timeouts). |
 | `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS` | `1.0` | Basis für exponentielles Retry-Backoff mit Jitter. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
+| `NRW_EVENTS_JSON_OUT`         | `/tmp/nrw-events-latest.json` | Zielpfad für die Eventliste als JSON-Array. |
+| `NRW_EVENTS_META_JSON_OUT`    | `/tmp/nrw-events-latest-meta.json` | Zielpfad für Metadaten, Quellenstatistik, Warnungen und Eventliste. |
 | `NRW_EVENTS_ENV_FILE`         | nicht gesetzt | Expliziter Pfad zu einer `.env`-Datei. |
 
 Beispiel für eine absichtlich kurze, strenge Liste:
@@ -197,16 +201,23 @@ konsistenten, browserähnlichen Header-Satz mit deutscher `Accept-Language` stat
 des auffälligen Python-Standard-User-Agents; Quellmodule können Header bei Bedarf
 weiterhin gezielt überschreiben.
 
-- **Open-Data-API:** Köln Open Data Events (`koeln.py`)
-- **RSS / HTML:** Bonn.de Veranstaltungskalender und Sportveranstaltungen (`bonn.py`)
-- **Jährliche Pressemitteilung:** Bonner Stadtteilfeste, Kirmes, Märkte und lokale
-  Termine aus dem städtischen „Veranstaltungsjahr“ (`bonn.py`)
-- **JSON-LD / schema.org:** Rheinauen-Flohmarkt, VVS Siebengebirge, Songkick
-- **iCal / RFC 5545:** Harmonie Bonn, Troisdorf, Siegburg und kuratierte
-  Meetup-Gruppen
-- **Strukturiertes HTML:** Königswinter, Naturregion Sieg, Ruhr-Guide,
-  Bundeskunsthalle, Bonn.jetzt
-- **Websuche als Fallback:** Exa standardmäßig, Grok optional (`search.py`)
+- **Offizielle strukturierte Daten:** Köln Open Data (`koeln.py`) und der primäre
+  Bonn.de-Kalender als JSON (`bonn.py`).
+- **Bonn.de-Ergänzungen:** Sportveranstaltungen sowie das jährliche
+  „Veranstaltungsjahr“ mit Stadtteilfesten, Kirmes, Märkten und lokalen Terminen
+  (`bonn.py`).
+- **iCal / RFC 5545:** Harmonie Bonn, Siegburg, Troisdorf, Wachtberg und kuratierte
+  Bonn-area Meetup-Gruppen.
+- **JSON-LD / schema.org:** Rheinauen-Flohmarkt, VVS Siebengebirge, Hennef und
+  weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
+- **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
+  Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
+  regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
+  und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
+- **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
+  Songkick, Eventbrite, Rausgegangen und Ruhr-Guide.
+- **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
+  `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 
 Das Ahrtal, z.B. Ahrweiler, Bad Neuenahr, Dernau und Mayschoss, ist trotz des
 NRW-Namens im praktischen Suchraum, weil es von Bonn gut erreichbar ist und für
@@ -237,9 +248,12 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
 - **Markdown auf stdout:** Kategorien, Eventname, Datum/Zeit, Ort, Distanz,
   Bewertung, Beschreibung und Link.
 - **JSON unter `/tmp/nrw-events-latest.json`:** vollständige deduplizierte und
-  bewertete Eventliste.
+  bewertete Eventliste als Top-Level-Array. Dieser Vertrag bleibt stabil für
+  einfache Weiterverarbeitung.
 - **Metadaten-JSON unter `/tmp/nrw-events-latest-meta.json`:** Zeitfenster,
-  Radius, Quellenstatistiken, Fehler und die vollständige Eventliste.
+  Radius, Score-Schwelle, Roh-Zählungen je Quelle, hart fehlgeschlagene Quellen,
+  weiche Quellenwarnungen, stabile Kategorie-Taxonomie und die vollständige
+  Eventliste.
 
 Standardmäßig wird die vollständige Liste ausgegeben. Gekürzt wird nur, wenn
 `NRW_EVENTS_MAX_PER_SECTION` explizit gesetzt wird.
@@ -252,6 +266,39 @@ Häufige Anpassungen:
 - `config.BONN_LAT`, `config.BONN_LON`, `MAX_RADIUS_KM` — Suchmittelpunkt/Radius ändern.
 - `config.VENUE_COORDS` — Orte für genauere Distanzwerte ergänzen.
 - `sources/__init__.py` — Quellen hinzufügen oder entfernen.
+
+## Entwicklung und Qualitätssicherung
+
+Die Laufzeit selbst braucht keine Drittanbieter-Pakete. Für die Tests wird
+`pytest` verwendet; falls es lokal fehlt, am besten eine virtuelle Umgebung
+nutzen:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install pytest
+python -m pytest
+```
+
+Schneller Smoke-Test ohne echte Ausgabedateien im Repo:
+
+```bash
+tmpdir=$(mktemp -d)
+NRW_EVENTS_JSON_OUT="$tmpdir/events.json" \
+NRW_EVENTS_META_JSON_OUT="$tmpdir/meta.json" \
+python3 scripts/nrw-events.py 3 >/tmp/nrw-events-smoke.md
+python3 - "$tmpdir/meta.json" <<'PY'
+import json, sys
+meta = json.load(open(sys.argv[1]))
+print(meta["event_count"])
+print(meta["source_counts_raw"])
+print(meta.get("source_warnings", []))
+PY
+```
+
+Ein erfolgreicher Lauf ist nicht nur ein Exit-Code: Prüfe auch `event_count`,
+wichtige Quellenzählungen und `source_warnings`, weil einzelne öffentliche Seiten
+degradiert sein können, ohne den Gesamtlauf zu stoppen.
 
 ## Lizenz
 
