@@ -5,8 +5,8 @@ from unittest.mock import patch
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
 from scripts.nrw_events.sources import (
-    bonn, bonnjetzt, bundeskunsthalle, koeln, regional_feeds, regional_ionas4,
-    rausgegangen, regional_tourism, requested_venues,
+    bonn, bonn_venues, bonnjetzt, bundeskunsthalle, koeln, regional_feeds,
+    regional_ionas4, rausgegangen, regional_tourism, requested_venues,
 )
 
 
@@ -68,6 +68,184 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "22:00")
         self.assertEqual(events[0]["category_key"], "nightlife")
         self.assertEqual(events[0]["price"], "Preis an AK")
+
+    def test_kult41_events_manager_blocks_create_events(self):
+        common.TODAY = datetime(2026, 7, 1)
+        common.END_DATE = datetime(2026, 7, 31)
+        html = """
+<div class="em-event em-item ">
+  <div class="em-item-info">
+    <h3 class="em-item-title"><a href="https://kult41.de/events/spiele-tumult-7">Spiele-Tumult</a></h3>
+    <div class="em-event-meta em-item-meta">
+      <div class="em-item-meta-line em-event-date em-event-meta-datetime">
+        <span class="em-icon-calendar em-icon"></span>05.07.26
+      </div>
+      <div class="em-item-meta-line em-event-time em-event-meta-datetime">
+        <span class="em-icon-clock em-icon"></span>15:00 - 20:00
+      </div>
+      <div class="em-item-meta-line em-event-time em-event-meta-datetime">
+        <span class="em-icon-ticket em-icon"></span>Eintritt: €
+      </div>
+      <div class="em-item-meta-line em-item-taxonomy em-event-categories">
+        <a href="https://kult41.de/events/categories/kulturcafe">Kulturcafe</a>
+      </div>
+    </div>
+    <div class="em-item-desc">Der Spiele-Tumult im Kult41 ist zurück.</div>
+  </div>
+</div>
+"""
+
+        events = bonn_venues.events_from_kult41(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Spiele-Tumult")
+        self.assertEqual(events[0]["date"], "2026-07-05")
+        self.assertEqual(events[0]["time"], "15:00–20:00")
+        self.assertEqual(events[0]["venue"], "KULT41")
+        self.assertEqual(events[0]["price"], "")
+
+    def test_repair_cafes_calendar_articles_create_events_with_coords(self):
+        common.TODAY = datetime(2026, 7, 1)
+        common.END_DATE = datetime(2026, 7, 31)
+        html = """
+<article class='calendar-event future-event'>
+  <h3 class='event-title summary'><button>Repair Café Venusberg &amp; Ippendorf</button></h3>
+  <p><span class='mc-start-time dtstart'>
+    <time class='value-title' datetime='2026-07-04T10:00:00+02:00'>10:00</time>
+  </span><span class='end-time dtend'>
+    <time class='value-title' datetime='2026-07-04T14:00:00+02:00'>14:00</time>
+  </span></p>
+  <div class='longdesc description'><h3>Repair Café im ev. Gemeindezentrum</h3></div>
+  <div class="mc-location"><strong class="location-label"><a href="#"><span></span>Repaircafe Venusberg &amp; Ippendorf</a></strong>
+    <a href='https://maps.google.com/maps?z=16&amp;daddr=50.699421N,7.093095E'>Karte<span> Repaircafe Venusberg &amp; Ippendorf</span></a>
+  </div>
+  <p class='mc-details'><a href='https://www.repaircafesbonn.de/mc-events/repair-cafe-venusberg-ippendorf/?mc_id=2171'>Weiterlesen</a></p>
+</article>
+"""
+
+        events = bonn_venues.events_from_repair_cafes(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Repair Café Venusberg & Ippendorf")
+        self.assertEqual(events[0]["date"], "2026-07-04")
+        self.assertEqual(events[0]["time"], "10:00–14:00")
+        self.assertEqual(events[0]["venue"], "Repaircafe Venusberg & Ippendorf")
+        self.assertGreater(events[0]["distance_km"], 0)
+
+    def test_brotfabrik_today_program_creates_events(self):
+        common.TODAY = datetime(2026, 7, 4)
+        common.END_DATE = datetime(2026, 7, 4)
+        html = """
+<section id="programm">
+  Kontaktimprovisation / Kommunikation durch Berührung Bib | 14:00 Uhr 04.07.2026
+  LaClinicA: Sin cepillo de dientes Theater | 20:00 Uhr 04.07.2026
+</section>
+"""
+
+        events = bonn_venues.events_from_brotfabrik(html)
+
+        self.assertEqual([event["title"] for event in events], ["LaClinicA: Sin cepillo de dientes"])
+        self.assertEqual(events[0]["time"], "20:00")
+
+    def test_brotfabrik_api_items_create_events_and_skip_cancelled(self):
+        common.TODAY = datetime(2026, 7, 4)
+        common.END_DATE = datetime(2026, 7, 6)
+        items = [
+            {
+                "Titel": "Hofkultur am 04.07. entfällt",
+                "Beschreibung": "Am 04.07.2026 muss die Hofkultur leider ausfallen.",
+                "Ort": "",
+                "Datum": "2026-07-04",
+                "Uhrzeit": "18:00:00",
+                "Url": "",
+                "Gewerk": "Hofkultur",
+                "Datumbis": "0000-00-00",
+            },
+            {
+                "Titel": "LaClinicA: Sin cepillo de dientes",
+                "Beschreibung": "Infos und Tickets auf der Theater Seite",
+                "Ort": "",
+                "Datum": "2026-07-04",
+                "Uhrzeit": "20:00:00",
+                "Url": "https://www.brotfabrik-theater.de/sin-cepillo-de-dientes/",
+                "Gewerk": "Theater",
+                "Datumbis": "0000-00-00",
+            },
+        ]
+
+        events = bonn_venues.events_from_brotfabrik_items(items)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "LaClinicA: Sin cepillo de dientes")
+        self.assertEqual(events[0]["date"], "2026-07-04")
+        self.assertEqual(events[0]["link"], "https://www.brotfabrik-theater.de/sin-cepillo-de-dientes/")
+
+    def test_botanical_garden_event_links_create_events(self):
+        common.TODAY = datetime(2026, 7, 1)
+        common.END_DATE = datetime(2026, 7, 31)
+        html = """
+<a href="https://www.botgart.uni-bonn.de/de/ihr-besuch/veranstaltungen/2026/freundeskreis/teegarten-26">
+  Exkursion Sonntag, 05.07.2026 11:00 Uhr Tschanara: Teegartenführung mit Teeverkostung
+</a>
+"""
+
+        events = bonn_venues.events_from_botgart(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Tschanara: Teegartenführung mit Teeverkostung")
+        self.assertEqual(events[0]["date"], "2026-07-05")
+        self.assertEqual(events[0]["source"], "Botanische Gärten Bonn")
+
+    def test_bonner_muenster_music_pages_create_events(self):
+        common.TODAY = datetime(2026, 7, 1)
+        common.END_DATE = datetime(2026, 7, 31)
+        html = """
+<li class="list-entry teaser-tile tile-col col-12">
+  <div class="teaser type-event">
+    <a href="/detail/Orgelvesper-mit-Anthony-Halliday-2026.07.23/?instancedate=1784829600000">
+      Bonner Münsterbasilika : Orgelvesper mit Anthony Halliday
+    </a>
+    <h3 class="headline">Bonner Münsterbasilika : Orgelvesper mit Anthony Halliday</h3>
+    <a href="/detail/Orgelvesper-mit-Anthony-Halliday-2026.07.23/?instancedate=1784829600000">
+      Do. 23. Juli 2026 20:00 - 21:30 Eintritt frei
+    </a>
+  </div>
+</li>
+"""
+
+        events = bonn_venues.events_from_bonner_muenster(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Orgelvesper mit Anthony Halliday")
+        self.assertEqual(events[0]["venue"], "Bonner Münsterbasilika")
+        self.assertEqual(events[0]["time"], "20:00–21:30")
+
+    def test_vox_bona_ical_skips_non_regional_tour_dates(self):
+        common.TODAY = datetime(2026, 7, 1)
+        common.END_DATE = datetime(2026, 12, 31)
+        ical = """
+BEGIN:VCALENDAR
+BEGIN:VEVENT
+DTSTART:20260712T160000
+DTEND:20260712T180000
+SUMMARY:Felix Mendelssohn Bartholdy · ELIAS
+LOCATION:Kreuzkirche Bonn, An der Evangelischen Kirche, Bonn
+URL:https://vox-bona.de/kalender/elias/
+END:VEVENT
+BEGIN:VEVENT
+DTSTART:20261204T190000
+SUMMARY:VOX BONA zu Gast in Stuttgart: Stunde der Kirchenmusik
+LOCATION:Stiftskirche Stuttgart, Stiftstraße 12, Stuttgart
+URL:https://vox-bona.de/kalender/stuttgart/
+END:VEVENT
+END:VCALENDAR
+"""
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=ical):
+            events = bonn_venues._fetch_vox_bona()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Felix Mendelssohn Bartholdy · ELIAS")
 
     def test_koeln_open_data_accepts_decimal_comma_coordinates(self):
         payload = {

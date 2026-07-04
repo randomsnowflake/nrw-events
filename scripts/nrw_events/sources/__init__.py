@@ -16,7 +16,7 @@ from . import (
     siegburg, hennef, meckenheim, wachtberg, much, naturregion_sieg,
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
-    eventbrite, rausgegangen,
+    eventbrite, rausgegangen, bonn_venues,
 )
 
 SOURCES = {
@@ -47,6 +47,7 @@ SOURCES = {
     "Deskline regional": regional_tourism.fetch,
     "Regional venues": regional_venues.fetch,
     "Requested venue calendars": requested_venues.fetch,
+    "Bonn venue calendars": bonn_venues.fetch,
     "Rausgegangen Party": rausgegangen.fetch,
     "Eventbrite Party": eventbrite.fetch,
     "Bonn.jetzt": bonnjetzt.fetch,
