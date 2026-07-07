@@ -71,6 +71,8 @@ class JunkFilterTests(unittest.TestCase):
     def test_blocks_political_admin_unless_it_is_a_destination_event(self):
         self.assertTrue(common.is_junk_event(event("Fraktionssitzung der Ratsfraktion")))
         self.assertTrue(common.is_junk_event(event("Wahlkampf-Infostand am Marktplatz")))
+        self.assertTrue(common.is_junk_event(event("Rat (öffentliche Sitzung)", category="Konzert")))
+        self.assertTrue(common.is_junk_event(event("Verwaltungsrat GKU", category="Konzert")))
         self.assertTrue(common.is_junk_event({
             **event("Ratssitzung im Ratssaal"),
             "venue": "Stadtmuseum Bonn",

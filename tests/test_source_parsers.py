@@ -33,7 +33,7 @@ class SourceParserTests(unittest.TestCase):
         json_payload = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
         rss_payload = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel>
-  <item><title>Ausstellung im Stadtmuseum</title><link>https://www.bonn.de/rss-event.php</link><pubDate>Fri, 12 Jun 2026 00:00:00 +0200</pubDate></item>
+  <item><title>Eintritt frei: Ausstellung im Stadtmuseum</title><link>https://www.bonn.de/rss-event.php</link><pubDate>Fri, 12 Jun 2026 00:00:00 +0200</pubDate></item>
 </channel></rss>"""
 
         def fake_fetch(url, *args, **kwargs):
@@ -44,7 +44,133 @@ class SourceParserTests(unittest.TestCase):
             events = bonn.fetch_events_json()
 
         self.assertEqual([event["source"] for event in events], ["Bonn.de Events", "Bonn.de Events"])
-        self.assertEqual(events[1]["title"], "Ausstellung im Stadtmuseum")
+        self.assertEqual(events[1]["title"], "Eintritt frei: Ausstellung im Stadtmuseum")
+        self.assertEqual(events[1]["price"], "kostenlos")
+
+    def test_bonn_events_json_preserves_free_admission_category(self):
+        payload = [
+            {
+                "title": "SSF Bonn Play Stations Spiel und Spaß im Sportpark Nord",
+                "description": "",
+                "category": ["Bonn", "Sport", "Familien/Kinder", "Kostenlos"],
+                "startDate": "2026-06-12 12:00:00",
+                "endDate": "2026-06-12 17:00:00",
+                "locationName": "Sportpark Nord",
+                "locationAddress": "Kölnstr 250, 53117, Bonn",
+                "link": "https://www.bonn.de/play-stations.php",
+                "hasStartTime": True,
+                "hasEndTime": True,
+            },
+            {
+                "title": "Rallye im Botanischen Garten",
+                "description": "",
+                "category": ["Bonn", "Ferienaktion", "Kostenlos"],
+                "startDate": "2026-06-13 14:00:00",
+                "endDate": "2026-06-13 16:00:00",
+                "locationName": "Haus der Jugend",
+                "locationAddress": "Reuterstr. 100, 53129, Bonn",
+                "link": "https://www.bonn.de/rallye.php",
+                "hasStartTime": True,
+                "hasEndTime": True,
+            },
+            {
+                "title": "Limes-Geburtstag",
+                "description": "Es werden kostenlose Führungen angeboten.",
+                "category": ["Bonn", "Bonn-Information", "Kultur", "Tourismus"],
+                "startDate": "2026-06-14 11:00:00",
+                "endDate": "2026-06-14 16:00:00",
+                "locationName": "Präsentationsfläche",
+                "locationAddress": "Graurheindorfer Straße 10, 53111, Bonn",
+                "link": "https://www.bonn.de/limes.php",
+                "hasStartTime": True,
+                "hasEndTime": True,
+            },
+        ]
+
+        with patch("scripts.nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)), \
+             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+            events = bonn.fetch_events_json()
+
+        self.assertEqual([event["title"] for event in events], [
+            "SSF Bonn Play Stations Spiel und Spaß im Sportpark Nord",
+            "Rallye im Botanischen Garten",
+            "Limes-Geburtstag",
+        ])
+        self.assertEqual([event["price"] for event in events], ["kostenlos", "kostenlos", "kostenlos"])
+        self.assertEqual(events[0]["category_key"], "sports")
+        self.assertEqual(events[1]["category_key"], "kids")
+        self.assertEqual(events[2]["category_key"], "outdoor")
+        self.assertTrue(all(event["score"] >= 0.4 for event in events))
+
+    def test_bonn_events_json_recovers_free_calendar_listing_when_json_is_truncated(self):
+        json_payload = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
+        rss_payload = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>"""
+        listing_payload = """
+<nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/kostenloser-Eintritt-Sundowner-Bar.php">
+    <span class="SP-Kicker__text">Ausstellung | Fest/Festival</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span></span></div>
+    <h1 class="SP-Teaser__headline">kostenloser Eintritt: Sundowner Bar auf dem Dach der Bundeskunsthalle</h1>
+  </a>
+</article>
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Taste-Of-Woodstock-Musik-im-Park.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span><span class="SP-Scheduling__time"> 19:00 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">Taste Of Woodstock - Musik im Park</h1>
+  </a>
+</article>
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Chor-und-Orchester-des-Collegium-musicum-.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span><span class="SP-Scheduling__time"> 20:30 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">Chor und Orchester des Collegium musicum</h1>
+  </a>
+</article>
+"""
+
+        def fake_fetch(url, *args, **kwargs):
+            if "events-json" in url:
+                return json_payload
+            if "sp%3Aout=rss" in url:
+                return rss_payload
+            if "categories%5B1530%5D" in url:
+                return listing_payload
+            raise AssertionError(f"unexpected URL {url}")
+
+        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+            events = bonn.fetch_events_json()
+
+        titles = [event["title"] for event in events]
+        self.assertIn("Sundowner Bar auf dem Dach der Bundeskunsthalle", titles)
+        self.assertIn("Taste Of Woodstock - Musik im Park", titles)
+        self.assertIn("Chor und Orchester des Collegium musicum", titles)
+        fallback_events = [event for event in events if event["title"] != "Bonner Konzert"]
+        self.assertTrue(all(event["price"] == "kostenlos" for event in fallback_events))
+        self.assertEqual(
+            next(event for event in events if event["title"] == "Chor und Orchester des Collegium musicum")["time"],
+            "20:30",
+        )
+
+    def test_bonn_detail_context_extracts_sparse_page_description_and_venue(self):
+        html = """
+<div class="SP-ArticleHeader__intro SP-Intro"><p>Sonderausstellung im Arithmeum</p></div>
+<div data-sp-table class="SP-Paragraph">
+  <p>Die Ausstellung zeigt historische Rechenschieber und Vermessung.</p>
+</div>
+<script id="EventSerializer-1" type="application/ld+json">
+{"@context":"http://schema.org","@type":"Event","name":"Um drei Ecken gedacht","location":[{"@type":"Place","name":"Arithmeum - rechnen einst und heute","address":{"@type":"PostalAddress","addressLocality":"Bonn"}}]}
+</script>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertIn("Sonderausstellung im Arithmeum", context["description"])
+        self.assertIn("Die Ausstellung zeigt", context["description"])
+        self.assertEqual(context["venue"], "Arithmeum - rechnen einst und heute")
+        self.assertEqual(context["city"], "Bonn")
 
     def test_rausgegangen_party_tiles_emit_nightlife_events(self):
         html = """
@@ -586,6 +712,42 @@ END:VCALENDAR
 
         self.assertIsNotNone(event)
 
+    def test_make_event_preserves_free_admission_from_raw_description(self):
+        cases = [
+            (
+                "Moovy NRW",
+                "Mit dem kostenfreien Tanzfilm-Workshop im Kunsthaus. Sämtliche Angebote sind kostenlos.",
+                "kostenlos",
+            ),
+            (
+                "Uta Rings - In den Farbräumen",
+                "Die Fensterinstallation wird gezeigt. Editionen von Künstlerinnen und Künstlern. Eintritt frei",
+                "kostenlos",
+            ),
+            (
+                "Wanderung mit Anmeldung",
+                "Rucksackverpflegung bitte mitbringen. Es wird um eine kurze Anmeldung (kostenlos) gebeten.",
+                "",
+            ),
+        ]
+
+        for title, description, expected_price in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title,
+                    datetime(2026, 6, 12, 18),
+                    datetime(2026, 6, 12, 20),
+                    "Testort",
+                    "Bonn",
+                    description,
+                    "https://example.test/event",
+                    "Test",
+                    "kultur workshop",
+                )
+
+                self.assertIsNotNone(event)
+                self.assertEqual(event["price"], expected_price)
+
     def test_make_event_skips_routine_and_political_calendar_noise(self):
         cases = [
             (
@@ -747,6 +909,7 @@ END:VCALENDAR
     def test_make_event_skips_cancelled_or_postponed_events(self):
         cases = [
             ("-ABGESAGT- Jazzabend im Pantheon", "Heute leider abgesagt"),
+            ("Veranstaltung fällt leider aus! Erleben Sie ein Stück lebendiger Geschichte", "Die historische Wassermühle öffnet ihre Tore."),
             ("Konzert im Park", "Die Veranstaltung entfällt krankheitsbedingt."),
             ("Lesung mit Autorin", "Der Termin fällt aus und wird nachgeholt."),
             ("Theaterabend verschoben", "Neuer Termin folgt"),

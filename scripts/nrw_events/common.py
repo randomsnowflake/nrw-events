@@ -396,7 +396,7 @@ def normalize_venue_name(value: str) -> str:
     return cleaned
 
 
-_CANCELLED_STATUS_WORDS = r"abgesagt|entfällt|entfaellt|fällt\s+aus|faellt\s+aus|verschoben"
+_CANCELLED_STATUS_WORDS = r"abgesagt|entfällt|entfaellt|fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|verschoben"
 _CANCELLED_STATUS_SUBJECTS = (
     r"veranstaltung|termin|event|konzert|lesung|theaterabend|show|kurs|workshop|"
     r"führung|fuehrung|rundgang"
@@ -415,9 +415,10 @@ _CANCELLED_CONTEXT_PATTERN = re.compile(
 
 def has_cancelled_status(title: str, description: str) -> bool:
     """True when text marks this event as cancelled/postponed."""
+    combined = " ".join([title or "", description or ""])
     return bool(
         _CANCELLED_TITLE_PATTERN.search(title or "")
-        or _CANCELLED_CONTEXT_PATTERN.search(description or "")
+        or _CANCELLED_CONTEXT_PATTERN.search(combined)
     )
 
 
@@ -571,6 +572,48 @@ def sanitize_time_text(time_text: str) -> str:
 
 # ── Event construction + junk filter ────────────────────────────────
 
+_FREE_ADMISSION_PATTERNS = (
+    r"\beintritt\s*:?\s*(?:frei|kostenlos|kostenfrei)\b",
+    r"\bfreier\s+eintritt\b",
+    r"\b(?:teilnahme|veranstaltung|performance|workshop|angebote?|programm|sportangebot|termin|event)"
+    r"\s+.{0,90}\b(?:ist|sind)\s+(?:kostenlos|kostenfrei)\b",
+    r"\b(?:kostenlos(?:e[rsn]?|em|en|es)?|kostenfrei(?:e[rsn]?|em|en|es)?)\s+"
+    r"(?:teilnahme|veranstaltung|angebot|programm|workshop|kurs|sportangebot|konzert|führung|fuehrung|"
+    r"termin|event|filmvorführung|filmvorfuehrung|tour)\b",
+    r"\b(?:workshop|veranstaltung|sonder-veranstaltung|führung|fuehrung|offene werkstatt)"
+    r"[^.]{0,80}\b(?:kostenlos|kostenfrei)\b",
+    r"\b(?:kostenlos|kostenfrei)\s*(?:[-–]\s*)?(?:und\s+)?"
+    r"(?:keine anmeldung|anmeldung erforderlich|ohne anmeldung)\b",
+)
+_LIMITED_FREE_WITH_PAID_PATTERN = re.compile(
+    r"\b(?:kosten|preise?|eintritt|teilnahme|gebühr|gebuehr|führungen?|fuehrungen?|"
+    r"erwachsene|ermäßigt|ermaessigt)\b[^.]{0,100}\b\d+[,.]?\d*\s*(?:€|eur|euro)\b",
+    re.IGNORECASE,
+)
+_LIMITED_FREE_CONTEXT_PATTERNS = (
+    r"\beintritt\s+in\s+(?:den|die|das)\s+[^.]{0,50}\s+ist\s+frei\b",
+    r"\bkinder(?:n)?\s+bis\s+\d+[^.]{0,40}\s+(?:kostenlos|frei)\b",
+    r"\b(?:kostenlos|frei)[^.]{0,40}\bkinder(?:n)?\s+bis\s+\d+\b",
+)
+
+
+def infer_free_admission_price(title: str, description: str, price: str = "") -> str:
+    """Return a normalized free-admission label from raw source text."""
+    raw = " ".join([title or "", description or "", price or ""])
+    text = clean_html(raw).lower()
+    text = re.sub(r"\b(kostenfrei|kostenlos)(?=ab\s+\d)", r"\1 ", text)
+    text = re.sub(r"\s+", " ", text)
+    price_text = clean_html(price or "").lower().strip()
+
+    if price_text in {"frei", "kostenlos", "kostenfrei", "free"}:
+        return "kostenlos"
+    if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
+        return ""
+    if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
+        return "kostenlos"
+    return ""
+
+
 def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
                venue: str, city: str, description: str, link: str, source: str,
                category: str, trust: float = 1.0, time_text: str = "",
@@ -616,7 +659,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "venue": normalize_venue_name(venue),
         "city": clean_html(city).title(),
         "description": clean_html(description),
-        "price": "",
+        "price": infer_free_admission_price(title, description),
         "link": event_link,
         "distance_km": round(km, 1),
         "score": round(distance_score(km) * category_score(full_text) * trust, 2),
@@ -641,6 +684,7 @@ def is_junk_event(ev: dict) -> bool:
     # Cultural exceptions should come from the event content/category, not from a
     # venue name or URL path like `/museum/` that can also host civic meetings.
     content_text = f"{title} {desc} {category}"
+    title_desc_text = f"{title} {desc}"
 
     # Stale entries with a parseable out-of-window date. Date *ranges*
     # ("start–end", en-dash) are kept whenever the span overlaps the window —
@@ -703,7 +747,7 @@ def is_junk_event(ev: dict) -> bool:
         "fraktion", "infostand", "kreistag", "mitgliederversammlung", "ortsbeirat", "parteitag",
         "ratssitzung", "ratsinformationssystem", "seniorenbeirat", "seniorenvertretung", "sitzung",
         "sprechstunde", "sprechtag", "stadtrat", "stadtverordnete", "tagesordnung",
-        "wahlkampf", "wahlstand",
+        "verwaltungsrat", "wahlkampf", "wahlstand",
     }
     routine_phrase_bits = {
         "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
@@ -721,10 +765,10 @@ def is_junk_event(ev: dict) -> bool:
         "tag der offenen tür", "tag der offenen tuer",
     }
     if (any(bit in text for bit in routine_or_political_bits)
-            and not any(bit in content_text for bit in cultural_event_bits)):
+            and not any(bit in title_desc_text for bit in cultural_event_bits)):
         return True
     if any(bit in text for bit in routine_phrase_bits) and not any(
-        bit in content_text for bit in cultural_event_bits
+        bit in title_desc_text for bit in cultural_event_bits
     ):
         return True
 

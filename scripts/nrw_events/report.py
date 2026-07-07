@@ -15,7 +15,7 @@ from . import common
 def normalize_title(title: str) -> str:
     """Aggressively normalize a title for near-duplicate comparison."""
     t = (title or "").lower().strip()
-    t = re.sub(r"^(ausstellung[:\s]*|exhibition[:\s]*|konzert[:\s]*|concert[:\s]*|tickets?\s+für\s+)", "", t)
+    t = re.sub(r"^(ausstellung[:\s]*|exhibition[:\s]*|konzert[:\s]*|concert[:\s]*|kostenloser\s+eintritt[:\s]*|eintritt\s+frei[:\s]*|tickets?\s+für\s+)", "", t)
     return re.sub(r"[^a-zäöüß0-9]", "", t)
 
 
@@ -25,14 +25,36 @@ def _dedup_key(ev: dict) -> str:
     return norm[:50] + "|" + (ev.get("city", "")).lower()[:10]
 
 
+def _merge_duplicate_metadata(winner: dict, duplicate: dict) -> dict:
+    """Keep the winning event while preserving useful details from duplicates."""
+    merged = dict(winner)
+    for field in ("description", "price", "venue", "link"):
+        if not merged.get(field) and duplicate.get(field):
+            merged[field] = duplicate[field]
+
+    # If a lower-scored duplicate carries an explicit price/free-admission signal,
+    # keep its stronger category metadata too. This prevents a broad duplicate
+    # source from erasing a more structured municipal source such as Bonn.de JSON.
+    if duplicate.get("price") and not winner.get("price") and duplicate.get("category_key"):
+        for field in ("category", "category_key", "category_label", "category_confidence", "category_reason"):
+            if duplicate.get(field):
+                merged[field] = duplicate[field]
+
+    return merged
+
+
 def deduplicate(events: list) -> list:
     """Collapse duplicates by fuzzy title+city, keeping the highest-scored copy."""
     best: dict = {}
     for ev in events:
         key = _dedup_key(ev)
         current = best.get(key)
-        if current is None or ev["score"] > current["score"]:
+        if current is None:
             best[key] = ev
+        elif ev["score"] > current["score"]:
+            best[key] = _merge_duplicate_metadata(ev, current)
+        else:
+            best[key] = _merge_duplicate_metadata(current, ev)
     # Preserve first-seen order for stability, but emit the winning copy per key.
     seen = set()
     result = []

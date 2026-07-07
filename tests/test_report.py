@@ -1,0 +1,104 @@
+import unittest
+
+from scripts.nrw_events import report
+
+
+class ReportTests(unittest.TestCase):
+    def test_deduplicate_treats_free_entry_prefix_as_same_title(self):
+        events = [
+            {
+                "title": "Sundowner Bar auf dem Dach der Bundeskunsthalle",
+                "date": "2026-07-08",
+                "time": "18:00",
+                "venue": "Bundeskunsthalle",
+                "city": "Bonn",
+                "description": "",
+                "price": "",
+                "link": "https://www.bundeskunsthalle.de/sundowner",
+                "distance_km": 0,
+                "score": 1.0,
+                "source": "Bundeskunsthalle",
+                "category": "nightlife",
+                "category_key": "nightlife",
+                "category_label": "Nachtleben & Party",
+                "category_confidence": 1,
+                "category_reason": "forced:nightlife",
+            },
+            {
+                "title": "kostenloser Eintritt: Sundowner Bar auf dem Dach der Bundeskunsthalle",
+                "date": "2026-07-08",
+                "time": "",
+                "venue": "",
+                "city": "Bonn",
+                "description": "",
+                "price": "kostenlos",
+                "link": "https://www.bonn.de/sundowner.php",
+                "distance_km": 0,
+                "score": 0.86,
+                "source": "Bonn.de Events",
+                "category": "Ausstellung | Fest/Festival",
+                "category_key": "festival",
+                "category_label": "Feste & Stadtleben",
+                "category_confidence": 0.8,
+                "category_reason": "festival:title=bar",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["title"], "Sundowner Bar auf dem Dach der Bundeskunsthalle")
+        self.assertEqual(deduped[0]["price"], "kostenlos")
+
+    def test_deduplicate_preserves_free_price_and_category_from_lower_scored_duplicate(self):
+        events = [
+            {
+                "title": "SSF Bonn Play Stations Spiel und Spaß im Sportpark Nord",
+                "date": "2026-07-11",
+                "time": "12:00",
+                "venue": "",
+                "city": "Bonn",
+                "description": "",
+                "price": "",
+                "link": "https://www.bonn.de/sports.php",
+                "distance_km": 0,
+                "score": 0.64,
+                "source": "Bonn.de Sports",
+                "category": "Sport",
+                "category_key": "outdoor",
+                "category_label": "Führungen & Outdoor",
+                "category_confidence": 0.5,
+                "category_reason": "outdoor:title=park",
+            },
+            {
+                "title": "SSF Bonn Play Stations Spiel und Spaß im Sportpark Nord",
+                "date": "2026-07-11",
+                "time": "12:00",
+                "venue": "Sportpark Nord",
+                "city": "Bonn",
+                "description": "",
+                "price": "kostenlos",
+                "link": "https://www.bonn.de/json.php",
+                "distance_km": 0,
+                "score": 0.2,
+                "source": "Bonn.de Events",
+                "category": "Sport",
+                "category_key": "sports",
+                "category_label": "Sport & Bewegung",
+                "category_confidence": 0.86,
+                "category_reason": "bonn-free-tag:Sport",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Bonn.de Sports")
+        self.assertEqual(deduped[0]["price"], "kostenlos")
+        self.assertEqual(deduped[0]["venue"], "Sportpark Nord")
+        self.assertEqual(deduped[0]["category_key"], "sports")
+        self.assertEqual(deduped[0]["category_label"], "Sport & Bewegung")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -27,6 +27,7 @@ class Keyword:
     value: str
     title_only: bool = False
     word: bool = False
+    word_suffix: bool = False
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,10 @@ def word(value: str) -> Keyword:
     return Keyword(value=value, word=True)
 
 
+def suffix_word(value: str) -> Keyword:
+    return Keyword(value=value, word_suffix=True)
+
+
 def title_only(value: str) -> Keyword:
     return Keyword(value=value, title_only=True)
 
@@ -83,11 +88,16 @@ FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # Meetups around vehicles are destination-style local gatherings, but not
     # concerts just because the description mentions live music later in the day.
     ("festival", ("biker-treffen", "fiat-treffen")),
+    # Caricature shows are exhibitions even when the body text discusses
+    # politics or digital collections.
+    ("exhibition", ("karikatur",)),
 )
 
 LOW_VALUE_TITLE_CONTEXT = (
     "treff", "frühstück", "fruehstueck", "senioren", "cafe", "café",
     "sprachkurs", "deutschkurs", "english club", "sprechstunde", "beratung",
+    "rat", "sitzung", "ausschuss", "verwaltungsrat", "netzwerktreffen",
+    "kaffeenachmittag", "mittagstisch",
 )
 
 DESTINATION_TITLE_CONTEXT = (
@@ -101,28 +111,29 @@ DESTINATION_TITLE_CONTEXT = (
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", Keyword("markt", title_only=True, word=True))),
+    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "frischemarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", word("market"), Keyword("markt", title_only=True, word=True))),
     Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "schlemmer", "grillen", "dîner", "diner en blanc", "wine", "winzer", "weinprobe", "weinfest", "weinmoment", "weinlounge", "biergarten", "tasting", word("wein"), word("bier"))),
     Rule(
         "kids",
         12,
         (
             "kinder", "kids", "familie", "family", "jugend",
-            "mitmach", "märchen", "maerchen", "puppentheater", "puppenspiel", "kinderbühne", "kinderbuehne", "kasper", "vorlesen",
+            "mitmach", "märchen", "maerchen", "puppentheater", "puppenspiel", "kinderbühne", "kinderbuehne", "kasper", "vorlesen", "lese-abenteuer",
+            "sommerleseclub", "lesesommer", "vorlesesommer", "vorlesehund",
             "bambini", "krabbel", "ferienprogramm", "lego", "zauberwürfel", "zauberwuerfel",
             "storytime", word("dino"),
         ),
     ),
-    Rule("workshop", 11, ("workshop", "werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik", "malen")),
-    Rule("talk", 10, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("liest"), word("bildung"), "informationsveranstaltung", "chatgpt", "canva", "digital", "hackerspace", "3d-druck", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
+    Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik", "malen", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
+    Rule("talk", 10, ("lesung", "lesekreis", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", "philosophisch", "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"))),
     Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwochenende", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen", "boule", "schach")),
     Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
     Rule("concert", 7, ("konzert", "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "songkick", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
     Rule("nightlife", 6, ("techno", "electronic", "elektro", "party", "clubnacht", "clubabend", "club party", "dj", "nightlife", word("rave"), "disco", "beats", "lounge", "barhopping", "speeddating", "singles")),
-    Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "zirkus", "cirque", "tanz", "dance", "musical", "show", "improtheater", word("oper"), word("stage"), word("slam"))),
-    Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "vernissage", "atelier", "installation")),
-    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", "garten", "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga")),
-    Rule("festival", 1, ("fest", "festival", "kirmes", "kerb", "meile", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
+    Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "zirkus", "cirque", "tanz", "dance", "musical", "show", "improtheater", word("performance"), word("oper"), word("stage"), word("slam"))),
+    Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "karikatur", "vernissage", "atelier", "installation")),
+    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", "garten", "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
+    Rule("festival", 1, (suffix_word("fest"), "festival", "kirmes", "kerb", "meile", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
 )
 
 _NON_WORD = r"[^\wäöüÄÖÜß]"
@@ -139,6 +150,11 @@ def _contains_word(text: str, needle: str) -> bool:
     return re.search(rf"(^|{_NON_WORD}){escaped}($|{_NON_WORD})", text) is not None
 
 
+def _contains_word_suffix(text: str, needle: str) -> bool:
+    escaped = re.escape(normalize_text(needle))
+    return re.search(rf"(^|{_NON_WORD})[\wäöüÄÖÜß]*{escaped}($|{_NON_WORD})", text) is not None
+
+
 def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
     if isinstance(keyword, str):
         return keyword in text
@@ -146,6 +162,8 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
         return False
     if keyword.word:
         return _contains_word(text, keyword.value)
+    if keyword.word_suffix:
+        return _contains_word_suffix(text, keyword.value)
     return keyword.value in text
 
 

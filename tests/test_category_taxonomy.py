@@ -144,6 +144,53 @@ class CategoryTaxonomyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
+    def test_feed_quality_gate_regressions_avoid_substrings_and_use_domain_intent(self):
+        cases = [
+            (
+                "",
+                "Persönliche Hilfestellung für eMedien",
+                "Spezifische Problemlösung für Onleihe und Libby (Overdrive). Im Rahmen der Reihe Digitale Werkstatt.",
+                "workshop",
+            ),
+            (
+                "stadtteilfest market kirmes outdoor local",
+                "Deutsch Holländischer Stoffmarkt",
+                "Deutsch Holländischer Stoffmarkt, Münsterplatz",
+                "market",
+            ),
+            ("", "Sommerleseclub 2026", "Anmeldung in der Stadtbücherei", "kids"),
+            ("", "Lesesommer RLP", "", "kids"),
+            ("Vorträge/Lesungen/Diskussionen", "Das Philosophische Café - Thema: Populismus", "", "talk"),
+            ("", "Präventionsabend: Risiken im Netz – Fake News, Cybercrime & Co.", "Für alle mit und ohne schulischen Bezug", "talk"),
+            ("", "Kaffee, Kuchen und KI", "Künstliche Intelligenz entdecken im Interim der Zentralbibliothek.", "talk"),
+            ("", "NO GO – Performance im öffentlichen Raum", "Performance von Angie Hiesl und Roland Kaiser", "stage"),
+            ("", "Fortis Colonia: Fort VI, Deckstein", "Kölner Festungstage", "outdoor"),
+            ("", "AI26 – The Lamarr Conference on Artificial Intelligence", "Internationale KI-Konferenz im WCCB mit Speakern aus Wissenschaft und Wirtschaft.", "talk"),
+            ("", "Um drei Ecken gedacht - Rechenschieber und Vermessung", "Sonderausstellung im Arithmeum", "exhibition"),
+            ("", "Adenauer auf der Wolke", "Himmlische Karikaturen zum 150. Geburtstag", "exhibition"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
+    def test_fest_suffix_still_catches_real_festivals_without_matching_hilfestellung(self):
+        cases = [
+            ("", "Sommerfest Oberbachem", "", "festival"),
+            ("", "Feuerwehrfest in Winterscheid", "", "festival"),
+            ("", "Fest der Verbundenheit", "", "festival"),
+            ("", "Persönliche Hilfestellung", "", "workshop"),
+            ("", "Kölner Festungstage", "", "outdoor"),
+            ("kommunal kultur ausstellung konzert führung", "Frischemarkt in der Innenstadt", "Regionale Frischeprodukte", "market"),
+            ("", "Fantomaus – Plötzlich Superheld", "Ein musikalisches Lese-Abenteuer mit Autor und Musiker.", "kids"),
+            ("", "Quiltingtreff", "Nähkunst mit der Hand – gemeinsam Quilten in der Stadtteilbibliothek.", "workshop"),
+            ("konzert", "Rat (öffentliche Sitzung)", "", "other"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
 
 if __name__ == "__main__":
     unittest.main()
