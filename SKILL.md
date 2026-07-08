@@ -36,7 +36,12 @@ Bonn, Meetup, Songkick, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, requested venue calendars, Rausgegangen, Eventbrite,
-Bonn.jetzt, Ruhr-Guide, Exa Search, and optional Grok Search. Bonn.jetzt is
+Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
+optional Grok Search. Bonn sport-club scrape candidates discovered for
+Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
+Bonn.de sports + annual Veranstaltungjahr pages, TGV Bonn, 1. BC Beuel, SSF
+Bonn, Bonn Rugby UC, OFC Bonn, Post-Sportverein Bonn Clubway feed, Bonner
+Bogenschützenclub, and BSV Bonn/Rhein-Sieg event pages. Bonn.jetzt is
 especially useful for Bonn's local digital/community events and weekend oddities
 that bigger feeds miss. Scores by distance (Bonn=1.0, Königswinter≈0.9,
 Ahrweiler≈0.74, Köln=0.7, Düsseldorf=0.4) × category preference
