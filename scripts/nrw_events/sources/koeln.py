@@ -15,7 +15,7 @@ from .. import common
 def fetch() -> list:
     source = "Köln Open Data"
     try:
-        url = ("http://www.stadt-koeln.de/externe-dienste/open-data/events-od.php"
+        url = ("https://www.stadt-koeln.de/externe-dienste/open-data/events-od.php"
                f"?out=json&ndays={common.DAYS_AHEAD}")
         data = json.loads(common.fetch_url(
             url,
@@ -23,6 +23,7 @@ def fetch() -> list:
             accept="application/json,*/*;q=0.8",
             sec_fetch_mode="cors",
             sec_fetch_dest="empty",
+            expected_content_types=("application/json", "text/json"),
         ))
         events = []
         for item in data.get("items", []):

@@ -52,6 +52,7 @@ def fetch_exa() -> list:
                 {"query": query, "numResults": 5, "type": "auto",
                  "contents": {"text": {"maxCharacters": 500}}},
                 timeout=25, headers={"x-api-key": api_key},
+                retry_safe=True,
             )
             for result in data.get("results", []):
                 ev = common.search_result_event(
@@ -90,6 +91,7 @@ def fetch_grok() -> list:
                            {"role": "user", "content": query}],
                  "tools": [{"type": "web_search"}]},
                 timeout=35, headers={"Authorization": f"Bearer {api_key}"},
+                retry_safe=True,
             )
             text_parts = []
             for item in data.get("output", []):

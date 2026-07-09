@@ -172,6 +172,11 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result["accepted_event_count"], 1)
         self.assertEqual(result["rejection_reasons"], {"start_date_missing_or_invalid": 1})
 
+    def test_recent_nonempty_source_drop_is_recorded_as_baseline_anomaly(self):
+        result = runner.SourceResult(source="Source", raw_event_count=0)
+        runner._attach_baselines({"Source": result}, {"Source": {"raw_event_count": 12}}, 10)
+        self.assertEqual(result.anomalies, ["zero_after_recent_nonempty"])
+
 
 if __name__ == "__main__":
     unittest.main()
