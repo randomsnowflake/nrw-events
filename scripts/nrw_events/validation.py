@@ -7,6 +7,7 @@ import urllib.parse
 from typing import Any
 
 from . import category_taxonomy, common
+from .models import EventRecord
 
 
 class EventValidationError(ValueError):
@@ -53,7 +54,7 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
     event["timezone"] = _text(event, "timezone", 64) or "Europe/Berlin"
 
 
-def validate_event(raw_event: object) -> dict[str, Any]:
+def validate_event(raw_event: object) -> EventRecord:
     """Return one canonical event or raise a reason-coded validation error."""
     if not isinstance(raw_event, dict):
         raise EventValidationError("record_not_object")

@@ -4,9 +4,8 @@ import re
 import urllib.parse
 from datetime import datetime
 from html import unescape
-from typing import Callable
-
 from .. import common
+from ..source_types import TextParser
 
 _MONTH = {
     **common.MONTH_DE,
@@ -104,7 +103,7 @@ def range_dates(text: str):
     return parse_dt(text), None
 
 
-def fetch_html_events(name: str, url: str, parser: Callable[[str], list], timeout: int = 25) -> list:
+def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25) -> list:
     try:
         events = parser(common.fetch_url(url, timeout=timeout))
         common._record_endpoint(url, parser_type="html", parsed_event_count=len(events),

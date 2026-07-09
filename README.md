@@ -115,7 +115,11 @@ scripts/
   nrw_events/
     category_taxonomy.py   # stabile Kategorie-Keys, Labels und Keyword-Klassifizierung
     config.py              # Geodaten, Kategoriegewichte, Venue-Koordinaten, Gruppenlisten
-    common.py              # HTTP, HTML/JSON-LD/iCal, Datumslogik, Scoring, Event-Erzeugung
+    models.py              # Typisierte Event-Verträge für Quellen und Pipeline
+    location.py            # Ortsauflösung und Distanzberechnung
+    scoring.py             # Entkoppelte Ranking-Funktionen
+    source_types.py        # Schnittstellen für Fetcher und Text-Parser
+    common.py              # Rückwärtskompatible Fassade für HTTP, Parsing und Qualitätsregeln
     report.py              # Entdoppelung + Markdown-Ausgabe
     runner.py              # Orchestrierung: Quellen parallel abfragen, filtern, schreiben
     sources/
