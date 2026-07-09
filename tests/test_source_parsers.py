@@ -160,6 +160,55 @@ class SourceParserTests(unittest.TestCase):
             "20:30",
         )
 
+    def test_bonn_events_falls_back_when_only_free_listing_has_coverage(self):
+        free_listing_payload = """
+<nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>
+""" + "".join(
+            f"""
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/free-event-{index}.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span></span></div>
+    <h1 class="SP-Teaser__headline">Eintritt frei: Free Event {index}</h1>
+  </a>
+</article>
+"""
+            for index in range(20)
+        )
+        json_payload = __import__("json").dumps([{
+            "title": "Paid Concert",
+            "description": "Abendkonzert mit Eintritt",
+            "category": ["Musik/Konzert"],
+            "startDate": "2026-06-12 20:00:00",
+            "endDate": "2026-06-12 22:00:00",
+            "locationName": "Harmonie",
+            "locationAddress": "Frongasse 28, 53121 Bonn",
+            "link": "https://www.bonn.de/paid-concert.php",
+            "hasStartTime": True,
+            "hasEndTime": True,
+        }])
+        empty_listing_payload = '<nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>'
+        empty_rss_payload = '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>'
+
+        def fake_fetch(url, *args, **kwargs):
+            if "events-json" in url:
+                return json_payload
+            if "sp%3Aout=rss" in url:
+                return empty_rss_payload
+            if "categories%5B1530%5D" in url:
+                return free_listing_payload
+            if "veranstaltungskalender.php" in url:
+                return empty_listing_payload
+            raise AssertionError(f"unexpected URL {url}")
+
+        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+            events = bonn.fetch_events()
+
+        titles = [event["title"] for event in events]
+        self.assertIn("Free Event 0", titles)
+        self.assertIn("Paid Concert", titles)
+
     def test_bonn_calendar_listing_recovers_non_extern_municipal_events(self):
         common.TODAY = datetime(2026, 7, 9)
         common.END_DATE = datetime(2026, 7, 11)

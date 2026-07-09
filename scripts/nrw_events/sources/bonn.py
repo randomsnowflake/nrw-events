@@ -241,11 +241,10 @@ def _apply_free_category_override(ev: dict, tags: set) -> dict:
 def fetch_events() -> list:
     """Official Bonn calendar → dated, activity-only events from HTML first."""
     source = "Bonn.de Events"
-    events = _merge_fallback_events(
-        _fetch_free_calendar_events(source),
-        _fetch_calendar_listing_events(source),
-    )
-    if len(events) >= 20:
+    free_events = _fetch_free_calendar_events(source)
+    calendar_events = _fetch_calendar_listing_events(source)
+    events = _merge_fallback_events(free_events, calendar_events)
+    if len(calendar_events) >= 20:
         return events
 
     # Keep the public HTML as the authoritative source, but preserve coverage if
