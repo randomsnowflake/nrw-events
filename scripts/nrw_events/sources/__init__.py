@@ -20,10 +20,10 @@ from . import (
 )
 
 SOURCES = {
-    # Structured APIs / feeds (highest trust)
+    # High-trust official feeds/calendars
     "Köln Open Data": koeln.fetch,
-    "Bonn.de Events": bonn.fetch_events_json,   # full official calendar (JSON) — primary
-    "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by JSON allowlist
+    "Bonn.de Events": bonn.fetch_events,        # official calendar HTML listing — primary
+    "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by main calendar filters
     "Harmonie Bonn": harmonie.fetch,
     "Meetup": meetup.fetch,
     "Songkick": songkick.fetch,

@@ -2,9 +2,10 @@
 Bonn.de — the city's official event channels.
 
 Fetchers, all reading bonn.de:
-  fetch_events_json()      — the FULL official calendar as structured JSON
-                             (≈5000 entries, category-tagged). Primary source.
-                             Activity-only + date-windowed + venue-pinned.
+  fetch_events()           — the server-rendered Veranstaltungskalender listing.
+                             Primary source because it contains valid events that
+                             the city JSON/RSS feeds omit or emit malformed.
+  fetch_events_json()      — legacy JSON-only fallback for tests/manual probes.
   fetch_html()             — Veranstaltungskalender HTML listing (legacy fallback)
   fetch_rss()              — the same calendar as an RSS feed (legacy fallback)
   fetch_press_festivals()  — the annual "Veranstaltungsjahr" press release, which
@@ -17,16 +18,16 @@ Fetchers, all reading bonn.de:
 """
 
 import json
+import os
 import re
 from datetime import datetime
 from html import unescape
 
 from .. import common
 
-# Full official event calendar as structured JSON (≈5000 forward-looking entries,
-# category-tagged). Far richer than the RSS/HTML listings, so this is now the
-# primary Bonn source. We keep only genuine *activities* (see _ALLOW/_BLOCK) and
-# only events whose date overlaps the configured window.
+# Full official event calendar as structured JSON. This endpoint has repeatedly
+# emitted malformed/truncated payloads and can miss entries visible in the public
+# calendar, so it is kept only as a last-resort fallback/manual probe.
 _EVENTS_JSON_URL = "https://www.bonn.de/citykey/events-json.php"
 
 # Two open-data GeoJSON layers of cultural venues (point + name). Used to pin an
@@ -237,9 +238,26 @@ def _apply_free_category_override(ev: dict, tags: set) -> dict:
     return ev
 
 
-def fetch_events_json() -> list:
-    """Official Bonn events JSON → dated, activity-only, venue-pinned events."""
+def fetch_events() -> list:
+    """Official Bonn calendar → dated, activity-only events from HTML first."""
     source = "Bonn.de Events"
+    events = _merge_fallback_events(
+        _fetch_free_calendar_events(source),
+        _fetch_calendar_listing_events(source),
+    )
+    if len(events) >= 20:
+        return events
+
+    # Keep the public HTML as the authoritative source, but preserve coverage if
+    # Bonn.de returns a partial listing. JSON is intentionally last: it has been
+    # malformed and incomplete while the normal calendar pages were correct.
+    events = _merge_fallback_events(events, _fetch_rss_events(source))
+    events = _merge_fallback_events(events, fetch_events_json(source))
+    return events
+
+
+def fetch_events_json(source: str = "Bonn.de Events") -> list:
+    """Legacy JSON fallback → dated, activity-only, venue-pinned events."""
     try:
         items = _loads_event_items(common.fetch_url(
             _EVENTS_JSON_URL,
@@ -312,6 +330,7 @@ def fetch_events_json() -> list:
     if len(events) < 20:
         events = _merge_fallback_events(events, _fetch_rss_events(source))
         events = _merge_fallback_events(events, _fetch_free_calendar_events(source))
+        events = _merge_fallback_events(events, _fetch_calendar_listing_events(source))
     return events
 
 
@@ -381,14 +400,17 @@ def fetch_html() -> list:
         return []
 
 
-def _calendar_search_url(page: int = 1) -> str:
+def _calendar_search_url(page: int = 1, *, free_only: bool = True) -> str:
     params = [
-        ("sp:categories[1530][]", "326135"),  # Zielgruppe → Kostenlos
-        ("sp:categories[1530][]", "__last__"),
         ("sp:dateFrom[]", common.TODAY.strftime("%Y-%m-%d")),
         ("sp:dateTo[]", common.END_DATE.strftime("%Y-%m-%d")),
         ("action", "submit"),
     ]
+    if free_only:
+        params[0:0] = [
+            ("sp:categories[1530][]", "326135"),  # Zielgruppe → Kostenlos
+            ("sp:categories[1530][]", "__last__"),
+        ]
     if page > 1:
         params.append(("sp:page[search-1.form][0]", str(page)))
     return _HTML_URL + "?" + common.urllib.parse.urlencode(params)
@@ -406,7 +428,7 @@ def _split_tags(value: str) -> set:
     return {part.strip() for part in re.split(r"\s*(?:,|\|)\s*", value or "") if part.strip()}
 
 
-def _free_listing_events_from_html(html: str, source: str) -> list:
+def _listing_events_from_html(html: str, source: str, *, free_only: bool = False) -> list:
     events, seen = [], set()
     for m in re.finditer(r'<article class="SP-Teaser\b.*?</article>', html, re.S | re.I):
         body = m.group(0)
@@ -416,7 +438,7 @@ def _free_listing_events_from_html(html: str, source: str) -> list:
         if not (href_m and title_m):
             continue
         href = href_m.group(1).split("?", 1)[0]
-        if "/veranstaltungskalender/veranstaltungen/hauptkalender/extern/" not in href:
+        if "/veranstaltungskalender/veranstaltungen/" not in href:
             continue
 
         raw_title = common.clean_html(title_m.group(1))
@@ -429,6 +451,8 @@ def _free_listing_events_from_html(html: str, source: str) -> list:
             continue
 
         link = common.urllib.parse.urljoin("https://www.bonn.de", href)
+        abstract_m = re.search(r'<div[^>]+class="[^"]*SP-Teaser__abstract[^"]*"[^>]*>(.*?)</div>', body, re.S | re.I)
+        description = common.clean_html(abstract_m.group(1) if abstract_m else raw_title)
         date_matches = re.findall(
             r'<span>\s*<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
             r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?\s*</span>',
@@ -452,15 +476,54 @@ def _free_listing_events_from_html(html: str, source: str) -> list:
                 continue
             seen.add(key)
             ev = common.make_event(
-                title, start, start, "", "Bonn", raw_title, link,
-                source, ", ".join(sorted(tags | {"Kostenlos"})), trust=0.86, time_text=time_text,
+                title, start, start, "", "Bonn", description, link,
+                source, ", ".join(sorted(tags | ({"Kostenlos"} if free_only else set()))), trust=0.86, time_text=time_text,
             )
             if ev:
-                ev["price"] = "kostenlos"
+                price = _free_admission_price({"title": raw_title, "description": description}, tags | ({"Kostenlos"} if free_only else set()))
+                if price:
+                    ev["price"] = price
                 if free_allow and not allow:
                     ev = _apply_free_category_override(ev, tags)
-                    ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
+                    if price:
+                        ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
                 events.append(ev)
+    return events
+
+
+def _free_listing_events_from_html(html: str, source: str) -> list:
+    return _listing_events_from_html(html, source, free_only=True)
+
+
+def _calendar_listing_events_from_html(html: str, source: str) -> list:
+    return _listing_events_from_html(html, source, free_only=False)
+
+
+def _fetch_calendar_listing_events(source: str = "Bonn.de Events") -> list:
+    """Crawl Bonn's server-rendered calendar result pages.
+
+    Bonn's structured JSON and RSS feeds sometimes omit valid municipal events
+    even while the normal calendar search lists them. Crawling the dated listing
+    recovers those non-``extern`` entries (for example Musikschule concerts)
+    without hard-coding individual event URLs.
+    """
+    try:
+        first = common.fetch_url(_calendar_search_url(free_only=False), timeout=25)
+    except Exception as e:
+        common.log_source_error(f"{source} calendar listing fallback", e)
+        return []
+
+    events = _calendar_listing_events_from_html(first, source)
+    max_page = min(_pagination_max(first), int(os.environ.get("NRW_EVENTS_BONN_CALENDAR_MAX_PAGES", "30")))
+    for page in range(2, max_page + 1):
+        try:
+            events = _merge_fallback_events(
+                events,
+                _calendar_listing_events_from_html(common.fetch_url(_calendar_search_url(page, free_only=False), timeout=25), source),
+            )
+        except Exception as e:
+            common.log_source_error(f"{source} calendar listing fallback page {page}", e)
+            continue
     return events
 
 
@@ -472,7 +535,7 @@ def _fetch_free_calendar_events(source: str = "Bonn.de Events") -> list:
     paginated SP-Teaser cards, which is enough to recover free-entry events.
     """
     try:
-        first = common.fetch_url(_calendar_search_url(), timeout=25)
+        first = common.fetch_url(_calendar_search_url(free_only=True), timeout=25)
     except Exception as e:
         common.log_source_error(f"{source} free calendar fallback", e)
         return []
@@ -483,7 +546,7 @@ def _fetch_free_calendar_events(source: str = "Bonn.de Events") -> list:
         try:
             events = _merge_fallback_events(
                 events,
-                _free_listing_events_from_html(common.fetch_url(_calendar_search_url(page), timeout=25), source),
+                _free_listing_events_from_html(common.fetch_url(_calendar_search_url(page, free_only=True), timeout=25), source),
             )
         except Exception as e:
             common.log_source_error(f"{source} free calendar fallback page {page}", e)
