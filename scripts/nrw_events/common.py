@@ -24,9 +24,10 @@ import time
 import urllib.request
 import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
 import urllib.error
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import unescape
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, config
 from .health import SourceResult, SourceStatus
@@ -62,6 +63,7 @@ MONTH_EN = {
 # Re-export common config values for convenience.
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
 MAX_RADIUS_KM = config.MAX_RADIUS_KM
+LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
 
 # Per-run source telemetry. Source modules intentionally keep the overall import
 # alive when one remote page breaks; this records those partial failures so the
@@ -116,8 +118,24 @@ def category_score(text: str) -> float:
 
 
 def coords_for_city(city: str) -> tuple:
-    """Coordinates for a city name, defaulting to Bonn center."""
+    """Legacy coordinates helper for sources that explicitly use a city fallback."""
     return config.VENUE_COORDS.get((city or "").lower(), (BONN_LAT, BONN_LON))
+
+
+def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optional[tuple], str, str]:
+    """Resolve an event location without silently substituting Bonn for unknown places."""
+    if coords is not None:
+        try:
+            lat, lon = (float(coords[0]), float(coords[1]))
+        except (IndexError, TypeError, ValueError):
+            return None, "unresolved", "invalid_explicit_coordinates"
+        if -90 <= lat <= 90 and -180 <= lon <= 180:
+            return (lat, lon), "exact", "source_coordinates"
+        return None, "unresolved", "invalid_explicit_coordinates"
+    normalized = clean_html(city).lower()
+    if normalized in config.VENUE_COORDS:
+        return config.VENUE_COORDS[normalized], "known_city", "configured_city"
+    return None, "unresolved", "unknown_city"
 
 
 def guess_city_from_text(text: str) -> Optional[str]:
@@ -428,10 +446,13 @@ def normalize_venue_name(value: str) -> str:
     return cleaned
 
 
-_CANCELLED_STATUS_WORDS = r"abgesagt|entfällt|entfaellt|fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|verschoben"
+_CANCELLED_STATUS_WORDS = (
+    r"abgesagt(?:\s+(?:werden|wird|wurde))?|entfällt|entfaellt|"
+    r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|verschoben"
+)
 _CANCELLED_STATUS_SUBJECTS = (
     r"veranstaltung|termin|event|konzert|lesung|theaterabend|show|kurs|workshop|"
-    r"führung|fuehrung|rundgang"
+    r"führung|fuehrung|rundgang|programm|kabarettprogramm"
 )
 _CANCELLED_TITLE_PATTERN = re.compile(
     rf"^\s*[-–—:()]*\s*(?:{_CANCELLED_STATUS_WORDS})\b"
@@ -452,6 +473,14 @@ def has_cancelled_status(title: str, description: str) -> bool:
         _CANCELLED_TITLE_PATTERN.search(title or "")
         or _CANCELLED_CONTEXT_PATTERN.search(combined)
     )
+
+
+def event_status(title: str, description: str) -> str:
+    """Return a normalized source-independent schedule status."""
+    text = " ".join([title or "", description or ""])
+    if has_cancelled_status(title, description):
+        return "postponed" if re.search(r"\bverschoben\b|neuer\s+termin", text, re.IGNORECASE) else "cancelled"
+    return "scheduled"
 
 
 # ── Date parsing ────────────────────────────────────────────────────
@@ -649,7 +678,8 @@ def infer_free_admission_price(title: str, description: str, price: str = "") ->
 def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
                venue: str, city: str, description: str, link: str, source: str,
                category: str, trust: float = 1.0, time_text: str = "",
-               coords: Optional[tuple] = None) -> Optional[dict]:
+               coords: Optional[tuple] = None, all_day: Optional[bool] = None,
+               timezone_name: str = "Europe/Berlin") -> Optional[dict]:
     """Build a scored event dict and apply window + radius + junk checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
@@ -662,9 +692,12 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         return None
     if start_dt and not end_dt and not (TODAY <= start_dt <= window_end):
         return None
-    km = haversine(BONN_LAT, BONN_LON, *(coords or coords_for_city(city)))
-    if km > MAX_RADIUS_KM:
+    resolved_coords, location_confidence, location_source = resolve_location(city, coords)
+    km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
+    if km is not None and km > MAX_RADIUS_KM:
         return None
+    if all_day is None:
+        all_day = not time_text and not (start_dt and (start_dt.hour or start_dt.minute))
     if start_dt and end_dt and start_dt.date() != end_dt.date():
         if start_dt < TODAY <= end_dt:
             date_text = f"ongoing until {end_dt.strftime('%Y-%m-%d')}"
@@ -684,6 +717,12 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     event_link = normalize_url(link)
     if is_raw_api_url(event_link):
         event_link = ""
+    status = event_status(title, description)
+    start_date = start_dt.strftime("%Y-%m-%d") if start_dt else ""
+    end_date = (end_dt or start_dt).strftime("%Y-%m-%d") if (end_dt or start_dt) else ""
+    local_zone = ZoneInfo(timezone_name)
+    start_at = "" if all_day or not start_dt else start_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
+    end_at = "" if all_day or not end_dt else end_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     ev = {
         "title": clean_html(title),
         "date": date_text,
@@ -693,16 +732,26 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "description": clean_html(description),
         "price": infer_free_admission_price(title, description),
         "link": event_link,
-        "distance_km": round(km, 1),
-        "score": round(distance_score(km) * category_score(full_text) * trust, 2),
+        "distance_km": round(km, 1) if km is not None else None,
+        "location_confidence": location_confidence,
+        "location_source": location_source,
+        "score": round(distance_score(km) * category_score(full_text) * trust, 2) if km is not None
+                 else round(0.3 * category_score(full_text) * trust, 2),
         "source": source,
+        "status": status,
+        "start_at": start_at,
+        "end_at": end_at,
+        "start_date": start_date,
+        "end_date": end_date,
+        "all_day": all_day,
+        "timezone": timezone_name,
         "category": category,
         "category_key": canonical_category["key"],
         "category_label": canonical_category["label"],
         "category_confidence": canonical_category.get("confidence", 0),
         "category_reason": canonical_category.get("reason", ""),
     }
-    return None if is_junk_event(ev) else ev
+    return None if status == "cancelled" or is_junk_event(ev) else ev
 
 
 def is_junk_event(ev: dict) -> bool:
@@ -1134,12 +1183,25 @@ def _ical_content_line(line: str) -> tuple:
     return line, ""
 
 
-def _ical_parse_dt(value: str) -> Optional[datetime]:
+def _ical_parse_dt(value: str, property_key: str = "") -> Optional[datetime]:
     v = (value or "").strip()
+    is_utc = v.endswith("Z")
     if re.match(r"^\d{8}T\d{6}Z?$", v):
-        return datetime.strptime(v[:15], "%Y%m%dT%H%M%S")
-    if re.match(r"^\d{8}T\d{4}Z?$", v):
-        return datetime.strptime(v[:13], "%Y%m%dT%H%M")
+        parsed = datetime.strptime(v[:15], "%Y%m%dT%H%M%S")
+    elif re.match(r"^\d{8}T\d{4}Z?$", v):
+        parsed = datetime.strptime(v[:13], "%Y%m%dT%H%M")
+    else:
+        parsed = None
+    if parsed is not None:
+        if is_utc:
+            return parsed.replace(tzinfo=timezone.utc).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
+        tzid = re.search(r"(?:^|;)TZID=([^;:]+)", property_key, re.IGNORECASE)
+        if tzid:
+            try:
+                return parsed.replace(tzinfo=ZoneInfo(tzid.group(1))).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
+            except Exception:
+                pass
+        return parsed
     if re.match(r"^\d{8}$", v):
         return datetime.strptime(v, "%Y%m%d")
     return parse_iso_date(v)
@@ -1198,7 +1260,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
     ))
     events = []
     for block in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S):
-        props = {}
+        props, property_keys = {}, {}
         for line in block.splitlines():
             if ":" not in line:
                 continue
@@ -1208,10 +1270,15 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
             name = key.split(";")[0].strip().upper()
             if name in ("SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL", "CATEGORIES", "ATTACH"):
                 props.setdefault(name, val)
+                property_keys.setdefault(name, key)
         if not props.get("SUMMARY"):
             continue
-        start_dt = _ical_parse_dt(props.get("DTSTART", ""))
-        end_dt = _ical_parse_dt(props.get("DTEND", "")) or start_dt
+        start_dt = _ical_parse_dt(props.get("DTSTART", ""), property_keys.get("DTSTART", ""))
+        end_dt = _ical_parse_dt(props.get("DTEND", ""), property_keys.get("DTEND", "")) or start_dt
+        all_day = bool(re.match(r"^\d{8}$", props.get("DTSTART", "").strip()))
+        # RFC 5545 all-day DTEND is exclusive. Present the inclusive last day.
+        if all_day and end_dt and start_dt and end_dt > start_dt:
+            end_dt -= timedelta(days=1)
         cat = category or _ical_unescape(props.get("CATEGORIES", ""))
         ev = make_event(
             _ical_unescape(props["SUMMARY"]),
@@ -1221,6 +1288,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
             _ical_unescape(props.get("DESCRIPTION", "")),
             _ical_best_link(props, url),
             source, cat, trust,
+            all_day=all_day,
         )
         if ev:
             events.append(ev)
@@ -1238,7 +1306,10 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
     if not date_range_overlaps(extracted_dates):
         return None
     city_guess = guess_city_from_text(full_text) or "Bonn area"
-    km = haversine(BONN_LAT, BONN_LON, *coords_for_city(city_guess))
+    resolved_coords, location_confidence, location_source = resolve_location(city_guess)
+    if not resolved_coords:
+        return None
+    km = haversine(BONN_LAT, BONN_LON, *resolved_coords)
     if km > MAX_RADIUS_KM:
         return None
     candidate = {
@@ -1251,9 +1322,18 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
         "price": "",
         "link": link,
         "distance_km": round(km, 1),
+        "location_confidence": location_confidence,
+        "location_source": location_source,
         "score": round(distance_score(km) * category_score(full_text) * trust, 2),
         "source": source,
         "category": "search fallback",
+        "status": "scheduled",
+        "start_at": "",
+        "end_at": "",
+        "start_date": extracted_dates[0].strftime("%Y-%m-%d"),
+        "end_date": extracted_dates[0].strftime("%Y-%m-%d"),
+        "all_day": True,
+        "timezone": "Europe/Berlin",
     }
     return None if is_junk_event(candidate) else candidate
 

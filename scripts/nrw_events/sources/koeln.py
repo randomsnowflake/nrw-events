@@ -57,21 +57,16 @@ def fetch() -> list:
             time_str = item.get("uhrzeit", "")
             district = item.get("stadtteil", "")
 
-            full_text = f"{title} {desc} {venue}"
-            events.append({
-                "title": unescape(title),
-                "date": begin,
-                "time": unescape(re.sub(r"<[^>]+>", "", time_str).strip()) if time_str else "",
-                "venue": unescape(venue),
-                "city": "Köln" + (f" ({district})" if district else ""),
-                "description": unescape(desc),
-                "price": unescape(price) if price else "",
-                "link": item.get("link", ""),
-                "distance_km": round(km, 1),
-                "score": round(common.distance_score(km) * common.category_score(full_text), 2),
-                "source": source,
-                "category": "",
-            })
+            event = common.make_event(
+                unescape(title), begin_dt, end_dt, unescape(venue), "Köln", unescape(desc),
+                item.get("link", ""), source, "", time_text=(
+                    unescape(re.sub(r"<[^>]+>", "", time_str).strip())[:80] if time_str else ""
+                ), coords=(lat, lon) if lat and lon else None,
+            )
+            if event:
+                event["city"] = "Köln" + (f" ({district})" if district else "")
+                event["price"] = unescape(price) if price else ""
+                events.append(event)
         return events
     except Exception as e:
         common.log_source_error(source, e)

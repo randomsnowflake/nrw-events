@@ -20,15 +20,17 @@ def normalize_title(title: str) -> str:
 
 
 def _dedup_key(ev: dict) -> str:
-    """Stable key for dedup: normalized-title prefix + city prefix."""
+    """Occurrence key: recurring appointments on different dates must survive."""
     norm = normalize_title(ev.get("title", ""))
-    return norm[:50] + "|" + (ev.get("city", "")).lower()[:10]
+    city = re.sub(r"\s+", " ", (ev.get("city", "") or "").lower()).strip()
+    start_date = ev.get("start_date") or (ev.get("date", "") or "").split("–", 1)[0]
+    return "|".join((norm, city, str(start_date)))
 
 
 def _merge_duplicate_metadata(winner: dict, duplicate: dict) -> dict:
     """Keep the winning event while preserving useful details from duplicates."""
     merged = dict(winner)
-    for field in ("description", "price", "venue", "link"):
+    for field in ("description", "price", "venue", "link", "start_at", "end_at"):
         if not merged.get(field) and duplicate.get(field):
             merged[field] = duplicate[field]
 
@@ -129,7 +131,8 @@ def format_report(events: list) -> str:
 
     grouped = {name: [] for name, _ in PREFERRED_ORDER}
     for ev in sorted(events, key=lambda x: (-(x["score"] + _priority_bonus(x)),
-                                            x.get("distance_km", 999), x.get("title", ""))):
+                                            x.get("distance_km") if x.get("distance_km") is not None else 999,
+                                            x.get("title", ""))):
         grouped[_bucket(ev)].append(ev)
 
     try:
@@ -154,7 +157,10 @@ def format_report(events: list) -> str:
         lines.append("")
         for ev in shown:
             when = format_when(ev)
-            dist_tag = f"{ev['distance_km']}km" if ev.get("distance_km", 0) > 0 else "Bonn"
+            distance = ev.get("distance_km")
+            dist_tag = f"{distance}km" if distance and distance > 0 else (
+                "Bonn" if distance == 0 else "Ort nicht aufgelöst"
+            )
             score_bar = "★" * max(1, min(5, int(round(ev["score"] * 3))))
             meta = []
             if when:

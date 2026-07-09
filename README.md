@@ -61,6 +61,13 @@ Kategorieliste (`categories`) und je Event die kanonischen Felder
 `category_key`/`category_label`; das rohe Quellenfeld `category` bleibt für
 Debugging und Rückwärtskompatibilität erhalten.
 
+Zusätzlich zu den kompatiblen Anzeige-Feldern `date` und `time` enthält jedes
+Event kanonische Zeitfelder: `start_date`, `end_date`, `start_at`, `end_at`,
+`all_day` und `timezone`. Ort und Datenqualität sind als
+`location_confidence`, `location_source` und `status` verfügbar. Abgesagte
+Events werden nicht veröffentlicht; unvollständige oder ungültige Quellrecords
+werden mit einem Grund pro Quelle in `source_results` gezählt.
+
 Jeder Lauf veröffentlicht außerdem atomisch eine Manifest-Datei unter
 `/tmp/nrw-events-latest-meta.json.manifest.json`. Sie enthält die gemeinsame
 `run_id`, den Laufstatus und die zugehörigen Artefaktpfade; Hintergrund-Consumer
