@@ -6,6 +6,97 @@ and source lists. There are deliberately **no event names and no dates** in this
 file. Tune these values to recenter the tool or change ranking to your taste.
 """
 
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+
+@dataclass(frozen=True)
+class RuntimeConfig:
+    days_ahead: int = 3
+    score_floor: float = 0.4
+    http_retry_attempts: int = 5
+    http_retry_base_seconds: float = 1.0
+    bonn_de_delay_seconds: float = 2.0
+    json_out: str = "/tmp/nrw-events-latest.json"
+    meta_json_out: str = "/tmp/nrw-events-latest-meta.json"
+    log_level: str = "INFO"
+    log_file: str = ""
+    json_log_file: str = ""
+
+
+def load_env_file() -> Optional[str]:
+    """Load the first configured env file while preserving real environment values."""
+    repo_root = Path(__file__).resolve().parents[2]
+    for candidate in (os.environ.get("NRW_EVENTS_ENV_FILE", ""), repo_root / ".env", Path.cwd() / ".env"):
+        path = Path(candidate).expanduser() if candidate else None
+        if not path or not path.is_file():
+            continue
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[7:].lstrip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("'\"")
+            if key and key not in os.environ:
+                os.environ[key] = value
+        return str(path)
+    return None
+
+
+def _int(name: str, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name, str(default))
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer, got {raw!r}") from exc
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}, got {value}")
+    return value
+
+
+def _float(name: str, default: float, minimum: float, maximum: float) -> float:
+    raw = os.environ.get(name, str(default))
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number, got {raw!r}") from exc
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}, got {value}")
+    return value
+
+
+def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
+    """Return validated settings after :func:`load_env_file` has run."""
+    configured_days = _int("NRW_EVENTS_DAYS_AHEAD", 3, 1, 90)
+    if days_ahead is not None:
+        if not 1 <= days_ahead <= 90:
+            raise ValueError("days_ahead must be between 1 and 90")
+        configured_days = days_ahead
+    level = os.environ.get("NRW_EVENTS_LOG_LEVEL", "INFO").upper()
+    if level not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
+        raise ValueError("NRW_EVENTS_LOG_LEVEL must be DEBUG, INFO, WARNING, or ERROR")
+    return RuntimeConfig(
+        days_ahead=configured_days,
+        score_floor=_float("NRW_EVENTS_SCORE_FLOOR", 0.4, 0.0, 10.0),
+        http_retry_attempts=_int("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", 5, 1, 10),
+        http_retry_base_seconds=_float("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", 1.0, 0.0, 60.0),
+        bonn_de_delay_seconds=_float("NRW_EVENTS_BONN_DE_DELAY_SECONDS", 2.0, 0.0, 60.0),
+        json_out=os.environ.get("NRW_EVENTS_JSON_OUT", "/tmp/nrw-events-latest.json"),
+        meta_json_out=os.environ.get("NRW_EVENTS_META_JSON_OUT", "/tmp/nrw-events-latest-meta.json"),
+        log_level=level,
+        log_file=os.environ.get("NRW_EVENTS_LOG_FILE", ""),
+        json_log_file=os.environ.get("NRW_EVENTS_JSON_LOG_FILE", ""),
+    )
+
 # ── Geography ───────────────────────────────────────────────────────
 # Center point + search radius. Recenter the whole tool by editing these.
 BONN_LAT, BONN_LON = 50.7374, 7.0982

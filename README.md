@@ -61,6 +61,11 @@ Kategorieliste (`categories`) und je Event die kanonischen Felder
 `category_key`/`category_label`; das rohe Quellenfeld `category` bleibt für
 Debugging und Rückwärtskompatibilität erhalten.
 
+Jeder Lauf veröffentlicht außerdem atomisch eine Manifest-Datei unter
+`/tmp/nrw-events-latest-meta.json.manifest.json`. Sie enthält die gemeinsame
+`run_id`, den Laufstatus und die zugehörigen Artefaktpfade; Hintergrund-Consumer
+sollten nur Snapshots mit einem aktuellen Manifest lesen.
+
 Direkter Python-Aufruf:
 
 ```bash
@@ -152,6 +157,7 @@ kein Limit.
 | Variable                      | Standard | Wirkung |
 |-------------------------------|----------|---------|
 | `NRW_EVENTS_MAX_PER_SECTION`  | `0`      | Optionale Begrenzung pro Kategorie. `0`/nicht gesetzt = alle Events anzeigen. |
+| `NRW_EVENTS_DAYS_AHEAD`       | `3`      | Standard-Zeitfenster, wenn kein CLI-Argument gesetzt ist (1–90). |
 | `NRW_EVENTS_SCORE_FLOOR`      | `0.4`    | Mindestscore. Niedriger = mehr Treffer und mehr Rauschen. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
@@ -161,6 +167,9 @@ kein Limit.
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
 | `NRW_EVENTS_JSON_OUT`         | `/tmp/nrw-events-latest.json` | Zielpfad für die Eventliste als JSON-Array. |
 | `NRW_EVENTS_META_JSON_OUT`    | `/tmp/nrw-events-latest-meta.json` | Zielpfad für Metadaten, Quellenstatistik, Warnungen und Eventliste. |
+| `NRW_EVENTS_LOG_LEVEL`        | `INFO` | Log-Level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `NRW_EVENTS_LOG_FILE`         | nicht gesetzt | Optionaler persistenter Text-Logpfad. |
+| `NRW_EVENTS_JSON_LOG_FILE`    | nicht gesetzt | Optionaler JSON-Lines-Logpfad für Monitoring. |
 | `NRW_EVENTS_ENV_FILE`         | nicht gesetzt | Expliziter Pfad zu einer `.env`-Datei. |
 
 Beispiel für eine absichtlich kurze, strenge Liste:
@@ -252,8 +261,10 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
   einfache Weiterverarbeitung.
 - **Metadaten-JSON unter `/tmp/nrw-events-latest-meta.json`:** Zeitfenster,
   Radius, Score-Schwelle, Roh-Zählungen je Quelle, hart fehlgeschlagene Quellen,
-  weiche Quellenwarnungen, stabile Kategorie-Taxonomie und die vollständige
-  Eventliste.
+  weiche Quellenwarnungen, den detaillierten Status jeder Quelle (`source_results`),
+  stabile Kategorie-Taxonomie und die vollständige Eventliste. Der Laufstatus ist
+  `healthy`, `degraded` oder `failed`; bei fehlgeschlagenen kritischen Quellen
+  bleibt der zuletzt erfolgreich veröffentlichte Snapshot erhalten.
 
 Standardmäßig wird die vollständige Liste ausgegeben. Gekürzt wird nur, wenn
 `NRW_EVENTS_MAX_PER_SECTION` explizit gesetzt wird.

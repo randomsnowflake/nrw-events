@@ -11,7 +11,6 @@ neighbourhood/town *keywords*, never event names or fixed dates.
 """
 
 import os
-import sys
 
 from .. import common
 
@@ -42,7 +41,7 @@ def fetch_exa() -> list:
     source = "Exa Search"
     api_key = os.environ.get("EXA_API_KEY", "")
     if not api_key:
-        print(f"⚠ {source}: No EXA_API_KEY", file=sys.stderr)
+        common.log_source_disabled(source, "disabled: EXA_API_KEY is not configured")
         return []
     events = []
     exa_n = int(os.environ.get("NRW_EVENTS_EXA_QUERIES", "10"))
@@ -70,11 +69,10 @@ def fetch_grok() -> list:
     source = "Grok Search"
     api_key = os.environ.get("XAI_API_KEY", "")
     if not api_key:
-        print(f"⚠ {source}: No XAI_API_KEY", file=sys.stderr)
+        common.log_source_disabled(source, "disabled: XAI_API_KEY is not configured")
         return []
     if os.environ.get("NRW_EVENTS_ENABLE_GROK", "").lower() not in {"1", "true", "yes"}:
-        print(f"⚠ {source}: disabled by default; set NRW_EVENTS_ENABLE_GROK=1 for deep agentic fallback",
-              file=sys.stderr)
+        common.log_source_disabled(source, "disabled: set NRW_EVENTS_ENABLE_GROK=1 to enable Grok search")
         return []
     events = []
     system_prompt = (
