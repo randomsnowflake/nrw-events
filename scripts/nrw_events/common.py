@@ -14,6 +14,7 @@ set once by the runner via :func:`set_window`. Always reference it as
 """
 
 import json
+import logging
 import math
 import os
 import random
@@ -28,6 +29,8 @@ from html import unescape
 from typing import Optional
 
 from . import category_taxonomy, config
+from .health import SourceResult, SourceStatus
+from .observability import LOGGER_NAME, log, redact
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -64,6 +67,10 @@ MAX_RADIUS_KM = config.MAX_RADIUS_KM
 # alive when one remote page breaks; this records those partial failures so the
 # caller can alert on a degraded but otherwise successful run.
 SOURCE_WARNINGS: list[dict[str, str]] = []
+_SOURCE_WARNING_LOCK = threading.Lock()
+_SOURCE_CONTEXT = threading.local()
+_RUN_ID = ""
+_LOGGER = logging.getLogger(LOGGER_NAME)
 
 
 # ── Geo + scoring ───────────────────────────────────────────────────
@@ -161,16 +168,39 @@ _BROWSER_PROFILES = [
 ]
 _BROWSER_PROFILE = random.SystemRandom().choice(_BROWSER_PROFILES)
 _TRANSIENT_HTTP_STATUSES = {408, 425, 429, 500, 502, 503, 504}
-_HTTP_RETRY_ATTEMPTS = max(int(os.environ.get("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", "5")), 1)
-_HTTP_RETRY_BASE_SECONDS = max(float(os.environ.get("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", "1.0")), 0.0)
+_HTTP_RETRY_ATTEMPTS = 5
+_HTTP_RETRY_BASE_SECONDS = 1.0
 _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
     # Bonn.de's MyraCDN/backend intermittently returns 503 when the nightly run
     # fans out multiple official Bonn sources at once. Keep those requests
     # browser-like *and* human-paced; the importer is nightly, not latency-bound.
-    "bonn.de": max(float(os.environ.get("NRW_EVENTS_BONN_DE_DELAY_SECONDS", "2.0")), 0.0),
+    "bonn.de": 2.0,
 }
 _HOST_FETCH_LOCK = threading.Lock()
 _HOST_LAST_FETCH_AT: dict[str, float] = {}
+
+
+def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger) -> None:
+    """Apply validated settings after the optional env file has been loaded."""
+    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _RUN_ID, _LOGGER
+    _HTTP_RETRY_ATTEMPTS = settings.http_retry_attempts
+    _HTTP_RETRY_BASE_SECONDS = settings.http_retry_base_seconds
+    _HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"] = settings.bonn_de_delay_seconds
+    _RUN_ID = run_id
+    _LOGGER = logger
+
+
+def set_source_context(result: Optional[SourceResult]) -> None:
+    """Attach warnings emitted by a legacy fetcher to its runner-owned result."""
+    _SOURCE_CONTEXT.result = result
+
+
+def log_source_disabled(source: str, reason: str) -> None:
+    """Mark an optional source as intentionally disabled for this run."""
+    result = getattr(_SOURCE_CONTEXT, "result", None)
+    if result is not None:
+        result.status = SourceStatus.DISABLED
+    log(_LOGGER, logging.INFO, reason, run_id=_RUN_ID, source=source)
 
 
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
@@ -281,12 +311,14 @@ def fetch_url(
 
 def reset_source_warnings() -> None:
     """Clear source warning telemetry before a new runner pass."""
-    SOURCE_WARNINGS.clear()
+    with _SOURCE_WARNING_LOCK:
+        SOURCE_WARNINGS.clear()
 
 
 def get_source_warnings() -> list[dict[str, str]]:
     """Return warnings recorded by source modules during the current run."""
-    return list(SOURCE_WARNINGS)
+    with _SOURCE_WARNING_LOCK:
+        return list(SOURCE_WARNINGS)
 
 
 def parse_float(value, default: float = 0.0) -> float:
@@ -1227,8 +1259,12 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
 
 
 def log_source_error(source: str, err: Exception) -> None:
-    """Uniform stderr warning for a source that failed."""
-    import sys
-    message = str(err)
-    SOURCE_WARNINGS.append({"source": source, "error": message})
-    print(f"⚠ {source}: {message}", file=sys.stderr)
+    """Record/log a source failure without aborting legacy fetchers."""
+    message = redact(err)
+    warning = {"source": source, "error_type": type(err).__name__, "error": message}
+    with _SOURCE_WARNING_LOCK:
+        SOURCE_WARNINGS.append(warning)
+    result = getattr(_SOURCE_CONTEXT, "result", None)
+    if result is not None:
+        result.warning(source, type(err).__name__, message)
+    log(_LOGGER, logging.WARNING, message, run_id=_RUN_ID, source=source, error_type=type(err).__name__)

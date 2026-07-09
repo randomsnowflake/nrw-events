@@ -123,6 +123,7 @@ To trim output for terse contexts, set `NRW_EVENTS_MAX_PER_SECTION=N`.
 Defaults favour **quantity over quality** (filter the full list yourself):
 
 - `NRW_EVENTS_MAX_PER_SECTION=N` — cap events shown per category (0/unset = all).
+- `NRW_EVENTS_DAYS_AHEAD=3` — default time window when the CLI has no day argument (1–90).
 - `NRW_EVENTS_SCORE_FLOOR=0.4` — minimum score to keep. Lower = more/noisier.
 - `NRW_EVENTS_EXA_QUERIES=10` — how many `search_queries()` to send to Exa (~5 results each).
 - `NRW_EVENTS_ENABLE_GROK=1` — enable the slow/costly agentic Grok sweep (off by default).
@@ -131,6 +132,8 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS=1.0` — exponential backoff base with jitter.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
+- `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.
+- `NRW_EVENTS_LOG_FILE` / `NRW_EVENTS_JSON_LOG_FILE` — optional durable text or JSON-lines logs.
 
 API keys and tuning values are read from the environment or a `.env` file. See [.env.example](.env.example).
 
