@@ -59,7 +59,10 @@ open just its file:
 ```
 scripts/nrw_events/
   config.py    — geography, category weights, venue coords, Meetup group list
-  common.py    — HTTP, HTML/JSON-LD/iCal parsing, dates, scoring, make_event, junk filter
+  models.py    — typed event contract shared by sources and the pipeline
+  location.py / scoring.py — reusable geographic resolution and ranking
+  source_types.py — source and parser interfaces
+  common.py    — backwards-compatible HTTP, parsing, and quality facade
   report.py    — dedup + Markdown rendering
   runner.py    — orchestration (fan-out, filter, dedup, output)
   sources/     — one module per source, each a fetch() -> list[dict]

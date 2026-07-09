@@ -15,7 +15,6 @@ set once by the runner via :func:`set_window`. Always reference it as
 
 import json
 import logging
-import math
 import os
 import random
 import re
@@ -31,7 +30,9 @@ from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, config
 from .health import SourceResult, SourceStatus
+from .location import coords_for_city, guess_city_from_text, haversine, resolve_location
 from .observability import LOGGER_NAME, log, redact
+from .scoring import category_score, distance_score
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -73,81 +74,6 @@ _SOURCE_WARNING_LOCK = threading.Lock()
 _SOURCE_CONTEXT = threading.local()
 _RUN_ID = ""
 _LOGGER = logging.getLogger(LOGGER_NAME)
-
-
-# ── Geo + scoring ───────────────────────────────────────────────────
-
-def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Distance in km between two lat/lon points."""
-    R = 6371
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = (math.sin(dlat / 2) ** 2
-         + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2)
-    return R * 2 * math.asin(math.sqrt(a))
-
-
-def distance_score(km: float) -> float:
-    """Score 0.1–1.0 by distance. 0km=1.0, 25km≈0.8, 50km≈0.5, 75km≈0.3."""
-    if km <= 0:
-        return 1.0
-    return max(0.1, 1.0 - (km / MAX_RADIUS_KM) * 0.9)
-
-
-def category_score(text: str) -> float:
-    """Preference score from keyword matching. Kids-only events are capped."""
-    text_lower = text.lower()
-    negative_keywords = {"kinder", "kids", "grundschüler", "grundschueler", "familie",
-                         "family", "vorlesen", "basteln", "jugendliche", "babys",
-                         "spielgruppe", "krabbelgruppe", "eltern-kind"}
-    adult_outdoor_signals = {
-        "wein", "wine", "winzer", "weingut", "afterwalk", "genuss", "lounge",
-        "beats", "festival", "markt", "flohmarkt", "street food", "kulinar",
-        "stadtteilfest", "straßenfest", "strassenfest", "dorffest", "kirmes",
-        "viertel", "meile",
-    }
-    has_negative = any(neg in text_lower for neg in negative_keywords)
-    has_adult_signal = any(sig in text_lower for sig in adult_outdoor_signals)
-    if has_negative and not has_adult_signal:
-        return 0.25
-    best = 0.8  # default
-    for keyword, weight in config.CATEGORY_WEIGHT.items():
-        if keyword in text_lower:
-            best = max(best, weight)
-    return best
-
-
-def coords_for_city(city: str) -> tuple:
-    """Legacy coordinates helper for sources that explicitly use a city fallback."""
-    return config.VENUE_COORDS.get((city or "").lower(), (BONN_LAT, BONN_LON))
-
-
-def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optional[tuple], str, str]:
-    """Resolve an event location without silently substituting Bonn for unknown places."""
-    if coords is not None:
-        try:
-            lat, lon = (float(coords[0]), float(coords[1]))
-        except (IndexError, TypeError, ValueError):
-            return None, "unresolved", "invalid_explicit_coordinates"
-        if -90 <= lat <= 90 and -180 <= lon <= 180:
-            return (lat, lon), "exact", "source_coordinates"
-        return None, "unresolved", "invalid_explicit_coordinates"
-    normalized = clean_html(city).lower()
-    if normalized in config.VENUE_COORDS:
-        return config.VENUE_COORDS[normalized], "known_city", "configured_city"
-    return None, "unresolved", "unknown_city"
-
-
-def guess_city_from_text(text: str) -> Optional[str]:
-    """Extract a known town from free text, preferring specific towns over 'Bonn'."""
-    text_lower = re.sub(r"bundesstadt\s+bonn", " ", (text or "").lower())
-    # Longer/more-specific names first; Bonn last so a trailing publisher brand
-    # ("… Siebengebirge | Bundesstadt Bonn") is not mis-scored as 0 km.
-    cities = sorted(config.VENUE_COORDS, key=lambda c: (c == "bonn", -len(c)))
-    for city in cities:
-        if re.search(rf"(?<![a-zäöüß]){re.escape(city)}(?![a-zäöüß])", text_lower):
-            return city
-    return None
 
 
 # ── HTTP ────────────────────────────────────────────────────────────
