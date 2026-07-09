@@ -18,6 +18,7 @@ from .category_taxonomy import CATEGORIES, categorize_event
 from .health import SourceResult, SourceStatus
 from .observability import configure_logging, log, redact
 from .sources import SOURCES
+from .validation import EventValidationError, validate_event
 
 
 CRITICAL_SOURCES = {"Köln Open Data", "Bonn.de Events"}
@@ -51,7 +52,16 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
         if not isinstance(events, list):
             raise TypeError(f"source returned {type(events).__name__}, expected list")
         result.finish(events)
-        return result, events
+        accepted = []
+        for event in events:
+            try:
+                accepted.append(validate_event(event))
+            except EventValidationError as exc:
+                result.reject(str(exc))
+        result.accepted_event_count = len(accepted)
+        if result.rejected_event_count:
+            result.status = SourceStatus.DEGRADED
+        return result, accepted
     except Exception as exc:
         result.error = {"error_type": type(exc).__name__, "error": redact(exc)}
         result.finish([])
@@ -160,7 +170,7 @@ def main() -> int:
                 SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY, SourceStatus.DISABLED,
             } else "!"
             log(logger, 20 if marker == "✓" else 30,
-                f"{marker} {result.status.value}: {result.raw_event_count} events in {result.duration_ms}ms",
+                f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
                 run_id=run_id, source=name)
             all_events.extend(events)
 

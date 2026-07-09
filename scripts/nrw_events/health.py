@@ -24,12 +24,18 @@ class SourceResult:
     status: SourceStatus = SourceStatus.HEALTHY_EMPTY
     raw_event_count: int = 0
     accepted_event_count: int = 0
+    rejected_event_count: int = 0
+    rejection_reasons: dict[str, int] = field(default_factory=dict)
     duration_ms: int = 0
     warnings: list[dict[str, str]] = field(default_factory=list)
     error: Optional[dict[str, str]] = None
 
     def warning(self, source: str, error_type: str, message: str) -> None:
         self.warnings.append({"source": source, "error_type": error_type, "error": message})
+
+    def reject(self, reason: str) -> None:
+        self.rejected_event_count += 1
+        self.rejection_reasons[reason] = self.rejection_reasons.get(reason, 0) + 1
 
     def finish(self, events: list[Any]) -> None:
         self.raw_event_count = len(events)
@@ -51,6 +57,8 @@ class SourceResult:
             "status": self.status.value,
             "raw_event_count": self.raw_event_count,
             "accepted_event_count": self.accepted_event_count,
+            "rejected_event_count": self.rejected_event_count,
+            "rejection_reasons": self.rejection_reasons,
             "duration_ms": self.duration_ms,
             "warnings": self.warnings,
             "error": self.error,

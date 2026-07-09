@@ -149,6 +149,29 @@ class RunnerOutputTests(unittest.TestCase):
                 metadata = json.load(handle)
         self.assertEqual(metadata["source_results"]["Optional Source"]["status"], "disabled")
 
+    def test_invalid_source_records_are_quarantined_with_reason_counts(self):
+        def mixed_fetch():
+            return [{
+                "title": "Valid", "date": "2026-06-08", "time": "", "venue": "", "city": "Bonn",
+                "description": "", "price": "", "link": "https://example.test", "distance_km": 0,
+                "score": 1.0, "source": "Mixed", "category": "concert",
+            }, {"title": "Invalid", "score": 1.0, "source": "Mixed"}]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch.dict(os.environ, {
+                "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
+                "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
+            }, clear=False), mock.patch.object(runner, "SOURCES", {"Mixed": mixed_fetch}), \
+                    mock.patch.object(runner.report, "format_report", lambda events: ""), \
+                    mock.patch.object(sys, "argv", ["runner"]):
+                self.assertEqual(runner.main(), runner.EXIT_DEGRADED)
+
+            with open(os.path.join(tmpdir, "meta.json")) as handle:
+                metadata = json.load(handle)
+        result = metadata["source_results"]["Mixed"]
+        self.assertEqual(result["accepted_event_count"], 1)
+        self.assertEqual(result["rejection_reasons"], {"start_date_missing_or_invalid": 1})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -81,6 +81,10 @@ but it never replaces the complete list. Consider: weather (outdoor events), and
 the user's stated interests (architecture/museums/electronic music/food tend to
 rank highest by default).
 
+The JSON output keeps legacy `date` / `time` display fields and also provides
+canonical `start_date`, `end_date`, `start_at`, `end_at`, `all_day`, `timezone`,
+`status`, and location-confidence fields for machine consumers.
+
 To trim output for terse contexts, set `NRW_EVENTS_MAX_PER_SECTION=N`.
 
 ## Small local / province events
