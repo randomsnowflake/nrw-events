@@ -134,6 +134,8 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_USER_AGENT` — override the default browser-like user agent.
 - `NRW_EVENTS_HTTP_RETRY_ATTEMPTS=5` — transient HTTP/network retry limit.
 - `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS=1.0` — exponential backoff base with jitter.
+- `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` / `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=5000000` — cap retry waits and response sizes.
+- `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT=10` — annotate a source that drops from a recent meaningful count to zero.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.

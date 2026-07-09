@@ -106,7 +106,10 @@ def range_dates(text: str):
 
 def fetch_html_events(name: str, url: str, parser: Callable[[str], list], timeout: int = 25) -> list:
     try:
-        return parser(common.fetch_url(url, timeout=timeout))
+        events = parser(common.fetch_url(url, timeout=timeout))
+        common._record_endpoint(url, parser_type="html", parsed_event_count=len(events),
+                                parser_empty=not bool(events))
+        return events
     except Exception as e:
         common.log_source_error(name, e)
         return []

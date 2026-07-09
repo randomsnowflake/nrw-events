@@ -188,6 +188,8 @@ _BROWSER_PROFILE = random.SystemRandom().choice(_BROWSER_PROFILES)
 _TRANSIENT_HTTP_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 _HTTP_RETRY_ATTEMPTS = 5
 _HTTP_RETRY_BASE_SECONDS = 1.0
+_HTTP_RETRY_MAX_DELAY_SECONDS = 60.0
+_HTTP_MAX_RESPONSE_BYTES = 5_000_000
 _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
     # Bonn.de's MyraCDN/backend intermittently returns 503 when the nightly run
     # fans out multiple official Bonn sources at once. Keep those requests
@@ -200,9 +202,11 @@ _HOST_LAST_FETCH_AT: dict[str, float] = {}
 
 def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger) -> None:
     """Apply validated settings after the optional env file has been loaded."""
-    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _RUN_ID, _LOGGER
+    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _HTTP_RETRY_MAX_DELAY_SECONDS, _HTTP_MAX_RESPONSE_BYTES, _RUN_ID, _LOGGER
     _HTTP_RETRY_ATTEMPTS = settings.http_retry_attempts
     _HTTP_RETRY_BASE_SECONDS = settings.http_retry_base_seconds
+    _HTTP_RETRY_MAX_DELAY_SECONDS = settings.http_retry_max_delay_seconds
+    _HTTP_MAX_RESPONSE_BYTES = settings.http_max_response_bytes
     _HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"] = settings.bonn_de_delay_seconds
     _RUN_ID = run_id
     _LOGGER = logger
@@ -219,6 +223,20 @@ def log_source_disabled(source: str, reason: str) -> None:
     if result is not None:
         result.status = SourceStatus.DISABLED
     log(_LOGGER, logging.INFO, reason, run_id=_RUN_ID, source=source)
+
+
+class ResponseTooLargeError(ValueError):
+    pass
+
+
+class UnexpectedContentTypeError(ValueError):
+    pass
+
+
+def _record_endpoint(url: str, **details) -> None:
+    result = getattr(_SOURCE_CONTEXT, "result", None)
+    if result is not None:
+        result.endpoint(redact(url), **details)
 
 
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
@@ -251,7 +269,7 @@ def _retry_delay(exc: Exception, attempt_index: int) -> float:
             except ValueError:
                 pass
     jitter = random.SystemRandom().uniform(0, _HTTP_RETRY_BASE_SECONDS / 2) if _HTTP_RETRY_BASE_SECONDS else 0.0
-    return _HTTP_RETRY_BASE_SECONDS * (2 ** attempt_index) + jitter
+    return min(_HTTP_RETRY_BASE_SECONDS * (2 ** attempt_index) + jitter, _HTTP_RETRY_MAX_DELAY_SECONDS)
 
 
 def _is_retryable_fetch_error(exc: Exception) -> bool:
@@ -301,6 +319,7 @@ def fetch_url(
     accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     sec_fetch_mode: str = "navigate",
     sec_fetch_dest: str = "document",
+    expected_content_types: Optional[tuple] = None,
 ) -> str:
     """GET a URL and return decoded text. Raises on network/HTTP error.
 
@@ -316,11 +335,27 @@ def fetch_url(
     )
     for attempt in range(_HTTP_RETRY_ATTEMPTS):
         try:
+            started = time.perf_counter()
             _throttle_before_request(url)
             req = urllib.request.Request(url, headers=hdrs)
             resp = urllib.request.urlopen(req, timeout=timeout)
-            return resp.read().decode("utf-8", "ignore")
+            headers_obj = getattr(resp, "headers", None)
+            content_type = headers_obj.get_content_type() if hasattr(headers_obj, "get_content_type") else ""
+            if not isinstance(content_type, str):
+                content_type = ""
+            if expected_content_types and content_type and not any(content_type.startswith(item) for item in expected_content_types):
+                raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
+            body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+            if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+            charset = headers_obj.get_content_charset() if hasattr(headers_obj, "get_content_charset") else None
+            if not isinstance(charset, str):
+                charset = None
+            _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
+                             bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            return body.decode(charset or "utf-8")
         except Exception as exc:
+            _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             if attempt >= _HTTP_RETRY_ATTEMPTS - 1 or not _is_retryable_fetch_error(exc):
                 raise
             time.sleep(_retry_delay(exc, attempt))
@@ -349,7 +384,8 @@ def parse_float(value, default: float = 0.0) -> float:
         return default
 
 
-def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict] = None) -> dict:
+def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict] = None,
+              retry_safe: bool = False) -> dict:
     """POST a JSON body and parse the JSON response."""
     hdrs = browser_headers(
         accept="application/json",
@@ -359,8 +395,22 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
     )
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
-    resp = urllib.request.urlopen(req, timeout=timeout)
-    return json.loads(resp.read().decode("utf-8", "ignore"))
+    attempts = _HTTP_RETRY_ATTEMPTS if retry_safe else 1
+    for attempt in range(attempts):
+        try:
+            started = time.perf_counter()
+            resp = urllib.request.urlopen(req, timeout=timeout)
+            body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+            if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+            _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
+                             bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            return json.loads(body.decode("utf-8"))
+        except Exception as exc:
+            _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
+            if attempt >= attempts - 1 or not _is_retryable_fetch_error(exc):
+                raise
+            time.sleep(_retry_delay(exc, attempt))
 
 
 def extract_json_array(text: str) -> list:
@@ -1259,7 +1309,8 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
         sec_fetch_dest="empty",
     ))
     events = []
-    for block in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S):
+    blocks = re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S)
+    for block in blocks:
         props, property_keys = {}, {}
         for line in block.splitlines():
             if ":" not in line:
@@ -1292,6 +1343,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
         )
         if ev:
             events.append(ev)
+    _record_endpoint(url, parser_type="ical", candidate_count=len(blocks), parsed_event_count=len(events))
     return events
 
 

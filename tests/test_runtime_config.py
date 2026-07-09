@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 from scripts.nrw_events import common, config
+from scripts.nrw_events.health import SourceResult, SourceStatus
 
 
 class RuntimeConfigTests(unittest.TestCase):
@@ -28,3 +29,9 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_days_are_bounded(self):
         with self.assertRaisesRegex(ValueError, "days_ahead"):
             config.runtime_config(91)
+
+    def test_transport_error_marks_source_degraded_even_when_fetcher_returns_empty(self):
+        result = SourceResult(source="Blocked source")
+        result.endpoint("https://example.test", error_type="HTTPError", error="405")
+        result.finish([])
+        self.assertEqual(result.status, SourceStatus.DEGRADED)

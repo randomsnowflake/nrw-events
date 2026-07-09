@@ -7,6 +7,36 @@ from scripts.nrw_events import common
 
 
 class HttpHeaderTests(unittest.TestCase):
+    def test_fetch_url_rejects_oversized_responses(self):
+        response = Mock()
+        response.read.return_value = b"x" * 11
+        old_limit = common._HTTP_MAX_RESPONSE_BYTES
+        common._HTTP_MAX_RESPONSE_BYTES = 10
+        try:
+            with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response):
+                with self.assertRaises(common.ResponseTooLargeError):
+                    common.fetch_url("https://example.org/events")
+        finally:
+            common._HTTP_MAX_RESPONSE_BYTES = old_limit
+
+    def test_fetch_url_validates_expected_content_type(self):
+        response = Mock()
+        response.read.return_value = b"{}"
+        headers = Message()
+        headers["Content-Type"] = "text/html"
+        response.headers = headers
+        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response):
+            with self.assertRaises(common.UnexpectedContentTypeError):
+                common.fetch_url("https://example.org/events", expected_content_types=("application/json",))
+
+    def test_post_json_retries_only_when_marked_safe(self):
+        response = Mock()
+        response.read.return_value = b'{"ok": true}'
+        transient = urllib.error.HTTPError("https://example.org/api", 503, "Unavailable", Message(), None)
+        with patch("scripts.nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
+                patch("scripts.nrw_events.common.time.sleep"):
+            self.assertEqual(common.post_json("https://example.org/api", {}, retry_safe=True), {"ok": True})
+        self.assertEqual(urlopen.call_count, 2)
     def test_fetch_url_uses_browser_like_headers_by_default(self):
         response = Mock()
         response.read.return_value = b"ok"

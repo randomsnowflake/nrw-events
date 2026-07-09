@@ -94,6 +94,26 @@ def _validate_output_paths(settings: config.RuntimeConfig) -> None:
         Path(raw_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
 
+def _previous_source_results(path: str) -> dict:
+    try:
+        with Path(path).expanduser().open(encoding="utf-8") as handle:
+            return json.load(handle).get("source_results", {})
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_count: int) -> None:
+    """Expose count changes without treating seasonal empty calendars as failures."""
+    for name, result in results.items():
+        prior = previous.get(name, {})
+        prior_count = prior.get("raw_event_count")
+        if not isinstance(prior_count, int):
+            continue
+        result.baseline = {"previous_raw_event_count": prior_count}
+        if prior_count >= minimum_count and result.raw_event_count == 0:
+            result.anomalies.append("zero_after_recent_nonempty")
+
+
 def _atomic_json(path: Path, payload: object) -> None:
     """Write a complete JSON document before atomically replacing its target."""
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent,
@@ -153,6 +173,7 @@ def main() -> int:
     common.configure_runtime(settings, run_id, logger)
     common.set_window(settings.days_ahead)
     common.reset_source_warnings()
+    previous_results = _previous_source_results(settings.meta_json_out)
     log(logger, 20, f"fetching {len(SOURCES)} sources", run_id=run_id, source="runner")
 
     all_events: list[dict] = []
@@ -173,6 +194,8 @@ def main() -> int:
                 f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
                 run_id=run_id, source=name)
             all_events.extend(events)
+
+    _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
 
     filtered = [event for event in all_events if event["score"] >= settings.score_floor and not common.is_junk_event(event)]
     deduped = report.deduplicate(filtered)
