@@ -102,9 +102,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[2]["category_key"], "outdoor")
         self.assertTrue(all(event["score"] >= 0.4 for event in events))
 
-    def test_bonn_events_json_recovers_free_calendar_listing_when_json_is_truncated(self):
-        json_payload = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
-        rss_payload = """<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>"""
+    def test_bonn_events_use_calendar_listing_before_json(self):
         listing_payload = """
 <nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>
 <article class="SP-Teaser">
@@ -128,31 +126,111 @@ class SourceParserTests(unittest.TestCase):
     <h1 class="SP-Teaser__headline">Chor und Orchester des Collegium musicum</h1>
   </a>
 </article>
+""" + "".join(
+            f"""
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/bonner-konzert-{index}.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span><span class="SP-Scheduling__time"> 19:00 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">Bonner Konzert {index}</h1>
+  </a>
+</article>
 """
+            for index in range(17)
+        )
 
         def fake_fetch(url, *args, **kwargs):
             if "events-json" in url:
-                return json_payload
-            if "sp%3Aout=rss" in url:
-                return rss_payload
-            if "categories%5B1530%5D" in url:
+                raise AssertionError("Bonn.de Events must prefer the HTML calendar listing over JSON")
+            if "veranstaltungskalender.php" in url:
                 return listing_payload
             raise AssertionError(f"unexpected URL {url}")
 
         with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
              patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
-            events = bonn.fetch_events_json()
+            events = bonn.fetch_events()
 
         titles = [event["title"] for event in events]
         self.assertIn("Sundowner Bar auf dem Dach der Bundeskunsthalle", titles)
         self.assertIn("Taste Of Woodstock - Musik im Park", titles)
         self.assertIn("Chor und Orchester des Collegium musicum", titles)
-        fallback_events = [event for event in events if event["title"] != "Bonner Konzert"]
-        self.assertTrue(all(event["price"] == "kostenlos" for event in fallback_events))
+        self.assertTrue(all(event["source"] == "Bonn.de Events" for event in events))
         self.assertEqual(
             next(event for event in events if event["title"] == "Chor und Orchester des Collegium musicum")["time"],
             "20:30",
         )
+
+    def test_bonn_events_falls_back_when_only_free_listing_has_coverage(self):
+        free_listing_payload = """
+<nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>
+""" + "".join(
+            f"""
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/free-event-{index}.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span></span></div>
+    <h1 class="SP-Teaser__headline">Eintritt frei: Free Event {index}</h1>
+  </a>
+</article>
+"""
+            for index in range(20)
+        )
+        json_payload = __import__("json").dumps([{
+            "title": "Paid Concert",
+            "description": "Abendkonzert mit Eintritt",
+            "category": ["Musik/Konzert"],
+            "startDate": "2026-06-12 20:00:00",
+            "endDate": "2026-06-12 22:00:00",
+            "locationName": "Harmonie",
+            "locationAddress": "Frongasse 28, 53121 Bonn",
+            "link": "https://www.bonn.de/paid-concert.php",
+            "hasStartTime": True,
+            "hasEndTime": True,
+        }])
+        empty_listing_payload = '<nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>'
+        empty_rss_payload = '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>'
+
+        def fake_fetch(url, *args, **kwargs):
+            if "events-json" in url:
+                return json_payload
+            if "sp%3Aout=rss" in url:
+                return empty_rss_payload
+            if "categories%5B1530%5D" in url:
+                return free_listing_payload
+            if "veranstaltungskalender.php" in url:
+                return empty_listing_payload
+            raise AssertionError(f"unexpected URL {url}")
+
+        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+            events = bonn.fetch_events()
+
+        titles = [event["title"] for event in events]
+        self.assertIn("Free Event 0", titles)
+        self.assertIn("Paid Concert", titles)
+
+    def test_bonn_calendar_listing_recovers_non_extern_municipal_events(self):
+        common.TODAY = datetime(2026, 7, 9)
+        common.END_DATE = datetime(2026, 7, 11)
+        html = """
+<article class="SP-Teaser SP-Teaser--illustrated">
+  <a class="SP-Teaser__inner SPbg-accent--before" rel="bookmark" href="/veranstaltungskalender/veranstaltungen/hauptkalender/musikschule/sommerkonzert-des-bonner-jugendsinfonieorchesters-und-der-string-academy.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">10.07.2026</span><span class="SP-Scheduling__time"> 18:00 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">Sommerkonzert</h1>
+    <div class="SP-Teaser__abstract">Die String Academy und das Bonner Jugendsinfonieorchester laden zum gemeinsamen Sommerkonzert ein.</div>
+  </a>
+</article>
+"""
+
+        events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Sommerkonzert")
+        self.assertEqual(events[0]["date"], "2026-07-10")
+        self.assertEqual(events[0]["time"], "18:00")
+        self.assertEqual(events[0]["category"], "Musik/Konzert")
+        self.assertIn("musikschule/sommerkonzert", events[0]["link"])
 
     def test_bonn_detail_context_extracts_sparse_page_description_and_venue(self):
         html = """
