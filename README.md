@@ -275,10 +275,13 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
   einfache Weiterverarbeitung.
 - **Metadaten-JSON unter `/tmp/nrw-events-latest-meta.json`:** Zeitfenster,
   Radius, Score-Schwelle, Roh-Zählungen je Quelle, hart fehlgeschlagene Quellen,
-  weiche Quellenwarnungen, den detaillierten Status jeder Quelle (`source_results`),
+  weiche Quellenwarnungen, eine kompakte analysierbare Problemliste
+  (`import_issues`), den detaillierten Status jeder Quelle (`source_results`),
   stabile Kategorie-Taxonomie und die vollständige Eventliste. Der Laufstatus ist
-  `healthy`, `degraded` oder `failed`; bei fehlgeschlagenen kritischen Quellen
-  bleibt der zuletzt erfolgreich veröffentlichte Snapshot erhalten.
+  `healthy`, `degraded` oder `failed`; einzelne fehlgeschlagene/degradierte
+  Quellen werden als `degraded` veröffentlicht und beenden den Prozess mit Exit 0,
+  solange der Lauf weiterhin Events erzeugt. `failed` bleibt für Läufe ohne
+  veröffentlichbare Events oder Infrastruktur-/Konfigurationsfehler reserviert.
 
 Standardmäßig wird die vollständige Liste ausgegeben. Gekürzt wird nur, wenn
 `NRW_EVENTS_MAX_PER_SECTION` explizit gesetzt wird.
@@ -318,12 +321,13 @@ meta = json.load(open(sys.argv[1]))
 print(meta["event_count"])
 print(meta["source_counts_raw"])
 print(meta.get("source_warnings", []))
+print(meta.get("import_issues", []))
 PY
 ```
 
 Ein erfolgreicher Lauf ist nicht nur ein Exit-Code: Prüfe auch `event_count`,
-wichtige Quellenzählungen und `source_warnings`, weil einzelne öffentliche Seiten
-degradiert sein können, ohne den Gesamtlauf zu stoppen.
+wichtige Quellenzählungen, `source_warnings` und `import_issues`, weil einzelne
+öffentliche Seiten degradiert sein können, ohne den Gesamtlauf zu stoppen.
 
 ## Lizenz
 

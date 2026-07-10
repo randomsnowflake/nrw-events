@@ -12,6 +12,13 @@ from html import unescape
 from .. import common
 
 
+def _clean_price(value: str) -> str:
+    price = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", value or "")).strip()
+    if len(price) > 160:
+        return price[:159].rstrip() + "…"
+    return price
+
+
 def fetch() -> list:
     source = "Köln Open Data"
     try:
@@ -54,7 +61,7 @@ def fetch() -> list:
             desc = item.get("description", "")
             price = item.get("preis", "")
             if price:
-                price = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", price)).strip()
+                price = _clean_price(price)
             time_str = item.get("uhrzeit", "")
             district = item.get("stadtteil", "")
 

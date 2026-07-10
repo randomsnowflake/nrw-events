@@ -21,9 +21,10 @@ from .sources import SOURCES
 from .validation import EventValidationError, validate_event
 
 
-CRITICAL_SOURCES = {"Köln Open Data", "Bonn.de Events"}
 EXIT_SUCCESS = 0
-EXIT_DEGRADED = 1
+# Historical name retained for callers/tests: a degraded import is still a
+# usable import, so it must not break unattended wrappers that use `set -e`.
+EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
 
 
@@ -71,11 +72,8 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
         common.set_source_context(None)
 
 
-def _run_status(results: dict[str, SourceResult]) -> str:
-    critical_failure = any(
-        result.status == SourceStatus.FAILED for name, result in results.items() if name in CRITICAL_SOURCES
-    )
-    if critical_failure:
+def _run_status(results: dict[str, SourceResult], event_count: int) -> str:
+    if event_count <= 0:
         return "failed"
     if any(result.status in {SourceStatus.FAILED, SourceStatus.DEGRADED, SourceStatus.PARSER_EMPTY}
            for result in results.values()):
@@ -85,6 +83,77 @@ def _run_status(results: dict[str, SourceResult]) -> str:
 
 def _exit_code(run_status: str) -> int:
     return {"healthy": EXIT_SUCCESS, "degraded": EXIT_DEGRADED, "failed": EXIT_FAILED}[run_status]
+
+
+def _endpoint_issues(result: SourceResult) -> list[dict[str, object]]:
+    issues: list[dict[str, object]] = []
+    for url, details in result.endpoints.items():
+        status = details.get("status")
+        has_bad_status = isinstance(status, int) and status >= 400
+        if not (has_bad_status or details.get("error") or details.get("error_type")):
+            continue
+        issue = {"url": url, "attempts": details.get("attempts", 0)}
+        for key in ("status", "error_type", "error"):
+            if key in details:
+                issue[key] = details[key]
+        issues.append(issue)
+    return issues
+
+
+def _source_issue_message(result: SourceResult, endpoint_issues: list[dict[str, object]]) -> str:
+    parts: list[str] = []
+    if result.error:
+        parts.append(f"source raised {result.error['error_type']}: {result.error['error']}")
+    if result.rejection_reasons:
+        reasons = ", ".join(
+            f"{reason}={count}" for reason, count in sorted(result.rejection_reasons.items())
+        )
+        parts.append(f"rejected {result.rejected_event_count} event record(s): {reasons}")
+    if result.warnings:
+        warning_text = "; ".join(
+            f"{warning.get('source', result.source)}: {warning.get('error', warning)}"
+            for warning in result.warnings[:3]
+        )
+        parts.append(f"warnings: {warning_text}")
+    if endpoint_issues:
+        endpoint_text = "; ".join(
+            f"{issue.get('url')}: {issue.get('error_type') or issue.get('status') or 'endpoint issue'}"
+            f" {issue.get('error', '')}".rstrip()
+            for issue in endpoint_issues[:3]
+        )
+        parts.append(f"endpoint issues: {endpoint_text}")
+    if result.anomalies:
+        parts.append("anomalies: " + ", ".join(result.anomalies))
+    return "; ".join(parts) or f"source status is {result.status.value}"
+
+
+def _import_issues(results: dict[str, SourceResult]) -> list[dict[str, object]]:
+    issues: list[dict[str, object]] = []
+    for name, result in sorted(results.items()):
+        if result.status not in {SourceStatus.FAILED, SourceStatus.DEGRADED, SourceStatus.PARSER_EMPTY}:
+            continue
+        endpoint_issues = _endpoint_issues(result)
+        issue = {
+            "source": name,
+            "status": result.status.value,
+            "severity": "error" if result.status == SourceStatus.FAILED else "warning",
+            "raw_event_count": result.raw_event_count,
+            "accepted_event_count": result.accepted_event_count,
+            "rejected_event_count": result.rejected_event_count,
+            "message": _source_issue_message(result, endpoint_issues),
+        }
+        if result.error:
+            issue["error"] = result.error
+        if result.rejection_reasons:
+            issue["rejection_reasons"] = result.rejection_reasons
+        if endpoint_issues:
+            issue["endpoint_issues"] = endpoint_issues[:10]
+        if result.warnings:
+            issue["warnings"] = result.warnings
+        if result.anomalies:
+            issue["anomalies"] = result.anomalies
+        issues.append(issue)
+    return issues
 
 
 def _validate_output_paths(settings: config.RuntimeConfig) -> None:
@@ -201,7 +270,11 @@ def main() -> int:
     deduped = report.deduplicate(filtered)
     print(report.format_report(deduped))
     events_sorted = sorted((_with_canonical_category(event) for event in deduped), key=lambda event: -event["score"])
-    run_status = _run_status(source_results)
+    import_issues = _import_issues(source_results)
+    run_status = _run_status(source_results, len(deduped))
+    for issue in import_issues:
+        log(logger, 30 if issue["severity"] == "warning" else 40,
+            f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))
     start, end = common.TODAY, common.END_DATE
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5 for offset in range((end - start).days + 1))
     payload = {
@@ -215,6 +288,7 @@ def main() -> int:
         "source_counts_raw": {name: result.raw_event_count for name, result in source_results.items()},
         "source_errors": {name: result.error["error"] for name, result in source_results.items() if result.error},
         "source_warnings": common.get_source_warnings(),
+        "import_issues": import_issues,
         "source_results": {name: result.as_dict() for name, result in source_results.items()},
         "categories": CATEGORIES,
         "pre_dedup_count": len(filtered),
@@ -222,7 +296,7 @@ def main() -> int:
         "events": events_sorted,
     }
     if run_status == "failed":
-        log(logger, 40, "critical source health gate failed; preserving last-known-good snapshot",
+        log(logger, 40, "import health gate failed; preserving last-known-good snapshot",
             run_id=run_id, source="runner")
     else:
         try:
