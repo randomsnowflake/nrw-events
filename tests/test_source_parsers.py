@@ -250,6 +250,24 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(context["venue"], "Arithmeum - rechnen einst und heute")
         self.assertEqual(context["city"], "Bonn")
 
+    def test_bonn_detail_context_extracts_sparse_page_description_and_venue(self):
+        html = """
+<div class="SP-ArticleHeader__intro SP-Intro"><p>Sonderausstellung im Arithmeum</p></div>
+<div data-sp-table class="SP-Paragraph">
+  <p>Die Ausstellung zeigt historische Rechenschieber und Vermessung.</p>
+</div>
+<script id="EventSerializer-1" type="application/ld+json">
+{"@context":"http://schema.org","@type":"Event","name":"Um drei Ecken gedacht","location":[{"@type":"Place","name":"Arithmeum - rechnen einst und heute","address":{"@type":"PostalAddress","addressLocality":"Bonn"}}]}
+</script>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertIn("Sonderausstellung im Arithmeum", context["description"])
+        self.assertIn("Die Ausstellung zeigt", context["description"])
+        self.assertEqual(context["venue"], "Arithmeum - rechnen einst und heute")
+        self.assertEqual(context["city"], "Bonn")
+
     def test_rausgegangen_party_tiles_emit_nightlife_events(self):
         html = """
 <div class="tile tile-medium hover-lift" data-testid="event-tile">
@@ -1006,6 +1024,56 @@ END:VCALENDAR
                     category,
                 )
                 self.assertIsNone(event)
+
+    def test_make_event_skips_recurring_course_and_club_listing_noise(self):
+        cases = [
+            (
+                "FELDENKRAIS-KURS MIT BETTINA HEYNE",
+                "Der Kurs findet immer freitags statt. Der Kurs kostet 48 Euro und beinhaltet 6 Kurseinheiten.",
+                "Workshop Kurs",
+            ),
+            (
+                "UMGANG MIT SMARTPHONE, TABLET UND PC",
+                "In der Begegnungsstätte CLUB gibt es heute Tipps. Anmeldungen werden unter der Telefonnummer entgegengenommen.",
+                "Beratung",
+            ),
+            (
+                "Foto Club Wachtberg - Clubabend",
+                "Regelmäßiger Clubabend zum Austausch von Fotoamateuren.",
+                "Treffpunkt",
+            ),
+        ]
+
+        for title, description, category in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title,
+                    datetime(2026, 6, 12, 18),
+                    datetime(2026, 6, 12, 20),
+                    "Begegnungsstätte",
+                    "Bonn",
+                    description,
+                    "https://example.org/event",
+                    "Test",
+                    category,
+                )
+                self.assertIsNone(event)
+
+    def test_make_event_truncates_very_long_descriptions(self):
+        event = common.make_event(
+            "Sommerkonzert",
+            datetime(2026, 6, 12, 20),
+            datetime(2026, 6, 12, 22),
+            "Pantheon",
+            "Bonn",
+            "Live-Musik " + ("sehr lange Beschreibung " * 80),
+            "https://www.pantheon.de/event/sommerkonzert",
+            "Pantheon",
+            "Konzert",
+        )
+
+        self.assertIsNotNone(event)
+        self.assertLessEqual(len(event and event["description"]), common.DESCRIPTION_MAX_CHARS + 1)
 
     def test_make_event_skips_cancelled_or_postponed_events(self):
         cases = [

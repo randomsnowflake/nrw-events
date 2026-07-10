@@ -62,7 +62,6 @@ def _merge_duplicate_metadata(winner: dict, duplicate: dict) -> dict:
 
     return merged
 
-
 def deduplicate(events: list) -> list:
     """Collapse same-day, same-city duplicates, keeping the highest-scored copy."""
     result: list = []
@@ -92,7 +91,10 @@ def deduplicate(events: list) -> list:
 
 def _bucket(ev: dict) -> str:
     text = (ev.get("category", "") + " " + ev.get("title", "") + " " + ev.get("description", "")).lower()
-    if any(k in text for k in ["techno", "electronic", "party", "dj", "nightlife"]) or re.search(r"\bclub\b", text):
+    if ev.get("source") == "Repair Cafés Bonn":
+        return "Talks, Community & Culture"
+    if (ev.get("category_key") == "nightlife"
+            or re.search(r"\b(?:techno|electronic|party|dj|nightlife)\b", text)):
         return "Nightlife & Electronic"
     if any(k in text for k in ["concert", "konzert", "musik", "music", "live"]):
         return "Concerts & Live Music"

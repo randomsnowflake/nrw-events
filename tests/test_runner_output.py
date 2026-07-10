@@ -6,7 +6,7 @@ import unittest
 from datetime import datetime
 from unittest import mock
 
-from scripts.nrw_events import common, runner
+from scripts.nrw_events import common, report, runner
 
 
 class RunnerOutputTests(unittest.TestCase):
@@ -272,6 +272,24 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(issues[0]["source"], "Source")
         self.assertEqual(issues[0]["severity"], "warning")
         self.assertEqual(issues[0]["anomalies"], ["zero_after_recent_nonempty"])
+
+    def test_repair_descriptions_do_not_trigger_nightlife_bucket(self):
+        event = common.make_event(
+            "Repair Café MVA Bonn - Fahrrad, Geräte, Nähen",
+            common.TODAY.replace(hour=18, minute=30),
+            common.TODAY.replace(hour=20, minute=30),
+            "Repair Café MVA Bonn",
+            "Bonn",
+            "SMD Löttechnik sowie Akku-Technologien sind ein wichtiges Thema.",
+            "https://www.repaircafesbonn.de/mc-events/test/",
+            "Repair Cafés Bonn",
+            "repair café reparatur offene werkstatt",
+        )
+
+        self.assertIsNotNone(event)
+        rendered = report.format_report([event])
+        self.assertIn("Talks, Community & Culture (1)", rendered)
+        self.assertNotIn("Nightlife & Electronic (1)", rendered)
 
 
 if __name__ == "__main__":

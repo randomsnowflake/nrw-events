@@ -65,6 +65,7 @@ MONTH_EN = {
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
 MAX_RADIUS_KM = config.MAX_RADIUS_KM
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
+DESCRIPTION_MAX_CHARS = max(int(os.environ.get("NRW_EVENTS_DESCRIPTION_MAX_CHARS", "700")), 0)
 
 # Per-run source telemetry. Source modules intentionally keep the overall import
 # alive when one remote page breaks; this records those partial failures so the
@@ -422,6 +423,15 @@ def normalize_venue_name(value: str) -> str:
     return cleaned
 
 
+def concise_description(value: str) -> str:
+    """Return cleaned event copy sized for reports and downstream cards."""
+    cleaned = clean_html(value)
+    if not DESCRIPTION_MAX_CHARS or len(cleaned) <= DESCRIPTION_MAX_CHARS:
+        return cleaned
+    shortened = cleaned[:DESCRIPTION_MAX_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:")
+    return f"{shortened}…"
+
+
 _CANCELLED_STATUS_WORDS = (
     r"abgesagt(?:\s+(?:werden|wird|wurde))?|entfällt|entfaellt|"
     r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|verschoben"
@@ -708,7 +718,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "time": time_text,
         "venue": normalize_venue_name(venue),
         "city": clean_html(city).title(),
-        "description": clean_html(description),
+        "description": concise_description(description),
         "price": infer_free_admission_price(title, description),
         "link": event_link,
         "distance_km": round(km, 1) if km is not None else None,
@@ -857,8 +867,26 @@ def is_junk_event(ev: dict) -> bool:
         "sitzgymnastik", "rückbildungsgymnastik", "rueckbildungsgymnastik",
         "wirbelsäulengymnastik", "wirbelsaeulengymnastik", "patientenveranstaltung",
         "english club am vormittag", "gymnastik mal", "yoga mit kleinkindern",
+        "feldenkrais-kurs", "gleichgewichtstraining", "seniorenyoga",
+        "umgang mit smartphone, tablet und pc", "handy-hilfe für seniorinnen und senioren",
+        "kaffeekränzchen", "seniorenkaffee", "ein nachmittag mit kaffee, kuchen",
+        "singangebot mit", "eltern-kind-spielgruppe", "strick- und häkelkurs",
+        "clubabend",
     }
     if any(bit in text for bit in generic_low_value_bits):
+        return True
+
+    recurring_course_bits = {
+        "der kurs findet immer", "der kurs kostet", "kurseinheiten",
+        "anmeldungen werden unter der telefonnummer", "begegnungsstätte club",
+    }
+    course_context_bits = {
+        "kurs", "training", "gymnastik", "yoga", "feldenkrais", "smartphone",
+        "tablet", "pc", "kaffee und kuchen", "singangebot", "clubabend",
+    }
+    if (any(bit in text for bit in recurring_course_bits)
+            and any(bit in text for bit in course_context_bits)
+            and not any(bit in content_text for bit in cultural_event_bits)):
         return True
 
     # Web-search results are noisy: require topical + date/event signal, since they
