@@ -262,6 +262,17 @@ class RunnerOutputTests(unittest.TestCase):
         runner._attach_baselines({"Source": result}, {"Source": {"raw_event_count": 12}}, 10)
         self.assertEqual(result.anomalies, ["zero_after_recent_nonempty"])
 
+    def test_baseline_anomaly_is_included_in_import_issues(self):
+        result = runner.SourceResult(source="Source", raw_event_count=0)
+        runner._attach_baselines({"Source": result}, {"Source": {"raw_event_count": 12}}, 10)
+
+        issues = runner._import_issues({"Source": result})
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["source"], "Source")
+        self.assertEqual(issues[0]["severity"], "warning")
+        self.assertEqual(issues[0]["anomalies"], ["zero_after_recent_nonempty"])
+
 
 if __name__ == "__main__":
     unittest.main()

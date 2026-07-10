@@ -130,7 +130,10 @@ def _source_issue_message(result: SourceResult, endpoint_issues: list[dict[str, 
 def _import_issues(results: dict[str, SourceResult]) -> list[dict[str, object]]:
     issues: list[dict[str, object]] = []
     for name, result in sorted(results.items()):
-        if result.status not in {SourceStatus.FAILED, SourceStatus.DEGRADED, SourceStatus.PARSER_EMPTY}:
+        if (
+            result.status not in {SourceStatus.FAILED, SourceStatus.DEGRADED, SourceStatus.PARSER_EMPTY}
+            and not result.anomalies
+        ):
             continue
         endpoint_issues = _endpoint_issues(result)
         issue = {
