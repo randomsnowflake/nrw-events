@@ -67,6 +67,22 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(meta_payload["event_count"], 1)
 
     def test_metadata_includes_source_warnings_from_swallowed_source_errors(self):
+        def fetch_event():
+            return [{
+                "title": "Concert",
+                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "time": "20:00",
+                "venue": "Club",
+                "city": "Bonn",
+                "description": "",
+                "price": "",
+                "link": "https://example.test",
+                "distance_km": 0,
+                "score": 1.0,
+                "source": "Healthy Source",
+                "category": "konzert",
+            }]
+
         def fetch_with_warning():
             runner.common.log_source_error("Fragile Source", RuntimeError("layout changed"))
             return []
@@ -78,7 +94,10 @@ class RunnerOutputTests(unittest.TestCase):
                 "NRW_EVENTS_JSON_OUT": json_out,
                 "NRW_EVENTS_META_JSON_OUT": meta_out,
             }, clear=False):
-                with mock.patch.object(runner, "SOURCES", {"Fragile Source": fetch_with_warning}):
+                with mock.patch.object(runner, "SOURCES", {
+                    "Fragile Source": fetch_with_warning,
+                    "Healthy Source": fetch_event,
+                }):
                     with mock.patch.object(runner.report, "format_report", lambda events: ""):
                         with mock.patch.object(sys, "argv", ["runner"]):
                             runner.main()
@@ -92,6 +111,53 @@ class RunnerOutputTests(unittest.TestCase):
         )
         self.assertEqual(meta_payload["run_status"], "degraded")
         self.assertEqual(meta_payload["source_results"]["Fragile Source"]["status"], "degraded")
+        self.assertEqual(meta_payload["import_issues"][0]["source"], "Fragile Source")
+        self.assertIn("layout changed", meta_payload["import_issues"][0]["message"])
+
+    def test_single_failed_source_does_not_fail_the_import_when_events_are_available(self):
+        def fetch_event():
+            return [{
+                "title": "Concert",
+                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "time": "20:00",
+                "venue": "Club",
+                "city": "Bonn",
+                "description": "",
+                "price": "",
+                "link": "https://example.test",
+                "distance_km": 0,
+                "score": 1.0,
+                "source": "Healthy Source",
+                "category": "konzert",
+            }]
+
+        def broken_fetch():
+            raise RuntimeError("temporary source outage")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            json_out = os.path.join(tmpdir, "events.json")
+            meta_out = os.path.join(tmpdir, "events-meta.json")
+            with mock.patch.dict(os.environ, {
+                "NRW_EVENTS_JSON_OUT": json_out,
+                "NRW_EVENTS_META_JSON_OUT": meta_out,
+            }, clear=False), mock.patch.object(runner, "SOURCES", {
+                "Broken Source": broken_fetch,
+                "Healthy Source": fetch_event,
+            }), mock.patch.object(runner.report, "format_report", lambda events: ""), \
+                    mock.patch.object(sys, "argv", ["runner"]):
+                self.assertEqual(runner.main(), runner.EXIT_SUCCESS)
+
+            with open(json_out) as f:
+                events_payload = json.load(f)
+            with open(meta_out) as f:
+                meta_payload = json.load(f)
+
+        self.assertEqual(events_payload[0]["title"], "Concert")
+        self.assertEqual(meta_payload["run_status"], "degraded")
+        self.assertEqual(meta_payload["source_errors"], {"Broken Source": "temporary source outage"})
+        self.assertEqual(meta_payload["import_issues"][0]["source"], "Broken Source")
+        self.assertEqual(meta_payload["import_issues"][0]["severity"], "error")
+        self.assertIn("temporary source outage", meta_payload["import_issues"][0]["message"])
 
     def test_critical_source_failure_preserves_existing_snapshot(self):
         def broken_fetch():
@@ -132,6 +198,22 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(manifest["event_count"], 1)
 
     def test_disabled_source_is_not_a_degraded_run(self):
+        def fetch_event():
+            return [{
+                "title": "Concert",
+                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "time": "20:00",
+                "venue": "Club",
+                "city": "Bonn",
+                "description": "",
+                "price": "",
+                "link": "https://example.test",
+                "distance_km": 0,
+                "score": 1.0,
+                "source": "Healthy Source",
+                "category": "konzert",
+            }]
+
         def disabled_fetch():
             runner.common.log_source_disabled("Optional Source", "disabled for test")
             return []
@@ -140,7 +222,10 @@ class RunnerOutputTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {
                 "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
                 "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
-            }, clear=False), mock.patch.object(runner, "SOURCES", {"Optional Source": disabled_fetch}), \
+            }, clear=False), mock.patch.object(runner, "SOURCES", {
+                "Healthy Source": fetch_event,
+                "Optional Source": disabled_fetch,
+            }), \
                     mock.patch.object(runner.report, "format_report", lambda events: ""), \
                     mock.patch.object(sys, "argv", ["runner"]):
                 self.assertEqual(runner.main(), runner.EXIT_SUCCESS)
@@ -152,7 +237,7 @@ class RunnerOutputTests(unittest.TestCase):
     def test_invalid_source_records_are_quarantined_with_reason_counts(self):
         def mixed_fetch():
             return [{
-                "title": "Valid", "date": "2026-06-08", "time": "", "venue": "", "city": "Bonn",
+                "title": "Valid", "date": common.TODAY.strftime("%Y-%m-%d"), "time": "", "venue": "", "city": "Bonn",
                 "description": "", "price": "", "link": "https://example.test", "distance_km": 0,
                 "score": 1.0, "source": "Mixed", "category": "concert",
             }, {"title": "Invalid", "score": 1.0, "source": "Mixed"}]
@@ -176,6 +261,17 @@ class RunnerOutputTests(unittest.TestCase):
         result = runner.SourceResult(source="Source", raw_event_count=0)
         runner._attach_baselines({"Source": result}, {"Source": {"raw_event_count": 12}}, 10)
         self.assertEqual(result.anomalies, ["zero_after_recent_nonempty"])
+
+    def test_baseline_anomaly_is_included_in_import_issues(self):
+        result = runner.SourceResult(source="Source", raw_event_count=0)
+        runner._attach_baselines({"Source": result}, {"Source": {"raw_event_count": 12}}, 10)
+
+        issues = runner._import_issues({"Source": result})
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["source"], "Source")
+        self.assertEqual(issues[0]["severity"], "warning")
+        self.assertEqual(issues[0]["anomalies"], ["zero_after_recent_nonempty"])
 
 
 if __name__ == "__main__":
