@@ -49,6 +49,8 @@ class JunkFilterTests(unittest.TestCase):
             "Ganzheitliche Wirbelsäulengymnastik mit Tiefenentspannung",
             "English Club am Vormittag B1-B2",
             "Klaaferei – Café Winterscheid",
+            "Straßenreinigung",
+            "Venen Aktionstage in der Bröltal Apotheke",
         ]
 
         for title in blocked_titles:

@@ -81,7 +81,7 @@ python3 scripts/nrw-events.py 5
 
 ## Anforderungen
 
-- **Python 3.9+**
+- **Python 3.10+**
 - Nur Standardbibliothek: `urllib`, `xml.etree`, `concurrent.futures`, usw.
 - Kein `pip install`, keine Drittanbieter-Pakete.
 

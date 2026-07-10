@@ -99,6 +99,46 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["category_key"], "sports")
         self.assertEqual(deduped[0]["category_label"], "Sport & Bewegung")
 
+    def test_deduplicate_collapses_near_identical_titles_from_different_sources(self):
+        events = [
+            {
+                "title": "Dominik Eulberg & Jonathan Kaspar - strandliebe Open Air Bikini Beach Bonn",
+                "date": "2026-07-10",
+                "start_date": "2026-07-10",
+                "time": "",
+                "venue": "Bikini Beach Bonn",
+                "city": "Bonn",
+                "description": "",
+                "price": "",
+                "link": "https://eventbrite.example/event",
+                "distance_km": 0,
+                "score": 1.0,
+                "source": "Eventbrite Party",
+                "category": "Party",
+            },
+            {
+                "title": "DOMINIK EULBERG & JONATHAN KASPAR - strandliebe Open Air I Bikini Beach Bonn",
+                "date": "2026-07-10",
+                "start_date": "2026-07-10",
+                "time": "17:00",
+                "venue": "Bikini Beach",
+                "city": "Bonn",
+                "description": "",
+                "price": "",
+                "link": "https://rausgegangen.example/event",
+                "distance_km": 0,
+                "score": 0.8,
+                "source": "Rausgegangen Party",
+                "category": "Party",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Eventbrite Party")
+        self.assertEqual(deduped[0]["time"], "17:00")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -689,7 +689,10 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
             time_text += "–" + end_dt.strftime("%H:%M")
     time_text = sanitize_time_text(time_text)
     full_text = f"{title} {venue} {city} {description} {category}"
-    canonical_category = category_taxonomy.categorize_event(category, title, f"{description} {link}")
+    # URLs encode venue slugs and other implementation detail (for example
+    # ``alte-vhs`` in a Songkick concert URL). They are not event content and
+    # must not affect the display category.
+    canonical_category = category_taxonomy.categorize_event(category, title, description)
     event_link = normalize_url(link)
     if is_raw_api_url(event_link):
         event_link = ""
@@ -764,6 +767,9 @@ def is_junk_event(ev: dict) -> bool:
         "newsletter", "jobs", "sitemap", "terms of use", "datenschutz",
         "veranstaltungen aktuell", "auf einen blick", "10 best", "the best events",
         "alle veranstaltungen", "veranstaltungskalender", "event calendar",
+        # Administrative notices and pharmacy campaigns from regional calendar
+        # feeds are not destination events.
+        "straßenreinigung", "strassenreinigung", "venen aktionstag",
     }
     if any(bit in title for bit in junk_title_bits):
         return True

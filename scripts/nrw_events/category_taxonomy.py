@@ -91,6 +91,9 @@ FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # Caricature shows are exhibitions even when the body text discusses
     # politics or digital collections.
     ("exhibition", ("karikatur",)),
+    # A screening remains a cinema event when an accompanying discussion is
+    # also advertised.
+    ("cinema", ("openair-kino", "open-air kino", "open air kino")),
 )
 
 LOW_VALUE_TITLE_CONTEXT = (
@@ -201,6 +204,17 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
         # "Kultur Konzert" to routine meetups/courses. For those low-value title
         # shapes, only classify from the actual title/description.
         hint_text = ""
+
+    # Songkick-style artist-at-venue titles can name a venue such as "Alte VHS".
+    # The concert source category is more reliable than that venue token.
+    if "concert" in hint_text and " @ " in title_text:
+        category = CATEGORY_BY_KEY["concert"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:concert-artist-at-venue",
+        }
 
     combined_text = f"{title_text} {description_text} {hint_text}"
     for forced_key, needles in FORCED_CATEGORY_RULES:

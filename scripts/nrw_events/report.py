@@ -6,6 +6,7 @@ Pure presentation + post-processing. No network, no source-specific logic.
 
 import os
 import re
+from difflib import SequenceMatcher
 
 from . import common
 
@@ -27,10 +28,27 @@ def _dedup_key(ev: dict) -> str:
     return "|".join((norm, city, str(start_date)))
 
 
+def _same_occurrence(left: dict, right: dict) -> bool:
+    """Return whether two records describe the same city/date occurrence."""
+    return _dedup_key(left).rsplit("|", 1)[-1] == _dedup_key(right).rsplit("|", 1)[-1] and (
+        re.sub(r"\s+", " ", (left.get("city", "") or "").lower()).strip()
+        == re.sub(r"\s+", " ", (right.get("city", "") or "").lower()).strip()
+    )
+
+
+def _titles_match(left: dict, right: dict) -> bool:
+    """Match exact titles and very close cross-source title variants."""
+    left_title = normalize_title(left.get("title", ""))
+    right_title = normalize_title(right.get("title", ""))
+    if left_title == right_title:
+        return True
+    return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
+
+
 def _merge_duplicate_metadata(winner: dict, duplicate: dict) -> dict:
     """Keep the winning event while preserving useful details from duplicates."""
     merged = dict(winner)
-    for field in ("description", "price", "venue", "link", "start_at", "end_at"):
+    for field in ("description", "price", "venue", "link", "time", "start_at", "end_at"):
         if not merged.get(field) and duplicate.get(field):
             merged[field] = duplicate[field]
 
@@ -46,26 +64,27 @@ def _merge_duplicate_metadata(winner: dict, duplicate: dict) -> dict:
 
 
 def deduplicate(events: list) -> list:
-    """Collapse duplicates by fuzzy title+city, keeping the highest-scored copy."""
-    best: dict = {}
+    """Collapse same-day, same-city duplicates, keeping the highest-scored copy."""
+    result: list = []
+    occurrences: dict[str, list[int]] = {}
     for ev in events:
         key = _dedup_key(ev)
-        current = best.get(key)
-        if current is None:
-            best[key] = ev
-        elif ev["score"] > current["score"]:
-            best[key] = _merge_duplicate_metadata(ev, current)
-        else:
-            best[key] = _merge_duplicate_metadata(current, ev)
-    # Preserve first-seen order for stability, but emit the winning copy per key.
-    seen = set()
-    result = []
-    for ev in events:
-        key = _dedup_key(ev)
-        if key in seen:
+        occurrence_key = key.rsplit("|", 1)[-1] + "|" + re.sub(r"\s+", " ", (ev.get("city", "") or "").lower()).strip()
+        match_index = next(
+            (
+                index
+                for index in occurrences.get(occurrence_key, [])
+                if _same_occurrence(result[index], ev) and _titles_match(result[index], ev)
+            ),
+            None,
+        )
+        if match_index is None:
+            occurrences.setdefault(occurrence_key, []).append(len(result))
+            result.append(ev)
             continue
-        seen.add(key)
-        result.append(best[key])
+
+        current = result[match_index]
+        result[match_index] = _merge_duplicate_metadata(ev, current) if ev["score"] > current["score"] else _merge_duplicate_metadata(current, ev)
     return result
 
 
