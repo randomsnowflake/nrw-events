@@ -14,6 +14,24 @@ from . import common
 from .models import CanonicalEvent
 
 
+# Kept separate from ``score``: score includes distance and topical relevance,
+# while authority decides which publisher owns the canonical record.
+_AGGREGATOR_SOURCES = {
+    "Bonn.jetzt", "Eventbrite Party", "Meetup", "Rausgegangen Party",
+    "Songkick", "Ruhr-Guide",
+}
+_SEARCH_SOURCES = {"Exa Search", "Grok Search"}
+
+
+def source_authority(source: str) -> int:
+    """Rank direct/local publishers above aggregators and search discovery."""
+    if source in _SEARCH_SOURCES:
+        return 0
+    if source in _AGGREGATOR_SOURCES:
+        return 1
+    return 2
+
+
 # ── Dedup ───────────────────────────────────────────────────────────
 
 def normalize_title(title: str) -> str:
@@ -74,16 +92,19 @@ def _titles_match(left: dict, right: dict) -> bool:
 
 
 def _merge_duplicate_metadata(winner, duplicate):
-    """Keep the winning event while preserving useful details from duplicates."""
+    """Keep the authoritative record and enrich it field by field."""
     updates = {}
-    for field in ("description", "price", "venue", "link", "time", "start_at", "end_at"):
+    for field in ("price", "venue", "link", "time", "start_at", "end_at"):
         if not winner.get(field) and duplicate.get(field):
             updates[field] = duplicate[field]
 
-    # If a lower-scored duplicate carries an explicit price/free-admission signal,
-    # keep its stronger category metadata too. This prevents a broad duplicate
-    # source from erasing a more structured municipal source such as Bonn.de JSON.
-    if duplicate.get("price") and not winner.get("price") and duplicate.get("category_key"):
+    if len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip()):
+        updates["description"] = duplicate["description"]
+
+    # Classification is derived data, so retain the most confident result even
+    # when it did not come from the canonical publisher.
+    if (duplicate.get("category_key")
+            and duplicate.get("category_confidence", 0) > winner.get("category_confidence", 0)):
         for field in ("category", "category_key", "category_label", "category_confidence", "category_reason"):
             if duplicate.get(field):
                 updates[field] = duplicate[field]
@@ -93,7 +114,7 @@ def _merge_duplicate_metadata(winner, duplicate):
     return {**winner, **updates}
 
 def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
-    """Collapse same-day, same-city duplicates, keeping the highest-scored copy."""
+    """Collapse duplicates, preferring source authority and then event score."""
     result: list = []
     occurrences: dict[str, list[int]] = {}
     for ev in events:
@@ -113,7 +134,11 @@ def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
             continue
 
         current = result[match_index]
-        result[match_index] = _merge_duplicate_metadata(ev, current) if ev["score"] > current["score"] else _merge_duplicate_metadata(current, ev)
+        current_rank = (source_authority(current.get("source", "")), current["score"])
+        candidate_rank = (source_authority(ev.get("source", "")), ev["score"])
+        result[match_index] = (_merge_duplicate_metadata(ev, current)
+                               if candidate_rank > current_rank
+                               else _merge_duplicate_metadata(current, ev))
     return result
 
 

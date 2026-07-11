@@ -55,7 +55,9 @@ bash scripts/nrw-events.sh 1
 ```
 
 Die Ausgabe erscheint als Markdown auf stdout. Eine vollständige JSON-Kopie wird
-unter `/tmp/nrw-events-latest.json` gespeichert. Zusätzlich schreibt der
+unter `/tmp/nrw-events-latest.json` gespeichert. Duplikate werden feldweise
+angereichert; offizielle und direkte lokale Quellen haben dabei Vorrang vor
+Aggregatoren und Suchtreffern. Zusätzlich schreibt der
 Metadaten-Export unter `/tmp/nrw-events-latest-meta.json` die stabile
 Kategorieliste (`categories`) und je Event die kanonischen Felder
 `category_key`/`category_label`; das rohe Quellenfeld `category` bleibt für
