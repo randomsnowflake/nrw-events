@@ -286,7 +286,8 @@ def main() -> int:
 
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
 
-    filtered = [event for event in all_events if event["score"] >= settings.score_floor and not common.is_junk_event(event)]
+    # Quality already runs when source records cross the canonical boundary.
+    filtered = [event for event in all_events if event["score"] >= settings.score_floor]
     deduped = report.deduplicate(filtered)
     print(report.format_report(deduped))
     events_sorted = sorted((event.to_dict() for event in deduped), key=lambda event: -event["score"])

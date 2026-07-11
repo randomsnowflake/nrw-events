@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime
 
 from scripts.nrw_events import common
+from scripts.nrw_events.quality import QualityAction, evaluate_event_quality
 
 
 def event(title, description="", category="", source="Test"):
@@ -17,6 +18,12 @@ def event(title, description="", category="", source="Test"):
 
 
 class JunkFilterTests(unittest.TestCase):
+    def test_quality_decisions_are_machine_readable(self):
+        decision = evaluate_event_quality({"title": "Privacy Policy"})
+        self.assertEqual(decision.action, QualityAction.DROP)
+        self.assertTrue(decision.rule_id)
+        self.assertTrue(decision.reason)
+
     def setUp(self):
         self.old_today = common.TODAY
         self.old_end_date = common.END_DATE

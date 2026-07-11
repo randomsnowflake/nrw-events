@@ -753,7 +753,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     return None if status == "cancelled" or is_junk_event(ev) else ev
 
 
-def is_junk_event(ev: dict) -> bool:
+def _legacy_is_junk_event(ev: dict) -> bool:
     """Suppress legal pages, stale entries, classes, and low-signal sludge."""
     title = (ev.get("title") or "").lower()
     desc = (ev.get("description") or "").lower()
@@ -933,6 +933,17 @@ def is_junk_event(ev: dict) -> bool:
             return True
 
     return False
+
+
+def evaluate_event_quality(ev: dict):
+    """Return the named quality decision for a candidate event."""
+    from .quality import evaluate_event_quality as evaluate
+    return evaluate(ev)
+
+
+def is_junk_event(ev: dict) -> bool:
+    """Compatibility wrapper for callers that only need the boolean policy."""
+    return evaluate_event_quality(ev).should_drop
 
 
 # ── JSON-LD (schema.org) ────────────────────────────────────────────
