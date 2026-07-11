@@ -8,9 +8,26 @@ from unittest import mock
 
 from scripts.nrw_events import common, report, runner
 from scripts.nrw_events.health import SourceFetchResult, SourceStatus
+from scripts.nrw_events import config
+from scripts.nrw_events.observability import configure_logging
+from scripts.nrw_events.runtime import EventWindow, RunContext
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_snapshot_builder_is_pure_with_fixed_context(self):
+        canonical = runner.validate_event({
+            "title": "Event", "source": "Memory", "date": "2026-06-08",
+            "score": 1.0, "city": "Bonn",
+        })
+        result = runner.ImportResult((canonical,), {}, 1, "healthy")
+        context = RunContext(config.RuntimeConfig(), EventWindow(
+            datetime(2026, 6, 8), datetime(2026, 6, 10)), "fixed",
+            configure_logging("fixed", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+        self.assertEqual(runner.build_snapshot(result, context),
+                         runner.build_snapshot(result, context))
+
     def test_typed_source_result_distinguishes_adapter_states(self):
         self.assertEqual(SourceFetchResult.success([]).status, SourceStatus.HEALTHY_EMPTY)
         self.assertEqual(SourceFetchResult.disabled("missing key").status, SourceStatus.DISABLED)
