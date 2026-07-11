@@ -5,11 +5,12 @@ import urllib.parse
 from datetime import datetime
 from html import unescape
 from .. import common
+from ..dates import MONTH_DE, MONTH_EN
 from ..source_types import TextParser
 
 _MONTH = {
-    **common.MONTH_DE,
-    **common.MONTH_EN,
+    **MONTH_DE,
+    **MONTH_EN,
     "mar": 3, "mär": 3, "sept": 9, "oct": 10, "dec": 12,
 }
 
