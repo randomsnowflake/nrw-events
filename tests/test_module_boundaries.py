@@ -1,8 +1,9 @@
 import unittest
 
 from scripts.nrw_events import common, location, scoring
-from scripts.nrw_events.models import EventRecord
+from scripts.nrw_events.models import CanonicalEvent, RawEvent
 from scripts.nrw_events.source_types import SourceFetcher, TextParser
+from scripts.nrw_events.validation import canonicalize_event
 
 
 class ModuleBoundaryTests(unittest.TestCase):
@@ -11,7 +12,17 @@ class ModuleBoundaryTests(unittest.TestCase):
         self.assertIs(common.category_score, scoring.category_score)
 
     def test_event_record_and_callable_contracts_are_importable(self):
-        event: EventRecord = {"title": "Event", "source": "Test", "score": 1.0}
+        event: RawEvent = {"title": "Event", "source": "Test", "score": 1.0}
         self.assertEqual(event["title"], "Event")
         self.assertTrue(SourceFetcher)
         self.assertTrue(TextParser)
+
+    def test_canonical_event_is_immutable_after_validation(self):
+        event = canonicalize_event({
+            "title": "Event", "source": "Test", "date": "2026-07-12",
+            "score": 1.0, "city": "Bonn",
+        })
+        self.assertIsInstance(event, CanonicalEvent)
+        self.assertEqual(event["start_date"], "2026-07-12")
+        with self.assertRaises(AttributeError):
+            event.title = "Changed"

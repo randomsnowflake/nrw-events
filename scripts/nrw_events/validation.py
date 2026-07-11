@@ -7,7 +7,7 @@ import urllib.parse
 from typing import Any
 
 from . import category_taxonomy, common
-from .models import EventRecord
+from .models import CanonicalEvent, RawEvent
 
 
 class EventValidationError(ValueError):
@@ -54,7 +54,7 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
     event["timezone"] = _text(event, "timezone", 64) or "Europe/Berlin"
 
 
-def validate_event(raw_event: object) -> EventRecord:
+def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     """Return one canonical event or raise a reason-coded validation error."""
     if not isinstance(raw_event, dict):
         raise EventValidationError("record_not_object")
@@ -103,4 +103,12 @@ def validate_event(raw_event: object) -> EventRecord:
     event.setdefault("category_reason", canonical.get("reason", ""))
     if event["category_key"] not in category_taxonomy.CATEGORY_BY_KEY:
         raise EventValidationError("category_key_invalid")
-    return event
+    return CanonicalEvent(**{
+        field: event.get(field, definition.default)
+        for field, definition in CanonicalEvent.__dataclass_fields__.items()
+    })
+
+
+def validate_event(raw_event: RawEvent | object) -> CanonicalEvent:
+    """Backward-compatible name for the canonical conversion boundary."""
+    return canonicalize_event(raw_event)
