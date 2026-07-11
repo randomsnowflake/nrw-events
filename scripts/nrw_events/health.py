@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
+from .models import RawEvent
+
 
 class SourceStatus(str, Enum):
     HEALTHY = "healthy"
@@ -14,6 +16,42 @@ class SourceStatus(str, Enum):
     DEGRADED = "degraded"
     FAILED = "failed"
     PARSER_EMPTY = "parser_empty"
+
+
+@dataclass(frozen=True, slots=True)
+class EndpointOutcome:
+    url: str
+    status: Optional[int] = None
+    error_type: str = ""
+    error: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class SourceFetchResult:
+    """Typed adapter output, including partial and intentionally empty states."""
+
+    events: tuple[RawEvent, ...] = ()
+    status: SourceStatus = SourceStatus.HEALTHY_EMPTY
+    disabled_reason: str = ""
+    warnings: tuple[str, ...] = ()
+    endpoints: tuple[EndpointOutcome, ...] = ()
+
+    @classmethod
+    def success(cls, events: list[RawEvent]) -> "SourceFetchResult":
+        return cls(tuple(events), SourceStatus.HEALTHY if events else SourceStatus.HEALTHY_EMPTY)
+
+    @classmethod
+    def partial(cls, events: list[RawEvent], *warnings: str,
+                endpoints: tuple[EndpointOutcome, ...] = ()) -> "SourceFetchResult":
+        return cls(tuple(events), SourceStatus.DEGRADED, warnings=warnings, endpoints=endpoints)
+
+    @classmethod
+    def disabled(cls, reason: str) -> "SourceFetchResult":
+        return cls(status=SourceStatus.DISABLED, disabled_reason=reason)
+
+    @classmethod
+    def parser_empty(cls, warning: str = "parser returned no records") -> "SourceFetchResult":
+        return cls(status=SourceStatus.PARSER_EMPTY, warnings=(warning,))
 
 
 @dataclass

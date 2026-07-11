@@ -1,14 +1,24 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
 from scripts.nrw_events import common, config
+from scripts.nrw_events.observability import configure_logging
+from scripts.nrw_events.runtime import EventWindow, RunContext
 from scripts.nrw_events.health import SourceResult, SourceStatus
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_contexts_keep_independent_immutable_windows(self):
+        settings = config.RuntimeConfig(days_ahead=2)
+        logger = configure_logging("test", "ERROR", "", "")
+        first = RunContext(settings, EventWindow.from_days(2, datetime(2026, 1, 1)), "a", logger)
+        second = RunContext(settings, EventWindow.from_days(2, datetime(2026, 2, 1)), "b", logger)
+        self.assertEqual(first.window.start.strftime("%Y-%m-%d"), "2026-01-01")
+        self.assertEqual(second.window.start.strftime("%Y-%m-%d"), "2026-02-01")
     def test_env_file_is_loaded_before_http_runtime_configuration(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             env_file = Path(tmpdir) / "settings.env"
