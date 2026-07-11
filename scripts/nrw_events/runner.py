@@ -19,7 +19,7 @@ from .health import SourceFetchResult, SourceResult, SourceStatus
 from .models import CanonicalEvent
 from .observability import configure_logging, log, redact
 from .runtime import EventWindow, RunContext
-from .sources import SOURCES
+from .sources import SOURCES, SOURCE_IDS
 from .validation import EventValidationError, validate_event
 
 
@@ -291,6 +291,7 @@ def main() -> int:
         "radius_km_from_bonn": common.MAX_RADIUS_KM,
         "score_floor": settings.score_floor,
         "source_counts_raw": {name: result.raw_event_count for name, result in source_results.items()},
+        "source_ids": SOURCE_IDS,
         "source_errors": {name: result.error["error"] for name, result in source_results.items() if result.error},
         "source_warnings": [warning for result in source_results.values()
                             for warning in result.warnings],

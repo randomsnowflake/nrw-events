@@ -69,8 +69,9 @@ scripts/nrw_events/
     __init__.py  — SOURCES registry (display name -> fetch function)
 ```
 
-To add a source: drop a `fetch()` module in `sources/` and add one line to the
-`SOURCES` dict in `sources/__init__.py`. To remove one: delete its line. No event
+To add a standard iCal or JSON-LD source, add one typed `SourceSpec` plus a
+fixture/contract test. Add a dedicated `fetch()` module only for proprietary
+HTML or aggregate parsing, then register it in `CUSTOM_SOURCES`. No event
 data ever lives in these files — only source URLs and parsing logic.
 
 ## After Running
