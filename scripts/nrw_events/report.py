@@ -16,18 +16,18 @@ from .models import CanonicalEvent
 
 # Kept separate from ``score``: score includes distance and topical relevance,
 # while authority decides which publisher owns the canonical record.
-_AGGREGATOR_SOURCES = {
-    "Bonn.jetzt", "Eventbrite Party", "Meetup", "Rausgegangen Party",
-    "Songkick", "Ruhr-Guide",
-}
-_SEARCH_SOURCES = {"Exa Search", "Grok Search"}
+_AGGREGATOR_SOURCE_MARKERS = (
+    "bonn.jetzt", "eventbrite", "meetup", "rausgegangen", "ruhr-guide", "songkick",
+)
+_SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 
 
 def source_authority(source: str) -> int:
     """Rank direct/local publishers above aggregators and search discovery."""
-    if source in _SEARCH_SOURCES:
+    normalized = " ".join((source or "").casefold().split())
+    if any(marker in normalized for marker in _SEARCH_SOURCE_MARKERS):
         return 0
-    if source in _AGGREGATOR_SOURCES:
+    if any(marker in normalized for marker in _AGGREGATOR_SOURCE_MARKERS):
         return 1
     return 2
 

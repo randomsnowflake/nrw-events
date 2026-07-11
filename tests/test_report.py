@@ -16,6 +16,11 @@ class ReportTests(unittest.TestCase):
                                             "description": "", "city": "Bonn"})
         self.assertEqual(features, {"flea_market": 0.5, "bonn_local": 0.1})
 
+    def test_source_authority_handles_source_family_variants(self):
+        self.assertEqual(report.source_authority("Bonn.de Events"), 2)
+        self.assertEqual(report.source_authority("Eventbrite NRW"), 1)
+        self.assertEqual(report.source_authority("EXA SEARCH fallback"), 0)
+
     def test_deduplicate_treats_free_entry_prefix_as_same_title(self):
         events = [
             {
