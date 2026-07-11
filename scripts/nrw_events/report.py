@@ -94,44 +94,44 @@ def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
 
 # ── Report rendering ────────────────────────────────────────────────
 
+CATEGORY_SECTIONS = {
+    "nightlife": "Nightlife & Electronic",
+    "concert": "Concerts & Live Music",
+    "exhibition": "Exhibitions & Museums",
+    "stage": "Talks, Community & Culture", "cinema": "Talks, Community & Culture",
+    "talk": "Talks, Community & Culture", "workshop": "Talks, Community & Culture",
+    "kids": "Talks, Community & Culture", "sports": "Talks, Community & Culture",
+    "festival": "Walks, Markets & Outdoor", "market": "Walks, Markets & Outdoor",
+    "food": "Walks, Markets & Outdoor", "outdoor": "Walks, Markets & Outdoor",
+    "other": "Other",
+}
+
+
 def _bucket(ev: dict) -> str:
-    text = (ev.get("category", "") + " " + ev.get("title", "") + " " + ev.get("description", "")).lower()
-    if ev.get("source") == "Repair Cafés Bonn":
-        return "Talks, Community & Culture"
-    if (ev.get("category_key") == "nightlife"
-            or re.search(r"\b(?:techno|electronic|party|dj|nightlife)\b", text)):
-        return "Nightlife & Electronic"
-    if any(k in text for k in ["concert", "konzert", "musik", "music", "live"]):
-        return "Concerts & Live Music"
-    if any(k in text for k in ["führung", "tour", "rundgang", "streetart", "kirschblüte", "antikmarkt",
-                               "flohmarkt", "markt", "weinwanderung", "wanderung", "walk", "weinberg",
-                               "winzer", "weingut", "ahrtal", "stadtteilfest", "straßenfest", "strassenfest",
-                               "dorffest", "kirmes", "genussmeile", "weinmeile", "siebengebirge",
-                               "kottenforst", "natur"]):
-        return "Walks, Markets & Outdoor"
-    if any(k in text for k in ["exhibition", "ausstellung", "museum", "gallery", "galerie", "art", "kunst"]):
-        return "Exhibitions & Museums"
-    if any(k in text for k in ["theater", "comedy", "vortrag", "lecture", "film", "kino", "reading",
-                               "meetup", "gaming", "hacker", "opensource"]):
-        return "Talks, Community & Culture"
-    return "Other"
+    """Map the already-canonical category to exactly one report section."""
+    return CATEGORY_SECTIONS[ev.get("category_key", "other")]
+
+
+def ranking_features(ev: dict) -> dict[str, float]:
+    """Return named editorial ranking features without presentation side effects."""
+    text = (ev.get("title", "") + " " + ev.get("category", "") + " " + ev.get("description", "")).lower()
+    features = {}
+    if "flohmarkt" in text:
+        features["flea_market"] = 0.5
+    if any(k in text for k in ["ahrweinwalk", "weinwanderung", "ahrtal", "ahrweiler"]):
+        features["ahr_wine"] = 0.55
+    if any(k in text for k in ["stadtteilfest", "straßenfest", "strassenfest", "dorffest",
+                               "poppelsdorf", "weinmeile", "genussmeile"]):
+        features["local_festival"] = 0.45
+    if "antikmarkt" in text:
+        features["antique_market"] = 0.3
+    if ev.get("city") == "Bonn":
+        features["bonn_local"] = 0.1
+    return features
 
 
 def _priority_bonus(ev: dict) -> float:
-    text = (ev.get("title", "") + " " + ev.get("category", "") + " " + ev.get("description", "")).lower()
-    bonus = 0.0
-    if "flohmarkt" in text:
-        bonus += 0.5
-    if any(k in text for k in ["ahrweinwalk", "weinwanderung", "ahrtal", "ahrweiler"]):
-        bonus += 0.55
-    if any(k in text for k in ["stadtteilfest", "straßenfest", "strassenfest", "dorffest",
-                               "poppelsdorf", "weinmeile", "genussmeile"]):
-        bonus += 0.45
-    if "antikmarkt" in text:
-        bonus += 0.3
-    if ev.get("city") == "Bonn":
-        bonus += 0.1
-    return bonus
+    return sum(ranking_features(ev).values())
 
 
 PREFERRED_ORDER = [

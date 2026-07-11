@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import common, config, report
-from .category_taxonomy import CATEGORIES, categorize_event
+from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .models import CanonicalEvent
 from .observability import configure_logging, log, redact
@@ -28,22 +28,6 @@ EXIT_SUCCESS = 0
 # usable import, so it must not break unattended wrappers that use `set -e`.
 EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
-
-
-def _with_canonical_category(event: dict) -> dict:
-    if event.get("category_key") and event.get("category_label"):
-        return event
-    canonical = categorize_event(
-        event.get("category", ""), event.get("title", ""),
-        f"{event.get('description', '')} {event.get('link', '')}",
-    )
-    return {
-        **event,
-        "category_key": canonical["key"],
-        "category_label": canonical["label"],
-        "category_confidence": canonical.get("confidence", 0),
-        "category_reason": canonical.get("reason", ""),
-    }
 
 
 def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, list[CanonicalEvent]]:
