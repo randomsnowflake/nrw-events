@@ -20,7 +20,6 @@ class SourceParserTests(unittest.TestCase):
     def tearDown(self):
         common.TODAY = self.old_today
         common.END_DATE = self.old_end_date
-
     def test_bonn_events_json_tolerates_appended_server_log_noise(self):
         raw = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
 
@@ -1300,6 +1299,18 @@ END:VCALENDAR
         }
 
         self.assertLessEqual(expected_sources, set(SOURCES))
+
+def case_class(name, predicate):
+    """Build a discoverable case class from this fixture/case library."""
+    selected = {
+        method_name for method_name in SourceParserTests.__dict__
+        if method_name.startswith("test_") and predicate(method_name)
+    }
+    return type(name, (SourceParserTests,), {
+        "__module__": __name__,
+        **{method_name: None for method_name in SourceParserTests.__dict__
+           if method_name.startswith("test_") and method_name not in selected},
+    })
 
 
 if __name__ == "__main__":

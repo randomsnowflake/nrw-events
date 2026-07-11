@@ -33,6 +33,7 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b'{"ok": true}'
         transient = urllib.error.HTTPError("https://example.org/api", 503, "Unavailable", Message(), None)
+        self.addCleanup(transient.close)
         with patch("scripts.nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
                 patch("scripts.nrw_events.common.time.sleep"):
             self.assertEqual(common.post_json("https://example.org/api", {}, retry_safe=True), {"ok": True})
@@ -110,6 +111,7 @@ class HttpHeaderTests(unittest.TestCase):
         response.read.return_value = b"ok after retry"
         transient = urllib.error.HTTPError(
             "https://example.org/events", 503, "Service Temporarily Unavailable", Message(), None)
+        self.addCleanup(transient.close)
 
         with patch("scripts.nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
              patch("scripts.nrw_events.common.time.sleep") as sleep:
@@ -121,6 +123,7 @@ class HttpHeaderTests(unittest.TestCase):
     def test_fetch_url_does_not_retry_non_transient_http_errors(self):
         not_found = urllib.error.HTTPError(
             "https://example.org/missing", 404, "Not Found", Message(), None)
+        self.addCleanup(not_found.close)
 
         with patch("scripts.nrw_events.common.urllib.request.urlopen", side_effect=not_found) as urlopen, \
              patch("scripts.nrw_events.common.time.sleep") as sleep:
