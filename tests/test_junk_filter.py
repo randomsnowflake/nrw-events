@@ -2,7 +2,11 @@ import unittest
 from datetime import datetime
 
 from scripts.nrw_events import common
-from scripts.nrw_events.quality import QualityAction, evaluate_event_quality
+from scripts.nrw_events.quality import (
+    QualityAction,
+    evaluate_event_quality,
+    summarize_event_quality,
+)
 
 
 def event(title, description="", category="", source="Test"):
@@ -18,6 +22,23 @@ def event(title, description="", category="", source="Test"):
 
 
 class JunkFilterTests(unittest.TestCase):
+    def test_quality_summary_exposes_longitudinal_completeness_metrics(self):
+        metrics = summarize_event_quality([{
+            "title": "Event", "source": "Test", "start_date": "2026-06-12",
+            "end_date": "2026-06-12", "date": "2026-06-12", "city": "Bonn",
+            "link": "https://example.test", "score": 1.0, "status": "scheduled",
+            "timezone": "Europe/Berlin", "category_key": "other",
+            "category_label": "Sonstiges", "category_confidence": 0.0,
+            "category_reason": "other:no-match", "all_day": True,
+            "location_confidence": "known_city", "time": "", "venue": "Bonn",
+            "description": "", "price": "",
+        }])
+
+        self.assertEqual(metrics["event_count"], 1)
+        self.assertEqual(sum(metrics["missing_required_fields"].values()), 0)
+        self.assertEqual(metrics["uncategorized_count"], 1)
+        self.assertEqual(metrics["optional_field_coverage"]["venue"], 1)
+
     def test_quality_decisions_are_machine_readable(self):
         decision = evaluate_event_quality({"title": "Privacy Policy"})
         self.assertEqual(decision.action, QualityAction.DROP)
@@ -117,6 +138,26 @@ class JunkFilterTests(unittest.TestCase):
         for title in blocked_titles:
             with self.subTest(title=title):
                 self.assertTrue(common.is_junk_event(event(title, category="Ball/Abiball")))
+
+    def test_blocks_low_value_civic_services_by_general_content_shape(self):
+        cases = [
+            event(
+                "Franz-Geuer-Straße in Köln-Ehrenfeld",
+                description="Informieren Sie sich über die Planung und geben Sie eine Stellungnahme ab.",
+            ),
+            event("Blutspende III/2026"),
+            event("Klimatreff und offenes Plenum"),
+            event(
+                "Verkauf im Kleiderpavillon",
+                description="Das Team öffnet jeden Donnerstag zum Verkauf gespendeter Sachen.",
+            ),
+        ]
+
+        for candidate in cases:
+            with self.subTest(title=candidate["title"]):
+                decision = evaluate_event_quality(candidate)
+                self.assertTrue(decision.should_drop)
+                self.assertNotEqual(decision.rule_id, "legacy.editorial-policy")
 
 
 if __name__ == "__main__":

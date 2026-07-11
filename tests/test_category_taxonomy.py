@@ -4,6 +4,17 @@ from scripts.nrw_events.category_taxonomy import CATEGORIES, categorize_event
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
+    def test_general_intent_terms_reduce_unclassified_events(self):
+        cases = {
+            "Feriencamp des VfB": "kids",
+            "Brotbacken im Steinofen": "workshop",
+            "FSFE Community Meeting": "talk",
+            "Sommerferienaktion mit Juppi": "kids",
+        }
+        for title, expected in cases.items():
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event("", title)["key"], expected)
+
     def test_exports_more_than_the_original_coarse_categories(self):
         keys = [category["key"] for category in CATEGORIES]
 

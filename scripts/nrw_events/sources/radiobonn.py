@@ -48,9 +48,13 @@ _VENUE_HINTS = [
 
 def _city_for(text: str) -> str:
     lower = (text or "").lower()
-    for needle, city in _CITY_HINTS.items():
-        if needle in lower:
-            return city
+    matches = [(needle, city) for needle, city in _CITY_HINTS.items() if needle in lower]
+    if matches:
+        # The station name and descriptions mention Bonn frequently. Prefer a
+        # more specific municipality when both are present, then the longest
+        # matching place name (e.g. Bad Honnef over Honnef-like fragments).
+        matches.sort(key=lambda item: (item[1] == "Bonn", -len(item[0])))
+        return matches[0][1]
     return common.guess_city_from_text(text) or "Bonn"
 
 

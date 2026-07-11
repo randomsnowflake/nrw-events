@@ -16,7 +16,7 @@ from . import (
     meckenheim, much, naturregion_sieg,
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
-    eventbrite, rausgegangen, bonn_venues,
+    eventbrite, rausgegangen, bonn_venues, radiobonn,
 )
 from ..source_specs import AdapterType, SourceSpec, adapter_for
 
@@ -57,6 +57,7 @@ CUSTOM_SOURCES = {
     "Rausgegangen Party": rausgegangen.fetch,
     "Eventbrite Party": eventbrite.fetch,
     "Bonn.jetzt": bonnjetzt.fetch,
+    "Radio Bonn/Rhein-Sieg": radiobonn.fetch,
     "Ruhr-Guide": ruhrguide.fetch,
     # Web-search fallbacks (lowest trust)
     "Exa Search": search.fetch_exa,

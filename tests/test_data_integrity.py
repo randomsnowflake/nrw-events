@@ -7,6 +7,17 @@ from scripts.nrw_events.validation import EventValidationError, validate_event
 
 
 class DataIntegrityTests(unittest.TestCase):
+    def test_validation_does_not_classify_from_url_implementation_details(self):
+        event = validate_event({
+            "title": "Unklare Veranstaltung",
+            "source": "Test",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "link": "https://example.test/museum/event",
+        })
+        self.assertEqual(event.category_key, "other")
+
     def setUp(self):
         self.old_today, self.old_end_date = common.TODAY, common.END_DATE
         common.TODAY, common.END_DATE = datetime(2026, 6, 8), datetime(2026, 6, 30)

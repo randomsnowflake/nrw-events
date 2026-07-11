@@ -96,8 +96,11 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if status not in {"scheduled", "cancelled", "postponed", "unknown"}:
         raise EventValidationError("status_invalid")
     event["status"] = status
-    canonical = category_taxonomy.categorize_event(event["category"], event["title"],
-                                                     f"{event['description']} {event['link']}")
+    # URLs contain venue slugs and navigation words such as ``museum`` or
+    # ``events``; they are transport metadata, not editorial category evidence.
+    canonical = category_taxonomy.categorize_event(
+        event["category"], event["title"], event["description"]
+    )
     event.setdefault("category_key", canonical["key"])
     event.setdefault("category_label", canonical["label"])
     event.setdefault("category_confidence", canonical.get("confidence", 0))

@@ -151,6 +151,45 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["source"], "Eventbrite Party")
         self.assertEqual(deduped[0]["time"], "17:00")
 
+    def test_deduplicate_normalizes_city_district_aliases(self):
+        events = [
+            {
+                "title": "Eitorf Live: Steeldriver", "start_date": "2026-07-17",
+                "date": "2026-07-17", "city": "Eitorf", "venue": "Marktplatz",
+                "score": 1.0, "source": "Eitorf", "description": "", "price": "",
+                "link": "https://example.test/eitorf", "time": "", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Eitorf live mit STEELDRIVER", "start_date": "2026-07-17",
+                "date": "2026-07-17", "city": "Eitorf (Zentrum)", "venue": "Eitorfer Marktplatz",
+                "score": 0.8, "source": "Radio", "description": "Details", "price": "",
+                "link": "https://example.test/radio", "time": "19:00", "start_at": "", "end_at": "",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["time"], "19:00")
+
+    def test_deduplicate_allows_missing_location_for_distinctive_title(self):
+        events = [
+            {
+                "title": "Ferienprogramm: Schatzsuche in Heisterbach", "start_date": "2026-07-21",
+                "date": "2026-07-21", "city": "Königswinter", "venue": "",
+                "score": 1.0, "source": "VVS", "description": "", "price": "",
+                "link": "https://example.test/vvs", "time": "", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Kinderferienprogramm: Schatzsuche in Heisterbach", "start_date": "2026-07-21",
+                "date": "2026-07-21", "city": "Bonn", "venue": "",
+                "score": 0.8, "source": "Bonn", "description": "", "price": "",
+                "link": "https://example.test/bonn", "time": "", "start_at": "", "end_at": "",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

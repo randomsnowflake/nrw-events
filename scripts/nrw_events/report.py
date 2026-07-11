@@ -31,12 +31,37 @@ def _dedup_key(ev: dict) -> str:
     return "|".join((norm, city, str(start_date)))
 
 
+def _normalized_city(value: str) -> str:
+    city = re.sub(r"\s+", " ", (value or "").lower()).strip()
+    city = re.sub(r"\s*\([^)]*\)\s*$", "", city)
+    if city.startswith("bonn-") or city in {"rheinaue", "poppelsdorf"}:
+        return "bonn"
+    if city.startswith("köln-"):
+        return "köln"
+    return city
+
+
+def _locations_compatible(left: dict, right: dict) -> bool:
+    if _normalized_city(left.get("city", "")) == _normalized_city(right.get("city", "")):
+        return True
+    left_venue = normalize_title(left.get("venue", ""))
+    right_venue = normalize_title(right.get("venue", ""))
+    if left_venue and left_venue == right_venue:
+        return True
+    left_title = normalize_title(left.get("title", ""))
+    right_title = normalize_title(right.get("title", ""))
+    return (
+        not left_venue
+        and not right_venue
+        and min(len(left_title), len(right_title)) >= 24
+        and SequenceMatcher(None, left_title, right_title).ratio() >= 0.92
+    )
+
+
 def _same_occurrence(left: dict, right: dict) -> bool:
     """Return whether two records describe the same city/date occurrence."""
-    return _dedup_key(left).rsplit("|", 1)[-1] == _dedup_key(right).rsplit("|", 1)[-1] and (
-        re.sub(r"\s+", " ", (left.get("city", "") or "").lower()).strip()
-        == re.sub(r"\s+", " ", (right.get("city", "") or "").lower()).strip()
-    )
+    return (_dedup_key(left).rsplit("|", 1)[-1] == _dedup_key(right).rsplit("|", 1)[-1]
+            and _locations_compatible(left, right))
 
 
 def _titles_match(left: dict, right: dict) -> bool:
@@ -73,7 +98,7 @@ def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     occurrences: dict[str, list[int]] = {}
     for ev in events:
         key = _dedup_key(ev)
-        occurrence_key = key.rsplit("|", 1)[-1] + "|" + re.sub(r"\s+", " ", (ev.get("city", "") or "").lower()).strip()
+        occurrence_key = key.rsplit("|", 1)[-1]
         match_index = next(
             (
                 index

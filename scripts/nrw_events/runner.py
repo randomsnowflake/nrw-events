@@ -19,6 +19,7 @@ from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .models import CanonicalEvent
 from .observability import configure_logging, log, redact
+from .quality import summarize_event_quality
 from .runtime import EventWindow, RunContext
 from .sources import SOURCES, SOURCE_IDS
 from .validation import EventValidationError, validate_event
@@ -302,7 +303,8 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "import_issues": issues,
         "source_results": {name: result.as_dict() for name, result in source_results.items()},
         "categories": CATEGORIES, "pre_dedup_count": import_result.pre_dedup_count,
-        "event_count": len(events), "events": events,
+        "event_count": len(events), "quality_metrics": summarize_event_quality(events),
+        "events": events,
     }
     return SnapshotPayload(events, metadata)
 
