@@ -16,6 +16,7 @@ from typing import Callable, Optional
 from . import common, config, report
 from .category_taxonomy import CATEGORIES, categorize_event
 from .health import SourceResult, SourceStatus
+from .models import CanonicalEvent
 from .observability import configure_logging, log, redact
 from .sources import SOURCES
 from .validation import EventValidationError, validate_event
@@ -44,7 +45,7 @@ def _with_canonical_category(event: dict) -> dict:
     }
 
 
-def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, list]:
+def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, list[CanonicalEvent]]:
     result = SourceResult(source=name)
     started = time.monotonic()
     common.set_source_context(result)
@@ -248,7 +249,7 @@ def main() -> int:
     previous_results = _previous_source_results(settings.meta_json_out)
     log(logger, 20, f"fetching {len(SOURCES)} sources", run_id=run_id, source="runner")
 
-    all_events: list[dict] = []
+    all_events: list[CanonicalEvent] = []
     source_results: dict[str, SourceResult] = {}
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {pool.submit(_run_source, name, fetch): name for name, fetch in SOURCES.items()}
@@ -272,7 +273,7 @@ def main() -> int:
     filtered = [event for event in all_events if event["score"] >= settings.score_floor and not common.is_junk_event(event)]
     deduped = report.deduplicate(filtered)
     print(report.format_report(deduped))
-    events_sorted = sorted((_with_canonical_category(event) for event in deduped), key=lambda event: -event["score"])
+    events_sorted = sorted((event.to_dict() for event in deduped), key=lambda event: -event["score"])
     import_issues = _import_issues(source_results)
     run_status = _run_status(source_results, len(deduped))
     for issue in import_issues:

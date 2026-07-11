@@ -6,9 +6,11 @@ Pure presentation + post-processing. No network, no source-specific logic.
 
 import os
 import re
+from dataclasses import replace
 from difflib import SequenceMatcher
 
 from . import common
+from .models import CanonicalEvent
 
 
 # ── Dedup ───────────────────────────────────────────────────────────
@@ -45,12 +47,12 @@ def _titles_match(left: dict, right: dict) -> bool:
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
 
 
-def _merge_duplicate_metadata(winner: dict, duplicate: dict) -> dict:
+def _merge_duplicate_metadata(winner, duplicate):
     """Keep the winning event while preserving useful details from duplicates."""
-    merged = dict(winner)
+    updates = {}
     for field in ("description", "price", "venue", "link", "time", "start_at", "end_at"):
-        if not merged.get(field) and duplicate.get(field):
-            merged[field] = duplicate[field]
+        if not winner.get(field) and duplicate.get(field):
+            updates[field] = duplicate[field]
 
     # If a lower-scored duplicate carries an explicit price/free-admission signal,
     # keep its stronger category metadata too. This prevents a broad duplicate
@@ -58,11 +60,13 @@ def _merge_duplicate_metadata(winner: dict, duplicate: dict) -> dict:
     if duplicate.get("price") and not winner.get("price") and duplicate.get("category_key"):
         for field in ("category", "category_key", "category_label", "category_confidence", "category_reason"):
             if duplicate.get(field):
-                merged[field] = duplicate[field]
+                updates[field] = duplicate[field]
 
-    return merged
+    if isinstance(winner, CanonicalEvent):
+        return replace(winner, **updates)
+    return {**winner, **updates}
 
-def deduplicate(events: list) -> list:
+def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     """Collapse same-day, same-city duplicates, keeping the highest-scored copy."""
     result: list = []
     occurrences: dict[str, list[int]] = {}
