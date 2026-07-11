@@ -34,6 +34,7 @@ from .location import coords_for_city, guess_city_from_text, haversine, resolve_
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
 from .runtime import RunContext
+from .dates import MONTH_DE, MONTH_EN, parse_date, parse_iso_date
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -48,19 +49,6 @@ def set_window(days_ahead: int) -> None:
     TODAY = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     END_DATE = TODAY + timedelta(days=max(DAYS_AHEAD - 1, 0))
 
-
-# ── Month name maps (shared by every date parser) ───────────────────
-MONTH_DE = {
-    "januar": 1, "jan": 1, "februar": 2, "feb": 2, "märz": 3, "maerz": 3,
-    "mär": 3, "mae": 3, "april": 4, "apr": 4, "mai": 5, "juni": 6, "jun": 6,
-    "juli": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9,
-    "oktober": 10, "okt": 10, "november": 11, "nov": 11, "dezember": 12, "dez": 12,
-}
-MONTH_EN = {
-    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
-    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
-    "december": 12,
-}
 
 # Re-export common config values for convenience.
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
@@ -480,64 +468,6 @@ def event_status(title: str, description: str) -> str:
 
 
 # ── Date parsing ────────────────────────────────────────────────────
-
-def parse_iso_date(text: str) -> Optional[datetime]:
-    """Parse an ISO-ish datetime, dropping timezone (we only care about local date/time)."""
-    if not text:
-        return None
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
-    except ValueError:
-        try:
-            return datetime.strptime(text[:10], "%Y-%m-%d")
-        except ValueError:
-            return None
-
-
-def parse_date(text: str) -> Optional[datetime]:
-    """Parse many date formats incl. ranges and German month names."""
-    text = (text or "").strip()
-    if not text:
-        return None
-    # For ranges, parse the first date.
-    text = re.split(r"\s*(?:–|\bbis\b)\s*", text, maxsplit=1)[0].strip()
-    text = re.sub(r"^(?:mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\.?,?\s*",
-                  "", text, flags=re.I)
-    for fmt in ["%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y", "%a, %d %b %Y %H:%M:%S %z"]:
-        try:
-            return datetime.strptime(text[:len(fmt) + 5], fmt).replace(tzinfo=None)
-        except (ValueError, IndexError):
-            continue
-    m = re.search(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
-    if m:
-        day, mon, year = map(int, m.groups())
-        try:
-            return datetime(year, mon, day)
-        except ValueError:
-            return None
-    m = re.search(r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s*(20\d{2})", text)
-    if m:
-        day, mon, year = m.groups()
-        mon_num = MONTH_DE.get(mon.lower())
-        if mon_num:
-            return datetime(int(year), mon_num, int(day))
-    m = re.search(r"(\d{1,2})\s+([A-Za-zäöüÄÖÜ]+)\s*(20\d{2})", text)
-    if m:
-        day, mon, year = m.groups()
-        key = mon.lower().rstrip(".")
-        mon_num = MONTH_DE.get(key) or MONTH_EN.get(key)
-        mon_num = mon_num or {
-            "jan": 1, "feb": 2, "mar": 3, "mär": 3, "maerz": 3, "apr": 4,
-            "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10,
-            "okt": 10, "nov": 11, "dec": 12, "dez": 12,
-        }.get(key)
-        if mon_num:
-            return datetime(int(year), mon_num, int(day))
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
-    except (ValueError, TypeError):
-        return None
-
 
 def extract_dates(text: str) -> list:
     """Extract parseable dates from free text (for search-result filtering)."""
