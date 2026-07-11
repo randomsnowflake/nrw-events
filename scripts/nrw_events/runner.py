@@ -18,6 +18,7 @@ from .category_taxonomy import CATEGORIES, categorize_event
 from .health import SourceResult, SourceStatus
 from .models import CanonicalEvent
 from .observability import configure_logging, log, redact
+from .runtime import EventWindow, RunContext
 from .sources import SOURCES
 from .validation import EventValidationError, validate_event
 
@@ -243,8 +244,8 @@ def main() -> int:
 
     run_id = uuid.uuid4().hex
     logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
-    common.configure_runtime(settings, run_id, logger)
-    common.set_window(settings.days_ahead)
+    context = RunContext(settings, EventWindow.from_days(settings.days_ahead), run_id, logger)
+    common.configure_context(context)
     common.reset_source_warnings()
     previous_results = _previous_source_results(settings.meta_json_out)
     log(logger, 20, f"fetching {len(SOURCES)} sources", run_id=run_id, source="runner")
@@ -279,12 +280,12 @@ def main() -> int:
     for issue in import_issues:
         log(logger, 30 if issue["severity"] == "warning" else 40,
             f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))
-    start, end = common.TODAY, common.END_DATE
+    start, end = context.window.start, context.window.end
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5 for offset in range((end - start).days + 1))
     payload = {
         "run_id": run_id,
         "run_status": run_status,
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "generated_at": context.clock().isoformat(timespec="seconds"),
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),
                    "label": "this weekend" if has_weekend else "short term"},
         "radius_km_from_bonn": common.MAX_RADIUS_KM,

@@ -7,6 +7,7 @@ Pure presentation + post-processing. No network, no source-specific logic.
 import os
 import re
 from dataclasses import replace
+from datetime import datetime
 from difflib import SequenceMatcher
 
 from . import common
@@ -143,11 +144,14 @@ PREFERRED_ORDER = [
 ]
 
 
-def format_report(events: list) -> str:
+def format_report(events: list, *, window_start: datetime | None = None,
+                  window_end: datetime | None = None, max_per_section: int | None = None) -> str:
     """Render the deduplicated, scored event list into a grouped Markdown report."""
+    start = window_start or common.TODAY
+    end = window_end or common.END_DATE
     lines = [
         "# 🗓 Weekend Event Report",
-        f"**{common.TODAY.strftime('%A %d %b')} → {common.END_DATE.strftime('%A %d %b %Y')}**",
+        f"**{start.strftime('%A %d %b')} → {end.strftime('%A %d %b %Y')}**",
         f"**Radius:** {common.MAX_RADIUS_KM}km from Bonn",
         f"**Sources:** {len(set(e['source'] for e in events))} active",
         f"**Relevant events after cleanup:** {len(events)}",
@@ -160,10 +164,11 @@ def format_report(events: list) -> str:
                                             x.get("title", ""))):
         grouped[_bucket(ev)].append(ev)
 
-    try:
-        max_per_section = int(os.environ.get("NRW_EVENTS_MAX_PER_SECTION", "0"))
-    except ValueError:
-        max_per_section = 0
+    if max_per_section is None:
+        try:
+            max_per_section = int(os.environ.get("NRW_EVENTS_MAX_PER_SECTION", "0"))
+        except ValueError:
+            max_per_section = 0
 
     def format_when(ev: dict) -> str:
         parts = []

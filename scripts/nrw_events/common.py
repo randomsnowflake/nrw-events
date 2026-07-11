@@ -33,6 +33,7 @@ from .health import SourceResult, SourceStatus
 from .location import coords_for_city, guess_city_from_text, haversine, resolve_location
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
+from .runtime import RunContext
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -137,6 +138,15 @@ def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: loggi
     _HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"] = settings.bonn_de_delay_seconds
     _RUN_ID = run_id
     _LOGGER = logger
+
+
+def configure_context(context: RunContext) -> None:
+    """Compatibility composition hook while source adapters migrate to context."""
+    configure_runtime(context.settings, context.run_id, context.logger)
+    global DAYS_AHEAD, TODAY, END_DATE
+    DAYS_AHEAD = context.settings.days_ahead
+    TODAY = context.window.start
+    END_DATE = context.window.end
 
 
 def set_source_context(result: Optional[SourceResult]) -> None:
