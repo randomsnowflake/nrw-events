@@ -85,6 +85,15 @@ python3 scripts/nrw-events.py 5
 - Nur Standardbibliothek: `urllib`, `xml.etree`, `concurrent.futures`, usw.
 - Kein `pip install`, keine Drittanbieter-Pakete.
 
+## Tests
+
+```bash
+bash scripts/test.sh
+```
+
+Der Qualitätslauf bleibt vollständig offline und behandelt `ResourceWarning`
+als Fehler, damit nicht geschlossene HTTP-Antworten reproduzierbar fehlschlagen.
+
 ## Fokusgebiet
 
 Der Mittelpunkt ist Bonn. Die Standard-Suche nutzt einen Radius von ca. 75 km um
