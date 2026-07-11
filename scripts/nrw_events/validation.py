@@ -8,6 +8,7 @@ from typing import Any
 
 from . import category_taxonomy, common
 from .models import CanonicalEvent, RawEvent
+from .quality import evaluate_event_quality
 
 
 class EventValidationError(ValueError):
@@ -103,6 +104,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event.setdefault("category_reason", canonical.get("reason", ""))
     if event["category_key"] not in category_taxonomy.CATEGORY_BY_KEY:
         raise EventValidationError("category_key_invalid")
+    decision = evaluate_event_quality(event)
+    if decision.should_drop:
+        raise EventValidationError(f"quality:{decision.rule_id}")
     return CanonicalEvent(**{
         field: event.get(field, definition.default)
         for field, definition in CanonicalEvent.__dataclass_fields__.items()
