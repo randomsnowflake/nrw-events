@@ -16,6 +16,11 @@ class ReportTests(unittest.TestCase):
                                             "description": "", "city": "Bonn"})
         self.assertEqual(features, {"flea_market": 0.5, "bonn_local": 0.1})
 
+    def test_source_authority_handles_source_family_variants(self):
+        self.assertEqual(report.source_authority("Bonn.de Events"), 2)
+        self.assertEqual(report.source_authority("Eventbrite NRW"), 1)
+        self.assertEqual(report.source_authority("EXA SEARCH fallback"), 0)
+
     def test_deduplicate_treats_free_entry_prefix_as_same_title(self):
         events = [
             {
@@ -150,6 +155,32 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["source"], "Eventbrite Party")
         self.assertEqual(deduped[0]["time"], "17:00")
+
+    def test_deduplicate_prefers_primary_source_and_keeps_richer_description(self):
+        events = [
+            {
+                "title": "Sommerkonzert am Rhein", "start_date": "2026-07-18",
+                "date": "2026-07-18", "city": "Bonn", "venue": "Rheinaue",
+                "score": 1.4, "source": "Eventbrite Party",
+                "description": "Ausführliche Informationen zum Programm und zum Einlass.",
+                "price": "12 Euro", "link": "https://eventbrite.example/sommerkonzert",
+                "time": "19:00", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Sommerkonzert am Rhein", "start_date": "2026-07-18",
+                "date": "2026-07-18", "city": "Bonn", "venue": "Rheinaue",
+                "score": 0.7, "source": "Bonn.de Events", "description": "Konzert.",
+                "price": "", "link": "https://www.bonn.de/sommerkonzert",
+                "time": "19:00", "start_at": "", "end_at": "",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(deduped[0]["source"], "Bonn.de Events")
+        self.assertEqual(deduped[0]["link"], "https://www.bonn.de/sommerkonzert")
+        self.assertEqual(deduped[0]["price"], "12 Euro")
+        self.assertIn("Ausführliche Informationen", deduped[0]["description"])
 
     def test_deduplicate_normalizes_city_district_aliases(self):
         events = [
