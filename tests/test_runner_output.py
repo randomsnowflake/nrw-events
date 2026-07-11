@@ -7,9 +7,23 @@ from datetime import datetime
 from unittest import mock
 
 from scripts.nrw_events import common, report, runner
+from scripts.nrw_events.health import SourceFetchResult, SourceStatus
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_typed_source_result_distinguishes_adapter_states(self):
+        self.assertEqual(SourceFetchResult.success([]).status, SourceStatus.HEALTHY_EMPTY)
+        self.assertEqual(SourceFetchResult.disabled("missing key").status, SourceStatus.DISABLED)
+        self.assertEqual(SourceFetchResult.parser_empty().status, SourceStatus.PARSER_EMPTY)
+
+    def test_runner_preserves_typed_partial_success(self):
+        result, events = runner._run_source("Typed", lambda: SourceFetchResult.partial([
+            {"title": "Event", "source": "Typed", "date": common.TODAY.strftime("%Y-%m-%d"),
+             "score": 1.0, "city": "Bonn"},
+        ], "one endpoint failed"))
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertEqual(len(events), 1)
+
     def setUp(self):
         self.old_today = common.TODAY
         self.old_end_date = common.END_DATE
