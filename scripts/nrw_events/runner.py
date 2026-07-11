@@ -9,6 +9,7 @@ import tempfile
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
@@ -28,6 +29,20 @@ EXIT_SUCCESS = 0
 # usable import, so it must not break unattended wrappers that use `set -e`.
 EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
+
+
+@dataclass(frozen=True, slots=True)
+class ImportResult:
+    events: tuple[CanonicalEvent, ...]
+    source_results: dict[str, SourceResult]
+    pre_dedup_count: int
+    run_status: str
+
+
+@dataclass(frozen=True, slots=True)
+class SnapshotPayload:
+    events: list[dict]
+    metadata: dict
 
 
 def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, list[CanonicalEvent]]:
@@ -233,26 +248,16 @@ def _parse_days(argv: list[str]) -> Optional[int]:
         raise ValueError("days_ahead must be an integer between 1 and 90") from exc
 
 
-def main() -> int:
-    try:
-        config.load_env_file()
-        settings = config.runtime_config(_parse_days(sys.argv))
-        _validate_output_paths(settings)
-    except ValueError as exc:
-        print(f"Configuration error: {exc}", file=sys.stderr)
-        return EXIT_FAILED
-
-    run_id = uuid.uuid4().hex
-    logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
-    context = RunContext(settings, EventWindow.from_days(settings.days_ahead), run_id, logger)
-    common.configure_context(context)
+def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
+               executor_factory=ThreadPoolExecutor) -> ImportResult:
+    """Execute, validate, filter, and deduplicate sources in memory."""
+    settings, logger, run_id = context.settings, context.logger, context.run_id
     previous_results = _previous_source_results(settings.meta_json_out)
-    log(logger, 20, f"fetching {len(SOURCES)} sources", run_id=run_id, source="runner")
-
+    log(logger, 20, f"fetching {len(sources)} sources", run_id=run_id, source="runner")
     all_events: list[CanonicalEvent] = []
     source_results: dict[str, SourceResult] = {}
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        futures = {pool.submit(_run_source, name, fetch): name for name, fetch in SOURCES.items()}
+    with executor_factory(max_workers=6) as pool:
+        futures = {pool.submit(_run_source, name, fetch): name for name, fetch in sources.items()}
         for future in as_completed(futures):
             name = futures[future]
             result, events = future.result()
@@ -267,47 +272,74 @@ def main() -> int:
                 f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
                 run_id=run_id, source=name)
             all_events.extend(events)
-
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
-
-    # Quality already runs when source records cross the canonical boundary.
     filtered = [event for event in all_events if event["score"] >= settings.score_floor]
     deduped = report.deduplicate(filtered)
-    print(report.format_report(deduped))
-    events_sorted = sorted((event.to_dict() for event in deduped), key=lambda event: -event["score"])
-    import_issues = _import_issues(source_results)
-    run_status = _run_status(source_results, len(deduped))
-    for issue in import_issues:
-        log(logger, 30 if issue["severity"] == "warning" else 40,
-            f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))
+    return ImportResult(tuple(deduped), source_results, len(filtered),
+                        _run_status(source_results, len(deduped)))
+
+
+def build_snapshot(import_result: ImportResult, context: RunContext) -> SnapshotPayload:
+    """Build deterministic publication documents without filesystem access."""
+    source_results = import_result.source_results
+    events = sorted((event.to_dict() for event in import_result.events),
+                    key=lambda event: -event["score"])
+    issues = _import_issues(source_results)
     start, end = context.window.start, context.window.end
-    has_weekend = any((start + timedelta(days=offset)).weekday() >= 5 for offset in range((end - start).days + 1))
-    payload = {
-        "run_id": run_id,
-        "run_status": run_status,
+    has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
+                      for offset in range((end - start).days + 1))
+    metadata = {
+        "run_id": context.run_id, "run_status": import_result.run_status,
         "generated_at": context.clock().isoformat(timespec="seconds"),
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),
                    "label": "this weekend" if has_weekend else "short term"},
         "radius_km_from_bonn": common.MAX_RADIUS_KM,
-        "score_floor": settings.score_floor,
+        "score_floor": context.settings.score_floor,
         "source_counts_raw": {name: result.raw_event_count for name, result in source_results.items()},
         "source_ids": SOURCE_IDS,
         "source_errors": {name: result.error["error"] for name, result in source_results.items() if result.error},
-        "source_warnings": [warning for result in source_results.values()
-                            for warning in result.warnings],
-        "import_issues": import_issues,
+        "source_warnings": [warning for result in source_results.values() for warning in result.warnings],
+        "import_issues": issues,
         "source_results": {name: result.as_dict() for name, result in source_results.items()},
-        "categories": CATEGORIES,
-        "pre_dedup_count": len(filtered),
-        "event_count": len(deduped),
-        "events": events_sorted,
+        "categories": CATEGORIES, "pre_dedup_count": import_result.pre_dedup_count,
+        "event_count": len(events), "events": events,
     }
+    return SnapshotPayload(events, metadata)
+
+
+def publish_snapshot(snapshot: SnapshotPayload, settings: config.RuntimeConfig) -> dict[str, str]:
+    """Durably publish a prepared snapshot and its commit manifest."""
+    return _publish_snapshots(settings, snapshot.events, snapshot.metadata,
+                              snapshot.metadata["run_id"])
+
+
+def cli(argv: list[str]) -> int:
+    """Translate argv/environment and service results into CLI effects."""
+    try:
+        config.load_env_file()
+        settings = config.runtime_config(_parse_days(argv))
+        _validate_output_paths(settings)
+    except ValueError as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        return EXIT_FAILED
+
+    run_id = uuid.uuid4().hex
+    logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
+    context = RunContext(settings, EventWindow.from_days(settings.days_ahead), run_id, logger)
+    common.configure_context(context)
+    import_result = run_import(context, SOURCES)
+    print(report.format_report(list(import_result.events)))
+    snapshot = build_snapshot(import_result, context)
+    for issue in snapshot.metadata["import_issues"]:
+        log(logger, 30 if issue["severity"] == "warning" else 40,
+            f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))
+    run_status = import_result.run_status
     if run_status == "failed":
         log(logger, 40, "import health gate failed; preserving last-known-good snapshot",
             run_id=run_id, source="runner")
     else:
         try:
-            paths = _publish_snapshots(settings, events_sorted, payload, run_id)
+            paths = publish_snapshot(snapshot, settings)
             log(logger, 20, f"published snapshot manifest at {paths['manifest']}", run_id=run_id, source="runner")
         except OSError as exc:
             log(logger, 40, f"snapshot publication failed: {exc}", run_id=run_id, source="runner",
@@ -316,6 +348,11 @@ def main() -> int:
     log(logger, 20 if run_status == "healthy" else 30, f"run finished: {run_status}",
         run_id=run_id, source="runner")
     return _exit_code(run_status)
+
+
+def main() -> int:
+    """Compatibility entry point for existing wrappers."""
+    return cli(sys.argv)
 
 
 if __name__ == "__main__":
