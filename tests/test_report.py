@@ -4,6 +4,18 @@ from scripts.nrw_events import report
 
 
 class ReportTests(unittest.TestCase):
+    def test_every_category_has_one_deterministic_report_section(self):
+        from scripts.nrw_events.category_taxonomy import CATEGORIES
+        self.assertEqual({item["key"] for item in CATEGORIES}, set(report.CATEGORY_SECTIONS))
+        for category in CATEGORIES:
+            self.assertEqual(report._bucket({"category_key": category["key"]}),
+                             report.CATEGORY_SECTIONS[category["key"]])
+
+    def test_ranking_features_are_named(self):
+        features = report.ranking_features({"title": "Flohmarkt", "category": "market",
+                                            "description": "", "city": "Bonn"})
+        self.assertEqual(features, {"flea_market": 0.5, "bonn_local": 0.1})
+
     def test_deduplicate_treats_free_entry_prefix_as_same_title(self):
         events = [
             {
