@@ -4,6 +4,7 @@ from scripts.nrw_events import common, location, scoring
 from scripts.nrw_events.models import CanonicalEvent, RawEvent
 from scripts.nrw_events.source_types import SourceFetcher, TextParser
 from scripts.nrw_events.validation import canonicalize_event
+from scripts.nrw_events.sources import SOURCES, SOURCE_IDS, SOURCE_SPECS
 
 
 class ModuleBoundaryTests(unittest.TestCase):
@@ -26,3 +27,8 @@ class ModuleBoundaryTests(unittest.TestCase):
         self.assertEqual(event["start_date"], "2026-07-12")
         with self.assertRaises(AttributeError):
             event.title = "Changed"
+
+    def test_source_registry_has_unique_stable_ids(self):
+        ids = [spec.id for spec in SOURCE_SPECS]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(set(SOURCES), set(SOURCE_IDS))

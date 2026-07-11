@@ -132,7 +132,11 @@ scripts/
       ruhrguide.py  search.py
 ```
 
-Jedes Quellenmodul stellt eine Funktion `fetch() -> list[dict]` bereit. Fehler in
+Standard-iCal- und JSON-LD-Quellen werden deklarativ als `SourceSpec` in
+`sources/__init__.py` registriert; eine neue Standardquelle benötigt nur einen
+Spec plus Fixture-/Vertragstest. Proprietäre HTML-Parser bleiben als eigenes
+Quellenmodul explizit. Jedes Quellenmodul stellt eine Funktion `fetch() -> list[dict]`
+bereit. Fehler in
 einer Quelle brechen den Gesamtlauf nicht ab; die Quelle liefert dann einfach
 keine Treffer.
 
