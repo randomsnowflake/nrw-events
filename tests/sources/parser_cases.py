@@ -673,7 +673,7 @@ END:VCALENDAR
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["link"], "https://meinbadhonnef.de/kalender/veranstaltungen/")
 
-    def test_unkel_rss_uses_stable_event_listing_url(self):
+    def test_unkel_rss_uses_working_municipality_event_listing_url(self):
         import xml.etree.ElementTree as ET
 
         item = ET.fromstring("""
@@ -687,9 +687,9 @@ END:VCALENDAR
         event = regional_feeds._event_from_unkel_item(item)
 
         self.assertIsNotNone(event)
-        self.assertEqual(event and event["link"], "https://rhein.info/?post_type=event")
+        self.assertEqual(event and event["link"], "https://rhein.info/unkel/")
 
-    def test_ahrtal_shapehub_uses_stable_listing_url_for_cards(self):
+    def test_ahrtal_shapehub_uses_event_detail_url_for_cards(self):
         html = """
 <a href="/de/events/stale-detail/eventtermin.html" class="shapehub-card-link">
   <div class="shapehub-date-badge">20.06.2026</div>
@@ -705,6 +705,31 @@ END:VCALENDAR
             "https://www.ahrtal.com/de/events",
             "Ahrweiler",
             "ahrtal kultur konzert",
+            0.86,
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["link"],
+            "https://www.ahrtal.com/de/events/stale-detail/eventtermin.html",
+        )
+
+    def test_ahrtal_shapehub_uses_listing_for_same_day_cards(self):
+        html = """
+<a href="/de/events/detail-removed-on-event-day/eventtermin.html" class="shapehub-card-link">
+  <div class="shapehub-date-badge">09.06.2026</div>
+  <div class="shapehub-card-title">Ahrtal Führung heute</div>
+  <span>Ahrweiler</span>
+</a>
+"""
+
+        events = regional_tourism._events_from_shapehub(
+            html,
+            "Ahrtal",
+            "https://www.ahrtal.com",
+            "https://www.ahrtal.com/de/events",
+            "Ahrweiler",
+            "ahrtal kultur",
             0.86,
         )
 

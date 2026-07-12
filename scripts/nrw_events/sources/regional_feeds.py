@@ -10,7 +10,7 @@ from . import regional_common as rc
 _SANKT_AUGUSTIN_URL = "https://www.sankt-augustin.de/kultur-freizeit/veranstaltungsuebersicht/"
 _NEUNKIRCHEN_ICAL = "https://termine.wir-nkse.de/termine/liste/?ical=1"
 _UNKEL_RSS = "https://rhein.info/?post_type=event&feed=eventical"
-_UNKEL_EVENTS_URL = "https://rhein.info/?post_type=event"
+_UNKEL_EVENTS_URL = "https://rhein.info/unkel/"
 
 
 def fetch() -> list:

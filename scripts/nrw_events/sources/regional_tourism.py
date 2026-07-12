@@ -53,14 +53,20 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
             continue
         text = rc.clean(body)
         city = rc.city_from_text(text, default_city)
+        start = rc.parse_dt(date.group(1))
+        detail_url = rc.abs_url(base, m.group("href"))
+        # Shapehub removes detail pages at the start of their event date (HTTP
+        # 410) while leaving the cards in the calendar. Keep today's cards
+        # useful via the listing; future cards can link straight to details.
+        event_url = detail_url if start and start.date() > common.TODAY.date() else listing_url
         ev = common.make_event(
             rc.clean(title.group(1)),
-            rc.with_time(rc.parse_dt(date.group(1)), text),
+            rc.with_time(start, text),
             None,
             city,
             city,
             text[:500],
-            listing_url or rc.abs_url(base, m.group("href")),
+            event_url,
             source,
             category,
             trust,
