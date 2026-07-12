@@ -58,6 +58,8 @@ def fetch() -> list:
                     date_text = f"{start_dt.strftime('%Y-%m-%d')}–{end_dt.strftime('%Y-%m-%d')}"
             event = {
                 "title": title, "date": date_text, "time": start_text,
+                "start_date": start_dt.strftime("%Y-%m-%d") if start_dt else "",
+                "end_date": end_dt.strftime("%Y-%m-%d") if end_dt else "",
                 "venue": venue, "city": city.title() if city else "Bonn",
                 "description": tag_text, "price": "",
                 "link": f"https://bonn.jetzt{link_match.group(1)}" if link_match else "https://bonn.jetzt/",
