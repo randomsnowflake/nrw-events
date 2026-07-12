@@ -61,8 +61,12 @@ def _hinted_city(text: str) -> str | None:
 def _city_for(text: str) -> str:
     lower = (text or "").lower()
     meeting_point = re.search(r"[^.!?]*\btreffpunkt\b[^.!?]*", lower)
-    if meeting_point and (city := _hinted_city(meeting_point.group(0))):
-        return city
+    if meeting_point:
+        meeting_point_text = meeting_point.group(0)
+        if city := _hinted_city(meeting_point_text):
+            return city
+        if city := common.guess_city_from_text(meeting_point_text):
+            return city
     if city := _hinted_city(lower):
         return city
     return common.guess_city_from_text(text) or "Bonn"

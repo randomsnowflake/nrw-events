@@ -19,6 +19,10 @@ class RadioBonnLocationTests(unittest.TestCase):
         )
         self.assertEqual(radiobonn._city_for(text), "Bonn")
 
+    def test_configured_meeting_point_city_wins_over_hinted_organizer_location(self):
+        text = "Veranstaltet von der VHS Alfter. Treffpunkt ist am Rathaus in Bornheim."
+        self.assertEqual(radiobonn._city_for(text), "bornheim")
+
 
 if __name__ == "__main__":
     unittest.main()
