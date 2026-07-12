@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
 from scripts.nrw_events.sources import SOURCES, bonnjetzt
@@ -19,7 +20,11 @@ class BonnJetztTests(unittest.TestCase):
   <span class="v-chip__content">Garten</span>
 </article>
 """
-        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+        with (
+            patch("scripts.nrw_events.common.fetch_url", return_value=html),
+            patch("scripts.nrw_events.common.TODAY", datetime(2026, 7, 12)),
+            patch("scripts.nrw_events.common.END_DATE", datetime(2026, 7, 25)),
+        ):
             events = bonnjetzt.fetch()
 
         self.assertEqual(len(events), 1)
