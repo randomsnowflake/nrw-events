@@ -46,7 +46,7 @@ _VENUE_HINTS = [
 ]
 
 
-def _city_for(text: str) -> str:
+def _hinted_city(text: str) -> str | None:
     lower = (text or "").lower()
     matches = [(needle, city) for needle, city in _CITY_HINTS.items() if needle in lower]
     if matches:
@@ -55,6 +55,20 @@ def _city_for(text: str) -> str:
         # matching place name (e.g. Bad Honnef over Honnef-like fragments).
         matches.sort(key=lambda item: (item[1] == "Bonn", -len(item[0])))
         return matches[0][1]
+    return None
+
+
+def _city_for(text: str) -> str:
+    lower = (text or "").lower()
+    meeting_point = re.search(r"[^.!?]*\btreffpunkt\b[^.!?]*", lower)
+    if meeting_point:
+        meeting_point_text = meeting_point.group(0)
+        if city := _hinted_city(meeting_point_text):
+            return city
+        if city := common.guess_city_from_text(meeting_point_text):
+            return city
+    if city := _hinted_city(lower):
+        return city
     return common.guess_city_from_text(text) or "Bonn"
 
 
