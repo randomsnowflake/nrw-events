@@ -7,7 +7,7 @@ Pure presentation + post-processing. No network, no source-specific logic.
 import os
 import re
 from dataclasses import replace
-from datetime import datetime
+from datetime import date, datetime
 from difflib import SequenceMatcher
 
 from . import common
@@ -76,10 +76,34 @@ def _locations_compatible(left: dict, right: dict) -> bool:
     )
 
 
+def _date_bounds(ev: dict) -> tuple[date, date] | None:
+    """Return the inclusive date interval represented by an event."""
+    start_value = ev.get("start_date") or (ev.get("date", "") or "").split("–", 1)[0]
+    end_value = ev.get("end_date") or start_value
+    try:
+        start = date.fromisoformat(str(start_value))
+        end = date.fromisoformat(str(end_value))
+    except ValueError:
+        return None
+    return (start, max(start, end))
+
+
 def _same_occurrence(left: dict, right: dict) -> bool:
-    """Return whether two records describe the same city/date occurrence."""
-    return (_dedup_key(left).rsplit("|", 1)[-1] == _dedup_key(right).rsplit("|", 1)[-1]
-            and _locations_compatible(left, right))
+    """Return whether two records describe overlapping city/date occurrences."""
+    left_bounds = _date_bounds(left)
+    right_bounds = _date_bounds(right)
+    if left_bounds and right_bounds:
+        dates_match = (left_bounds[0] <= right_bounds[1]
+                       and right_bounds[0] <= left_bounds[1])
+    else:
+        dates_match = (_dedup_key(left).rsplit("|", 1)[-1]
+                       == _dedup_key(right).rsplit("|", 1)[-1])
+    return dates_match and _locations_compatible(left, right)
+
+
+def _duration_days(ev: dict) -> int:
+    bounds = _date_bounds(ev)
+    return (bounds[1] - bounds[0]).days if bounds else 0
 
 
 def _titles_match(left: dict, right: dict) -> bool:
@@ -116,26 +140,24 @@ def _merge_duplicate_metadata(winner, duplicate):
 def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     """Collapse duplicates, preferring source authority and then event score."""
     result: list = []
-    occurrences: dict[str, list[int]] = {}
     for ev in events:
-        key = _dedup_key(ev)
-        occurrence_key = key.rsplit("|", 1)[-1]
         match_index = next(
             (
                 index
-                for index in occurrences.get(occurrence_key, [])
+                for index in range(len(result))
                 if _same_occurrence(result[index], ev) and _titles_match(result[index], ev)
             ),
             None,
         )
         if match_index is None:
-            occurrences.setdefault(occurrence_key, []).append(len(result))
             result.append(ev)
             continue
 
         current = result[match_index]
-        current_rank = (source_authority(current.get("source", "")), current["score"])
-        candidate_rank = (source_authority(ev.get("source", "")), ev["score"])
+        current_rank = (source_authority(current.get("source", "")), current["score"],
+                        _duration_days(current))
+        candidate_rank = (source_authority(ev.get("source", "")), ev["score"],
+                          _duration_days(ev))
         result[match_index] = (_merge_duplicate_metadata(ev, current)
                                if candidate_rank > current_rank
                                else _merge_duplicate_metadata(current, ev))

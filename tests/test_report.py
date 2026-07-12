@@ -221,6 +221,40 @@ class ReportTests(unittest.TestCase):
 
         self.assertEqual(len(report.deduplicate(events)), 1)
 
+    def test_deduplicate_collapses_overlapping_versions_of_a_multi_day_event(self):
+        events = [
+            {
+                "title": "Feuerwehrfest in Winterscheid", "start_date": "2026-07-10",
+                "end_date": "2026-07-12", "date": "ongoing until 2026-07-12",
+                "city": "Ruppichteroth", "venue": "", "score": 0.75,
+                "source": "Bröltal / Ruppichteroth", "description": "10.07. – 12.07.2026",
+                "price": "", "link": "https://example.test/feuerwehrfest",
+                "time": "", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Feuerwehrfest in Winterscheid", "start_date": "2026-07-11",
+                "end_date": "2026-07-12", "date": "2026-07-11–2026-07-12",
+                "city": "Ruppichteroth", "venue": "", "score": 0.75,
+                "source": "Bröltal / Ruppichteroth", "description": "11.07. – 12.07.2026",
+                "price": "", "link": "https://example.test/feuerwehrfest",
+                "time": "", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Feuerwehrfest in Winterscheid", "start_date": "2026-07-12",
+                "end_date": "2026-07-12", "date": "2026-07-12",
+                "city": "Ruppichteroth", "venue": "", "score": 0.75,
+                "source": "Bröltal / Ruppichteroth", "description": "12.07.2026",
+                "price": "", "link": "https://example.test/feuerwehrfest",
+                "time": "", "start_at": "", "end_at": "",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["start_date"], "2026-07-10")
+        self.assertEqual(deduped[0]["end_date"], "2026-07-12")
+
 
 if __name__ == "__main__":
     unittest.main()
