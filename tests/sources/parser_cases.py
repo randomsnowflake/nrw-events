@@ -6,7 +6,7 @@ from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
 from scripts.nrw_events.sources import (
     bonn, bonn_venues, bonnjetzt, bundeskunsthalle, koeln, regional_feeds,
-    regional_ionas4, rausgegangen, regional_tourism, requested_venues,
+    regional_ionas4, regional_tourism, requested_venues,
 )
 
 
@@ -266,29 +266,6 @@ class SourceParserTests(unittest.TestCase):
         self.assertIn("Die Ausstellung zeigt", context["description"])
         self.assertEqual(context["venue"], "Arithmeum - rechnen einst und heute")
         self.assertEqual(context["city"], "Bonn")
-
-    def test_rausgegangen_party_tiles_emit_nightlife_events(self):
-        html = """
-<div class="tile tile-medium hover-lift" data-testid="event-tile">
-  <a data-testid="event-tile-link" href="/events/depeche-mode-party-bonn-4/">
-    <p data-testid="event-tile-datetime">
-      <span class="font-bold">Fr, 12. Jun | </span>
-      <span>22:00</span>
-    </p>
-    <span data-testid="event-tile-name">Depeche Mode Party : Bonn</span>
-    <p data-testid="event-tile-location">N8Lounge</p>
-    <p data-testid="event-tile-price">Preis an AK</p>
-  </a>
-</div></div></div></a></div>
-"""
-
-        events = rausgegangen.events_from_party_page(html)
-
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["date"], "2026-06-12")
-        self.assertEqual(events[0]["time"], "22:00")
-        self.assertEqual(events[0]["category_key"], "nightlife")
-        self.assertEqual(events[0]["price"], "Preis an AK")
 
     def test_kult41_events_manager_blocks_create_events(self):
         common.TODAY = datetime(2026, 7, 1)

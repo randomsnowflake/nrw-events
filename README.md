@@ -16,7 +16,7 @@ Keine Frameworks, keine Paketinstallation, keine externen Python-Abhängigkeiten
 nur Python 3 Standardbibliothek.
 
 > **Unabhängig und nicht verbunden.** Dieses Repository ist nicht mit Bonn.de,
-> Köln Open Data, Bundeskunsthalle, Songkick, Meetup, Exa, xAI oder irgendeiner
+> Köln Open Data, Bundeskunsthalle, Meetup, Exa, xAI oder irgendeiner
 > anderen Quelle verbunden, gesponsert oder offiziell autorisiert. Es ist nur ein
 > freies Open-Source-Werkzeug, das öffentlich erreichbare Informationen bündelt.
 
@@ -135,11 +135,11 @@ scripts/
     runner.py              # Orchestrierung: Quellen parallel abfragen, filtern, schreiben
     sources/
       __init__.py          # SOURCES-Registry: Anzeigename -> fetch-Funktion
-      bonn.py  koeln.py  harmonie.py  meetup.py  songkick.py
+      bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  bundeskunsthalle.py  bonnjetzt.py
       koenigswinter.py  siebengebirge.py  siegburg.py  troisdorf.py
       hennef.py  meckenheim.py  wachtberg.py  much.py  naturregion_sieg.py
-      regional_*.py  requested_venues.py  eventbrite.py  rausgegangen.py
+      regional_*.py  requested_venues.py  eventbrite.py
       ruhrguide.py  search.py
 ```
 
@@ -253,7 +253,7 @@ weiterhin gezielt überschreiben.
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
 - **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
-  Songkick, Eventbrite, Rausgegangen und Ruhr-Guide.
+  Eventbrite und Ruhr-Guide.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
   `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 

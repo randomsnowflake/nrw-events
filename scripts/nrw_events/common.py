@@ -640,7 +640,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     time_text = sanitize_time_text(time_text)
     full_text = f"{title} {venue} {city} {description} {category}"
     # URLs encode venue slugs and other implementation detail (for example
-    # ``alte-vhs`` in a Songkick concert URL). They are not event content and
+    # ``alte-vhs`` in an aggregator concert URL). They are not event content and
     # must not affect the display category.
     canonical_category = category_taxonomy.categorize_event(category, title, description)
     event_link = normalize_url(link)

@@ -32,10 +32,10 @@ names or dates anywhere in the code. The script fans out across official APIs,
 JSON-LD pages, iCal feeds, municipal/regional calendars, venue calendars,
 nightlife sources, and web-search fallbacks. Current sources include Köln Open
 Data, Bonn.de JSON + sports + annual "Veranstaltungsjahr" listings, Harmonie
-Bonn, Meetup, Songkick, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
+Bonn, Meetup, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
-tourism calendars, requested venue calendars, Rausgegangen, Eventbrite,
+tourism calendars, requested venue calendars, Eventbrite,
 Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
 optional Grok Search. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
@@ -190,5 +190,6 @@ behaviour, not a bug:
   past-season list, nothing forward-looking. Removed.
 - **Ahrtal / Ahrwein** (ahrtal.com, ahrwein.de) — no JSON-LD/iCal; HTML scrape was
   unreliable. Ahr valley now comes via Exa search. Removed.
-- Rausgegangen.de (blocks headless), Bandsintown (auth deny), Ticketmaster (no key),
+- Songkick and Rausgegangen.de (removed; Rausgegangen blocks headless),
+  Bandsintown (auth deny), Ticketmaster (no key),
   ga.de RSS (404), opendata.bonn.de CKAN (404).

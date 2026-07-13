@@ -17,7 +17,7 @@ from .models import CanonicalEvent
 # Kept separate from ``score``: score includes distance and topical relevance,
 # while authority decides which publisher owns the canonical record.
 _AGGREGATOR_SOURCE_MARKERS = (
-    "bonn.jetzt", "eventbrite", "meetup", "rausgegangen", "ruhr-guide", "songkick",
+    "bonn.jetzt", "eventbrite", "meetup", "ruhr-guide",
 )
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 

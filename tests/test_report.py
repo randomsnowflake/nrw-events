@@ -142,10 +142,10 @@ class ReportTests(unittest.TestCase):
                 "city": "Bonn",
                 "description": "",
                 "price": "",
-                "link": "https://rausgegangen.example/event",
+                "link": "https://meetup.example/event",
                 "distance_km": 0,
                 "score": 0.8,
-                "source": "Rausgegangen Party",
+                "source": "Meetup Bonn",
                 "category": "Party",
             },
         ]

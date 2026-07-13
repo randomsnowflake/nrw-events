@@ -20,12 +20,13 @@ class ModuleBoundaryTests(unittest.TestCase):
         self.assertTrue(TextParser)
 
     def test_canonical_event_is_immutable_after_validation(self):
+        event_date = common.TODAY.strftime("%Y-%m-%d")
         event = canonicalize_event({
-            "title": "Event", "source": "Test", "date": "2026-07-12",
+            "title": "Event", "source": "Test", "date": event_date,
             "score": 1.0, "city": "Bonn",
         })
         self.assertIsInstance(event, CanonicalEvent)
-        self.assertEqual(event["start_date"], "2026-07-12")
+        self.assertEqual(event["start_date"], event_date)
         with self.assertRaises(AttributeError):
             event.title = "Changed"
 
@@ -33,3 +34,7 @@ class ModuleBoundaryTests(unittest.TestCase):
         ids = [spec.id for spec in SOURCE_SPECS]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(set(SOURCES), set(SOURCE_IDS))
+
+    def test_removed_sources_are_not_registered(self):
+        self.assertNotIn("Songkick", SOURCES)
+        self.assertNotIn("Rausgegangen Party", SOURCES)

@@ -179,7 +179,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "AI26 – The Lamarr Conference on Artificial Intelligence", "Internationale KI-Konferenz im WCCB mit Speakern aus Wissenschaft und Wirtschaft.", "talk"),
             ("", "Um drei Ecken gedacht - Rechenschieber und Vermessung", "Sonderausstellung im Arithmeum", "exhibition"),
             ("", "Adenauer auf der Wolke", "Himmlische Karikaturen zum 150. Geburtstag", "exhibition"),
-            ("concert", "Alien Fight Club @ Alte VHS", "Songkick concert listing", "concert"),
+            ("concert", "Alien Fight Club @ Alte VHS", "Concert listing", "concert"),
             ("Vorträge/Lesungen/Diskussionen", "Openair-Kino \u201eSpillover\u201c & Diskussion", "Filmvorführung mit Gespräch", "cinema"),
         ]
 

@@ -14,7 +14,7 @@ def fetch() -> list:
     except urllib.error.HTTPError as e:
         if e.code == 405:
             # Eventbrite serves a bot-check/405 to some server networks. Treat it
-            # as an opportunistic miss; Rausgegangen Party is the stable source.
+            # as an opportunistic miss rather than failing the collection run.
             return []
         common.log_source_error("Eventbrite Party", e)
         return []

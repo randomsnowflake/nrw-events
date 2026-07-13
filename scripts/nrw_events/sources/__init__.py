@@ -11,12 +11,12 @@ like one. Ordering is irrelevant — the runner fans them out in parallel.
 """
 
 from . import (
-    koeln, bonn, harmonie, meetup, bonnjetzt, songkick,
+    koeln, bonn, harmonie, meetup, bonnjetzt,
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
     meckenheim, much, naturregion_sieg,
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
-    rausgegangen, bonn_venues, radiobonn,
+    bonn_venues, radiobonn,
 )
 from ..source_specs import AdapterType, SourceSpec, adapter_for
 
@@ -36,7 +36,6 @@ CUSTOM_SOURCES = {
     "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by main calendar filters
     "Harmonie Bonn": harmonie.fetch,
     "Meetup": meetup.fetch,
-    "Songkick": songkick.fetch,
     # Live structured scrapers (JSON-LD / iCal / structured HTML)
     "Rheinauen-Flohmarkt": flohmarkt.fetch,
     "Bonn district festivals": bonn.fetch_press_festivals,
@@ -54,7 +53,6 @@ CUSTOM_SOURCES = {
     "Regional venues": regional_venues.fetch,
     "Requested venue calendars": requested_venues.fetch,
     "Bonn venue calendars": bonn_venues.fetch,
-    "Rausgegangen Party": rausgegangen.fetch,
     "Bonn.jetzt": bonnjetzt.fetch,
     "Radio Bonn/Rhein-Sieg": radiobonn.fetch,
     "Ruhr-Guide": ruhrguide.fetch,
