@@ -102,6 +102,12 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "TruckScout24 EHF FINAL4", "europäisches Spitzenhandball", "sports"),
             ("", "Hohes Venn 463", "Treffpunkt Himmeroder Wall", "outdoor"),
             ("", "18. Biker-Treffen der Biker in der Bundespolizei Sankt Augustin", "Live Musik am Abend", "festival"),
+            (
+                "Allgemein Rheinbach",
+                "Gedenken 5. Jahrestag der Unwetterkatastrophe",
+                "Im Anschluss gehen wir gemeinsam zur Erinnerungsstele in der Neugartenstraße.",
+                "other",
+            ),
         ]
 
         for source_category, title, description, expected in cases:

@@ -32,7 +32,15 @@ def fetch() -> list:
         ))
     events.extend(_fetch_brotfabrik())
     events.extend(_fetch_volkssternwarte())
-    events.extend(rc.fetch_html_events("Botanische Gärten Bonn", _BOTGART_URL, events_from_botgart))
+    events.extend(rc.fetch_html_events(
+        "Botanische Gärten Bonn",
+        _BOTGART_URL,
+        lambda html: events_from_botgart(
+            html,
+            detail_fetcher=lambda url: common.fetch_detail_url(
+                url, cache_namespace="botanische-gaerten-bonn", timeout=20),
+        ),
+    ))
     events.extend(_fetch_vox_bona())
     events.extend(_fetch_bonner_muenster())
     return rc.dedupe(events)
@@ -171,7 +179,36 @@ def events_from_brotfabrik_items(items: list) -> list:
     return events
 
 
-def events_from_botgart(html: str) -> list:
+def _botgart_detail_description(html: str) -> str:
+    description = re.search(
+        r'<div[^>]+id=["\']event-description["\'][^>]*>(.*?)</div>',
+        html or "",
+        re.S | re.I,
+    )
+    if description:
+        return common.concise_description(rc.clean(description.group(1)), max_chars=360)
+    metadata = re.search(
+        r'<meta[^>]+(?:name|property)=["\'](?:description|og:description)["\'][^>]+'
+        r'content=["\']([^"\']+)',
+        html or "",
+        re.S | re.I,
+    )
+    return common.concise_description(
+        rc.clean(metadata.group(1) if metadata else ""), max_chars=360)
+
+
+def _botgart_fallback_description(title: str, kind: str, start) -> str:
+    schedule = f" am {start:%d.%m.%Y}" if start else ""
+    if start and start.strftime("%H:%M") != "00:00":
+        schedule += f" um {start:%H:%M} Uhr"
+    category = f" aus dem Bereich „{kind}“" if kind else ""
+    return (
+        f"Die Veranstaltung „{title}“{category} findet{schedule} "
+        "in den Botanischen Gärten Bonn statt."
+    )
+
+
+def events_from_botgart(html: str, detail_fetcher=None) -> list:
     events = []
     for href, body in re.findall(r'<a[^>]+href="([^"]+/de/ihr-besuch/veranstaltungen/[^"]+)"[^>]*>(.*?)</a>', html, re.S | re.I):
         text = rc.clean(body)
@@ -187,16 +224,40 @@ def events_from_botgart(html: str) -> list:
         if not match:
             continue
         start = rc.with_time(common.parse_date(match.group("date")), match.group("time"))
-        ev = common.make_event(
-            match.group("title"),
+        title = match.group("title")
+        kind = match.group("kind")
+        link = rc.abs_url("https://www.botgart.uni-bonn.de", href)
+        fallback = _botgart_fallback_description(title, kind, start)
+        base_event = common.make_event(
+            title,
             start,
             start,
             "Botanische Gärten Bonn",
             "Bonn",
-            match.group("kind"),
-            href,
+            fallback,
+            link,
             "Botanische Gärten Bonn",
-            f"botanische gärten bonn {match.group('kind')} natur führung exkursion vortrag",
+            f"botanische gärten bonn {kind} natur führung exkursion vortrag",
+            0.9,
+        )
+        if not base_event:
+            continue
+        description = ""
+        if detail_fetcher:
+            try:
+                description = _botgart_detail_description(detail_fetcher(link))
+            except Exception as exc:
+                common.log_source_error("Botanische Gärten Bonn detail", exc)
+        ev = common.make_event(
+            title,
+            start,
+            start,
+            "Botanische Gärten Bonn",
+            "Bonn",
+            description or fallback,
+            link,
+            "Botanische Gärten Bonn",
+            f"botanische gärten bonn {kind} natur führung exkursion vortrag",
             0.9,
         )
         if ev:

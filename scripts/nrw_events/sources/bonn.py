@@ -20,8 +20,10 @@ Fetchers, all reading bonn.de:
 import json
 import os
 import re
+import time
 from datetime import datetime
 from html import unescape
+from pathlib import Path
 
 from .. import common
 
@@ -60,6 +62,115 @@ _BLOCK = {
 
 _venue_points_cache = None
 _detail_context_cache = {}
+_detail_context_cache_entries = {}
+_detail_context_cache_loaded_path = None
+
+_DETAIL_CACHE_VERSION = 2
+_DETAIL_CACHE_FILENAME = "bonn-detail-context-v2.json"
+
+
+def _env_number(name: str, default: float) -> float:
+    try:
+        return max(float(os.environ.get(name, str(default))), 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _detail_cache_ttl_seconds() -> float:
+    return _env_number("NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS", 168) * 60 * 60
+
+
+def _detail_cache_path() -> Path:
+    configured = os.environ.get("NRW_EVENTS_CACHE_DIR", "").strip()
+    if configured:
+        cache_dir = Path(configured).expanduser()
+    else:
+        xdg_cache = os.environ.get("XDG_CACHE_HOME", "").strip()
+        cache_dir = Path(xdg_cache).expanduser() if xdg_cache else Path.home() / ".cache"
+        cache_dir /= "nrw-events"
+    return cache_dir / _DETAIL_CACHE_FILENAME
+
+
+def _reset_detail_context_cache() -> None:
+    """Reset process-local state; primarily useful for isolated runs/tests."""
+    global _detail_context_cache_loaded_path
+    _detail_context_cache.clear()
+    _detail_context_cache_entries.clear()
+    _detail_context_cache_loaded_path = None
+
+
+def _load_detail_context_cache() -> None:
+    global _detail_context_cache_loaded_path
+    path = _detail_cache_path()
+    path_key = str(path)
+    if _detail_context_cache_loaded_path == path_key:
+        return
+
+    _detail_context_cache.clear()
+    _detail_context_cache_entries.clear()
+    _detail_context_cache_loaded_path = path_key
+    ttl_seconds = _detail_cache_ttl_seconds()
+    if not ttl_seconds:
+        return
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError, TypeError):
+        return
+    if not isinstance(payload, dict) or payload.get("version") != _DETAIL_CACHE_VERSION:
+        return
+
+    now = time.time()
+    for link, entry in (payload.get("entries") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        try:
+            fetched_at = float(entry.get("fetched_at", 0))
+        except (TypeError, ValueError):
+            continue
+        context = entry.get("context")
+        if now - fetched_at > ttl_seconds or not isinstance(context, dict):
+            continue
+        cleaned = {
+            "description": _concise_detail_description(str(context.get("description") or "")),
+            "venue": str(context.get("venue") or ""),
+            "city": str(context.get("city") or ""),
+        }
+        _detail_context_cache[link] = cleaned
+        _detail_context_cache_entries[link] = {
+            "fetched_at": fetched_at,
+            "context": cleaned,
+        }
+
+
+def _persist_detail_context_cache() -> None:
+    ttl_seconds = _detail_cache_ttl_seconds()
+    if not ttl_seconds:
+        return
+    now = time.time()
+    entries = {
+        link: entry for link, entry in _detail_context_cache_entries.items()
+        if now - float(entry.get("fetched_at", 0)) <= ttl_seconds
+    }
+    path = _detail_cache_path()
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(
+            json.dumps(
+                {"version": _DETAIL_CACHE_VERSION, "entries": entries},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        os.replace(temporary, path)
+    except OSError as e:
+        common.log_source_error("Bonn.de detail cache", e)
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _loads_event_items(raw: str):
@@ -141,29 +252,126 @@ def _strip_html(value: str) -> str:
     return re.sub(r"\s+", " ", unescape(value)).strip()
 
 
+def _concise_detail_description(value: str) -> str:
+    """Keep detail enrichment useful without exporting Bonn.de's full article."""
+    cleaned = re.sub(r"\s+", " ", value or "").strip()
+    max_chars = int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 500))
+    if not max_chars or len(cleaned) <= max_chars:
+        return cleaned
+    if max_chars == 1:
+        return "…"
+
+    room = max(max_chars - 1, 1)
+    candidate = cleaned[:room].rstrip()
+    sentence_ends = [
+        match.end() for match in re.finditer(r'[.!?](?:["”’)]*)', candidate)
+        if match.end() >= max_chars * 0.45
+    ]
+    if sentence_ends:
+        shortened = candidate[:sentence_ends[-1]].rstrip()
+    else:
+        shortened = candidate.rsplit(" ", 1)[0].rstrip(" ,;:") or candidate
+    return f"{shortened}…"
+
+
+_DETAIL_LOGISTICS_PREFIX = re.compile(
+    r"^(?:datum|uhrzeit|zeit|beginn|ende|lokation|veranstaltungsort|ort|künstler|"
+    r"kuenstler|tickets?|preis|eintritt|anmeldung|kontakt)\s*:",
+    re.I,
+)
+
+
+def _is_detail_logistics(text: str) -> bool:
+    stripped = text.strip()
+    return bool(
+        _DETAIL_LOGISTICS_PREFIX.match(stripped)
+        or re.match(r"^\d{1,2}:\d{2}\s+Uhr\b", stripped, re.I)
+        or re.match(r"^\d{1,2}\.\d{1,2}\.20\d{2}$", stripped)
+        or (len(stripped) <= 45 and re.match(r"^\d{1,2}\.\s+.*20\d{2}$", stripped))
+    )
+
+
+def _detail_paragraphs(html: str) -> list[str]:
+    parts = []
+    intro = re.search(r'<div class="SP-ArticleHeader__intro[^"]*"[^>]*>(.*?)</div>', html, flags=re.S)
+    if intro:
+        text = _strip_html(intro.group(1))
+        if text:
+            parts.append(text)
+
+    for block in re.findall(r'<div data-sp-table class="SP-Paragraph">(.*?)</div>', html, flags=re.S):
+        paragraphs = [
+            _strip_html(raw) for raw in re.findall(r"<p\b[^>]*>(.*?)</p>", block, re.S | re.I)
+        ]
+        paragraphs = [text for text in paragraphs if text]
+        if paragraphs:
+            parts.extend(paragraphs)
+        else:
+            text = _strip_html(block)
+            if text:
+                parts.append(text)
+        if len(parts) >= 14:
+            break
+    return parts
+
+
+def _join_detail_paragraphs(parts: list[str]) -> list[str]:
+    filtered = []
+    index = 0
+    while index < len(parts):
+        text = re.sub(r"\s+", " ", parts[index]).strip()
+        if not text or _is_detail_logistics(text):
+            index += 1
+            continue
+        is_heading = len(text) <= 60 and not re.search(r'\.["”’)]*$', text)
+        if is_heading and index + 1 < len(parts):
+            following = re.sub(r"\s+", " ", parts[index + 1]).strip()
+            if following and not _is_detail_logistics(following):
+                text = f"{text}: {following}"
+                index += 1
+        filtered.append(text)
+        index += 1
+    return filtered
+
+
+def _paragraph_aware_detail_description(parts: list[str]) -> str:
+    paragraphs = _join_detail_paragraphs(parts)
+    if not paragraphs:
+        return ""
+    max_chars = int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 500))
+    if not max_chars:
+        return " ".join(paragraphs)
+
+    selected = []
+    omitted = False
+    for paragraph in paragraphs:
+        candidate = " ".join([*selected, paragraph])
+        if len(candidate) <= max_chars:
+            selected.append(paragraph)
+            continue
+        omitted = True
+        if not selected:
+            return _concise_detail_description(paragraph)
+        break
+
+    description = " ".join(selected)
+    if omitted and len(description) < max_chars:
+        description = f"{description}…"
+    return description
+
+
 def _parse_detail_context(html: str) -> dict:
     """Extract the useful bits that Bonn's JSON feed omits on sparse records."""
     context = {"description": "", "venue": "", "city": ""}
 
-    text_parts = []
-    intro = re.search(r'<div class="SP-ArticleHeader__intro[^"]*"[^>]*>(.*?)</div>', html, flags=re.S)
-    if intro:
-        text_parts.append(_strip_html(intro.group(1)))
-    for block in re.findall(r'<div data-sp-table class="SP-Paragraph">(.*?)</div>', html, flags=re.S):
-        text = _strip_html(block)
-        if text:
-            text_parts.append(text)
-        if len(text_parts) >= 4:
-            break
-
     seen = set()
     description_parts = []
-    for text in text_parts:
+    for text in _detail_paragraphs(html):
         key = text.lower()
         if key and key not in seen:
             seen.add(key)
             description_parts.append(text)
-    context["description"] = " ".join(description_parts)
+    context["description"] = _paragraph_aware_detail_description(description_parts)
 
     for raw_json in re.findall(r'<script[^>]+type="application/ld\+json"[^>]*>(.*?)</script>', html, flags=re.S):
         try:
@@ -194,8 +402,10 @@ def _parse_detail_context(html: str) -> dict:
 def _fetch_detail_context(link: str) -> dict:
     if not link or "bonn.de/veranstaltungskalender/" not in link:
         return {}
+    _load_detail_context_cache()
     if link in _detail_context_cache:
         return _detail_context_cache[link]
+    fetched_successfully = False
     try:
         html = common.fetch_url(
             link,
@@ -205,10 +415,19 @@ def _fetch_detail_context(link: str) -> dict:
             sec_fetch_dest="document",
         )
         context = _parse_detail_context(html)
+        fetched_successfully = True
     except Exception as e:
         common.log_source_error("Bonn.de detail", e)
         context = {}
     _detail_context_cache[link] = context
+    # Persist successful negative lookups too. Otherwise a valid detail page
+    # without useful enrichment is requested again by every importer process.
+    if fetched_successfully:
+        _detail_context_cache_entries[link] = {
+            "fetched_at": time.time(),
+            "context": context,
+        }
+        _persist_detail_context_cache()
     return context
 
 
@@ -427,6 +646,20 @@ def _split_tags(value: str) -> set:
     return {part.strip() for part in re.split(r"\s*(?:,|\|)\s*", value or "") if part.strip()}
 
 
+def _is_sparse_listing_description(description: str, title: str) -> bool:
+    normalized = re.sub(r"[^\wäöüß]+", " ", description or "", flags=re.I).strip().lower()
+    normalized_title = re.sub(r"[^\wäöüß]+", " ", title or "", flags=re.I).strip().lower()
+    normalized_display_title = re.sub(
+        r"[^\wäöüß]+", " ", _clean_free_title_prefix(title), flags=re.I
+    ).strip().lower()
+    if not normalized or normalized in {normalized_title, normalized_display_title}:
+        return True
+    return bool(re.fullmatch(
+        r"(?:zur )?anmeldung(?: erforderlich| erbeten)?|weitere informationen|mehr erfahren",
+        normalized,
+    ))
+
+
 def _listing_events_from_html(html: str, source: str, *, free_only: bool = False) -> list:
     events, seen = [], set()
     for m in re.finditer(r'<article class="SP-Teaser\b.*?</article>', html, re.S | re.I):
@@ -451,7 +684,20 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
 
         link = common.urllib.parse.urljoin("https://www.bonn.de", href)
         abstract_m = re.search(r'<div[^>]+class="[^"]*SP-Teaser__abstract[^"]*"[^>]*>(.*?)</div>', body, re.S | re.I)
-        description = common.clean_html(abstract_m.group(1) if abstract_m else raw_title)
+        listing_description = common.clean_html(abstract_m.group(1) if abstract_m else "")
+        description = listing_description
+        classification_description = listing_description
+        venue, city = "", "Bonn"
+        if _is_sparse_listing_description(listing_description, raw_title):
+            detail_context = _fetch_detail_context(link)
+            description = detail_context.get("description", "") or raw_title
+            # Rich article copy is display enrichment. Keep the official teaser
+            # title/categories as the ranking input so words in a long detail
+            # page cannot make a valid listed event disappear below the score
+            # floor (for example Nachtwache or Das Stadtspiel).
+            classification_description = raw_title
+            venue = detail_context.get("venue", "")
+            city = detail_context.get("city", "") or city
         date_matches = re.findall(
             r'<span>\s*<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
             r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?\s*</span>',
@@ -475,10 +721,12 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 continue
             seen.add(key)
             ev = common.make_event(
-                title, start, start, "", "Bonn", description, link,
+                title, start, start, venue, city, classification_description, link,
                 source, ", ".join(sorted(tags | ({"Kostenlos"} if free_only else set()))), trust=0.86, time_text=time_text,
             )
             if ev:
+                if description != classification_description:
+                    ev["description"] = common.concise_description(description)
                 price = _free_admission_price({"title": raw_title, "description": description}, tags | ({"Kostenlos"} if free_only else set()))
                 if price:
                     ev["price"] = price
@@ -588,8 +836,10 @@ def events_from_sport_teasers(html: str) -> list:
                 continue
             seen.add(key)
             ev = common.make_event(
-                title, start, start, "", "Bonn", "", link,
-                source, category, trust=0.8, time_text=time_text,
+                title, start, start, "", "Bonn",
+                common.factual_event_description(
+                    title, date_value=start, time_text=time_text, city="Bonn"),
+                link, source, category, trust=0.8, time_text=time_text,
             )
             if ev:
                 events.append(ev)

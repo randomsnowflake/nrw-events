@@ -5,6 +5,8 @@ import re
 from .. import common
 from . import regional_common as rc
 
+_LINZ_URL = "https://www.linz.de/startseite/tourismus-freizeit/veranstaltungen"
+
 
 def fetch() -> list:
     ahrtal_url = "https://www.ahrtal.com/de/events"
@@ -22,11 +24,7 @@ def fetch() -> list:
             0.86,
         ),
     ))
-    events.extend(rc.fetch_html_events(
-        "Linz am Rhein",
-        "https://www.linz.de/startseite/tourismus-freizeit/veranstaltungen",
-        _events_from_linz,
-    ))
+    events.extend(_fetch_linz())
     events.extend(rc.fetch_html_events(
         "Bad Münstereifel",
         "https://www.bad-muenstereifel.de/tourismus-freizeit/veranstaltungskalender",
@@ -52,7 +50,10 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
         if not (date and title):
             continue
         text = rc.clean(body)
-        city = rc.city_from_text(text, default_city)
+        location = re.search(
+            r'shapehub-location-line.*?<span>(.*?)</span>', body, re.S | re.I,
+        )
+        city = rc.clean(location.group(1)) if location else rc.city_from_text(text, default_city)
         start = rc.parse_dt(date.group(1))
         detail_url = rc.abs_url(base, m.group("href"))
         # Shapehub removes detail pages at the start of their event date (HTTP
@@ -77,28 +78,104 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
     return events
 
 
-def _events_from_linz(html: str) -> list:
+def _fetch_linz() -> list:
     events = []
-    pat = re.compile(
-        r'<a href="(?P<href>/startseite/tourismus-freizeit/veranstaltungen/events/'
-        r'(?P<iso>20\d{2}-\d{2}-\d{2})-[^"]+/event\.html)">'
-        r'.{0,700}?<div class="h3">\s*<a[^>]+>(?P<title>.*?)</a>',
-        re.S | re.I,
-    )
-    for m in pat.finditer(html):
-        text = rc.clean(m.group(0))
+    url = _LINZ_URL
+    seen_urls = set()
+    try:
+        for _ in range(6):
+            if not url or url in seen_urls:
+                break
+            seen_urls.add(url)
+            html = common.fetch_url(url, timeout=25)
+            events.extend(_events_from_linz(
+                html,
+                detail_fetcher=lambda detail_url: common.fetch_detail_url(
+                    detail_url, cache_namespace="linz-am-rhein", timeout=20),
+            ))
+            dates = [
+                common.parse_iso_date(value)
+                for value in re.findall(r'/events/(20\d{2}-\d{2}-\d{2})-', html, re.I)
+            ]
+            if dates and max(date for date in dates if date) >= common.END_DATE:
+                break
+            next_page = re.search(
+                r'<li class="next"><a[^>]+href="([^"]+)"', html, re.S | re.I)
+            url = rc.abs_url(_LINZ_URL, next_page.group(1)) if next_page else ""
+    except Exception as exc:
+        common.log_source_error("Linz am Rhein", exc)
+    return events
+
+
+def _linz_detail_context(html: str) -> dict:
+    description = re.search(
+        r'<h1>.*?</h1>\s*<span class="centered">(.*?)</span>', html or "", re.S | re.I)
+    venue = re.search(
+        r'<i class="[^"]*\bicon-pin\b[^"]*"></i>\s*([^<]+)', html or "", re.S | re.I)
+    event_time = re.search(
+        r'class="[^"]*\bevent-time\b[^"]*".*?(\d{1,2}:\d{2})', html or "", re.S | re.I)
+    return {
+        "description": common.concise_description(
+            rc.clean(description.group(1) if description else "")),
+        "venue": common.normalize_venue_name(venue.group(1) if venue else ""),
+        "time": event_time.group(1) if event_time else "",
+    }
+
+
+def _linz_fallback_description(title: str, date: str, time_text: str,
+                               venue: str, listing_copy: str) -> str:
+    if listing_copy and len(listing_copy) >= 80:
+        return common.concise_description(listing_copy)
+    schedule = f" am {date}" if date else ""
+    if time_text:
+        schedule += f" um {time_text} Uhr"
+    if venue:
+        schedule += f" am Veranstaltungsort „{venue}“"
+    extra = f" {listing_copy}." if listing_copy else ""
+    return f"„{title}“ ist im Linzer Veranstaltungskalender{schedule} angekündigt.{extra}".strip()
+
+
+def _events_from_linz(html: str, detail_fetcher=None) -> list:
+    events = []
+    for block in re.split(r'(?=<div class="standardteaser">)', html or "", flags=re.I):
+        if not block.lstrip().startswith('<div class="standardteaser">'):
+            continue
+        href = re.search(
+            r'href="(?P<href>/startseite/tourismus-freizeit/veranstaltungen/events/'
+            r'(?P<iso>20\d{2}-\d{2}-\d{2})-[^"]+/event\.html)"', block, re.S | re.I)
+        title = re.search(
+            r'<div class="h3">\s*<a[^>]*>(.*?)</a>', block, re.S | re.I)
+        if not (href and title):
+            continue
+        link = rc.abs_url("https://www.linz.de", href.group("href"))
+        listing_copy_match = re.search(
+            r'<div class="teasertext">(.*?)</div>', block, re.S | re.I)
+        listing_copy = rc.clean(listing_copy_match.group(1) if listing_copy_match else "")
+        context = {}
+        if detail_fetcher:
+            try:
+                context = _linz_detail_context(detail_fetcher(link))
+            except Exception as exc:
+                common.log_source_error("Linz am Rhein detail", exc)
+        start = common.parse_iso_date(href.group("iso"))
+        time_text = context.get("time") or rc.time_text(block)
+        start = rc.with_time(start, time_text)
+        title_text = rc.clean(title.group(1))
+        venue = context.get("venue") or "Linz am Rhein"
+        description = context.get("description") or _linz_fallback_description(
+            title_text, href.group("iso"), time_text, venue, listing_copy)
         ev = common.make_event(
-            rc.clean(m.group("title")),
-            common.parse_iso_date(m.group("iso")),
+            title_text,
+            start,
             None,
+            venue,
             "Linz am Rhein",
-            "Linz am Rhein",
-            text[:500],
-            rc.abs_url("https://www.linz.de", m.group("href")),
+            description,
+            link,
             "Linz am Rhein",
             "linz mittelrhein kultur markt fest führung",
             0.84,
-            rc.time_text(text),
+            time_text,
         )
         if ev:
             events.append(ev)

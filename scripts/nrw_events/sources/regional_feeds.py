@@ -86,16 +86,39 @@ def _event_from_unkel_item(item):
         start = parsedate_to_datetime(item.findtext("pubDate")).replace(tzinfo=None)
     lines = [part.strip() for part in re.split(r"<br\s*/?>", desc) if rc.clean(part)]
     venue = rc.clean(lines[1]) if len(lines) > 1 else ""
+    time_text = rc.time_text(text)
+    if time_text in {"0:00", "00:00"}:
+        time_text = ""
+    description = _unkel_description(title, start, lines, time_text)
     return common.make_event(
         title,
         rc.with_time(start, text),
         None,
         venue,
         rc.city_from_text(text, "Unkel"),
-        text,
+        description,
         link,
         "VG Unkel",
         "unkel mittelrhein kultur konzert markt",
         0.86,
-        rc.time_text(text),
+        time_text,
     )
+
+
+def _unkel_description(title: str, start, lines: list[str], time_text: str) -> str:
+    date_label = start.strftime("%d.%m.%Y") if start else ""
+    schedule = f" am {date_label}" if date_label else ""
+    if time_text:
+        times = re.findall(r"\d{1,2}:\d{2}", time_text)
+        if len(times) >= 2:
+            schedule += f" von {times[0]} bis {times[1]} Uhr"
+        elif times:
+            schedule += f" um {times[0]} Uhr"
+
+    location_parts = []
+    for raw_part in lines[1:]:
+        part = rc.clean(raw_part)
+        if part and part not in location_parts:
+            location_parts.append(part)
+    location = f" im {', '.join(location_parts)}" if location_parts else " in Unkel"
+    return f"„{rc.clean(title)}“ findet{schedule}{location} statt."

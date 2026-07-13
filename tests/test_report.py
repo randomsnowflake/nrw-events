@@ -17,8 +17,10 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(features, {"flea_market": 0.5, "bonn_local": 0.1})
 
     def test_source_authority_handles_source_family_variants(self):
+        self.assertEqual(report.source_authority("Bundeskunsthalle"), 3)
         self.assertEqual(report.source_authority("Bonn.de Events"), 2)
         self.assertEqual(report.source_authority("Eventbrite NRW"), 1)
+        self.assertEqual(report.source_authority("Radio Bonn/Rhein-Sieg"), 1)
         self.assertEqual(report.source_authority("EXA SEARCH fallback"), 0)
 
     def test_deduplicate_treats_free_entry_prefix_as_same_title(self):
@@ -65,6 +67,43 @@ class ReportTests(unittest.TestCase):
 
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["title"], "Sundowner Bar auf dem Dach der Bundeskunsthalle")
+        self.assertEqual(deduped[0]["price"], "kostenlos")
+
+    def test_direct_source_owns_recurring_series_over_civic_aggregator(self):
+        events = [
+            {
+                "title": "Sundowner Bar auf dem Dach der Bundeskunsthalle",
+                "start_date": "2026-07-15", "end_date": "2026-07-15",
+                "date": "2026-07-15", "city": "Bonn-Gronau",
+                "venue": "Bundeskunsthalle", "score": 1.2,
+                "source": "Bonn.de Events", "description": "Jeden Mittwoch auf dem Dach.",
+                "price": "kostenlos", "link": "https://www.bonn.de/sundowner",
+                "time": "", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Sundowner Bar auf dem Dach der Bundeskunsthalle",
+                "start_date": "2026-07-22", "end_date": "2026-07-22",
+                "date": "2026-07-22", "city": "Bonn-Gronau",
+                "venue": "Bundeskunsthalle", "score": 1.2,
+                "source": "Bonn.de Events", "description": "Jeden Mittwoch auf dem Dach.",
+                "price": "kostenlos", "link": "https://www.bonn.de/sundowner",
+                "time": "", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Sundowner Bar", "start_date": "2026-07-15",
+                "end_date": "2026-07-15", "date": "2026-07-15", "city": "Bonn",
+                "venue": "Bundeskunsthalle", "score": 1.0,
+                "source": "Bundeskunsthalle", "description": "Elektronische Musik und Drinks.",
+                "price": "", "link": "https://www.bundeskunsthalle.de/veranstaltungen/detail/10136",
+                "time": "18:00–22:00", "start_at": "", "end_at": "",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Bundeskunsthalle")
+        self.assertEqual(deduped[0]["link"], "https://www.bundeskunsthalle.de/veranstaltungen/detail/10136")
         self.assertEqual(deduped[0]["price"], "kostenlos")
 
     def test_deduplicate_preserves_free_price_and_category_from_lower_scored_duplicate(self):
@@ -181,6 +220,54 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["link"], "https://www.bonn.de/sommerkonzert")
         self.assertEqual(deduped[0]["price"], "12 Euro")
         self.assertIn("Ausführliche Informationen", deduped[0]["description"])
+
+    def test_deduplicate_prefers_primary_source_over_radio_aggregation(self):
+        events = [
+            {
+                "title": "Pride Bonn", "start_date": "2026-07-18",
+                "date": "2026-07-18", "city": "Bonn", "venue": "Hofgarten",
+                "score": 1.4, "source": "Radio Bonn/Rhein-Sieg",
+                "description": "Ausführliche Informationen zur Demonstration.",
+                "price": "", "link": "https://www.radiobonn.de/artikel/was-geht-unsere-veranstaltungstipps-2674962",
+                "time": "11:00", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Pride Bonn", "start_date": "2026-07-18",
+                "date": "2026-07-18", "city": "Bonn", "venue": "Hofgarten",
+                "score": 0.7, "source": "Pride Bonn", "description": "Demo.",
+                "price": "", "link": "https://pridebonn.org/",
+                "time": "11:00", "start_at": "", "end_at": "",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(deduped[0]["source"], "Pride Bonn")
+        self.assertEqual(deduped[0]["link"], "https://pridebonn.org/")
+        self.assertIn("Ausführliche Informationen", deduped[0]["description"])
+
+    def test_deduplicate_replaces_only_radio_fallback_link_from_search_record(self):
+        events = [
+            {
+                "title": "Pride Bonn", "start_date": "2026-07-18",
+                "date": "2026-07-18", "city": "Bonn", "venue": "Hofgarten",
+                "score": 1.4, "source": "Radio Bonn/Rhein-Sieg", "description": "Details.",
+                "price": "", "link": "https://www.radiobonn.de/artikel/was-geht-unsere-veranstaltungstipps-2674962",
+                "time": "11:00", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Pride Bonn", "start_date": "2026-07-18",
+                "date": "2026-07-18", "city": "Bonn", "venue": "Hofgarten",
+                "score": 0.7, "source": "Exa Search", "description": "",
+                "price": "", "link": "https://pridebonn.org/",
+                "time": "", "start_at": "", "end_at": "",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(deduped[0]["source"], "Radio Bonn/Rhein-Sieg")
+        self.assertEqual(deduped[0]["link"], "https://pridebonn.org/")
 
     def test_deduplicate_normalizes_city_district_aliases(self):
         events = [

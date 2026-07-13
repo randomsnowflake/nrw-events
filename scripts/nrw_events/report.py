@@ -17,8 +17,9 @@ from .models import CanonicalEvent
 # Kept separate from ``score``: score includes distance and topical relevance,
 # while authority decides which publisher owns the canonical record.
 _AGGREGATOR_SOURCE_MARKERS = (
-    "bonn.jetzt", "eventbrite", "meetup", "ruhr-guide",
+    "bonn.jetzt", "eventbrite", "meetup", "radio bonn", "ruhr-guide",
 )
+_CIVIC_AGGREGATOR_SOURCE_MARKERS = ("bonn.de events", "bonn.de sports")
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 
 
@@ -29,7 +30,9 @@ def source_authority(source: str) -> int:
         return 0
     if any(marker in normalized for marker in _AGGREGATOR_SOURCE_MARKERS):
         return 1
-    return 2
+    if any(marker in normalized for marker in _CIVIC_AGGREGATOR_SOURCE_MARKERS):
+        return 2
+    return 3
 
 
 # ── Dedup ───────────────────────────────────────────────────────────
@@ -112,15 +115,28 @@ def _titles_match(left: dict, right: dict) -> bool:
     right_title = normalize_title(right.get("title", ""))
     if left_title == right_title:
         return True
+    if min(len(left_title), len(right_title)) >= 12 and (
+        left_title in right_title or right_title in left_title
+    ):
+        return True
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
 
 
 def _merge_duplicate_metadata(winner, duplicate):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
-    for field in ("price", "venue", "link", "time", "start_at", "end_at"):
+    for field in ("price", "venue", "time", "start_at", "end_at"):
         if not winner.get(field) and duplicate.get(field):
             updates[field] = duplicate[field]
+
+    winner_link = winner.get("link", "")
+    duplicate_link = duplicate.get("link", "")
+    if (not winner_link and duplicate_link) or (
+        _is_radio_aggregation_link(winner_link)
+        and duplicate_link
+        and not _is_radio_aggregation_link(duplicate_link)
+    ):
+        updates["link"] = duplicate_link
 
     if len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip()):
         updates["description"] = duplicate["description"]
@@ -136,6 +152,17 @@ def _merge_duplicate_metadata(winner, duplicate):
     if isinstance(winner, CanonicalEvent):
         return replace(winner, **updates)
     return {**winner, **updates}
+
+
+def _is_radio_aggregation_link(link: str) -> bool:
+    parsed = common.urllib.parse.urlsplit(link or "")
+    hostname = (parsed.hostname or "").casefold().removeprefix("www.")
+    return (
+        hostname == "radiobonn.de"
+        and parsed.path.rstrip("/")
+        == "/artikel/was-geht-unsere-veranstaltungstipps-2674962"
+    )
+
 
 def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     """Collapse duplicates, preferring source authority and then event score."""
@@ -161,7 +188,18 @@ def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
         result[match_index] = (_merge_duplicate_metadata(ev, current)
                                if candidate_rank > current_rank
                                else _merge_duplicate_metadata(current, ev))
-    return result
+    # Once a direct publisher owns a recognizable series, suppress civic or
+    # commercial calendar copies of its other occurrences in this report
+    # window. Equally authoritative records on different dates still survive.
+    return [
+        event for event in result
+        if not any(
+            source_authority(owner.get("source", "")) > source_authority(event.get("source", ""))
+            and _titles_match(owner, event)
+            and _locations_compatible(owner, event)
+            for owner in result
+        )
+    ]
 
 
 # ── Report rendering ────────────────────────────────────────────────

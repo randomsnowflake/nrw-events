@@ -9,6 +9,7 @@ paragraph. This catches small local events that municipal feeds often miss.
 
 import re
 from html import unescape
+from urllib.parse import urljoin, urlsplit
 
 from .. import common
 
@@ -44,6 +45,28 @@ _VENUE_HINTS = [
     "GOP", "Katharinenhof", "Mühlenbachhalle", "Stadthalle", "Dorfplatz",
     "Sportpark Nord", "Siegburger Marktplatz", "Eitorfer Marktplatz",
 ]
+
+_ANCHOR_LINK_RE = re.compile(r'<a\b[^>]*\bhref=["\']([^"\']+)["\']', re.I)
+_BARE_DOMAIN_RE = re.compile(
+    r"(?<![@\w])((?:https?://|www\.)?(?:[a-z0-9-]+\.)+(?:de|com|org)"
+    r"(?:/[^\s<]*)?)",
+    re.I,
+)
+
+_FULL_RANGE_SUFFIX_RE = re.compile(
+    r"\s+-\s+(?P<start_day>\d{1,2})\.(?P<start_month>\d{1,2})\."
+    r"(?P<start_year>20\d{2})?\s*(?:-|–|—|&|und|bis|/)\s*"
+    r"(?P<end_day>\d{1,2})\.(?P<end_month>\d{1,2})\.(?P<end_year>20\d{2})\s*$",
+    re.I,
+)
+_SAME_MONTH_RANGE_SUFFIX_RE = re.compile(
+    r"\s+-\s+(?P<start_day>\d{1,2})\.\s*(?:-|–|—|&|und|bis|/)\s*"
+    r"(?P<end_day>\d{1,2})\.(?P<month>\d{1,2})\.(?P<year>20\d{2})\s*$",
+    re.I,
+)
+_SINGLE_DATE_SUFFIX_RE = re.compile(
+    r"\s+-\s+(?P<day>\d{1,2})\.(?P<month>\d{1,2})\.(?P<year>20\d{2})\s*$"
+)
 
 
 def _hinted_city(text: str) -> str | None:
@@ -81,24 +104,73 @@ def _venue_for(text: str, city: str) -> str:
     return city
 
 
-def _date_from_title(title: str):
-    # Prefer a fully specified DD.MM.YYYY anywhere in the title.
-    m = re.search(r"\b\d{1,2}\.\d{1,2}\.20\d{2}\b", title or "")
-    if m:
-        return common.parse_date(m.group(0))
-    # Handle compact ranges like "04. & 05.07.2026" by reconstructing the first date.
-    m = re.search(r"\b(\d{1,2})\.\s*(?:&|und|/)\s*\d{1,2}\.(\d{1,2})\.(20\d{2})", title or "")
-    if m:
-        day, month, year = m.groups()
-        return common.parse_date(f"{day}.{month}.{year}")
-    return common.parse_date(title or "")
+def _split_title_dates(raw_title: str):
+    """Return a clean title plus inclusive start/end dates from its suffix."""
+    raw_title = common.clean_html(raw_title)
+    if match := _FULL_RANGE_SUFFIX_RE.search(raw_title):
+        end_year = int(match.group("end_year"))
+        start_month = int(match.group("start_month"))
+        end_month = int(match.group("end_month"))
+        start_year = int(match.group("start_year") or (
+            end_year - 1 if start_month > end_month else end_year
+        ))
+        start = common.parse_date(
+            f'{match.group("start_day")}.{start_month}.{start_year}'
+        )
+        end = common.parse_date(
+            f'{match.group("end_day")}.{end_month}.{end_year}'
+        )
+        return raw_title[:match.start()].strip() or raw_title, start, end
+
+    if match := _SAME_MONTH_RANGE_SUFFIX_RE.search(raw_title):
+        start = common.parse_date(
+            f'{match.group("start_day")}.{match.group("month")}.{match.group("year")}'
+        )
+        end = common.parse_date(
+            f'{match.group("end_day")}.{match.group("month")}.{match.group("year")}'
+        )
+        return raw_title[:match.start()].strip() or raw_title, start, end
+
+    if match := _SINGLE_DATE_SUFFIX_RE.search(raw_title):
+        start = common.parse_date(
+            f'{match.group("day")}.{match.group("month")}.{match.group("year")}'
+        )
+        return raw_title[:match.start()].strip() or raw_title, start, None
+
+    return raw_title, common.parse_date(raw_title), None
 
 
 def _split_title_date(raw_title: str):
-    raw_title = common.clean_html(raw_title)
-    title = re.sub(r"\s+-\s+(?:\d{1,2}\.\s*(?:&|und|/)\s*)?\d{1,2}\.\d{1,2}\.20\d{2}\s*$", "", raw_title).strip()
-    title = re.sub(r"\s+-\s+\d{1,2}\.\d{1,2}\.20\d{2}\s*$", "", title).strip()
-    return title or raw_title, _date_from_title(raw_title)
+    """Backward-compatible single-date view used by older adapter callers."""
+    title, start, _ = _split_title_dates(raw_title)
+    return title, start
+
+
+def _external_web_link(raw_link: str) -> str:
+    link = common.normalize_url(urljoin(URL, unescape(raw_link or "").strip()))
+    parsed = urlsplit(link)
+    hostname = (parsed.hostname or "").casefold().removeprefix("www.")
+    if parsed.scheme not in {"http", "https"} or not hostname:
+        return ""
+    if hostname == "radiobonn.de" or hostname.endswith(".radiobonn.de"):
+        return ""
+    return link
+
+
+def _best_event_link(raw_description: str) -> str:
+    """Prefer an embedded event/organizer destination over the Radio index."""
+    for raw_link in _ANCHOR_LINK_RE.findall(raw_description or ""):
+        if link := _external_web_link(raw_link):
+            return link
+
+    description = common.clean_html(raw_description)
+    for match in _BARE_DOMAIN_RE.finditer(description):
+        raw_link = match.group(1).rstrip(".,;:!?)]}\"")
+        if not raw_link.startswith(("http://", "https://")):
+            raw_link = "https://" + raw_link
+        if link := _external_web_link(raw_link):
+            return link
+    return URL
 
 
 def fetch() -> list:
@@ -119,7 +191,7 @@ def fetch() -> list:
     events = []
     for raw_title, raw_desc in blocks:
         raw_title = unescape(raw_title)
-        title, start_dt = _split_title_date(raw_title)
+        title, start_dt, end_dt = _split_title_dates(raw_title)
         if not start_dt:
             continue
         desc = common.clean_html(raw_desc)
@@ -136,11 +208,11 @@ def fetch() -> list:
         ev = common.make_event(
             title=title,
             start_dt=start_dt,
-            end_dt=None,
+            end_dt=end_dt,
             venue=venue,
             city=city,
             description=desc,
-            link=URL,
+            link=_best_event_link(raw_desc),
             source=source,
             category=category,
             trust=0.72,

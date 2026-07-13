@@ -194,6 +194,11 @@ kein Limit.
 | `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `5000000` | Harte Antwortgrößen-Grenze pro HTTP-Request. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
+| `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. Der Website-Wrapper nutzt `.cache/nrw-events-data` im Projekt. |
+| `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS` | `24` | TTL für erfolgreiche HTML-Detailseiten-Abrufe von Quellen wie Siegburg, Much, Königswinter, Naturregion Sieg, Linz, IONAS-Kommunen und einzelnen Veranstaltungsorten. `0` deaktiviert Speicher- und Platten-Cache. Listen, APIs und Feeds bleiben ungecacht und werden bei jedem Import frisch geladen. |
+| `NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS` | `168` | Gültigkeit gecachter Bonn.de-Detaildaten in Stunden. `0` deaktiviert den persistenten Cache. |
+| `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `500` | Zielgröße des aus einer Bonn.de-Detailseite übernommenen Kurztexts; Logistikblöcke werden übersprungen und erklärende Absätze vollständig übernommen. Nur ein einzelner überlanger Absatz wird satz- bzw. wortnah gekürzt. |
+| `NRW_EVENTS_MECKENHEIM_DETAIL_CACHE_TTL_HOURS` | `168` | TTL für angereicherte Meckenheim-Detailseiten; erfolgreiche leere Ergebnisse werden ebenfalls zwischengespeichert. |
 | `NRW_EVENTS_JSON_OUT`         | `/tmp/nrw-events-latest.json` | Zielpfad für die Eventliste als JSON-Array. |
 | `NRW_EVENTS_META_JSON_OUT`    | `/tmp/nrw-events-latest-meta.json` | Zielpfad für Metadaten, Quellenstatistik, Warnungen und Eventliste. |
 | `NRW_EVENTS_LOG_LEVEL`        | `INFO` | Log-Level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |

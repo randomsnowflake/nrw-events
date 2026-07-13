@@ -17,7 +17,11 @@ def fetch() -> list:
     events.extend(rc.fetch_html_events(
         "Rheinbach",
         "https://www.rheinbach.de/veranstaltungen",
-        _events_from_rheinbach,
+        lambda html: _events_from_rheinbach(
+            html,
+            detail_fetcher=lambda url: common.fetch_detail_url(
+                url, cache_namespace="rheinbach", timeout=15),
+        ),
     ))
     events.extend(rc.fetch_html_events(
         "Arp Museum",
@@ -74,31 +78,142 @@ def _rhein_sieg_forum_title(block: str, href: str) -> str:
     return rc.clean(alt.group(1)) if alt else rc.title_from_href(href)
 
 
-def _events_from_rheinbach(html: str) -> list:
+def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
     events = []
     for block in re.findall(r'<div class="row event-item.*?(?=<div class="row event-item|<button class="event-more-button")',
                             html, re.S | re.I):
-        date = re.search(r'<p class="date">\s*([^<]+)', block, re.S | re.I)
+        date_text = _rheinbach_date(block)
         href = re.search(r'<a[^>]+href="([^"]*/veranstaltungen/veranstaltung/[^"]+)"', block, re.S | re.I)
-        teaser = re.search(r'<p class="teaser">(.*?)</p>', block, re.S | re.I)
-        title = rc.clean(teaser.group(1)) if teaser else rc.title_from_href(href.group(1) if href else "")
-        if not (date and title):
+        title_match = re.search(
+            r'<h2[^>]*class="[^"]*\btitle\b[^"]*"[^>]*>(.*?)</h2>',
+            block,
+            re.S | re.I,
+        )
+        title = rc.clean(title_match.group(1)) if title_match else rc.title_from_href(href.group(1) if href else "")
+        if not (date_text and title):
             continue
+        link = rc.abs_url("https://www.rheinbach.de", href.group(1) if href else "")
+        venue = _rheinbach_field(block, "p", "location")
+        time_text = _rheinbach_field(block, "div", "time")
+        categories = _rheinbach_categories(block)
+        detail_copy = _rheinbach_detail_copy(link, detail_fetcher)
+        description = detail_copy or _rheinbach_fallback_description(
+            title,
+            date_text,
+            time_text,
+            venue,
+            categories,
+        )
+        category_text = " ".join(categories + ["rheinbach", "lokal"])
         ev = common.make_event(
             title,
-            rc.parse_dt(date.group(1)),
+            rc.parse_dt(date_text),
             None,
-            "",
+            venue,
             "Rheinbach",
-            rc.clean(block),
-            rc.abs_url("https://www.rheinbach.de", href.group(1) if href else ""),
+            description,
+            link,
             "Rheinbach",
-            "rheinbach lokal kultur markt",
+            category_text,
             0.82,
+            time_text=rc.time_text(time_text),
         )
         if ev:
             events.append(ev)
     return events
+
+
+def _rheinbach_date(block: str) -> str:
+    dates = [rc.clean(value) for value in re.findall(
+        r'<p[^>]*class="[^"]*\bdate\b[^"]*"[^>]*>(.*?)</p>',
+        block,
+        re.S | re.I,
+    )]
+    return next((value for value in dates if re.search(r"\b20\d{2}\b", value)), "")
+
+
+def _rheinbach_field(block: str, tag: str, class_name: str) -> str:
+    match = re.search(
+        rf'<{tag}[^>]*class="[^"]*\b{class_name}\b[^"]*"[^>]*>(.*?)</{tag}>',
+        block,
+        re.S | re.I,
+    )
+    return rc.clean(match.group(1)) if match else ""
+
+
+def _rheinbach_categories(block: str) -> list[str]:
+    section = re.search(
+        r'<div[^>]*class="[^"]*\bcategories\b[^"]*"[^>]*>(.*?)</div>',
+        block,
+        re.S | re.I,
+    )
+    if not section:
+        return []
+    return [
+        value
+        for value in (rc.clean(item) for item in re.findall(r"<span[^>]*>(.*?)</span>", section.group(1), re.S | re.I))
+        if value
+    ]
+
+
+def _rheinbach_detail_copy(link: str, detail_fetcher) -> str:
+    if not (link and detail_fetcher):
+        return ""
+    try:
+        html = detail_fetcher(link)
+    except Exception as exc:
+        common.log_source_error("Rheinbach detail", exc)
+        return ""
+
+    parts = []
+    for class_name in ("teaser", "bodytext"):
+        value = _rheinbach_field(html, "div", class_name)
+        if value and value not in parts:
+            parts.append(value)
+    description = " ".join(parts).strip()
+    if not description:
+        return ""
+    if not re.search(r"[.!?][\"'»)]*$", description):
+        description = f"Die Stadt Rheinbach beschreibt das Programm so: {description}."
+    return description
+
+
+def _rheinbach_fallback_description(
+    title: str,
+    date_text: str,
+    time_text: str,
+    venue: str,
+    categories: list[str],
+) -> str:
+    relevant_categories = [
+        category
+        for category in categories
+        if category.casefold() not in {"allgemein", "rheinbach"}
+    ]
+    normalized_categories = {category.casefold() for category in relevant_categories}
+    if {"sport", "aktiv"}.issubset(normalized_categories):
+        introduction = f"„{title}“ ist ein Sport- und Aktivangebot in Rheinbach"
+    elif relevant_categories:
+        category_list = _rheinbach_join(relevant_categories)
+        introduction = f"„{title}“ ist eine Veranstaltung aus den Bereichen {category_list} in Rheinbach"
+    else:
+        introduction = f"„{title}“ ist eine Veranstaltung in Rheinbach"
+
+    schedule = f" am {date_text}" if date_text else ""
+    times = re.findall(r"\d{1,2}:\d{2}", time_text or "")
+    if len(times) >= 2:
+        schedule += f" von {times[0]} bis {times[1]} Uhr"
+    elif times:
+        schedule += f" um {times[0]} Uhr"
+    if venue:
+        schedule += f" am Veranstaltungsort „{venue}“"
+    return f"{introduction} und findet{schedule} statt."
+
+
+def _rheinbach_join(values: list[str]) -> str:
+    if len(values) < 2:
+        return values[0] if values else ""
+    return f"{', '.join(values[:-1])} und {values[-1]}"
 
 
 def _events_from_arp(html: str) -> list:

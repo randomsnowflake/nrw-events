@@ -13,7 +13,7 @@ like one. Ordering is irrelevant — the runner fans them out in parallel.
 from . import (
     koeln, bonn, harmonie, meetup, bonnjetzt,
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
-    meckenheim, much, naturregion_sieg,
+    meckenheim, much, naturregion_sieg, siegburg,
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
     bonn_venues, radiobonn,
@@ -45,6 +45,7 @@ CUSTOM_SOURCES = {
     "Naturregion Sieg": naturregion_sieg.fetch,  # tourism HTML tiles (Sieg valley)
     "Meckenheim": meckenheim.fetch,    # Voreifel HTML calendar
     "Much": much.fetch,                # Bergisches Land HTML calendar
+    "Siegburg": siegburg.fetch,        # iCal plus official event-detail descriptions
     "ionas4 regional": regional_ionas4.fetch,
     "SiteKit regional": regional_sitekit.fetch,
     "Standard regional feeds": regional_feeds.fetch,

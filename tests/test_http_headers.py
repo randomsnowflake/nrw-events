@@ -167,6 +167,28 @@ class HttpHeaderTests(unittest.TestCase):
         self.assertEqual(headers["Accept"], "application/json")
         self.assertEqual(headers["Sec-Fetch-Mode"], "cors")
 
+    def test_post_form_encodes_fields_and_uses_browser_headers(self):
+        response = Mock()
+        response.read.return_value = b'{"data": {"content": "ok"}}'
+
+        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
+             patch("scripts.nrw_events.common.urllib.request.Request") as request:
+            payload = common.post_form(
+                "https://example.org/events-api",
+                [("filter", "music"), ("category", "1"), ("category", "2")],
+                headers={"Referer": "https://example.org/events"},
+            )
+
+        self.assertEqual(payload, {"data": {"content": "ok"}})
+        self.assertEqual(
+            request.call_args.kwargs["data"],
+            b"filter=music&category=1&category=2",
+        )
+        headers = request.call_args.kwargs["headers"]
+        self.assertEqual(headers["Content-Type"], "application/x-www-form-urlencoded")
+        self.assertEqual(headers["Accept"], "application/json")
+        self.assertEqual(headers["Referer"], "https://example.org/events")
+
 
 if __name__ == "__main__":
     unittest.main()

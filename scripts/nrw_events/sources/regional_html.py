@@ -15,15 +15,13 @@ _TIME_PAGE_SOURCES = [
         0.84,
         r'<h3>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>',
     ),
-    (
-        "Lohmar",
-        "https://www.lohmar.de/erlebnisfaktoren-natur-und-sport-freizeit-und-tourismus/veranstaltungen/",
-        "Lohmar",
-        "lohmar lokal natur kultur markt",
-        0.84,
-        r'<h3>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>',
-    ),
 ]
+
+_LOHMAR_BASE_URL = "https://www.lohmar.de/"
+_LOHMAR_CALENDAR_URL = urllib.parse.urljoin(
+    _LOHMAR_BASE_URL,
+    "erlebnisfaktoren-natur-und-sport-freizeit-und-tourismus/veranstaltungen/",
+)
 
 
 def fetch() -> list:
@@ -35,6 +33,15 @@ def fetch() -> list:
     ))
     for name, url, city, category, trust, pattern in _TIME_PAGE_SOURCES:
         events.extend(_fetch_time_page(url, name, city, category, trust, pattern))
+    events.extend(rc.fetch_html_events(
+        "Lohmar",
+        _LOHMAR_CALENDAR_URL,
+        lambda html: _events_from_lohmar(
+            html,
+            detail_fetcher=lambda link: common.fetch_detail_url(
+                link, cache_namespace="lohmar", timeout=15),
+        ),
+    ))
     events.extend(rc.fetch_html_events(
         "Bornheim",
         "https://www.bornheim.de/veranstaltungskalender",
@@ -70,6 +77,114 @@ def _fetch_time_page(url: str, source: str, city: str, category: str, trust: flo
         )
 
     return rc.fetch_html_events(source, url, parse)
+
+
+def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
+    """Parse Lohmar's event cards, including their teaser, time, and venue.
+
+    The generic time-listing parser only retains the date/title/link tuple.
+    Lohmar renders richer fields in each server-side card, so use those directly
+    and request the detail page only when a teaser is genuinely missing.
+    """
+    events = []
+    blocks = re.split(
+        r'(?=<div[^>]+class="[^"]*\barticle\b[^"]*"[^>]*>)',
+        html or "",
+        flags=re.I,
+    )
+    for block in blocks:
+        time_match = re.search(
+            r'<time[^>]+datetime="([^"]+)"[^>]*>(.*?)</time>',
+            block,
+            re.S | re.I,
+        )
+        title_match = re.search(
+            r'<h3[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>',
+            block,
+            re.S | re.I,
+        )
+        if not (time_match and title_match):
+            continue
+
+        title = rc.clean(title_match.group(2))
+        link = rc.abs_url(_LOHMAR_BASE_URL, title_match.group(1))
+        time_text = rc.time_text(rc.clean(time_match.group(2)))
+        venue_match = re.search(
+            r'Veranstaltungsort:\s*(.*?)(?:</div>|<br\s*/?>)',
+            block,
+            re.S | re.I,
+        )
+        venue = rc.clean(venue_match.group(1) if venue_match else "")
+
+        teaser_match = re.search(
+            r'<div[^>]+class="[^"]*\bteaser-text\b[^"]*"[^>]*>(.*?)</div>',
+            block,
+            re.S | re.I,
+        )
+        teaser_html = teaser_match.group(1) if teaser_match else ""
+        teaser_html = re.sub(
+            r'<a\b[^>]*>\s*(?:mehr|details?)\s*</a>',
+            "",
+            teaser_html,
+            flags=re.S | re.I,
+        )
+        description = common.concise_description(rc.clean(teaser_html))
+        teaser_is_title = (
+            description.casefold().strip(" .") == title.casefold().strip(" .")
+        )
+        if not description or teaser_is_title:
+            description = _lohmar_detail_description(link, detail_fetcher)
+        description = description or _lohmar_fallback_description(title, time_text, venue)
+
+        source_categories = " ".join(
+            rc.clean(value)
+            for value in re.findall(
+                r'class="[^"]*\beventcategory\b[^"]*"[^>]*title="([^"]+)"',
+                block,
+                re.S | re.I,
+            )
+        )
+        event = common.make_event(
+            title,
+            common.parse_iso_date(time_match.group(1)),
+            None,
+            venue,
+            "Lohmar",
+            description,
+            link,
+            "Lohmar",
+            f"lohmar lokal natur kultur markt {source_categories}",
+            0.84,
+            time_text,
+        )
+        if event:
+            events.append(event)
+    return events
+
+
+def _lohmar_detail_description(link: str, detail_fetcher) -> str:
+    if not (link and detail_fetcher):
+        return ""
+    try:
+        html = detail_fetcher(link)
+    except Exception as exc:
+        common.log_source_error("Lohmar detail", exc)
+        return ""
+    body = re.search(
+        r'<div[^>]+class="[^"]*\bnews-text-wrap\b[^"]*"[^>]*>(.*?)</div>',
+        html or "",
+        re.S | re.I,
+    )
+    return common.concise_description(rc.clean(body.group(1) if body else ""))
+
+
+def _lohmar_fallback_description(title: str, time_text: str, venue: str) -> str:
+    details = ""
+    if time_text:
+        details += f" um {time_text} Uhr"
+    if venue:
+        details += f" am Veranstaltungsort „{venue}“"
+    return f"„{title}“ ist im Lohmarer Veranstaltungskalender{details} angekündigt."
 
 
 def _events_from_swisttal(html: str) -> list:

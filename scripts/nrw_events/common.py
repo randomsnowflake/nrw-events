@@ -25,6 +25,7 @@ import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
 import urllib.error
 from datetime import datetime, timedelta, timezone
 from html import unescape
+from pathlib import Path
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -287,6 +288,141 @@ def fetch_url(
     raise RuntimeError("fetch_url retry loop exhausted unexpectedly")  # pragma: no cover
 
 
+# Detail pages are comparatively expensive because one listing can fan out into
+# dozens of requests. Keep their raw HTML in small source-specific files so a
+# parser can be improved without coupling the cache format to its parsed fields.
+_DETAIL_PAGE_CACHE_VERSION = 1
+_DETAIL_PAGE_CACHE_LOCK = threading.RLock()
+_DETAIL_PAGE_CACHE_STATES: dict[str, dict] = {}
+
+
+def _detail_page_cache_slug(namespace: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", (namespace or "").casefold()).strip("-")
+    if not slug:
+        raise ValueError("cache_namespace must contain a letter or number")
+    return slug
+
+
+def _detail_page_cache_ttl_seconds() -> float:
+    try:
+        return max(float(os.environ.get("NRW_EVENTS_DETAIL_CACHE_TTL_HOURS", "24")), 0) * 60 * 60
+    except (TypeError, ValueError):
+        return 24 * 60 * 60
+
+
+def _detail_page_cache_path(namespace: str) -> Path:
+    configured = os.environ.get("NRW_EVENTS_CACHE_DIR", "").strip()
+    if configured:
+        cache_dir = Path(configured).expanduser()
+    else:
+        xdg_cache = os.environ.get("XDG_CACHE_HOME", "").strip()
+        cache_dir = Path(xdg_cache).expanduser() if xdg_cache else Path.home() / ".cache"
+        cache_dir /= "nrw-events"
+    return cache_dir / f"detail-pages-{_detail_page_cache_slug(namespace)}-v1.json"
+
+
+def _reset_detail_page_cache(namespace: str | None = None) -> None:
+    """Reset process-local detail cache state; useful for isolated tests."""
+    with _DETAIL_PAGE_CACHE_LOCK:
+        if namespace is None:
+            _DETAIL_PAGE_CACHE_STATES.clear()
+        else:
+            _DETAIL_PAGE_CACHE_STATES.pop(_detail_page_cache_slug(namespace), None)
+
+
+def _load_detail_page_cache(namespace: str, ttl_seconds: float) -> dict:
+    slug = _detail_page_cache_slug(namespace)
+    path = _detail_page_cache_path(namespace)
+    state = _DETAIL_PAGE_CACHE_STATES.get(slug)
+    if state and state["path"] == path and state["ttl_seconds"] == ttl_seconds:
+        return state
+
+    entries = {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, TypeError, ValueError):
+        payload = {}
+    if (isinstance(payload, dict)
+            and payload.get("version") == _DETAIL_PAGE_CACHE_VERSION
+            and payload.get("namespace") == slug):
+        now = time.time()
+        for url, entry in (payload.get("entries") or {}).items():
+            if not isinstance(url, str) or not isinstance(entry, dict):
+                continue
+            try:
+                fetched_at = float(entry.get("fetched_at", 0))
+            except (TypeError, ValueError):
+                continue
+            body = entry.get("body")
+            if isinstance(body, str) and now - fetched_at <= ttl_seconds:
+                entries[url] = {"fetched_at": fetched_at, "body": body}
+
+    state = {
+        "namespace": slug,
+        "path": path,
+        "ttl_seconds": ttl_seconds,
+        "entries": entries,
+    }
+    _DETAIL_PAGE_CACHE_STATES[slug] = state
+    return state
+
+
+def _persist_detail_page_cache(state: dict) -> None:
+    path = state["path"]
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary.write_text(
+            json.dumps(
+                {
+                    "version": _DETAIL_PAGE_CACHE_VERSION,
+                    "namespace": state["namespace"],
+                    "entries": state["entries"],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
+        os.replace(temporary, path)
+    except OSError as exc:
+        log_source_error(f"{state['namespace']} detail cache", exc)
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def fetch_detail_url(
+    url: str,
+    *,
+    cache_namespace: str,
+    timeout: int = 15,
+    **fetch_kwargs,
+) -> str:
+    """Fetch a public event detail page through the persistent TTL cache.
+
+    Only successful responses are cached. Set
+    ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to bypass both memory and disk.
+    """
+    ttl_seconds = _detail_page_cache_ttl_seconds()
+    if not ttl_seconds:
+        return fetch_url(url, timeout=timeout, **fetch_kwargs)
+
+    with _DETAIL_PAGE_CACHE_LOCK:
+        state = _load_detail_page_cache(cache_namespace, ttl_seconds)
+        cached = state["entries"].get(url)
+        if cached is not None:
+            return cached["body"]
+
+    body = fetch_url(url, timeout=timeout, **fetch_kwargs)
+    with _DETAIL_PAGE_CACHE_LOCK:
+        state = _load_detail_page_cache(cache_namespace, ttl_seconds)
+        state["entries"][url] = {"fetched_at": time.time(), "body": body}
+        _persist_detail_page_cache(state)
+    return body
+
+
 def reset_source_warnings() -> None:
     """Clear source warning telemetry before a new runner pass."""
     with _SOURCE_WARNING_LOCK:
@@ -336,6 +472,37 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
             if attempt >= attempts - 1 or not _is_retryable_fetch_error(exc):
                 raise
             time.sleep(_retry_delay(exc, attempt))
+
+
+def post_form(url: str, fields, timeout: int = 45, headers: Optional[dict] = None,
+              retry_safe: bool = True) -> dict:
+    """POST URL-encoded form fields and parse a JSON response."""
+    hdrs = browser_headers(
+        accept="application/json",
+        sec_fetch_mode="cors",
+        sec_fetch_dest="empty",
+        extra={"Content-Type": "application/x-www-form-urlencoded", **(headers or {})},
+    )
+    data = urllib.parse.urlencode(fields, doseq=True).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
+    attempts = _HTTP_RETRY_ATTEMPTS if retry_safe else 1
+    for attempt in range(attempts):
+        try:
+            started = time.perf_counter()
+            _throttle_before_request(url)
+            resp = urllib.request.urlopen(req, timeout=timeout)
+            body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+            if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+            _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
+                             bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            return json.loads(body.decode("utf-8"))
+        except Exception as exc:
+            _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
+            if attempt >= attempts - 1 or not _is_retryable_fetch_error(exc):
+                raise
+            time.sleep(_retry_delay(exc, attempt))
+    raise RuntimeError("post_form retry loop exhausted unexpectedly")  # pragma: no cover
 
 
 def extract_json_array(text: str) -> list:
@@ -421,13 +588,39 @@ def normalize_venue_name(value: str) -> str:
     return cleaned
 
 
-def concise_description(value: str) -> str:
+def concise_description(value: str, max_chars: int | None = None) -> str:
     """Return cleaned event copy sized for reports and downstream cards."""
     cleaned = clean_html(value)
-    if not DESCRIPTION_MAX_CHARS or len(cleaned) <= DESCRIPTION_MAX_CHARS:
+    limit = DESCRIPTION_MAX_CHARS if max_chars is None else max_chars
+    if not limit or len(cleaned) <= limit:
         return cleaned
-    shortened = cleaned[:DESCRIPTION_MAX_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:")
+    shortened = cleaned[:limit].rsplit(" ", 1)[0].rstrip(" ,;:")
     return f"{shortened}…"
+
+
+def factual_event_description(title: str, *, date_value=None, time_text: str = "",
+                              venue: str = "", city: str = "") -> str:
+    """Build useful minimum copy when an upstream listing has no description."""
+    clean_title = clean_html(title)
+    date_text = (
+        date_value.strftime("%d.%m.%Y")
+        if hasattr(date_value, "strftime")
+        else clean_html(str(date_value or ""))
+    )
+    clean_time = sanitize_time_text(time_text).removesuffix(" Uhr")
+    when = f" am {date_text}" if date_text else ""
+    if clean_time:
+        when += f" um {clean_time} Uhr"
+    description = f"„{clean_title}“ findet{when} statt."
+
+    place_parts = []
+    for value in (venue, city):
+        cleaned = clean_html(value)
+        if cleaned and cleaned.casefold() not in {part.casefold() for part in place_parts}:
+            place_parts.append(cleaned)
+    if place_parts:
+        description += f" Veranstaltungsort: {', '.join(place_parts)}."
+    return concise_description(description)
 
 
 _CANCELLED_STATUS_WORDS = (
@@ -774,7 +967,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     }
     cultural_event_bits = {
         "ausstellung", "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt",
-        "lesung", "live-musik", "museum", "theater", "vernissage",
+        "lesung", "live-musik", "museum", "theater", "vernissage", "wanderung",
         "tag der offenen tür", "tag der offenen tuer",
     }
     if (any(bit in text for bit in routine_or_political_bits)

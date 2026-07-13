@@ -14,12 +14,19 @@ class SourceParserTests(unittest.TestCase):
     def setUp(self):
         self.old_today = common.TODAY
         self.old_end_date = common.END_DATE
+        self.bonn_cache_env = patch.dict(
+            "os.environ", {"NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS": "0"}
+        )
+        self.bonn_cache_env.start()
+        bonn._reset_detail_context_cache()
         common.TODAY = datetime(2026, 6, 9)
         common.END_DATE = datetime(2026, 6, 21)
 
     def tearDown(self):
         common.TODAY = self.old_today
         common.END_DATE = self.old_end_date
+        bonn._reset_detail_context_cache()
+        self.bonn_cache_env.stop()
     def test_bonn_events_json_tolerates_appended_server_log_noise(self):
         raw = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
 
@@ -143,6 +150,8 @@ class SourceParserTests(unittest.TestCase):
                 raise AssertionError("Bonn.de Events must prefer the HTML calendar listing over JSON")
             if "veranstaltungskalender.php" in url:
                 return listing_payload
+            if "/veranstaltungskalender/veranstaltungen/" in url:
+                return '<div class="SP-ArticleHeader__intro">Konzert in Bonn.</div>'
             raise AssertionError(f"unexpected URL {url}")
 
         with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
@@ -198,6 +207,8 @@ class SourceParserTests(unittest.TestCase):
                 return free_listing_payload
             if "veranstaltungskalender.php" in url:
                 return empty_listing_payload
+            if "/veranstaltungskalender/veranstaltungen/" in url:
+                return '<div class="SP-ArticleHeader__intro">Kostenloses Event in Bonn.</div>'
             raise AssertionError(f"unexpected URL {url}")
 
         with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
@@ -230,24 +241,6 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "18:00")
         self.assertEqual(events[0]["category"], "Musik/Konzert")
         self.assertIn("musikschule/sommerkonzert", events[0]["link"])
-
-    def test_bonn_detail_context_extracts_sparse_page_description_and_venue(self):
-        html = """
-<div class="SP-ArticleHeader__intro SP-Intro"><p>Sonderausstellung im Arithmeum</p></div>
-<div data-sp-table class="SP-Paragraph">
-  <p>Die Ausstellung zeigt historische Rechenschieber und Vermessung.</p>
-</div>
-<script id="EventSerializer-1" type="application/ld+json">
-{"@context":"http://schema.org","@type":"Event","name":"Um drei Ecken gedacht","location":[{"@type":"Place","name":"Arithmeum - rechnen einst und heute","address":{"@type":"PostalAddress","addressLocality":"Bonn"}}]}
-</script>
-"""
-
-        context = bonn._parse_detail_context(html)
-
-        self.assertIn("Sonderausstellung im Arithmeum", context["description"])
-        self.assertIn("Die Ausstellung zeigt", context["description"])
-        self.assertEqual(context["venue"], "Arithmeum - rechnen einst und heute")
-        self.assertEqual(context["city"], "Bonn")
 
     def test_bonn_detail_context_extracts_sparse_page_description_and_venue(self):
         html = """
@@ -585,6 +578,53 @@ END:VCALENDAR
         self.assertEqual(events[0]["title"], "Peter Hujar Eyes Open in the Dark")
         self.assertEqual(events[0]["link"], "https://www.bundeskunsthalle.de/en/hujar")
 
+    def test_bundeskunsthalle_event_api_keeps_next_primary_series_occurrence(self):
+        common.TODAY = datetime(2026, 7, 13)
+        common.END_DATE = datetime(2026, 7, 26)
+        search_page = """
+<form id="event-search-form" data-api-search-url="/events-api/search-results">
+  <input type="hidden" name="tx[eventToken]" value="fresh-token">
+  <input type="date" name="tx[startDate]" value="">
+  <input type="date" name="tx[endedBeforeDate]" value="">
+</form>
+"""
+        api_content = """
+<article class="card style--pink">
+  <div class="badge badge--free">Kostenlos</div>
+  <h3><a href="https://www.bundeskunsthalle.de/veranstaltungen/detail/10136">
+    Sundowner Bar
+    <span class="events__card__date">Mi., 15. Juli, 18 – 22 Uhr</span>
+  </a></h3>
+  <div class="hover-content"><p>Elektronische Musik, kühle Drinks und Fingerfood mit Blick über Bonn.</p></div>
+</article>
+<article class="card style--pink">
+  <div class="badge badge--free">Kostenlos</div>
+  <h3><a href="https://www.bundeskunsthalle.de/veranstaltungen/detail/10137">
+    Sundowner Bar
+    <span class="events__card__date">Mi., 22. Juli, 18 – 22 Uhr</span>
+  </a></h3>
+  <div class="hover-content"><p>Elektronische Musik, kühle Drinks und Fingerfood mit Blick über Bonn.</p></div>
+</article>
+"""
+
+        def fake_fetch(url, *args, **kwargs):
+            return search_page if url.endswith("/veranstaltungen") else ""
+
+        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("scripts.nrw_events.common.post_form", return_value={"data": {"content": api_content}}) as post_form:
+            events = bundeskunsthalle.fetch()
+
+        sundowner = [event for event in events if event["title"] == "Sundowner Bar"]
+        self.assertEqual(len(sundowner), 1)
+        self.assertEqual(sundowner[0]["date"], "2026-07-15")
+        self.assertEqual(sundowner[0]["time"], "18:00–22:00")
+        self.assertEqual(sundowner[0]["price"], "kostenlos")
+        self.assertEqual(sundowner[0]["source"], "Bundeskunsthalle")
+        self.assertEqual(sundowner[0]["link"], "https://www.bundeskunsthalle.de/veranstaltungen/detail/10136")
+        fields = dict(post_form.call_args.args[1])
+        self.assertEqual(fields["tx[startDate]"], "2026-07-13")
+        self.assertEqual(fields["tx[endedBeforeDate]"], "2026-07-26")
+
     def test_search_fallback_requires_a_concrete_date(self):
         event = common.search_result_event(
             "Veranstaltungen Bonn dieses Wochenende – Alle Termine",
@@ -690,6 +730,30 @@ END:VCALENDAR
             events[0]["link"],
             "https://www.ahrtal.com/de/events/stale-detail/eventtermin.html",
         )
+
+    def test_ahrtal_shapehub_prefers_card_location_over_region_in_title(self):
+        html = """
+<a href="/de/events/resilient/eventtermin.html" class="shapehub-card-link">
+  <div class="shapehub-date-badge">15.06.2026</div>
+  <div class="shapehub-card-title">Gemeinsam resilient im Ahrtal</div>
+  <li class="shapehub-card-content-icon-line shapehub-location-line">
+    <svg></svg><span>Sinzig</span>
+  </li>
+</a>
+"""
+
+        events = regional_tourism._events_from_shapehub(
+            html,
+            "Ahrtal",
+            "https://www.ahrtal.com",
+            "https://www.ahrtal.com/de/events",
+            "Ahrweiler",
+            "ahrtal kultur",
+            0.86,
+        )
+
+        self.assertEqual(events[0]["city"], "Sinzig")
+        self.assertEqual(events[0]["venue"], "Sinzig")
 
     def test_ahrtal_shapehub_uses_listing_for_same_day_cards(self):
         html = """

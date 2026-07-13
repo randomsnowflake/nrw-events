@@ -9,6 +9,7 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+.cache/
 
 # Script output
 nrw-events-latest.json
