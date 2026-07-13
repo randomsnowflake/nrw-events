@@ -754,16 +754,28 @@ def sanitize_time_text(time_text: str) -> str:
 
 _FREE_ADMISSION_PATTERNS = (
     r"\beintritt\s*:?\s*(?:frei|kostenlos|kostenfrei)\b",
+    r"\beintritt\s+(?:ist|bleibt)\s+(?:(?:nach\s+wie\s+vor|weiterhin|auch|"
+    r"(?:für|fuer|zu)\s+alle(?:n)?\s+(?:veranstaltungen|angebote|termine))\s+)*"
+    r"(?:frei|kostenlos|kostenfrei)\b",
     r"\bfreier\s+eintritt\b",
+    r"\b(?:bei|mit)\s+frei(?:em|en)\s+eintritt\b",
     r"\b(?:teilnahme|veranstaltung|performance|workshop|angebote?|programm|sportangebot|termin|event)"
     r"\s+.{0,90}\b(?:ist|sind)\s+(?:kostenlos|kostenfrei)\b",
-    r"\b(?:kostenlos(?:e[rsn]?|em|en|es)?|kostenfrei(?:e[rsn]?|em|en|es)?)\s+"
-    r"(?:teilnahme|veranstaltung|angebot|programm|workshop|kurs|sportangebot|konzert|führung|fuehrung|"
-    r"termin|event|filmvorführung|filmvorfuehrung|tour)\b",
+    r"\b(?:kostenlos(?:e[rsn]?|em|en|es)?|kostenfrei(?:e[rsn]?|em|en|es)?)[,\s–-]+"
+    r"(?:[a-zäöüß-]+[,\s]+){0,2}(?:teilnahme|veranstaltung|angebot|programm|sportangebot|"
+    r"[a-zäöüß-]*(?:workshop|kurs|konzert|führung|fuehrung|tour)|termin|event|filmvorführung|filmvorfuehrung)\b",
     r"\b(?:workshop|veranstaltung|sonder-veranstaltung|führung|fuehrung|offene werkstatt)"
     r"[^.]{0,80}\b(?:kostenlos|kostenfrei)\b",
     r"\b(?:kostenlos|kostenfrei)\s*(?:[-–]\s*)?(?:und\s+)?"
     r"(?:keine anmeldung|anmeldung erforderlich|ohne anmeldung)\b",
+    r"(?:^|[.!?]\s*)kostenlos\s+und\s+unverbindlich\b",
+    r"\b(?:kostenlos|kostenfrei)\s+ab\s+\d+\b",
+)
+_FREE_TITLE_PATTERN = re.compile(r"^\s*(?:kostenlos|kostenfrei)\s+", re.IGNORECASE)
+_FREE_PRICE_PATTERN = re.compile(
+    r"^(?:eintritt\s*:?\s*)?(?:(?:frei|kostenlos|kostenfrei|free)"
+    r"(?:\s*[,;/(-].*)?|0(?:[,.]00)?\s*(?:€|eur|euro))$",
+    re.IGNORECASE,
 )
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(
     r"\b(?:kosten|preise?|eintritt|teilnahme|gebühr|gebuehr|führungen?|fuehrungen?|"
@@ -785,10 +797,12 @@ def infer_free_admission_price(title: str, description: str, price: str = "") ->
     text = re.sub(r"\s+", " ", text)
     price_text = clean_html(price or "").lower().strip()
 
-    if price_text in {"frei", "kostenlos", "kostenfrei", "free"}:
+    if _FREE_PRICE_PATTERN.fullmatch(price_text):
         return "kostenlos"
     if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
         return ""
+    if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
+        return "kostenlos"
     if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
         return "kostenlos"
     return ""
