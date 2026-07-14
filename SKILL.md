@@ -62,7 +62,7 @@ scripts/nrw_events/
   models.py    — typed event contract shared by sources and the pipeline
   location.py / scoring.py — reusable geographic resolution and ranking
   source_types.py — source and parser interfaces
-  common.py    — backwards-compatible HTTP, parsing, and quality facade
+  common.py    — HTTP, parsing, detail-cache, and quality facade
   report.py    — dedup + Markdown rendering
   runner.py    — orchestration (fan-out, filter, dedup, output)
   sources/     — one module per source, each a fetch() -> list[dict]
@@ -141,11 +141,22 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` / `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=5000000` — cap retry waits and response sizes.
 - `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT=10` — annotate a source that drops from a recent meaningful count to zero.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
+- `NRW_EVENTS_CACHE_DIR=~/.cache/nrw-events` — persistent cache root for bounded detail-page enrichment. The website wrapper uses `.cache/nrw-events-data` in the project.
+- `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=24` — default TTL for successful generic detail-page fetches; `0` disables memory and disk caching.
+- `NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS=168` / `NRW_EVENTS_MECKENHEIM_DETAIL_CACHE_TTL_HOURS=168` — source-specific enrichment cache TTLs.
+- `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS=500` — target length for meaningful Bonn.de detail summaries after logistics boilerplate is removed.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.
 - `NRW_EVENTS_LOG_FILE` / `NRW_EVENTS_JSON_LOG_FILE` — optional durable text or JSON-lines logs.
+- `NRW_EVENTS_ENV_FILE` — optional explicit `.env` path for wrappers and callers.
 
 API keys and tuning values are read from the environment or a `.env` file. See [.env.example](.env.example).
+
+Detail-page caches are deliberately bounded and versioned. Listing pages, APIs,
+and feeds remain live on every run; only enrichment requests are cached. Radio
+Bonn/Rhein-Sieg is an editorial discovery source, so deduplication should retain
+a direct non-Radio event URL when the same event also appears from a primary
+source.
 
 ## Adding new sources (esp. iCal / Tribe Events)
 
