@@ -522,7 +522,9 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             venue = venue or detail_context.get("venue", "")
         parts = [p.strip() for p in (item.get("locationAddress") or "").split(",") if p.strip()]
         town = re.sub(r"^\d{4,5}\s*", "", parts[-1]).strip() if parts else detail_context.get("city", "")
-        city = town or "Bonn"
+        city = common.refine_city_from_text(
+            town or "Bonn", " ".join((title, venue, description))
+        )
 
         # Only the time string and the venue-coordinate pin are Bonn-specific;
         # make_event owns the window/radius/date/dict/junk machinery.
@@ -698,6 +700,9 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
             classification_description = raw_title
             venue = detail_context.get("venue", "")
             city = detail_context.get("city", "") or city
+        city = common.refine_city_from_text(
+            city, " ".join((title, venue, listing_description, description))
+        )
         date_matches = re.findall(
             r'<span>\s*<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
             r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?\s*</span>',

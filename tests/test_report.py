@@ -69,7 +69,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["title"], "Sundowner Bar auf dem Dach der Bundeskunsthalle")
         self.assertEqual(deduped[0]["price"], "kostenlos")
 
-    def test_direct_source_owns_recurring_series_over_civic_aggregator(self):
+    def test_direct_source_owns_same_occurrence_without_dropping_later_date(self):
         events = [
             {
                 "title": "Sundowner Bar auf dem Dach der Bundeskunsthalle",
@@ -101,10 +101,11 @@ class ReportTests(unittest.TestCase):
 
         deduped = report.deduplicate(events)
 
-        self.assertEqual(len(deduped), 1)
+        self.assertEqual(len(deduped), 2)
         self.assertEqual(deduped[0]["source"], "Bundeskunsthalle")
         self.assertEqual(deduped[0]["link"], "https://www.bundeskunsthalle.de/veranstaltungen/detail/10136")
         self.assertEqual(deduped[0]["price"], "kostenlos")
+        self.assertEqual(deduped[1]["start_date"], "2026-07-22")
 
     def test_deduplicate_preserves_free_price_and_category_from_lower_scored_duplicate(self):
         events = [
@@ -341,6 +342,71 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["start_date"], "2026-07-10")
         self.assertEqual(deduped[0]["end_date"], "2026-07-12")
+
+    def test_deduplicate_keeps_same_link_on_distinct_dates(self):
+        events = [
+            {
+                "title": "Offene Fahrradwerkstatt", "start_date": "2026-07-24",
+                "end_date": "2026-07-24", "date": "2026-07-24", "city": "Bonn-Beuel",
+                "venue": "Nachbarschaftshaus", "score": 1.0, "source": "Lokalkalender",
+                "description": "Wöchentlicher Termin.", "price": "",
+                "link": "https://example.test/werkstatt/?occurrence=2",
+                "time": "16:00", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Offene Fahrradwerkstatt", "start_date": "2026-07-17",
+                "end_date": "2026-07-17", "date": "2026-07-17", "city": "Bonn-Beuel",
+                "venue": "Nachbarschaftshaus", "score": 1.0, "source": "Lokalkalender",
+                "description": "Wöchentlicher Termin.", "price": "",
+                "link": "https://example.test/werkstatt/?occurrence=1",
+                "time": "16:00", "start_at": "", "end_at": "",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 2)
+        self.assertEqual(
+            {event["start_date"] for event in deduped},
+            {"2026-07-17", "2026-07-24"},
+        )
+
+    def test_deduplicate_keeps_same_source_title_and_venue_on_distinct_dates(self):
+        events = [
+            {
+                "title": "Sommermusik 2026", "start_date": "2026-07-19",
+                "end_date": "2026-07-19", "date": "2026-07-19", "city": "Bonn-Duisdorf",
+                "venue": "Kulturzentrum", "score": 1.0, "source": "Stadtkalender",
+                "description": "Erstes Konzert.", "price": "",
+                "link": "https://example.test/sommermusik/erstes-konzert",
+                "time": "11:00", "start_at": "", "end_at": "",
+            },
+            {
+                "title": "Sommermusik 2026", "start_date": "2026-07-26",
+                "end_date": "2026-07-26", "date": "2026-07-26", "city": "Bonn-Duisdorf",
+                "venue": "Kulturzentrum", "score": 1.0, "source": "Stadtkalender",
+                "description": "Zweites Konzert.", "price": "",
+                "link": "https://example.test/sommermusik/zweites-konzert",
+                "time": "11:00", "start_at": "", "end_at": "",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_deduplicate_keeps_same_title_at_different_venues(self):
+        base = {
+            "title": "Offene Sprechstunde", "start_date": "2026-07-17",
+            "end_date": "2026-07-17", "date": "2026-07-17", "city": "Bonn",
+            "score": 1.0, "source": "Stadtkalender", "description": "", "price": "",
+            "time": "16:00", "start_at": "", "end_at": "",
+        }
+        events = [
+            {**base, "venue": "Haus Nord", "link": "https://example.test/nord"},
+            {**base, "start_date": "2026-07-24", "end_date": "2026-07-24",
+             "date": "2026-07-24", "venue": "Haus Süd", "link": "https://example.test/sued"},
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
 
 
 if __name__ == "__main__":

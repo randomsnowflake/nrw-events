@@ -16,7 +16,7 @@ from . import (
     meckenheim, much, naturregion_sieg, siegburg,
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
-    bonn_venues, radiobonn,
+    bonn_venues, radiobonn, bonn_districts,
 )
 from ..source_specs import AdapterType, SourceSpec, adapter_for
 
@@ -56,6 +56,11 @@ CUSTOM_SOURCES = {
     "Bonn venue calendars": bonn_venues.fetch,
     "Bonn.jetzt": bonnjetzt.fetch,
     "Radio Bonn/Rhein-Sieg": radiobonn.fetch,
+    "Bürgerverein Vilich-Müldorf": bonn_districts.fetch_vilich_mueldorf,
+    "Beuel.net": bonn_districts.fetch_beuel,
+    "Bad Godesberg Stadtmarketing": bonn_districts.fetch_bad_godesberg,
+    "Hardtberg Kultur": bonn_districts.fetch_hardtberg,
+    "BSV Roleber": bonn_districts.fetch_roleber,
     "Ruhr-Guide": ruhrguide.fetch,
     # Web-search fallbacks (lowest trust)
     "Exa Search": search.fetch_exa,

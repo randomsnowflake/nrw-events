@@ -54,3 +54,30 @@ def guess_city_from_text(text: str) -> Optional[str]:
         if re.search(rf"(?<![a-zäöüß]){re.escape(city)}(?![a-zäöüß])", text_lower):
             return city
     return None
+
+
+def refine_city_from_text(city: str, text: str) -> str:
+    """Refine a coarse Bonn location to a configured district found in text.
+
+    This is deliberately driven by the configured geography rather than a list
+    of event titles.  The longest district name wins, so e.g. Vilich-Müldorf is
+    not reduced to Vilich when both tokens occur.
+    """
+    def words(value: str) -> str:
+        normalized = (value or "").casefold().translate(str.maketrans({
+            "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
+        }))
+        return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+
+    coarse = words(city)
+    district_keys = [key for key in config.VENUE_COORDS if key.startswith("bonn-")]
+    district_words = {key: words(key.removeprefix("bonn-")) for key in district_keys}
+    if coarse != "bonn" and not coarse.startswith("bonn ") and coarse not in district_words.values():
+        return city
+
+    haystack = f" {words(text)} "
+    for key, district in sorted(district_words.items(), key=lambda item: -len(item[1])):
+        if f" {district} " in haystack:
+            suffix = key.removeprefix("bonn-")
+            return "Bonn-" + suffix.title()
+    return city

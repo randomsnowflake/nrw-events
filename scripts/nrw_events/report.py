@@ -188,18 +188,10 @@ def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
         result[match_index] = (_merge_duplicate_metadata(ev, current)
                                if candidate_rank > current_rank
                                else _merge_duplicate_metadata(current, ev))
-    # Once a direct publisher owns a recognizable series, suppress civic or
-    # commercial calendar copies of its other occurrences in this report
-    # window. Equally authoritative records on different dates still survive.
-    return [
-        event for event in result
-        if not any(
-            source_authority(owner.get("source", "")) > source_authority(event.get("source", ""))
-            and _titles_match(owner, event)
-            and _locations_compatible(owner, event)
-            for owner in result
-        )
-    ]
+    # A recurring series is not a duplicate: each date is a separately usable
+    # occurrence. Cross-source authority is therefore resolved only inside the
+    # same overlapping date interval by the loop above.
+    return result
 
 
 # ── Report rendering ────────────────────────────────────────────────

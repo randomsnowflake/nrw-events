@@ -31,7 +31,10 @@ from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, config
 from .health import SourceResult, SourceStatus
-from .location import coords_for_city, guess_city_from_text, haversine, resolve_location
+from .location import (
+    coords_for_city, guess_city_from_text, haversine, refine_city_from_text,
+    resolve_location,
+)
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
 from .runtime import RunContext
@@ -996,7 +999,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         # Recurring basic markets are useful civic infrastructure, not a
         # destination-worthy event for this report. Keep explicit flea/special
         # markets covered by the normal market/festival signals.
-        "wochenmarkt",
+        "frischemarkt", "wochenmarkt",
     }
     destination_market_bits = {
         "antikmarkt", "feierabendmarkt", "festival", "flohmarkt", "jahrmarkt",

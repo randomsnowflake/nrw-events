@@ -170,6 +170,10 @@ VENUE_COORDS = {
     # Bonn districts
     "poppelsdorf": (50.7267, 7.0863), "endenich": (50.7272, 7.0650),
     "beuel": (50.7390, 7.1170), "bad godesberg": (50.6830, 7.1500),
+    "bonn-beuel": (50.7390, 7.1170), "bonn-bad godesberg": (50.6830, 7.1500),
+    "bonn-duisdorf": (50.7150, 7.0420), "bonn-oberkassel": (50.7158, 7.1667),
+    "bonn-pützchen": (50.7470, 7.1630), "bonn-roleber": (50.7330, 7.1860),
+    "bonn-vilich": (50.7550, 7.1230), "bonn-vilich-müldorf": (50.7520, 7.1570),
     "ippendorf": (50.7065, 7.0780), "dransdorf": (50.7355, 7.0508),
     "oberkassel": (50.7158, 7.1667), "oberdollendorf": (50.6990, 7.1850),
     "venusberg": (50.7047, 7.0968), "lannesdorf": (50.6606, 7.1556),

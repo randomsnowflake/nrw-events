@@ -881,6 +881,21 @@ END:VCALENDAR
 
         self.assertIsNone(event)
 
+    def test_make_event_skips_regular_frischemarkt_entries(self):
+        event = common.make_event(
+            "Frischemarkt in der Innenstadt",
+            datetime(2026, 6, 12, 7),
+            datetime(2026, 6, 12, 16),
+            "Marktplatz",
+            "Brühl",
+            "Angeboten werden regionale Frischeprodukte in hoher Qualität und Blumen.",
+            "https://example.test/veranstaltungen/frischemarkt.php?date=2026-06-12",
+            "Regionalkalender",
+            "markt frischemarkt",
+        )
+
+        self.assertIsNone(event)
+
     def test_make_event_keeps_special_markets_that_mention_wochenmarkt(self):
         event = common.make_event(
             "Wochenmarkt-Spezial: Feierabendmarkt und Flohmarkt",
