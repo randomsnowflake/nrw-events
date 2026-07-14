@@ -41,6 +41,24 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(len(events), 1)
 
+    def test_expected_quality_rejections_do_not_degrade_source_health(self):
+        result, events = runner._run_source("Filtered", lambda: [
+            {"title": "Concert", "source": "Filtered", "date": common.TODAY.strftime("%Y-%m-%d"),
+             "score": 1.0, "city": "Bonn", "category": "konzert"},
+            {"title": "Deutschkurs für Männer", "source": "Filtered",
+             "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+             "city": "Bonn", "category": "kurs"},
+        ])
+
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.rejected_event_count, 1)
+        self.assertEqual(
+            result.rejection_reasons,
+            {"quality:legacy.editorial-policy": 1},
+        )
+        self.assertEqual(len(events), 1)
+        self.assertEqual(runner._import_issues({"Filtered": result}), [])
+
     def setUp(self):
         self.old_today = common.TODAY
         self.old_end_date = common.END_DATE

@@ -98,6 +98,13 @@ class JunkFilterTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertFalse(common.is_junk_event(event(title)))
 
+    def test_keeps_french_music_descriptions_out_of_language_course_filter(self):
+        self.assertFalse(common.is_junk_event(event(
+            "Mirecourtplatz-Konzert",
+            description="Mitsingkonzert mit französischen Chansons und kölschen Hits.",
+            category="Musik/Konzert",
+        )))
+
     def test_blocks_political_admin_unless_it_is_a_destination_event(self):
         self.assertTrue(common.is_junk_event(event("Fraktionssitzung der Ratsfraktion")))
         self.assertTrue(common.is_junk_event(event("Wahlkampf-Infostand am Marktplatz")))

@@ -78,7 +78,10 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
             except EventValidationError as exc:
                 result.reject(str(exc))
         result.accepted_event_count = len(accepted)
-        if result.rejected_event_count:
+        # Editorial quality drops are expected filtering decisions, not source
+        # health failures. Keep their counts for diagnostics, but only degrade
+        # the source when a record fails structural validation.
+        if any(not reason.startswith("quality:") for reason in result.rejection_reasons):
             result.status = SourceStatus.DEGRADED
         return result, accepted
     except Exception as exc:

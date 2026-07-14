@@ -1008,7 +1008,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         return True
 
     generic_low_value_bits = {
-        "fortgeschrittene", "sprachkurs", "italienisch", "französisch", "englischkurs",
+        "fortgeschrittene", "sprachkurs", "englischkurs",
         "yogakurs", "offene sprechstunde", "beratung", "frauen in bewegung",
         "gedächtnistraining", "gedaechtnistraining", "deutschkurs", "pilates-training",
         "sitzgymnastik", "rückbildungsgymnastik", "rueckbildungsgymnastik",
@@ -1021,6 +1021,14 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         "clubabend",
     }
     if any(bit in text for bit in generic_low_value_bits):
+        return True
+
+    language_name = re.search(r"\b(?:italienisch|französisch)\b", text)
+    language_course_context = re.search(
+        r"\b(?:anfänger|anfaenger|fortgeschrittene|kurs|lernen|sprachunterricht|unterricht|[abc][12])\b",
+        text,
+    )
+    if language_name and language_course_context:
         return True
 
     recurring_course_bits = {
