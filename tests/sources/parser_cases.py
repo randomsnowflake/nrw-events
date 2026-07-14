@@ -5,8 +5,8 @@ from unittest.mock import patch
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import SOURCES
 from scripts.nrw_events.sources import (
-    bonn, bonn_venues, bonnjetzt, bundeskunsthalle, koeln, regional_feeds,
-    regional_ionas4, regional_tourism, requested_venues,
+    bonn, bonn_venues, bonnjetzt, bundeskunsthalle, haus_der_geschichte, koeln,
+    regional_feeds, regional_ionas4, regional_tourism, requested_venues,
 )
 
 
@@ -1336,6 +1336,48 @@ END:VCALENDAR
         self.assertEqual(events[0]["title"], "Springmaus Improvisationstheater - Alles bleibt anders")
         self.assertEqual(events[0]["date"], "2026-06-20")
         self.assertEqual(events[0]["time"], "20:00")
+
+    def test_haus_der_geschichte_panels_create_events_and_preserve_external_venues(self):
+        html = """
+        <div class="panel bonn" data-eventtype="1,76" data-date="20260620">
+          <div class="panel-heading">
+            <div class="calendar-events-time">15:00 Uhr</div>
+            <h6>Ausstellungsbegleitung <span class="black"></span></h6>
+            <h4>Begleitung durch die Dauerausstellung</h4>
+            Eintritt frei
+          </div>
+          <div class="calendar-bodycopy"><p>Eine öffentliche Begleitung durch die neue Dauerausstellung.</p></div>
+          <a class="hidden" href="/haus-der-geschichte/veranstaltungen/begleitung-dauerausstellung">Details</a>
+        </div>
+        <div class="panel bonn" data-eventtype="20" data-date="20260621">
+          <div class="panel-heading">
+            <div class="calendar-events-time">19:30 Uhr</div>
+            <h6>Konzert <span class="black">Bundesrat Bonn, Platz der Vereinten Nationen 7, 53113 Bonn</span></h6>
+            <h4>Konzert im Bundesrat</h4>
+          </div>
+          <div class="calendar-bodycopy"><p>Das Konzert findet nicht im Museum statt.</p></div>
+          <a class="hidden" href="/haus-der-geschichte/veranstaltungen/konzert-im-bundesrat">Details</a>
+        </div>
+        """
+
+        events = haus_der_geschichte.events_from_html(html)
+
+        self.assertEqual([event["title"] for event in events], [
+            "Begleitung durch die Dauerausstellung",
+            "Konzert im Bundesrat",
+        ])
+        self.assertEqual(events[0]["date"], "2026-06-20")
+        self.assertEqual(events[0]["time"], "15:00")
+        self.assertEqual(events[0]["venue"], "Haus der Geschichte")
+        self.assertEqual(events[0]["price"], "kostenlos")
+        self.assertEqual(
+            events[0]["link"],
+            "https://www.hdg.de/haus-der-geschichte/veranstaltungen/begleitung-dauerausstellung",
+        )
+        self.assertEqual(events[1]["venue"], "Bundesrat Bonn")
+
+    def test_haus_der_geschichte_source_is_registered(self):
+        self.assertIn("Haus der Geschichte", SOURCES)
 
     def test_brueckenforum_cards_skip_abiball_and_keep_public_events(self):
         html = """

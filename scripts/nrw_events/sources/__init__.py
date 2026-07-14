@@ -11,7 +11,7 @@ like one. Ordering is irrelevant — the runner fans them out in parallel.
 """
 
 from . import (
-    koeln, bonn, harmonie, meetup, bonnjetzt,
+    koeln, bonn, harmonie, haus_der_geschichte, meetup, bonnjetzt,
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
     meckenheim, much, naturregion_sieg, siegburg,
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
@@ -35,6 +35,7 @@ CUSTOM_SOURCES = {
     "Bonn.de Events": bonn.fetch_events,        # official calendar HTML listing — primary
     "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by main calendar filters
     "Harmonie Bonn": harmonie.fetch,
+    "Haus der Geschichte": haus_der_geschichte.fetch,
     "Meetup": meetup.fetch,
     # Live structured scrapers (JSON-LD / iCal / structured HTML)
     "Rheinauen-Flohmarkt": flohmarkt.fetch,
