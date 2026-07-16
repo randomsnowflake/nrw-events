@@ -45,3 +45,12 @@ class RuntimeConfigTests(unittest.TestCase):
         result.endpoint("https://example.test", error_type="HTTPError", error="405")
         result.finish([])
         self.assertEqual(result.status, SourceStatus.DEGRADED)
+
+    def test_successful_retry_does_not_mark_source_degraded(self):
+        result = SourceResult(source="Flaky source")
+        result.endpoint("https://example.test", error_type="URLError", error="connection reset")
+        result.endpoint("https://example.test", status=200)
+        result.finish([{"title": "Recovered"}])
+
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.endpoints["https://example.test"], {"attempts": 2, "status": 200})
