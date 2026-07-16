@@ -80,6 +80,11 @@ class SourceResult:
 
     def endpoint(self, url: str, **details: Any) -> None:
         current = self.endpoints.setdefault(url, {"attempts": 0})
+        if "status" in details and not ({"error", "error_type"} & details.keys()):
+            current.pop("error", None)
+            current.pop("error_type", None)
+        elif ({"error", "error_type"} & details.keys()) and "status" not in details:
+            current.pop("status", None)
         current.update(details)
         if "status" in details or "error" in details:
             current["attempts"] += 1
