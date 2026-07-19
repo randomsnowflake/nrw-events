@@ -23,6 +23,7 @@ import time
 import urllib.request
 import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
 import urllib.error
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
@@ -144,6 +145,30 @@ def configure_context(context: RunContext) -> None:
 def set_source_context(result: Optional[SourceResult]) -> None:
     """Attach warnings emitted by a legacy fetcher to its runner-owned result."""
     _SOURCE_CONTEXT.result = result
+
+
+@contextmanager
+def capture_parser_metrics():
+    """Capture candidates rejected by the report window in the current thread."""
+    previous = getattr(_SOURCE_CONTEXT, "parser_metrics", None)
+    metrics = {"candidate_count": 0, "out_of_window_count": 0}
+    _SOURCE_CONTEXT.parser_metrics = metrics
+    try:
+        yield metrics
+    finally:
+        if previous is None:
+            delattr(_SOURCE_CONTEXT, "parser_metrics")
+        else:
+            _SOURCE_CONTEXT.parser_metrics = previous
+
+
+def _record_parser_candidate(*, out_of_window: bool = False) -> None:
+    metrics = getattr(_SOURCE_CONTEXT, "parser_metrics", None)
+    if metrics is None:
+        return
+    metrics["candidate_count"] += 1
+    if out_of_window:
+        metrics["out_of_window_count"] += 1
 
 
 def log_source_disabled(source: str, reason: str) -> None:
@@ -836,9 +861,12 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     if not title:
         return None
     window_end = END_DATE.replace(hour=23, minute=59, second=59, microsecond=999999)
-    if start_dt and end_dt and (end_dt < TODAY or start_dt > window_end):
-        return None
-    if start_dt and not end_dt and not (TODAY <= start_dt <= window_end):
+    outside_window = bool(
+        (start_dt and end_dt and (end_dt < TODAY or start_dt > window_end))
+        or (start_dt and not end_dt and not (TODAY <= start_dt <= window_end))
+    )
+    _record_parser_candidate(out_of_window=outside_window)
+    if outside_window:
         return None
     resolved_coords, location_confidence, location_source = resolve_location(city, coords)
     km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
