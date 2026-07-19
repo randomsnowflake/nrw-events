@@ -144,6 +144,7 @@ scripts/
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
       max7.py  afterjobparty.py  rheinevents.py  salsainbonn.py
+      bonn_food.py
       koenigswinter.py  siebengebirge.py  siegburg.py
       meckenheim.py  much.py  naturregion_sieg.py
       regional_*.py  requested_venues.py
@@ -271,6 +272,9 @@ weiterhin gezielt überschreiben.
   Kulturbad. Breite Kinoprogramme werden nur bei expliziten Festival-, Open-Air-,
   Preview-, Gesprächs-, Workshop- oder vergleichbaren Event-Markierungen
   übernommen (`cinema_specials.py`); reguläre Vorstellungen bleiben draußen.
+- **Food & Genuss in Bonn:** Craftquelle, BFF Bonner Schifffahrt, vomFASS,
+  Biertasting Bonn, Ludwig's, Redüttchen und Street Food Bonn liefern kuratierte
+  Primärtermine mit Detailseiten-Anreicherung (`bonn_food.py`).
 - **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
