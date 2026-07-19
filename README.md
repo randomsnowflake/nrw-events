@@ -254,8 +254,9 @@ konsistenten, browserähnlichen Header-Satz mit deutscher `Accept-Language` stat
 des auffälligen Python-Standard-User-Agents; Quellmodule können Header bei Bedarf
 weiterhin gezielt überschreiben.
 
-- **Offizielle strukturierte Daten:** Köln Open Data (`koeln.py`) und der primäre
-  Bonn.de-Kalender als JSON (`bonn.py`).
+- **Offizielle strukturierte Daten:** Köln Open Data (`koeln.py`), der primäre
+  Bonn.de-Kalender (`bonn.py`) und der Veranstaltungskalender der Universität
+  Bonn mit iCal-Feed und gecachten Detailseiten (`uni_bonn.py`).
 - **Bonn.de-Ergänzungen:** Sportveranstaltungen sowie das jährliche
   „Veranstaltungsjahr“ mit Stadtteilfesten, Kirmes, Märkten und lokalen Terminen
   (`bonn.py`).
