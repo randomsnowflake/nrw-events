@@ -18,6 +18,8 @@ from . import (
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
     bonn_venues, radiobonn, bonn_districts, cinema_specials,
     kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept,
+    kleines_theater, theater_bonn, junges_theater_bonn, theater_marabu,
+    theater_im_ballsaal, tik_bonn,
 )
 from ..source_specs import AdapterType, SourceSpec, adapter_for
 
@@ -36,6 +38,12 @@ CUSTOM_SOURCES = {
     "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by main calendar filters
     "Harmonie Bonn": harmonie.fetch,
     "Haus der Geschichte": haus_der_geschichte.fetch,
+    "Kleines Theater Bad Godesberg": kleines_theater.fetch,
+    "Theater Bonn": theater_bonn.fetch,
+    "Junges Theater Bonn": junges_theater_bonn.fetch,
+    "Theater Marabu": theater_marabu.fetch,
+    "Theater im Ballsaal": theater_im_ballsaal.fetch,
+    "TiK Theater im Keller": tik_bonn.fetch,
     "Meetup": meetup.fetch,
     # Live structured scrapers (JSON-LD / iCal / structured HTML)
     "Rheinauen-Flohmarkt": flohmarkt.fetch,
