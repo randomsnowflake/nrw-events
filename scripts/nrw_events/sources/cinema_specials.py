@@ -1,10 +1,9 @@
 """Curated cinema events that are meaningfully different from normal screenings.
 
 Every broad cinema source in this module has an explicit special-format gate.
-Dedicated festival and student-cinema programs are special by definition; cinema
-chains and mixed calendars must expose a label or tag such as ``Open Air``,
-``Preview`` or ``Filmgespräch``.  Ordinary repertory and first-run showtimes are
-intentionally not imported.
+Dedicated festival programs are special by definition; mixed calendars must
+expose a label or tag such as ``Open Air``, ``Preview`` or ``Filmgespräch``.
+Ordinary repertory and first-run showtimes are intentionally not imported.
 """
 
 from __future__ import annotations
@@ -20,17 +19,13 @@ from . import regional_common as rc
 
 
 _BONNER_KINEMATHEK_URL = "https://www.bonnerkinemathek.de/programm/"
-_CAMPUS_KINO_URL = "https://www.unifilm.de/studentenkinos/Bonn"
 _STUMMFILMTAGE_URL = "https://www.internationale-stummfilmtage.de/"
-_KINOPOLIS_URL = "https://www.kinopolis.de/bn/events"
 _FILMHAUS_API = "https://backend.filmhaus-koeln.de/events"
 _KURZFILMWANDERUNG_URL = "https://kurzfilmwanderung-bonn.de/"
 _KULTURBAD_ICAL = "https://ruengsdorfer-kulturbad.de/events/?ical=1"
 
 _BONNER_KINEMATHEK_SOURCE_ID = "bonner-kinemathek"
-_CAMPUS_KINO_SOURCE_ID = "campus-kino-bonn"
 _STUMMFILMTAGE_SOURCE_ID = "internationale-stummfilmtage"
-_KINOPOLIS_SOURCE_ID = "kinopolis-bonn"
 _FILMHAUS_SOURCE_ID = "filmhaus-koeln"
 _KURZFILMWANDERUNG_SOURCE_ID = "kurzfilmwanderung-bonn"
 _KULTURBAD_SOURCE_ID = "ruengsdorfer-kulturbad"
@@ -71,26 +66,10 @@ def fetch() -> list:
         ),
     ))
     events.extend(rc.fetch_html_events(
-        "Campus-Kino Bonn",
-        _CAMPUS_KINO_URL,
-        _events_from_campus_kino,
-        source_id=_CAMPUS_KINO_SOURCE_ID,
-    ))
-    events.extend(rc.fetch_html_events(
         "Internationale Stummfilmtage",
         _STUMMFILMTAGE_URL,
         _events_from_stummfilmtage,
         source_id=_STUMMFILMTAGE_SOURCE_ID,
-    ))
-    events.extend(_fetch_optional_html(
-        "KINOPOLIS Bonn",
-        _KINOPOLIS_SOURCE_ID,
-        _KINOPOLIS_URL,
-        lambda html: _events_from_kinopolis_listing(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="kinopolis-bonn-specials", timeout=20),
-        ),
     ))
     events.extend(_fetch_filmhaus_events())
     events.extend(rc.fetch_html_events(
@@ -197,53 +176,6 @@ def _is_special_format(*values: str) -> bool:
     return bool(_SPECIAL_FORMAT_PATTERN.search(" ".join(value or "" for value in values)))
 
 
-def _events_from_campus_kino(html: str) -> list:
-    # The first group is the current semester; the later section is an archive.
-    current_program = re.split(
-        r'<div class="mod_article block" id="kino-semesterprogramm">',
-        html or "",
-        maxsplit=1,
-        flags=re.I,
-    )[0]
-    events = []
-    for body in re.findall(
-        r'<div class="film-showcase"[^>]*>(.*?)(?=<div class="film-showcase"|<div class="mod_article block" id="kino-semesterprogramm"|$)',
-        current_program,
-        re.S | re.I,
-    ):
-        title_m = re.search(r'<h1 class="headline-h3">(.*?)</h1>', body, re.S | re.I)
-        date_m = re.search(r'class="film-info-text datum">(.*?)</span>', body, re.S | re.I)
-        time_m = re.search(r'class="film-info-text uhrzeit">(.*?)</span>', body, re.S | re.I)
-        venue_m = re.search(r'class="film-info-text raum">(.*?)</span>', body, re.S | re.I)
-        if not (title_m and date_m):
-            continue
-        title = rc.clean(title_m.group(1))
-        date_text = rc.clean(date_m.group(1))
-        time_text = rc.clean(time_m.group(1) if time_m else "")
-        start = rc.with_time(common.parse_date(date_text), time_text)
-        venue = rc.clean(venue_m.group(1) if venue_m else "Universität Bonn")
-        paragraphs = [rc.clean(part) for part in re.findall(r'<p(?:\s[^>]*)?>(.*?)</p>', body, re.S | re.I)]
-        description = " ".join(part for part in paragraphs if part)
-        restriction = "Das Campus-Kino richtet sich an Studierende und Angehörige der Universität."
-        description = common.concise_description(f"{restriction} {description}")
-        event = common.make_event(
-            title,
-            start,
-            start,
-            venue,
-            "Bonn",
-            description,
-            _CAMPUS_KINO_URL,
-            "Campus-Kino Bonn",
-            "cinema-special campus kino film hochschule studierende sonderprogramm",
-            0.93,
-            source_id=_CAMPUS_KINO_SOURCE_ID,
-        )
-        if event:
-            events.append(event)
-    return events
-
-
 def _events_from_stummfilmtage(html: str) -> list:
     calendar_m = re.search(r'id="spielplan-calendar"(.*?)(?=</section>)', html or "", re.S | re.I)
     if not calendar_m:
@@ -333,97 +265,6 @@ def _events_from_stummfilmtage(html: str) -> list:
             )
             if event:
                 events.append(event)
-    return events
-
-
-def _events_from_kinopolis_listing(html: str, detail_fetcher=None) -> list:
-    links = []
-    for href in re.findall(r'href="([^"]*/bn/events/detail/[^"]+)"', html or "", re.I):
-        link = rc.abs_url(_KINOPOLIS_URL, href)
-        if link not in links:
-            links.append(link)
-    events = []
-    for link in links:
-        if not detail_fetcher:
-            continue
-        try:
-            events.extend(_events_from_kinopolis_detail(detail_fetcher(link), link))
-        except Exception as exc:
-            common.log_source_error(
-                "KINOPOLIS Bonn", exc, source_id=_KINOPOLIS_SOURCE_ID,
-            )
-    return rc.dedupe(events)
-
-
-def _events_from_kinopolis_detail(html: str, detail_url: str) -> list:
-    title_m = re.search(r'<h1 class="hl--1">(.*?)</h1>', html or "", re.S | re.I)
-    if not title_m:
-        return []
-    title = rc.clean(title_m.group(1))
-    description_m = re.search(
-        r'<div class="container series_text">.*?'
-        r'<h1 class="hl--1">.*?</h1>(.*?)'
-        r'(?=<div class="slider[^>]*prog-nav|<div class="slider-6-program|'
-        r'<div class="container">\s*<h1 class="hl--1">Weitere Events|$)',
-        html,
-        re.S | re.I,
-    )
-    description = rc.clean(description_m.group(1) if description_m else "")
-
-    performance_dates = {}
-    nav_pattern = re.compile(
-        r'data-performance-ids=\[([^\]]+)\].*?<div class="prog-nav__day">\s*[^<]*?(\d{1,2})\.(\d{1,2})\.',
-        re.S | re.I,
-    )
-    for ids_text, day, month in nav_pattern.findall(html):
-        date_value = rc.date_for_window(int(day), int(month))
-        for performance_id in re.findall(r"[A-Za-z0-9]+", ids_text):
-            performance_dates[performance_id] = date_value
-
-    events = []
-    blocks = re.findall(
-        r'<div class="prog2__cont[^"]*" data-performance-id="([^"]+)">(.*?)(?=<div class="prog2__cont|<p[^>]*>\s*Legende|<div class="prog2__caption|$)',
-        html,
-        re.S | re.I,
-    )
-    for performance_id, body in blocks:
-        label_m = re.search(
-            r'<div class="event-icon[^"]*prog__label-event[^"]*">(.*?)</div>',
-            body,
-            re.S | re.I,
-        )
-        time_m = re.search(r'class="prog2__time[^"]*"[^>]*>\s*(\d{1,2}:\d{2})\s*</a>', body, re.S | re.I)
-        if not (label_m and time_m):
-            continue
-        special_label = rc.clean(label_m.group(1))
-        if not special_label:
-            continue
-        start = rc.with_time(performance_dates.get(performance_id), time_m.group(1))
-        hall_m = re.search(r'class="prog2__hall-num[^"]*"[^>]*>\s*<div>(.*?)</div>', body, re.S | re.I)
-        price_m = re.search(r'class="buy__btn-in">\s*(.*?)\s*<br', body, re.S | re.I)
-        price_text = rc.clean(price_m.group(1) if price_m else "")
-        details = [f"Sonderformat: {special_label}.", description]
-        if price_text:
-            details.append(f"Tickets {price_text}.")
-        venue = "KINOPOLIS Bonn-Bad Godesberg"
-        hall = rc.clean(hall_m.group(1) if hall_m else "")
-        if hall:
-            venue = f"{venue}, {hall}"
-        event = common.make_event(
-            title,
-            start,
-            start,
-            venue,
-            "Bonn",
-            common.concise_description(" ".join(value for value in details if value)),
-            detail_url,
-            "KINOPOLIS Bonn",
-            f"cinema-special kino film event preview live {special_label}",
-            0.94,
-            source_id=_KINOPOLIS_SOURCE_ID,
-        )
-        if event:
-            events.append(event)
     return events
 
 

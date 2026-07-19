@@ -65,28 +65,6 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         )
         self.assert_valid_cinema_events(events)
 
-    def test_campus_kino_uses_only_current_semester(self):
-        html = """
-<div class="film-showcase"><div class="text_container">
-  <h1 class="headline-h3"><span>Campus Cult Film</span> <span>[OmdU]</span></h1>
-  <span class="film-info-text datum">Donnerstag 23.07.2026</span>
-  <span class="film-info-text uhrzeit">19:00</span>
-  <span class="film-info-text raum">Hörsaal 9</span>
-  <p>Kuratiertes Hochschulkino über eine Familie mit Kindern.</p>
-</div></div>
-<div class="mod_article block" id="kino-semesterprogramm"></div>
-<div class="film-showcase"><div class="text_container">
-  <h1 class="headline-h3">Archivfilm</h1>
-  <span class="film-info-text datum">Donnerstag 30.07.2026</span>
-</div></div>
-"""
-
-        events = cinema_specials._events_from_campus_kino(html)
-
-        self.assertEqual([event["title"] for event in events], ["Campus Cult Film [OmdU]"])
-        self.assertTrue(events[0]["description"].startswith("Das Campus-Kino richtet sich"))
-        self.assert_valid_cinema_events(events)
-
     def test_stummfilmtage_builds_dates_from_tabs_and_skips_empty_day(self):
         html = """
 <section id="spielplan-calendar">
@@ -118,39 +96,6 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["date"], "2026-08-13")
         self.assertEqual(events[0]["price"], "kostenlos")
         self.assertNotIn("Rahmenprogramm", events[0]["description"])
-        self.assert_valid_cinema_events(events)
-
-    def test_kinopolis_requires_a_performance_event_label(self):
-        html = """
-<div class="text"><h3>Bitte wählen Sie ein Kino aus:</h3>Navigation</div>
-<div class="container series_text"><div class="grid"><div class="col-md-10">
-<div class="text"><h1 class="hl--1">Special Preview: Film</h1>
-<p>Ein besonderer Kinoabend.</p></div></div></div></div>
-<div class="prog-nav__item" data-performance-ids=[SPECIAL,NORMAL]>
-  <div class="prog-nav__day">Mi. 22.07.</div>
-</div>
-<div class="prog2__cont" data-performance-id="SPECIAL">
-  <div class="prog2__event"><div class="event-icon prog__label-event">Ladykino</div></div>
-  <a class="prog2__time time__buy_btn">19:30</a>
-  <a class="prog2__hall-num"><div>Kino 5</div></a>
-  <div class="buy__btn-in">ab <b>13,99</b> €<br>Tickets</div>
-</div>
-<div class="prog2__cont" data-performance-id="NORMAL">
-  <div class="prog2__event"></div>
-  <a class="prog2__time time__buy_btn">20:30</a>
-</div>
-<p>Legende</p>
-"""
-
-        events = cinema_specials._events_from_kinopolis_detail(
-            html, "https://www.kinopolis.de/bn/events/detail/special"
-        )
-
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["time"], "19:30")
-        self.assertIn("Ladykino", events[0]["description"])
-        self.assertIn("Ein besonderer Kinoabend", events[0]["description"])
-        self.assertNotIn("Bitte wählen Sie", events[0]["description"])
         self.assert_valid_cinema_events(events)
 
     def test_filmhaus_requires_special_tag_and_converts_utc(self):
