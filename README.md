@@ -141,6 +141,8 @@ scripts/
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
+      kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
+      theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
       koenigswinter.py  siebengebirge.py  siegburg.py
       meckenheim.py  much.py  naturregion_sieg.py
       regional_*.py  requested_venues.py
@@ -274,6 +276,8 @@ weiterhin gezielt überschreiben.
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
 - **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt
   und Ruhr-Guide.
+- **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
+  Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
   `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 

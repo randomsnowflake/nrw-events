@@ -36,7 +36,9 @@ Bonn, Meetup, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
-Cölln Konzept and requested venue calendars,
+Cölln Konzept, requested venue calendars,
+Theater Bonn, Junges Theater Bonn, Kleines Theater Bad Godesberg, Theater
+Marabu, Theater im Ballsaal, TiK Theater im Keller,
 Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
 optional Grok Search. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,

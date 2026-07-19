@@ -185,6 +185,23 @@ def dedupe(events: list) -> list:
     return out
 
 
+def dedupe_occurrences(events: list) -> list:
+    """Remove repeated records without collapsing distinct same-day shows."""
+    seen, out = set(), []
+    for event in events:
+        key = (
+            event.get("source", ""),
+            event.get("title", "").casefold(),
+            event.get("start_at") or (event.get("date", ""), event.get("time", "")),
+            event.get("venue", "").casefold(),
+            event.get("city", "").casefold(),
+        )
+        if key not in seen:
+            seen.add(key)
+            out.append(event)
+    return out
+
+
 def title_from_href(href: str) -> str:
     slug = urllib.parse.urlparse(unescape(href or "")).path.rstrip("/").split("/")[-1]
     slug = re.sub(r"\.(?:html|php)$", "", slug)
