@@ -827,7 +827,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
                venue: str, city: str, description: str, link: str, source: str,
                category: str, trust: float = 1.0, time_text: str = "",
                coords: Optional[tuple] = None, all_day: Optional[bool] = None,
-               timezone_name: str = "Europe/Berlin") -> Optional[dict]:
+               timezone_name: str = "Europe/Berlin", source_id: str = "") -> Optional[dict]:
     """Build a scored event dict and apply window + radius + junk checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
@@ -889,6 +889,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "score": round(distance_score(km) * category_score(full_text) * trust, 2) if km is not None
                  else round(0.3 * category_score(full_text) * trust, 2),
         "source": source,
+        "source_id": source_id,
         "status": status,
         "start_at": start_at,
         "end_at": end_at,
@@ -1531,13 +1532,15 @@ def search_result_event(title: str, link: str, desc: str, source: str, trust: fl
     return None if is_junk_event(candidate) else candidate
 
 
-def log_source_error(source: str, err: Exception) -> None:
+def log_source_error(source: str, err: Exception, *, source_id: str = "") -> None:
     """Record/log a source failure without aborting legacy fetchers."""
     message = redact(err)
     warning = {"source": source, "error_type": type(err).__name__, "error": message}
+    if source_id:
+        warning["source_id"] = source_id
     with _SOURCE_WARNING_LOCK:
         SOURCE_WARNINGS.append(warning)
     result = getattr(_SOURCE_CONTEXT, "result", None)
     if result is not None:
-        result.warning(source, type(err).__name__, message)
+        result.warning(source, type(err).__name__, message, source_id=source_id)
     log(_LOGGER, logging.WARNING, message, run_id=_RUN_ID, source=source, error_type=type(err).__name__)

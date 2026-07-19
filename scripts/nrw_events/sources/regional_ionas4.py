@@ -7,6 +7,7 @@ from datetime import timedelta
 from html.parser import HTMLParser
 
 from .. import common
+from ..models import normalize_source_id
 from . import regional_common as rc
 
 _SOURCE = "ionas4 regional"
@@ -38,6 +39,7 @@ _CALENDARS = [
 def fetch() -> list:
     events = []
     for city, url, calendar_url, trust in _CALENDARS:
+        source_id = normalize_source_id(f"ionas4-{city}")
         try:
             items = json.loads(common.fetch_url(
                 url,
@@ -49,9 +51,10 @@ def fetch() -> list:
             if isinstance(items, list):
                 detail_fetcher = _detail_fetcher_for_city(city)
                 events.extend(_events_from_items(
-                    items, city, calendar_url, trust, detail_fetcher=detail_fetcher))
+                    items, city, calendar_url, trust, detail_fetcher=detail_fetcher,
+                    source_id=source_id))
         except Exception as e:
-            common.log_source_error(f"{_SOURCE} ({city})", e)
+            common.log_source_error(f"{_SOURCE} ({city})", e, source_id=source_id)
     return rc.dedupe(events)
 
 
@@ -164,7 +167,7 @@ def _description_with_context(event: dict) -> str:
 
 
 def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
-                       detail_fetcher=None) -> list:
+                       detail_fetcher=None, source_id: str = "") -> list:
     events = []
     for item in items:
         start = common.parse_iso_date(item.get("start", ""))
@@ -206,6 +209,7 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             trust,
             _time_text(item, start, end),
             all_day=item_all_day,
+            source_id=source_id,
         )
         if not base_event:
             continue
@@ -215,7 +219,10 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             try:
                 context = _detail_context(detail_fetcher(_detail_url(calendar_url, item)))
             except Exception as exc:
-                common.log_source_error(f"{_SOURCE} ({city}) detail", exc)
+                common.log_source_error(
+                    f"{_SOURCE} ({city}) detail", exc,
+                    source_id=f"{source_id}-detail",
+                )
 
         description = context.get("description") or tag_text
         venue = context.get("venue") or loc.get("name") or ""
@@ -233,6 +240,7 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             trust,
             _time_text(item, start, end),
             all_day=item_all_day,
+            source_id=source_id,
         )
         if event:
             event["description"] = _description_with_context(event)

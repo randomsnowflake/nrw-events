@@ -7,7 +7,7 @@ import urllib.parse
 from typing import Any
 
 from . import category_taxonomy, common
-from .models import CanonicalEvent, RawEvent
+from .models import CanonicalEvent, RawEvent, normalize_source_id
 from .quality import evaluate_event_quality
 
 
@@ -62,6 +62,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event = dict(raw_event)
     event["title"] = _text(event, "title", 500, required=True)
     event["source"] = _text(event, "source", 160, required=True)
+    event["source_id"] = normalize_source_id(
+        _text(event, "source_id", 200) or event["source"]
+    )
     for field, limit in (("time", 80), ("venue", 300), ("city", 160), ("description", 8000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
