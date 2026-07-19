@@ -16,6 +16,32 @@ from tests.helpers import patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_runner_filters_window_after_source_health_is_recorded(self):
+        with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), \
+             mock.patch.object(common, "END_DATE", datetime(2026, 8, 1)):
+            outside = common.make_event(
+                "September market", datetime(2026, 9, 1), None,
+                "Market square", "Bonn", "Seasonal market",
+                "https://example.test/september", "Seasonal", "market",
+            )
+            result, events = runner._run_source("Seasonal", lambda: [outside])
+
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.raw_event_count, 1)
+        self.assertEqual(result.accepted_event_count, 0)
+        self.assertEqual(events, [])
+
+    def test_runner_rejects_non_object_records_before_window_filtering(self):
+        result, events = runner._run_source("Malformed", lambda: [
+            None,
+            {"title": "Event", "source": "Malformed", "date": common.TODAY.strftime("%Y-%m-%d"),
+             "score": 1.0, "city": "Bonn"},
+        ])
+
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
+        self.assertEqual(len(events), 1)
+
     def test_snapshot_builder_is_pure_with_fixed_context(self):
         canonical = runner.validate_event({
             "title": "Event", "source": "Memory", "date": "2026-06-08",

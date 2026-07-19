@@ -87,7 +87,7 @@ def _events_from_listing(html: str, detail_loader=None) -> list:
             venue = rc.clean(group.group("venue"))
             link = _browser_safe_url(rc.abs_url(URL, href_match.group(1)))
             detail_url = urllib.parse.urlunsplit((*urllib.parse.urlsplit(link)[:3], "", ""))
-            if detail_loader and detail_url not in details:
+            if detail_loader and common.window_contains(start) and detail_url not in details:
                 details[detail_url] = _detail_fields(detail_loader(detail_url))
             description, price = details.get(detail_url, ("", ""))
             description = description or common.factual_event_description(

@@ -76,6 +76,24 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(events[0]["description"], "Ein Konzert mit berührenden Klängen.")
         fetch_detail.assert_not_called()
 
+    def test_out_of_window_sparse_listing_is_parsed_without_detail_request(self):
+        html = """
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/seelenklaenge.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">18.09.2026</span></span></div>
+    <h1 class="SP-Teaser__headline">Seelenklänge</h1>
+    <div class="SP-Teaser__abstract">(Anmeldung)</div>
+  </a>
+</article>
+"""
+
+        with patch.object(bonn, "_fetch_detail_context") as fetch_detail:
+            events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertEqual([event["start_date"] for event in events], ["2026-09-18"])
+        fetch_detail.assert_not_called()
+
     def test_detail_copy_does_not_override_trusted_listing_category_or_score(self):
         html = """
 <article class="SP-Teaser">

@@ -151,13 +151,13 @@ def _events_from_linz(html: str, detail_fetcher=None) -> list:
         listing_copy_match = re.search(
             r'<div class="teasertext">(.*?)</div>', block, re.S | re.I)
         listing_copy = rc.clean(listing_copy_match.group(1) if listing_copy_match else "")
+        start = common.parse_iso_date(href.group("iso"))
         context = {}
-        if detail_fetcher:
+        if detail_fetcher and common.window_contains(start):
             try:
                 context = _linz_detail_context(detail_fetcher(link))
             except Exception as exc:
                 common.log_source_error("Linz am Rhein detail", exc)
-        start = common.parse_iso_date(href.group("iso"))
         time_text = context.get("time") or rc.time_text(block)
         start = rc.with_time(start, time_text)
         title_text = rc.clean(title.group(1))

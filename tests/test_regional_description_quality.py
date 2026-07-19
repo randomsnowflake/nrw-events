@@ -62,6 +62,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("eventId=9697%3A0", requested[0])
 
     def test_ionas4_treats_all_day_midnight_end_as_exclusive(self):
+        requested = []
         events = regional_ionas4._events_from_items(
             [{
                 "id": "83656:0",
@@ -77,10 +78,12 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
             "Grafschaft",
             "https://www.gemeinde-grafschaft.de/kalender/kalendergrafschaft/",
             0.9,
-            detail_fetcher=lambda _url: "",
+            detail_fetcher=lambda url: requested.append(url) or "",
         )
 
-        self.assertEqual(events, [])
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["end_date"], "2026-07-12")
+        self.assertEqual(requested, [])
 
     def test_ionas4_replaces_a_description_that_only_repeats_the_title(self):
         items = [{

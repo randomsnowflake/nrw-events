@@ -800,6 +800,21 @@ def window_contains(start_dt: Optional[datetime], end_dt: Optional[datetime] = N
     return effective_end >= TODAY and start_dt <= window_end
 
 
+def event_in_window(event: dict) -> bool:
+    """Return whether a parsed event overlaps the inclusive report window."""
+    start = parse_iso_date(event.get("start_date", ""))
+    end = parse_iso_date(event.get("end_date", "")) or start
+    if not start:
+        date_text = event.get("date", "")
+        if "–" in date_text:
+            start_text, end_text = date_text.split("–", 1)
+            start, end = parse_date(start_text), parse_date(end_text)
+        else:
+            start = parse_date(date_text)
+            end = start
+    return True if not start else window_contains(start, end)
+
+
 def event_in_window_and_radius(
     start_dt: Optional[datetime], end_dt: Optional[datetime], city: str,
     coords: Optional[tuple] = None,
@@ -931,20 +946,18 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
                category: str, trust: float = 1.0, time_text: str = "",
                coords: Optional[tuple] = None, all_day: Optional[bool] = None,
                timezone_name: str = "Europe/Berlin", source_id: str = "") -> Optional[dict]:
-    """Build a scored event dict and apply window + radius + junk checks.
+    """Build a scored event dict and apply radius + junk checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
     point — instead of deriving it from ``city`` via :func:`coords_for_city`.
     """
-    if not title:
+    if not title or (start_dt is None and end_dt is not None):
         return None
     outside_window = bool(
         (end_dt is not None and start_dt is None)
         or (start_dt is not None and not window_contains(start_dt, end_dt))
     )
     _record_parser_candidate(out_of_window=outside_window)
-    if outside_window:
-        return None
     resolved_coords, location_confidence, location_source = resolve_location(city, coords)
     km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
     if km is not None and km > MAX_RADIUS_KM:
@@ -1023,21 +1036,6 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     # venue name or URL path like `/museum/` that can also host civic meetings.
     content_text = f"{title} {desc} {category}"
     title_desc_text = f"{title} {desc}"
-
-    # Stale entries with a parseable out-of-window date. Date *ranges*
-    # ("start–end", en-dash) are kept whenever the span overlaps the window —
-    # e.g. a flea-market season or a months-long exhibition that started before
-    # today is still current and must not be dropped as "stale".
-    date_str = ev.get("date") or ""
-    if "–" in date_str:
-        parts = date_str.split("–", 1)
-        sdt, edt = parse_date(parts[0]), parse_date(parts[1])
-        if sdt and edt and not window_contains(sdt, edt):
-            return True
-    else:
-        dt = parse_date(date_str)
-        if dt and not window_contains(dt):
-            return True
 
     junk_title_bits = {
         "privacy policy", "faq", "frequently asked questions", "contact", "kontakt",

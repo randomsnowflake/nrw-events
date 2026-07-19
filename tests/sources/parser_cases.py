@@ -1272,7 +1272,10 @@ END:VCALENDAR
 
         events = requested_venues._events_from_sankt_augustin(html)
 
-        self.assertEqual([event["title"] for event in events], ["Hunnenlager"])
+        self.assertEqual(
+            [event["title"] for event in events],
+            ["Hunnenlager", "Wer rastet, der rostet"],
+        )
         self.assertEqual(events[0]["date"], "2026-06-20")
         self.assertEqual(events[0]["time"], "13:00")
         self.assertEqual(events[0]["city"], "Sankt Augustin")

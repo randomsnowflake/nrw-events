@@ -58,7 +58,11 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
         source_category = _card_text(block, "text-muted")
         link = urllib.parse.urljoin(_BASE_URL, title_link.group("link"))
         listing_copy = _card_element_text(block, "h6")
-        detail_copy = _detail_copy(link, detail_fetcher)
+        detail_copy = (
+            _detail_copy(link, detail_fetcher)
+            if common.window_contains(common.parse_date(start_date), common.parse_date(end_date))
+            else ""
+        )
         description = detail_copy or listing_copy or _fallback_description(
             title,
             start_date,

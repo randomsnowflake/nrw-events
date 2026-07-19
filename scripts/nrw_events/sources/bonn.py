@@ -379,7 +379,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
         description = (item.get("description") or "").strip()
         venue = (item.get("locationName") or "").strip()
         detail_context = {}
-        if link and (not description or not venue):
+        if link and common.window_contains(start_dt, end_dt) and (not description or not venue):
             detail_context = _fetch_detail_context(link)
             description = description or detail_context.get("description", "")
             venue = venue or detail_context.get("venue", "")
@@ -495,10 +495,20 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
         link = common.urllib.parse.urljoin("https://www.bonn.de", href)
         abstract_m = re.search(r'<div[^>]+class="[^"]*SP-Teaser__abstract[^"]*"[^>]*>(.*?)</div>', body, re.S | re.I)
         listing_description = common.clean_html(abstract_m.group(1) if abstract_m else "")
+        date_matches = re.findall(
+            r'<span>\s*<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
+            r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?\s*</span>',
+            body,
+            re.S | re.I,
+        )
+        has_in_window_occurrence = any(
+            common.window_contains(common.parse_date(date_text))
+            for date_text, _ in date_matches
+        )
         description = listing_description
         classification_description = listing_description
         venue, city = "", "Bonn"
-        if _is_sparse_listing_description(listing_description, raw_title):
+        if has_in_window_occurrence and _is_sparse_listing_description(listing_description, raw_title):
             detail_context = _fetch_detail_context(link)
             description = detail_context.get("description", "") or raw_title
             # Rich article copy is display enrichment. Keep the official teaser
@@ -511,16 +521,8 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
         city = common.refine_city_from_text(
             city, " ".join((title, venue, listing_description, description))
         )
-        date_matches = re.findall(
-            r'<span>\s*<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
-            r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?\s*</span>',
-            body,
-            re.S | re.I,
-        )
         for date_text, time_raw in date_matches:
             start = common.parse_date(date_text)
-            if not common.window_contains(start):
-                continue
             time_text = common.clean_html(time_raw)
             time_match = re.search(r"(\d{1,2}):(\d{2})", time_text)
             if time_match:
@@ -689,10 +691,11 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
             desc = (item.findtext("description") or "").strip()
             link = (item.findtext("link") or "").strip()
             desc_text = unescape(re.sub(r"<[^>]+>", "", desc)) if desc else ""
+            event_date = common.parse_date(pub_date)
             ev = common.make_event(
                 unescape(title),
-                common.parse_date(pub_date),
-                common.parse_date(pub_date),
+                event_date,
+                event_date,
                 "",
                 "Bonn",
                 desc_text,
@@ -701,14 +704,14 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
                 "official calendar rss bonn",
                 trust=0.76,
             )
-            if ev and ev.get("category_key") == "other":
+            if ev and common.window_contains(event_date) and ev.get("category_key") == "other":
                 detail_context = _fetch_detail_context(link)
                 detail_description = detail_context.get("description") or ""
                 if detail_description:
                     enriched = common.make_event(
                         unescape(title),
-                        common.parse_date(pub_date),
-                        common.parse_date(pub_date),
+                        event_date,
+                        event_date,
                         detail_context.get("venue", ""),
                         detail_context.get("city") or "Bonn",
                         detail_description,

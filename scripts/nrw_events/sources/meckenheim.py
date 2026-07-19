@@ -105,6 +105,8 @@ def _event_datetimes(event: dict, time_text: str) -> tuple:
 
 
 def _enrich_event(event: dict) -> dict:
+    if not common.event_in_window(event):
+        return event
     context = _fetch_detail_context(event.get("link", ""))
     if not context:
         return event
