@@ -90,7 +90,10 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
         link = rc.abs_url(_BASE_URL, market_match.group(1))
         if link not in detail_cache:
             try:
-                detail_cache[link] = _detail_context(detail_fetcher(link)) if detail_fetcher else {}
+                detail_cache[link] = (
+                    _detail_context(detail_fetcher(link))
+                    if detail_fetcher and common.window_contains(start, end) else {}
+                )
             except Exception as exc:
                 common.log_source_error("Cölln Konzept detail", exc)
                 detail_cache[link] = {}

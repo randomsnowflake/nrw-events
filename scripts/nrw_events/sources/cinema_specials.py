@@ -128,7 +128,7 @@ def _events_from_bonner_kinemathek(html: str, detail_fetcher=None) -> list:
         link = rc.abs_url(_BONNER_KINEMATHEK_URL, href_m.group(1))
 
         description = ""
-        if detail_fetcher:
+        if detail_fetcher and common.window_contains(start):
             try:
                 detail_html = detail_fetcher(link)
                 description = _bonner_kinemathek_description(detail_html)

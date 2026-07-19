@@ -107,7 +107,11 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
                     )
                     if ticket:
                         link = rc.abs_url(_ROOT, ticket.group(1))
-                description = detail_fetcher(link) if link and not is_kulturgarten else ""
+                description = (
+                    detail_fetcher(link)
+                    if link and not is_kulturgarten and common.window_contains(start_dt)
+                    else ""
+                )
                 if not description:
                     description = common.factual_event_description(
                         title, date_value=start_dt, time_text=time_text, venue=venue, city="Bonn"

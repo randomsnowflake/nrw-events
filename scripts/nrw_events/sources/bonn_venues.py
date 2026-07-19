@@ -228,10 +228,8 @@ def events_from_botgart(html: str, detail_fetcher=None) -> list:
         kind = match.group("kind")
         link = rc.abs_url("https://www.botgart.uni-bonn.de", href)
         fallback = _botgart_fallback_description(title, kind, start)
-        if not common.event_in_window_and_radius(start, start, "Bonn"):
-            continue
         description = ""
-        if detail_fetcher:
+        if detail_fetcher and common.window_contains(start):
             try:
                 description = _botgart_detail_description(detail_fetcher(link))
             except Exception as exc:

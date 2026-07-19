@@ -155,11 +155,9 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             city,
             "kommunal lokal markt kultur",
         ])
-        if not common.event_in_window_and_radius(start, end, city):
-            continue
-
+        should_enrich = common.event_in_window_and_radius(start, end, city)
         context = {}
-        if detail_fetcher and item.get("id"):
+        if should_enrich and detail_fetcher and item.get("id"):
             try:
                 context = _detail_context(detail_fetcher(_detail_url(calendar_url, item)))
             except Exception as exc:

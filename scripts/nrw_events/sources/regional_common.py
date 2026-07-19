@@ -101,6 +101,8 @@ def enrich_descriptions(
     failed_links = set()
     needs_enrichment = needs_enrichment or (lambda event: not event.get("description"))
     for index, event in enumerate(events):
+        if not common.event_in_window(event):
+            continue
         if not needs_enrichment(event):
             continue
         link = (event.get("link") or "").strip()

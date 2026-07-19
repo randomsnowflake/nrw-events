@@ -121,7 +121,8 @@ def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
         teaser_is_title = (
             description.casefold().strip(" .") == title.casefold().strip(" .")
         )
-        if not description or teaser_is_title:
+        start = common.parse_iso_date(time_match.group(1))
+        if (not description or teaser_is_title) and common.window_contains(start):
             description = _lohmar_detail_description(link, detail_fetcher)
         description = description or _lohmar_fallback_description(title, time_text, venue)
 
@@ -135,7 +136,7 @@ def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
         )
         event = common.make_event(
             title,
-            common.parse_iso_date(time_match.group(1)),
+            start,
             None,
             venue,
             "Lohmar",

@@ -74,10 +74,8 @@ def _events_from_kunstmuseum_bonn(html: str, detail_fetcher=None) -> list:
         title = rc.clean(title_m.group(1))
         format_text = rc.clean(meta_m.group(1) if meta_m else "")
         fallback = _kunstmuseum_fallback_description(title, format_text, start)
-        if not common.event_in_window_and_radius(start, start, "Bonn"):
-            continue
         description = ""
-        if detail_fetcher:
+        if detail_fetcher and common.window_contains(start):
             try:
                 description = _kunstmuseum_detail_description(detail_fetcher(href))
             except Exception as exc:

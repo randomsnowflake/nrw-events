@@ -69,7 +69,8 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
         genre = rc.clean(cells[4])
         cell_text = rc.clean(cells[3])
         summary = cell_text[len(title):].strip(" |–-") if cell_text.startswith(title) else cell_text
-        description = detail_fetcher(link) or summary
+        description = detail_fetcher(link) if common.window_contains(start_dt) else ""
+        description = description or summary
         if genre and genre.casefold() not in description.casefold():
             description = common.concise_description(f"{description} {genre}")
         if not description:

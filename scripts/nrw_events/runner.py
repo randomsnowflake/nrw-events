@@ -77,6 +77,8 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
             result.status = typed_status
         accepted = []
         for event in events:
+            if not isinstance(event, dict) or not common.event_in_window(event):
+                continue
             try:
                 accepted.append(validate_event(event))
             except EventValidationError as exc:

@@ -89,8 +89,12 @@ class JsonLdScheduleTests(unittest.TestCase):
 
         events = common.events_from_jsonld(html, "Rheinauen-Flohmarkt", "Bonn", "markt flohmarkt outdoor", 1.0, payload["url"])
 
-        self.assertEqual([ev["date"] for ev in events], ["2026-06-20"])
-        self.assertEqual(events[0]["time"], "08:00–18:00")
+        self.assertEqual(
+            [ev["date"] for ev in events],
+            ["2026-04-18", "2026-06-20", "2026-07-18"],
+        )
+        current = next(ev for ev in events if ev["date"] == "2026-06-20")
+        self.assertEqual(current["time"], "08:00–18:00")
         self.assertNotIn("2026-04-18–2026-10-17", [ev["date"] for ev in events])
 
 

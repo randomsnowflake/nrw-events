@@ -32,16 +32,43 @@ class RegionalCommonHealthTests(unittest.TestCase):
             events = regional_common.fetch_html_events(
                 "Seasonal calendar", "https://example.test/events", parser)
 
-        self.assertEqual(events, [])
+        self.assertEqual(len(events), 1)
         log_source_error.assert_not_called()
         record_endpoint.assert_called_once_with(
             "https://example.test/events",
             parser_type="html",
             candidate_count=1,
             out_of_window_count=1,
-            parsed_event_count=0,
+            parsed_event_count=1,
             parser_empty=False,
         )
+
+    def test_out_of_window_events_skip_detail_enrichment(self):
+        event = common.make_event(
+            "Autumn concert",
+            datetime(2026, 9, 1),
+            None,
+            "Town hall",
+            "Bonn",
+            "",
+            "https://example.test/autumn-concert",
+            "Seasonal calendar",
+            "concert",
+        )
+        detail_fetcher = patch.object(common, "fetch_detail_url")
+        fetch_detail = detail_fetcher.start()
+        self.addCleanup(detail_fetcher.stop)
+
+        enriched = regional_common.enrich_descriptions(
+            [event],
+            source="Seasonal calendar",
+            cache_namespace="seasonal",
+            extract_context=lambda html, _event: {"description": html},
+            fallback=lambda _event: "fallback",
+        )
+
+        self.assertEqual(enriched, [event])
+        fetch_detail.assert_not_called()
 
     def test_no_parser_candidates_still_reports_layout_drift(self):
         with patch.object(common, "fetch_url", return_value="<html>changed layout</html>"), \

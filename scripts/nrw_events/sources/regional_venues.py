@@ -96,7 +96,11 @@ def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
         venue = _rheinbach_field(block, "p", "location")
         time_text = _rheinbach_field(block, "div", "time")
         categories = _rheinbach_categories(block)
-        detail_copy = _rheinbach_detail_copy(link, detail_fetcher)
+        start = rc.parse_dt(date_text)
+        detail_copy = (
+            _rheinbach_detail_copy(link, detail_fetcher)
+            if common.window_contains(start) else ""
+        )
         description = detail_copy or _rheinbach_fallback_description(
             title,
             date_text,
@@ -107,7 +111,7 @@ def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
         category_text = " ".join(categories + ["rheinbach", "lokal"])
         ev = common.make_event(
             title,
-            rc.parse_dt(date_text),
+            start,
             None,
             venue,
             "Rheinbach",
