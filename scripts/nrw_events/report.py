@@ -165,6 +165,11 @@ def _is_radio_aggregation_link(link: str) -> bool:
     )
 
 
+def events_are_duplicates(left, right) -> bool:
+    """Return whether two canonical records represent the same occurrence."""
+    return _same_occurrence(left, right) and _titles_match(left, right)
+
+
 def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     """Collapse duplicates, preferring source authority and then event score."""
     result: list = []

@@ -40,6 +40,15 @@ class RuntimeConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "days_ahead"):
             config.runtime_config(91)
 
+    def test_previous_snapshot_path_is_configurable(self):
+        with mock.patch.dict(os.environ, {
+            "NRW_EVENTS_PREVIOUS_META_JSON": "/var/cache/nrw-events/last-good.json",
+        }, clear=True):
+            self.assertEqual(
+                config.runtime_config().previous_meta_json,
+                "/var/cache/nrw-events/last-good.json",
+            )
+
     def test_transport_error_marks_source_degraded_even_when_fetcher_returns_empty(self):
         result = SourceResult(source="Blocked source")
         result.endpoint("https://example.test", error_type="HTTPError", error="405")

@@ -40,6 +40,197 @@ class RunnerOutputTests(unittest.TestCase):
         ], "one endpoint failed"))
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(len(events), 1)
+        self.assertEqual(result.event_sources, ["Typed"])
+
+    def test_unavailable_grouped_subsource_retains_only_unexpired_events(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            previous = {
+                "generated_at": "2026-06-07T05:00:00",
+                "source_results": {
+                    "Regional HTML calendars": {
+                        "raw_event_count": 2,
+                        "event_sources": ["Lohmar"],
+                    },
+                },
+                "events": [
+                    {
+                        "title": "Expired Lohmar Event", "source": "Lohmar",
+                        "date": "2026-06-07", "score": 1.0, "city": "Lohmar",
+                    },
+                    {
+                        "title": "Upcoming Lohmar Event", "source": "Lohmar",
+                        "date": "2026-06-09", "score": 1.0, "city": "Lohmar",
+                    },
+                ],
+            }
+            with open(previous_path, "w") as handle:
+                json.dump(previous, handle)
+
+            def partial_group():
+                runner.common.log_source_error("Lohmar", TimeoutError("read timed out"))
+                return [{
+                    "title": "Fresh Bornheim Event", "source": "Bornheim",
+                    "date": "2026-06-09", "score": 1.0, "city": "Bornheim",
+                }]
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "retention-test", configure_logging("retention-test", "ERROR", "", ""),
+                clock=lambda: datetime(2026, 6, 8, 5),
+            )
+            result = runner.run_import(context, {"Regional HTML calendars": partial_group})
+            snapshot = runner.build_snapshot(result, context).metadata
+
+        self.assertEqual({event.title for event in result.events}, {
+            "Fresh Bornheim Event", "Upcoming Lohmar Event",
+        })
+        self.assertEqual(snapshot["fresh_event_count"], 1)
+        self.assertEqual(snapshot["retained_event_count"], 1)
+        self.assertEqual(snapshot["expired_retained_event_count"], 1)
+        self.assertEqual(snapshot["retained_sources"], [{
+            "source": "Lohmar",
+            "source_id": "lohmar",
+            "retained_event_count": 1,
+            "expired_event_count": 1,
+            "last_success_at": "2026-06-07T05:00:00",
+            "consecutive_failures": 1,
+        }])
+
+    def test_healthy_source_replaces_previous_snapshot_instead_of_retaining_it(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-06-07T05:00:00",
+                    "source_results": {
+                        "Lohmar": {"raw_event_count": 1, "event_sources": ["Lohmar"]},
+                    },
+                    "events": [{
+                        "title": "Old Event", "source": "Lohmar",
+                        "date": "2026-06-09", "score": 1.0, "city": "Lohmar",
+                    }],
+                }, handle)
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "recovery-test", configure_logging("recovery-test", "ERROR", "", ""),
+            )
+            result = runner.run_import(context, {"Lohmar": lambda: [{
+                "title": "Fresh Event", "source": "Lohmar",
+                "date": "2026-06-10", "score": 1.0, "city": "Lohmar",
+            }]})
+
+        self.assertEqual([event.title for event in result.events], ["Fresh Event"])
+        self.assertEqual(result.retention["retained_event_count"], 0)
+        self.assertEqual(result.retention["retained_sources"], [])
+
+    def test_shared_display_source_retains_only_failed_logical_child(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            cached_bad_honnef = {
+                "title": "Cached Bad Honnef", "source": "ionas4 regional",
+                "date": "2026-06-09", "score": 1.0, "city": "Bad Honnef",
+            }
+            cached_grafschaft = {
+                "title": "Cached Grafschaft", "source": "ionas4 regional",
+                "date": "2026-06-09", "score": 1.0, "city": "Grafschaft",
+            }
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-06-07T05:00:00",
+                    "events": [cached_bad_honnef, cached_grafschaft],
+                    "source_results": {},
+                }, handle)
+
+            def partial_ionas():
+                common.log_source_error(
+                    "ionas4 regional (Bad Honnef)", TimeoutError("timed out"),
+                    source_id="ionas4-bad-honnef",
+                )
+                return [{
+                    "title": "Fresh Grafschaft", "source": "ionas4 regional",
+                    "source_id": "ionas4-grafschaft", "date": "2026-06-09",
+                    "score": 1.0, "city": "Grafschaft",
+                }]
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "child-id-test", configure_logging("child-id-test", "ERROR", "", ""),
+            )
+            result = runner.run_import(context, {"ionas4 regional": partial_ionas})
+            snapshot = runner.build_snapshot(result, context).metadata
+
+        titles = {event.title for event in result.events}
+        self.assertIn("Fresh Grafschaft", titles)
+        self.assertIn("Cached Bad Honnef", titles)
+        self.assertNotIn("Cached Grafschaft", titles)
+        self.assertEqual(snapshot["retained_sources"][0]["source_id"], "ionas4-bad-honnef")
+        self.assertEqual(
+            snapshot["retained_sources"][0]["source"],
+            "ionas4 regional (Bad Honnef)",
+        )
+
+    def test_fresh_duplicate_wins_wholesale_over_retained_record(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            previous_path = os.path.join(temp_dir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "snapshot_schema_version": 1,
+                    "generated_at": "2026-06-07T05:00:00+02:00",
+                    "events": [{
+                        "title": "Shared Event",
+                        "source": "Official Calendar",
+                        "source_id": "official-calendar",
+                        "date": "2026-06-09",
+                        "description": "Old retained description that must not enrich the fresh record.",
+                        "score": 99.0,
+                        "city": "Bonn",
+                    }],
+                    "source_results": {
+                        "Broken": {
+                            "event_source_ids": ["official-calendar"],
+                            "accepted_event_count": 1,
+                        },
+                    },
+                }, handle)
+
+            def broken_source():
+                common.log_source_error(
+                    "Official Calendar", RuntimeError("temporary timeout"),
+                    source_id="official-calendar",
+                )
+                return []
+
+            def fresh_source():
+                return [{
+                    "title": "Shared Event",
+                    "source": "Meetup",
+                    "source_id": "meetup-fresh",
+                    "date": "2026-06-09",
+                    "description": "Fresh description.",
+                    "score": 1.0,
+                    "city": "Bonn",
+                }]
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "fresh-wins-test", configure_logging("fresh-wins-test", "ERROR", "", ""),
+            )
+            result = runner.run_import(
+                context,
+                {"Broken": broken_source, "Fresh": fresh_source},
+            )
+
+        self.assertEqual(len(result.events), 1)
+        self.assertEqual(result.events[0].source, "Meetup")
+        self.assertEqual(result.events[0].description, "Fresh description.")
+        self.assertEqual(result.retention["fresh_event_count"], 1)
+        self.assertEqual(result.retention["retained_event_count"], 0)
 
     def test_expected_quality_rejections_do_not_degrade_source_health(self):
         result, events = runner._run_source("Filtered", lambda: [

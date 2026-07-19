@@ -26,6 +26,7 @@ class RuntimeConfig:
     source_baseline_min_count: int = 10
     json_out: str = "/tmp/nrw-events-latest.json"
     meta_json_out: str = "/tmp/nrw-events-latest-meta.json"
+    previous_meta_json: str = ""
     log_level: str = "INFO"
     log_file: str = ""
     json_log_file: str = ""
@@ -98,6 +99,7 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         source_baseline_min_count=_int("NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT", 10, 1, 10_000),
         json_out=os.environ.get("NRW_EVENTS_JSON_OUT", "/tmp/nrw-events-latest.json"),
         meta_json_out=os.environ.get("NRW_EVENTS_META_JSON_OUT", "/tmp/nrw-events-latest-meta.json"),
+        previous_meta_json=os.environ.get("NRW_EVENTS_PREVIOUS_META_JSON", ""),
         log_level=level,
         log_file=os.environ.get("NRW_EVENTS_LOG_FILE", ""),
         json_log_file=os.environ.get("NRW_EVENTS_JSON_LOG_FILE", ""),

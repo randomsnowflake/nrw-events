@@ -8,6 +8,11 @@ from .. import common
 from ..dates import MONTH_DE, MONTH_EN
 from ..source_types import TextParser
 
+
+class ParserEmptyError(RuntimeError):
+    """A source responded, but its parser produced no trustworthy records."""
+
+
 _MONTH = {
     **MONTH_DE,
     **MONTH_EN,
@@ -109,6 +114,8 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
         events = parser(common.fetch_url(url, timeout=timeout))
         common._record_endpoint(url, parser_type="html", parsed_event_count=len(events),
                                 parser_empty=not bool(events))
+        if not events:
+            common.log_source_error(name, ParserEmptyError("parser returned no event records"))
         return events
     except Exception as e:
         common.log_source_error(name, e)

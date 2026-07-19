@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import re
 from typing import Any, Iterator, Mapping, Optional, TypedDict
 
 
 class RawEvent(TypedDict, total=False):
     title: str
     source: str
+    source_id: str
     date: str
     time: str
     start_date: str
@@ -42,6 +44,7 @@ class CanonicalEvent(Mapping[str, Any]):
     source: str
     start_date: str
     score: float
+    source_id: str = ""
     date: str = ""
     time: str = ""
     end_date: str = ""
@@ -85,3 +88,8 @@ class CanonicalEvent(Mapping[str, Any]):
 
 # Source adapters migrate independently and may keep the historical annotation.
 EventRecord = RawEvent
+
+
+def normalize_source_id(value: object) -> str:
+    """Return a stable machine key for one logical event source."""
+    return re.sub(r"[^a-z0-9]+", "-", str(value or "").casefold()).strip("-")

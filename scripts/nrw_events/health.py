@@ -68,11 +68,16 @@ class SourceResult:
     baseline: dict[str, Any] = field(default_factory=dict)
     anomalies: list[str] = field(default_factory=list)
     duration_ms: int = 0
+    event_sources: list[str] = field(default_factory=list)
+    event_source_ids: list[str] = field(default_factory=list)
     warnings: list[dict[str, str]] = field(default_factory=list)
     error: Optional[dict[str, str]] = None
 
-    def warning(self, source: str, error_type: str, message: str) -> None:
-        self.warnings.append({"source": source, "error_type": error_type, "error": message})
+    def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> None:
+        warning = {"source": source, "error_type": error_type, "error": message}
+        if source_id:
+            warning["source_id"] = source_id
+        self.warnings.append(warning)
 
     def reject(self, reason: str) -> None:
         self.rejected_event_count += 1
@@ -115,6 +120,8 @@ class SourceResult:
             "baseline": self.baseline,
             "anomalies": self.anomalies,
             "duration_ms": self.duration_ms,
+            "event_sources": self.event_sources,
+            "event_source_ids": self.event_source_ids,
             "warnings": self.warnings,
             "error": self.error,
         }

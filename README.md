@@ -304,8 +304,16 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
   stabile Kategorie-Taxonomie und die vollständige Eventliste. Der Laufstatus ist
   `healthy`, `degraded` oder `failed`; einzelne fehlgeschlagene/degradierte
   Quellen werden als `degraded` veröffentlicht und beenden den Prozess mit Exit 0,
-  solange der Lauf weiterhin Events erzeugt. `failed` bleibt für Läufe ohne
-  veröffentlichbare Events oder Infrastruktur-/Konfigurationsfehler reserviert.
+  solange der Lauf weiterhin Events erzeugt. Wenn `NRW_EVENTS_PREVIOUS_META_JSON`
+  auf einen dauerhaften vorherigen Metadaten-Snapshot zeigt, behält ein degradierter
+  Lauf außerdem nicht abgelaufene Events vorübergehend unerreichbarer Quellen bei.
+  Frische Quelldaten gewinnen bei der Deduplizierung; abgelaufene Cache-Events werden
+  entfernt. `fresh_event_count`, `retained_event_count`,
+  `expired_retained_event_count` und `retained_sources` dokumentieren die Entscheidung.
+  Erfolgreiche leere Quellen ersetzen ihren bisherigen Snapshot; nur Fehler,
+  Parser-Leerstände und auffällige Nullergebnisse lösen die Aufbewahrung aus.
+  `failed` bleibt für Läufe ohne veröffentlichbare Events oder
+  Infrastruktur-/Konfigurationsfehler reserviert.
 
 Standardmäßig wird die vollständige Liste ausgegeben. Gekürzt wird nur, wenn
 `NRW_EVENTS_MAX_PER_SECTION` explizit gesetzt wird.
