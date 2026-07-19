@@ -262,6 +262,12 @@ weiterhin gezielt überschreiben.
   weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
 - **Direkte Marktveranstalter:** Grote & Hiller, Hofflohmärkte Köln und Cölln
   Konzept liefern Termine, Uhrzeiten, Orte und direkte Veranstaltungsseiten.
+- **Kuratierte Kino-Sonderformate:** Bonner Kinemathek, Campus-Kino Bonn,
+  Internationale Stummfilmtage, KINOPOLIS Bonn, Filmhaus Köln,
+  Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer
+  Kulturbad. Breite Kinoprogramme werden nur bei expliziten Festival-, Open-Air-,
+  Preview-, Gesprächs-, Workshop- oder vergleichbaren Event-Markierungen
+  übernommen (`cinema_specials.py`); reguläre Vorstellungen bleiben draußen.
 - **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender

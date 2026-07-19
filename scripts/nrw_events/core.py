@@ -1105,12 +1105,13 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         "lesung", "live-musik", "museum", "theater", "vernissage", "wanderung",
         "tag der offenen tür", "tag der offenen tuer",
     }
-    if (any(bit in text for bit in routine_or_political_bits)
+    if ("cinema-special" not in category
+            and any(bit in text for bit in routine_or_political_bits)
             and not any(bit in title_desc_text for bit in cultural_event_bits)):
         return True
-    if any(bit in text for bit in routine_phrase_bits) and not any(
-        bit in title_desc_text for bit in cultural_event_bits
-    ):
+    if ("cinema-special" not in category
+            and any(bit in text for bit in routine_phrase_bits)
+            and not any(bit in title_desc_text for bit in cultural_event_bits)):
         return True
 
     regular_low_value_bits = {
