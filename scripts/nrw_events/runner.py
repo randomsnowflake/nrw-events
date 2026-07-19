@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import shutil
@@ -439,41 +440,50 @@ def _publish_snapshots(settings: config.RuntimeConfig, events: list, metadata: d
     meta_path = Path(settings.meta_json_out).expanduser()
     manifest_path = meta_path.with_suffix(meta_path.suffix + ".manifest.json")
     generations_dir = meta_path.parent / f".{meta_path.name}.generations"
-    generation_dir = generations_dir / run_id
-    generation_dir.mkdir(parents=True, exist_ok=False)
-    immutable_events = generation_dir / "events.json"
-    immutable_metadata = generation_dir / "metadata.json"
+    lock_path = manifest_path.with_suffix(manifest_path.suffix + ".lock")
+    meta_path.parent.mkdir(parents=True, exist_ok=True)
+    event_path.parent.mkdir(parents=True, exist_ok=True)
 
-    _atomic_json(immutable_events, events)
-    _atomic_json(immutable_metadata, metadata)
+    # The website serializes refreshes, but nrw-events is also a standalone
+    # package. Lock its complete publication transaction so overlapping CLI
+    # runs cannot prune a generation that another publisher is committing.
+    with lock_path.open("a+") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        generation_dir = generations_dir / run_id
+        generation_dir.mkdir(parents=True, exist_ok=False)
+        immutable_events = generation_dir / "events.json"
+        immutable_metadata = generation_dir / "metadata.json"
 
-    # Preserve the historical fixed outputs for existing callers. The manifest
-    # is the commit record and always points at the immutable matching pair.
-    _atomic_json(event_path, events)
-    _atomic_json(meta_path, metadata)
-    _atomic_json(manifest_path, {
-        "run_id": run_id,
-        "generated_at": metadata["generated_at"],
-        "events_path": str(immutable_events),
-        "metadata_path": str(immutable_metadata),
-        "event_count": len(events),
-        "run_status": metadata["run_status"],
-    })
+        _atomic_json(immutable_events, events)
+        _atomic_json(immutable_metadata, metadata)
 
-    generations = sorted(
-        (path for path in generations_dir.iterdir() if path.is_dir()),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    )
-    for obsolete in generations[3:]:
-        shutil.rmtree(obsolete)
-    return {
-        "events": str(event_path),
-        "metadata": str(meta_path),
-        "manifest": str(manifest_path),
-        "immutable_events": str(immutable_events),
-        "immutable_metadata": str(immutable_metadata),
-    }
+        # Preserve the historical fixed outputs for existing callers. The manifest
+        # is the commit record and always points at the immutable matching pair.
+        _atomic_json(event_path, events)
+        _atomic_json(meta_path, metadata)
+        _atomic_json(manifest_path, {
+            "run_id": run_id,
+            "generated_at": metadata["generated_at"],
+            "events_path": str(immutable_events),
+            "metadata_path": str(immutable_metadata),
+            "event_count": len(events),
+            "run_status": metadata["run_status"],
+        })
+
+        generations = sorted(
+            (path for path in generations_dir.iterdir() if path.is_dir()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        for obsolete in generations[3:]:
+            shutil.rmtree(obsolete)
+        return {
+            "events": str(event_path),
+            "metadata": str(meta_path),
+            "manifest": str(manifest_path),
+            "immutable_events": str(immutable_events),
+            "immutable_metadata": str(immutable_metadata),
+        }
 
 
 def _parse_days(argv: list[str]) -> Optional[int]:
