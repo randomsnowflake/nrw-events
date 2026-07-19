@@ -7,6 +7,18 @@ from scripts.nrw_events import common
 
 
 class HttpHeaderTests(unittest.TestCase):
+    def test_fetch_url_preserves_mixed_utf8_and_windows_1252_characters(self):
+        response = Mock()
+        response.read.return_value = "Kölner ".encode("utf-8") + b"Flohm\xe4rkte"
+        headers = Message()
+        headers["Content-Type"] = "text/html; charset=UTF-8"
+        response.headers = headers
+
+        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response):
+            text = common.fetch_url("https://example.org/legacy-events")
+
+        self.assertEqual(text, "Kölner Flohmärkte")
+
     def test_fetch_url_rejects_oversized_responses(self):
         response = Mock()
         response.read.return_value = b"x" * 11

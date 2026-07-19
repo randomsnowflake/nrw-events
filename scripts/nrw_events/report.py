@@ -18,6 +18,7 @@ from .models import CanonicalEvent
 # while authority decides which publisher owns the canonical record.
 _AGGREGATOR_SOURCE_MARKERS = (
     "bonn.jetzt", "eventbrite", "meetup", "radio bonn", "ruhr-guide",
+    "kinderflohmarkt.com",
 )
 _CIVIC_AGGREGATOR_SOURCE_MARKERS = ("bonn.de events", "bonn.de sports")
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
