@@ -77,10 +77,11 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
             result.status = typed_status
         accepted = []
         for event in events:
-            if not isinstance(event, dict) or not common.event_in_window(event):
-                continue
             try:
-                accepted.append(validate_event(event))
+                canonical_event = validate_event(event)
+                if not common.event_in_window(canonical_event):
+                    continue
+                accepted.append(canonical_event)
             except EventValidationError as exc:
                 result.reject(str(exc))
         result.accepted_event_count = len(accepted)
