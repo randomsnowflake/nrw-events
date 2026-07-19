@@ -70,6 +70,10 @@ def title_only(value: str) -> Keyword:
 
 
 FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # Source adapters use this internal marker only after proving that an item
+    # belongs to a curated cinema format, so incidental words in a synopsis
+    # (such as "Sportlehrerin") cannot move the event into another category.
+    ("cinema", ("cinema-special",)),
     # Photo-club meetings are recurring community meetups, not club nights.
     ("other", ("fotoclub", "foto club")),
     # KUNST!RASEN is a Bonn concert venue; the "kunst" substring is not an
@@ -196,7 +200,8 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
     hint_text = normalize_text(source_category)
     description_text = normalize_text(description)
 
-    if (any(bit in title_text for bit in LOW_VALUE_TITLE_CONTEXT)
+    if ("cinema-special" not in hint_text
+            and any(bit in title_text for bit in LOW_VALUE_TITLE_CONTEXT)
             and not any(bit in title_text for bit in DESTINATION_TITLE_CONTEXT)):
         # Municipal sources often attach broad all-purpose category bags like
         # "Kultur Konzert" to routine meetups/courses. For those low-value title

@@ -16,7 +16,7 @@ from . import (
     meckenheim, much, naturregion_sieg, siegburg,
     ruhrguide, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
-    bonn_venues, radiobonn, bonn_districts,
+    bonn_venues, radiobonn, bonn_districts, cinema_specials,
     kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept,
 )
 from ..source_specs import AdapterType, SourceSpec, adapter_for
@@ -59,6 +59,7 @@ CUSTOM_SOURCES = {
     "Regional venues": regional_venues.fetch,
     "Requested venue calendars": requested_venues.fetch,
     "Bonn venue calendars": bonn_venues.fetch,
+    "Curated cinema specials": cinema_specials.fetch,
     "Bonn.jetzt": bonnjetzt.fetch,
     "Radio Bonn/Rhein-Sieg": radiobonn.fetch,
     "Bürgerverein Vilich-Müldorf": bonn_districts.fetch_vilich_mueldorf,
