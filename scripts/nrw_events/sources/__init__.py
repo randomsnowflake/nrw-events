@@ -16,7 +16,7 @@ from . import (
     meckenheim, much, naturregion_sieg, siegburg,
     ruhrguide, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
-    bonn_venues, bonn_food, radiobonn, bonn_districts, cinema_specials,
+    bonn_venues, bonn_food, radiobonn, bonn_districts, cinema_specials, uni_bonn,
     kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept,
     kleines_theater, theater_bonn, junges_theater_bonn, theater_marabu,
     theater_im_ballsaal, tik_bonn,
@@ -37,6 +37,7 @@ CUSTOM_SOURCES = {
     "Köln Open Data": koeln.fetch,
     "Bonn.de Events": bonn.fetch_events,        # official calendar HTML listing — primary
     "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by main calendar filters
+    "Universität Bonn": uni_bonn.fetch,          # official iCal plus cached first-party detail pages
     "Harmonie Bonn": harmonie.fetch,
     "Haus der Geschichte": haus_der_geschichte.fetch,
     "Kleines Theater Bad Godesberg": kleines_theater.fetch,
@@ -100,3 +101,4 @@ SOURCES = {**STANDARD_SOURCES, **CUSTOM_SOURCES}
 SOURCE_IDS = {spec.display_name: spec.id for spec in SOURCE_SPECS} | {
     name: name.lower().replace(" ", "-") for name in CUSTOM_SOURCES
 }
+SOURCE_IDS["Universität Bonn"] = "uni-bonn"
