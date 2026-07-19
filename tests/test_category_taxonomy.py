@@ -42,6 +42,20 @@ class CategoryTaxonomyTests(unittest.TestCase):
     def test_known_bonn_fixture_regressions_use_specific_intent_before_broad_family_or_stage_terms(self):
         cases = [
             ("Märkte/Messen", "Kinderbücher-Flohmarkt", "", "market"),
+            ("", "Kindersachenbasar Rund ums Kind", "", "market"),
+            ("", "Antik&Design in der Kölner Flora", "", "market"),
+            (
+                "flohmarkt second hand markt",
+                "Kindersachen Flohmarkt, Förderverein 1. BC Beuel",
+                "Bekleidung für Kinder und Jugendliche",
+                "market",
+            ),
+            (
+                "flohmarkt second hand markt",
+                "Bonn, Fashion, Family & Kids Markt im Telekom Dome",
+                "Fashion, Family & Kids Markt",
+                "market",
+            ),
             ("", "Linedance-Schnupperworkshops Donnerstags", "", "workshop"),
             ("", "Offener Theaterworkshop", "", "workshop"),
             ("", "Running City Tours - Joggen & Sightseeing verbinden", "", "sports"),

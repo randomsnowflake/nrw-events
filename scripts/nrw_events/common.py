@@ -282,7 +282,19 @@ def fetch_url(
                 charset = None
             _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
                              bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
-            return body.decode(charset or "utf-8")
+            try:
+                return body.decode(charset or "utf-8")
+            except UnicodeDecodeError:
+                # A few long-running regional calendars advertise UTF-8 while
+                # still mixing in individual Windows-1252 bytes. Preserve both
+                # valid UTF-8 and those legacy characters instead of corrupting
+                # the complete page or dropping its source.
+                decoded = body.decode("utf-8", errors="surrogateescape")
+                return "".join(
+                    bytes((ord(char) - 0xDC00,)).decode("cp1252", errors="replace")
+                    if 0xDC80 <= ord(char) <= 0xDCFF else char
+                    for char in decoded
+                )
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             if attempt >= _HTTP_RETRY_ATTEMPTS - 1 or not _is_retryable_fetch_error(exc):

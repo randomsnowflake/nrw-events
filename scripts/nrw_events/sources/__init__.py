@@ -17,6 +17,7 @@ from . import (
     ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
     bonn_venues, radiobonn, bonn_districts,
+    kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept,
 )
 from ..source_specs import AdapterType, SourceSpec, adapter_for
 
@@ -39,6 +40,10 @@ CUSTOM_SOURCES = {
     "Meetup": meetup.fetch,
     # Live structured scrapers (JSON-LD / iCal / structured HTML)
     "Rheinauen-Flohmarkt": flohmarkt.fetch,
+    "Kinderflohmarkt.com": kinderflohmarkt.fetch,
+    "Grote & Hiller": grote_hiller.fetch,
+    "Hofflohmärkte Köln": hofflohmaerkte.fetch,
+    "Cölln Konzept": coelln_konzept.fetch,
     "Bonn district festivals": bonn.fetch_press_festivals,
     "Bundeskunsthalle": bundeskunsthalle.fetch,
     "Königswinter": koenigswinter.fetch,

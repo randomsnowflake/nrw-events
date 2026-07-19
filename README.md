@@ -136,7 +136,8 @@ scripts/
     sources/
       __init__.py          # SOURCES-Registry: Anzeigename -> fetch-Funktion
       bonn.py  koeln.py  harmonie.py  meetup.py
-      flohmarkt.py  bundeskunsthalle.py  bonnjetzt.py
+      flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
+      hofflohmaerkte.py  coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
       koenigswinter.py  siebengebirge.py  siegburg.py  troisdorf.py
       hennef.py  meckenheim.py  wachtberg.py  much.py  naturregion_sieg.py
       regional_*.py  requested_venues.py  eventbrite.py
@@ -251,8 +252,11 @@ weiterhin gezielt überschreiben.
   (`bonn.py`).
 - **iCal / RFC 5545:** Harmonie Bonn, Siegburg, Troisdorf, Wachtberg und kuratierte
   Bonn-area Meetup-Gruppen.
-- **JSON-LD / schema.org:** Rheinauen-Flohmarkt, VVS Siebengebirge, Hennef und
+- **JSON-LD / schema.org:** Rheinauen-Flohmarkt, Kinderflohmarkt.com,
+  VVS Siebengebirge, Hennef und
   weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
+- **Direkte Marktveranstalter:** Grote & Hiller, Hofflohmärkte Köln und Cölln
+  Konzept liefern Termine, Uhrzeiten, Orte und direkte Veranstaltungsseiten.
 - **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender

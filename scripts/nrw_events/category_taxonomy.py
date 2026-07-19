@@ -109,12 +109,17 @@ DESTINATION_TITLE_CONTEXT = (
     "repair café", "repair cafe", "biker-treffen",
 )
 
+STRONG_MARKET_TITLE_CONTEXT = (
+    "flohmarkt", "trödelmarkt", "troedelmarkt", "antikmarkt", "basar",
+    "fashion, family & kids markt",
+)
+
 
 # The priority only breaks equal scores. More specific commercial/category intent
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "frischemarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", word("market"), Keyword("markt", title_only=True, word=True))),
+    Rule("market", 14, ("flohmarkt", "kindersachen flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "frischemarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", "kindersachenbasar", "kinderbasar", "fashion, family & kids markt", word("market"), Keyword("markt", title_only=True, word=True), Keyword("basar", title_only=True, word_suffix=True), Keyword("antik", title_only=True, word=True))),
     Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "schlemmer", "grillen", "dîner", "diner en blanc", "wine", "winzer", "weinprobe", "weinfest", "weinmoment", "weinlounge", "biergarten", "tasting", word("wein"), word("bier"))),
     Rule(
         "kids",
@@ -215,6 +220,17 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
             "label": category["label"],
             "confidence": 1.0,
             "reason": "forced:concert-artist-at-venue",
+        }
+
+    # Explicit market formats in the title remain markets even when their copy
+    # naturally repeats broad family words several times.
+    if any(bit in title_text for bit in STRONG_MARKET_TITLE_CONTEXT):
+        category = CATEGORY_BY_KEY["market"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:market-title",
         }
 
     combined_text = f"{title_text} {description_text} {hint_text}"

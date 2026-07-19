@@ -35,7 +35,8 @@ Data, Bonn.de JSON + sports + annual "Veranstaltungsjahr" listings, Harmonie
 Bonn, Meetup, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
-tourism calendars, requested venue calendars, Eventbrite,
+tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
+Cölln Konzept, requested venue calendars, Eventbrite,
 Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
 optional Grok Search. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
