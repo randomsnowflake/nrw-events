@@ -143,6 +143,7 @@ scripts/
       hofflohmaerkte.py  coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
+      max7.py  afterjobparty.py  rheinevents.py  salsainbonn.py
       koenigswinter.py  siebengebirge.py  siegburg.py
       meckenheim.py  much.py  naturregion_sieg.py
       regional_*.py  requested_venues.py
@@ -274,8 +275,8 @@ weiterhin gezielt überschreiben.
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
-- **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt
-  und Ruhr-Guide.
+- **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
+  Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit

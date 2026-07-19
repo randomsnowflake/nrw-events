@@ -39,6 +39,8 @@ tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
 Cölln Konzept, requested venue calendars,
 Theater Bonn, Junges Theater Bonn, Kleines Theater Bad Godesberg, Theater
 Marabu, Theater im Ballsaal, TiK Theater im Keller,
+Tanzschule Max7, AfterJobParty Bonn,
+RheinEvents, Salsa in Bonn,
 Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
 optional Grok Search. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
