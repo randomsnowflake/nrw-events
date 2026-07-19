@@ -619,13 +619,21 @@ class RunnerOutputTests(unittest.TestCase):
                 meta_json_out=os.path.join(tmpdir, "meta.json"),
             )
             metadata = {"run_id": "run-1", "generated_at": "2026-07-09T20:00:00", "run_status": "healthy"}
-            paths = runner._publish_snapshots(settings, [{"title": "Event"}], metadata, "run-1")
+            with mock.patch.object(
+                runner.fcntl, "flock", wraps=runner.fcntl.flock
+            ) as flock:
+                paths = runner._publish_snapshots(
+                    settings, [{"title": "Event"}], metadata, "run-1"
+                )
             with open(paths["manifest"]) as handle:
                 manifest = json.load(handle)
             with open(manifest["events_path"]) as handle:
                 immutable_events = json.load(handle)
             with open(manifest["metadata_path"]) as handle:
                 immutable_metadata = json.load(handle)
+            flock.assert_called_once()
+            self.assertEqual(flock.call_args.args[1], runner.fcntl.LOCK_EX)
+            self.assertTrue(os.path.isfile(paths["manifest"] + ".lock"))
 
         self.assertEqual(manifest["run_id"], "run-1")
         self.assertEqual(manifest["event_count"], 1)
