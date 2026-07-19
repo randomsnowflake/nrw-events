@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -116,12 +117,20 @@ def _endpoint_issues(result: SourceResult) -> list[dict[str, object]]:
     for url, details in result.endpoints.items():
         status = details.get("status")
         has_bad_status = isinstance(status, int) and status >= 400
-        if not (has_bad_status or details.get("error") or details.get("error_type")):
+        if not (
+            has_bad_status
+            or details.get("error")
+            or details.get("error_type")
+            or details.get("parser_empty") is True
+        ):
             continue
         issue = {"url": url, "attempts": details.get("attempts", 0)}
         for key in ("status", "error_type", "error"):
             if key in details:
                 issue[key] = details[key]
+        if details.get("parser_empty") is True:
+            issue["error_type"] = issue.get("error_type") or "ParserEmptyError"
+            issue["error"] = issue.get("error") or "parser returned no event records"
         issues.append(issue)
     return issues
 
@@ -212,9 +221,13 @@ def _event_source_id(event: dict) -> str:
         return explicit
     source = normalize_source_id(event.get("source"))
     # Migration path for snapshots written before grouped adapters emitted
-    # child IDs. IONAS events carry a stable municipality in ``city``.
+    # child IDs. These adapters carry the stable municipality in ``city``.
     if source == "ionas4-regional" and event.get("city"):
         return normalize_source_id(f"ionas4-{event['city']}")
+    if source == "sitekit-regional" and event.get("city"):
+        city = str(event["city"]).casefold()
+        city = city.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+        return normalize_source_id(f"sitekit-{city}")
     return source
 
 
@@ -225,6 +238,15 @@ def _retention_labels(results: dict[str, SourceResult], previous: dict) -> set[s
         _event_source_id(event)
         for event in previous.get("events") or []
         if isinstance(event, dict) and event.get("source")
+    }
+    previous_retained = [
+        item for item in previous.get("retained_sources") or []
+        if isinstance(item, dict)
+    ]
+    previous_retained_ids = {
+        normalize_source_id(item.get("source_id") or item.get("source"))
+        for item in previous_retained
+        if item.get("source_id") or item.get("source")
     }
     labels: set[str] = set()
     for runner_source, result in results.items():
@@ -238,6 +260,12 @@ def _retention_labels(results: dict[str, SourceResult], previous: dict) -> set[s
             )
             if str(label).strip()
         }
+        prior_labels.update(
+            normalize_source_id(item.get("source_id") or item.get("source"))
+            for item in previous_retained
+            if item.get("runner_source") == runner_source
+            and (item.get("source_id") or item.get("source"))
+        )
         runner_source_id = normalize_source_id(runner_source)
         if not prior_labels and runner_source_id in previous_event_ids:
             # Bootstrap snapshots predate per-runner source metadata. Most
@@ -258,17 +286,16 @@ def _retention_labels(results: dict[str, SourceResult], previous: dict) -> set[s
             )
             # Grouped adapters report the concrete municipality/venue that
             # failed. Retain that logical child only when it produced no fresh
-            # records; detail-page warnings intentionally use a distinct ID.
+            # records; a zero-event retained child remains tracked across
+            # consecutive failures.
             if (
                 warning_source
-                and warning_source in previous_event_ids
-                and warning_source not in fresh_labels
+                and warning_source in (previous_event_ids | previous_retained_ids)
             ):
                 labels.add(warning_source)
             elif (
                 warning_source.startswith("meetup-")
                 and "meetup" in previous_event_ids
-                and warning_source not in fresh_labels
             ):
                 # A pre-source-ID snapshot cannot map Meetup records back to
                 # individual groups. Preserve the legacy group conservatively
@@ -295,16 +322,39 @@ def _retain_previous_events(
         for item in previous.get("retained_sources") or []
         if isinstance(item, dict) and item.get("source")
     }
-    source_names: dict[str, str] = {}
-    for result in results.values():
+    source_names: dict[str, str] = {
+        label: str(item.get("source") or label)
+        for label, item in previous_retention.items()
+        if label in labels
+    }
+    runner_sources: dict[str, str] = {
+        label: str(item.get("runner_source"))
+        for label, item in previous_retention.items()
+        if label in labels and item.get("runner_source")
+    }
+    previous_results = previous.get("source_results") or {}
+    for runner_source, result in results.items():
+        prior = previous_results.get(runner_source) or {}
+        prior_ids = {
+            normalize_source_id(value)
+            for value in (prior.get("event_source_ids") or prior.get("event_sources") or [])
+            if str(value).strip()
+        }
+        runner_source_id = normalize_source_id(runner_source)
+        if not prior_ids and runner_source_id in labels:
+            prior_ids.add(runner_source_id)
+        for source_id in prior_ids & labels:
+            runner_sources.setdefault(source_id, runner_source)
         for warning in result.warnings:
             source_id = normalize_source_id(warning.get("source_id") or warning.get("source"))
             if source_id in labels and warning.get("source"):
                 source_names[source_id] = str(warning["source"])
+                runner_sources[source_id] = runner_source
     retained: list[CanonicalEvent] = []
     expired_counts = {label: 0 for label in labels}
     candidate_counts = {label: 0 for label in labels}
     window_start = context.window.start.strftime("%Y-%m-%d")
+    window_end = context.window.end.strftime("%Y-%m-%d")
     for raw_event in previous.get("events") or []:
         if not isinstance(raw_event, dict):
             continue
@@ -329,6 +379,8 @@ def _retain_previous_events(
         if event.end_date < window_start:
             expired_counts[label] += 1
             continue
+        if event.start_date > window_end:
+            continue
         retained.append(event)
         candidate_counts[label] += 1
 
@@ -339,6 +391,7 @@ def _retain_previous_events(
         retained_sources.append({
             "source": source_names.get(label, label),
             "source_id": label,
+            "runner_source": runner_sources.get(label) or prior.get("runner_source") or "",
             "retained_event_count": candidate_counts[label],
             "expired_event_count": expired_counts[label],
             "last_success_at": prior.get("last_success_at") or prior_generated_at,
@@ -381,21 +434,46 @@ def _atomic_json(path: Path, payload: object) -> None:
 
 
 def _publish_snapshots(settings: config.RuntimeConfig, events: list, metadata: dict, run_id: str) -> dict[str, str]:
-    """Publish independently atomic artifacts followed by a run-commit manifest."""
+    """Publish immutable run artifacts and atomically commit their manifest."""
     event_path = Path(settings.json_out).expanduser()
     meta_path = Path(settings.meta_json_out).expanduser()
     manifest_path = meta_path.with_suffix(meta_path.suffix + ".manifest.json")
+    generations_dir = meta_path.parent / f".{meta_path.name}.generations"
+    generation_dir = generations_dir / run_id
+    generation_dir.mkdir(parents=True, exist_ok=False)
+    immutable_events = generation_dir / "events.json"
+    immutable_metadata = generation_dir / "metadata.json"
+
+    _atomic_json(immutable_events, events)
+    _atomic_json(immutable_metadata, metadata)
+
+    # Preserve the historical fixed outputs for existing callers. The manifest
+    # is the commit record and always points at the immutable matching pair.
     _atomic_json(event_path, events)
     _atomic_json(meta_path, metadata)
     _atomic_json(manifest_path, {
         "run_id": run_id,
         "generated_at": metadata["generated_at"],
-        "events_path": str(event_path),
-        "metadata_path": str(meta_path),
+        "events_path": str(immutable_events),
+        "metadata_path": str(immutable_metadata),
         "event_count": len(events),
         "run_status": metadata["run_status"],
     })
-    return {"events": str(event_path), "metadata": str(meta_path), "manifest": str(manifest_path)}
+
+    generations = sorted(
+        (path for path in generations_dir.iterdir() if path.is_dir()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for obsolete in generations[3:]:
+        shutil.rmtree(obsolete)
+    return {
+        "events": str(event_path),
+        "metadata": str(meta_path),
+        "manifest": str(manifest_path),
+        "immutable_events": str(immutable_events),
+        "immutable_metadata": str(immutable_metadata),
+    }
 
 
 def _parse_days(argv: list[str]) -> Optional[int]:

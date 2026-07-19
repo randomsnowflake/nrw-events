@@ -99,9 +99,19 @@ class SourceResult:
         self.accepted_event_count = len(events)
         if self.status == SourceStatus.DISABLED:
             return
+        parser_empty = any(
+            endpoint.get("parser_empty") is True
+            for endpoint in self.endpoints.values()
+        )
         if self.error:
             self.status = SourceStatus.FAILED
+        elif parser_empty and not events:
+            self.status = SourceStatus.PARSER_EMPTY
         elif self.warnings or any("error_type" in endpoint for endpoint in self.endpoints.values()):
+            self.status = SourceStatus.DEGRADED
+        elif parser_empty:
+            # A grouped adapter can return valid records from one child while
+            # another child's parser yielded an untrusted empty result.
             self.status = SourceStatus.DEGRADED
         elif events:
             self.status = SourceStatus.HEALTHY

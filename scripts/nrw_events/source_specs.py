@@ -33,13 +33,13 @@ class SourceSpec:
 def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
     if spec.adapter is AdapterType.ICAL:
         return lambda: common.fetch_ical(spec.urls[0], spec.display_name, spec.city,
-                                         spec.category_hint, spec.trust)
+                                         spec.category_hint, spec.trust, spec.id)
     if spec.adapter is AdapterType.JSON_LD:
         def fetch_json_ld() -> list[RawEvent]:
             document = common.fetch_url(spec.urls[0], timeout=spec.timeout,
                                         headers=dict(spec.headers) or None)
             return common.events_from_jsonld(document, spec.display_name, spec.city,
-                                             spec.category_hint, spec.trust, spec.urls[0])
+                                             spec.category_hint, spec.trust, spec.urls[0], spec.id)
         return fetch_json_ld
     raise ValueError(f"unsupported source adapter: {spec.adapter}")
 

@@ -7,23 +7,27 @@ from . import regional_common as rc
 
 _SOURCE = "SiteKit regional"
 _CALENDARS = [
-    ("Brühl", "https://www.bruehl.de/tksf/veranstaltungskalender/veranstaltungskalender.php", 0.9),
-    ("Wesseling", "https://www.wesseling.de/kultur-sport/veranstaltungskalender.php", 0.86),
+    ("Brühl", "sitekit-bruehl", "https://www.bruehl.de/tksf/veranstaltungskalender/veranstaltungskalender.php", 0.9),
+    ("Wesseling", "sitekit-wesseling", "https://www.wesseling.de/kultur-sport/veranstaltungskalender.php", 0.86),
 ]
 
 
 def fetch() -> list:
     events = []
-    for city, url, trust in _CALENDARS:
+    for city, source_id, url, trust in _CALENDARS:
         events.extend(rc.fetch_html_events(
             f"{_SOURCE} ({city})",
             url,
-            lambda html, city=city, url=url, trust=trust: _events_from_teasers(html, url, city, trust),
+            lambda html, city=city, source_id=source_id, url=url, trust=trust: _events_from_teasers(
+                html, url, city, trust, source_id
+            ),
+            source_id=source_id,
         ))
     return rc.dedupe(events)
 
 
-def _events_from_teasers(html: str, base: str, city: str, trust: float) -> list:
+def _events_from_teasers(html: str, base: str, city: str, trust: float,
+                         source_id: str) -> list:
     events = []
     for block in re.findall(r'<article class="SP-Teaser.*?</article>', html, re.S | re.I):
         href = re.search(r'<a[^>]+class="SP-Teaser__inner"[^>]+href="([^"]+)"', block, re.S | re.I)
@@ -46,6 +50,7 @@ def _events_from_teasers(html: str, base: str, city: str, trust: float) -> list:
             "kommunal kultur markt ausstellung konzert führung",
             trust,
             rc.time_text(text),
+            source_id=source_id,
         )
         if ev:
             events.append(ev)
