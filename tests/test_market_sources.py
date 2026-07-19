@@ -90,6 +90,23 @@ class MarketSourceTests(unittest.TestCase):
             "https://www.grote-hiller.de/unsere-maerkte/hennef-meiersheide-maedelsmarkt/",
         )
 
+    def test_grote_hiller_normalizes_denklingen_to_reichshof(self):
+        html = """
+        <div id="markt1" class="row listing">
+          <mark>So, 26.07.2026</mark>
+          11:00 - <span>17:00 Uhr</span>
+          <h3 class="h2">Denklingen, Stadtflohmarkt, Rund ums Rathaus und auf dem Burghof</h3>
+          <img src="/assets/marker-1.svg"><span>51580 Reichshof-Denklingen, Hauptstr. 12</span>
+          <a href="/unsere-maerkte/denklingen-stadtflohmarkt-rund-ums-rathaus-und-auf-dem-burghof/">Infos</a>
+        </div>
+        """
+
+        events = grote_hiller._events_from_listing(html, "https://www.grote-hiller.de/stadtflohmaerkte/")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["city"], "Reichshof")
+        self.assertIn("Reichshof-Denklingen", events[0]["venue"])
+
     def test_hofflohmaerkte_parses_neighborhood_date_and_hours(self):
         html = """
         <p>Sa. 22. August 2026 · 10 - 16 Uhr · <strong>Königsdorf (Frechen)<br/></strong>

@@ -13,6 +13,9 @@ _URLS = (
     f"{_BASE_URL}/maedelsflohmaerkte/",
     f"{_BASE_URL}/fashion-family/",
 )
+_CITY_ALIASES = {
+    "denklingen": "Reichshof",
+}
 
 
 def _events_from_listing(html: str, page_url: str) -> list:
@@ -40,6 +43,7 @@ def _events_from_listing(html: str, page_url: str) -> list:
         title = rc.clean(title_match.group(1))
         venue = rc.clean(location_match.group(1))
         city = rc.city_from_text(venue, rc.city_from_text(title, "Bonn"))
+        city = _CITY_ALIASES.get(city.casefold(), city)
         time_text = rc.time_text(rc.clean(block))
         link = rc.abs_url(_BASE_URL, link_match.group(1)) if link_match else page_url
         description = common.factual_event_description(
