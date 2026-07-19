@@ -20,6 +20,7 @@ from . import (
     kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept,
     kleines_theater, theater_bonn, junges_theater_bonn, theater_marabu,
     theater_im_ballsaal, tik_bonn,
+    max7, afterjobparty, rheinevents, salsainbonn,
 )
 from ..source_specs import AdapterType, SourceSpec, adapter_for
 
@@ -51,6 +52,10 @@ CUSTOM_SOURCES = {
     "Grote & Hiller": grote_hiller.fetch,
     "Hofflohmärkte Köln": hofflohmaerkte.fetch,
     "Cölln Konzept": coelln_konzept.fetch,
+    "Tanzschule Max7": max7.fetch,
+    "AfterJobParty Bonn": afterjobparty.fetch,
+    "RheinEvents": rheinevents.fetch,
+    "Salsa in Bonn": salsainbonn.fetch,
     "Bonn district festivals": bonn.fetch_press_festivals,
     "Bundeskunsthalle": bundeskunsthalle.fetch,
     "Königswinter": koenigswinter.fetch,
