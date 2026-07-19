@@ -372,8 +372,20 @@ def fetch_hardtberg() -> list:
     })
     url = f"{HARDTBERG_API}?{params}"
     try:
-        events = events_from_hardtberg_json(common.fetch_url(url, timeout=25))
-        common._record_endpoint(url, parser_type="wordpress-rest", parsed_event_count=len(events), parser_empty=not bool(events))
+        raw = common.fetch_url(url, timeout=25)
+        payload = json.loads(raw)
+        if not isinstance(payload, list):
+            raise ValueError("Hardtberg REST response is not an event list")
+        events = events_from_hardtberg_json(raw)
+        # An authoritative empty REST collection is a genuine healthy-empty
+        # result. Non-empty payloads that yield no records indicate parser or
+        # filtering drift and must retain the previous snapshot.
+        common._record_endpoint(
+            url,
+            parser_type="wordpress-rest",
+            parsed_event_count=len(events),
+            parser_empty=bool(payload) and not events,
+        )
         return events
     except Exception as exc:
         common.log_source_error(source, exc)

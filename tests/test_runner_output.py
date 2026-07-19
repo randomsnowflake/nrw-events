@@ -11,6 +11,7 @@ from scripts.nrw_events.health import SourceFetchResult, SourceStatus
 from scripts.nrw_events import config
 from scripts.nrw_events.observability import configure_logging
 from scripts.nrw_events.runtime import EventWindow, RunContext
+from scripts.nrw_events.sources import bonn_districts, regional_sitekit
 
 
 class RunnerOutputTests(unittest.TestCase):
@@ -92,6 +93,7 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(snapshot["retained_sources"], [{
             "source": "Lohmar",
             "source_id": "lohmar",
+            "runner_source": "Regional HTML calendars",
             "retained_event_count": 1,
             "expired_event_count": 1,
             "last_success_at": "2026-06-07T05:00:00",
@@ -173,6 +175,193 @@ class RunnerOutputTests(unittest.TestCase):
             snapshot["retained_sources"][0]["source"],
             "ionas4 regional (Bad Honnef)",
         )
+
+    def test_sitekit_migration_retains_only_failed_city(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-06-07T05:00:00",
+                    "events": [
+                        {"title": "Cached Brühl", "source": "SiteKit regional",
+                         "date": "2026-06-09", "score": 1.0, "city": "Brühl"},
+                        {"title": "Cached Wesseling", "source": "SiteKit regional",
+                         "date": "2026-06-09", "score": 1.0, "city": "Wesseling"},
+                    ],
+                    "source_results": {},
+                }, handle)
+
+            def partial_sitekit():
+                common.log_source_error(
+                    "SiteKit regional (Brühl)", TimeoutError("timed out"),
+                    source_id="sitekit-bruehl",
+                )
+                return [{
+                    "title": "Fresh Wesseling", "source": "SiteKit regional",
+                    "source_id": "sitekit-wesseling", "date": "2026-06-09",
+                    "score": 1.0, "city": "Wesseling",
+                }]
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "sitekit-child-test", configure_logging("sitekit-child-test", "ERROR", "", ""),
+            )
+            result = runner.run_import(context, {"SiteKit regional": partial_sitekit})
+
+        self.assertEqual({event.title for event in result.events}, {
+            "Cached Brühl", "Fresh Wesseling",
+        })
+        self.assertEqual(result.retention["retained_sources"][0]["source_id"], "sitekit-bruehl")
+        self.assertEqual(result.retention["retained_sources"][0]["runner_source"], "SiteKit regional")
+
+    def test_sitekit_parser_assigns_stable_child_source_id(self):
+        html = """
+        <article class="SP-Teaser">
+          <a class="SP-Teaser__inner" href="/calendar/concert">
+            <span class="SP-Scheduling__date">09.06.2026</span>
+            <h4 class="SP-Teaser__headline">Brühler Konzert</h4>
+            <div class="SP-Teaser__abstract">Musik im Rathaus.</div>
+          </a>
+        </article>
+        """
+        events = regional_sitekit._events_from_teasers(
+            html, "https://www.bruehl.de/calendar", "Brühl", 0.9, "sitekit-bruehl"
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["source"], "SiteKit regional")
+        self.assertEqual(events[0]["source_id"], "sitekit-bruehl")
+
+    def test_authoritative_empty_rest_collection_clears_hardtberg(self):
+        with mock.patch("scripts.nrw_events.common.fetch_url", return_value="[]"):
+            result, events = runner._run_source(
+                "Hardtberg Kultur", bonn_districts.fetch_hardtberg
+            )
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
+
+    def test_zero_event_retention_survives_consecutive_grouped_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-06-07T05:00:00",
+                    "events": [],
+                    "source_results": {"SiteKit regional": {"event_source_ids": []}},
+                    "retained_sources": [{
+                        "source": "SiteKit regional (Brühl)",
+                        "source_id": "sitekit-bruehl",
+                        "runner_source": "SiteKit regional",
+                        "retained_event_count": 0,
+                        "expired_event_count": 1,
+                        "last_success_at": "2026-06-06T05:00:00",
+                        "consecutive_failures": 1,
+                    }],
+                }, handle)
+
+            def still_partial():
+                common.log_source_error(
+                    "SiteKit regional (Brühl)", TimeoutError("still timed out"),
+                    source_id="sitekit-bruehl",
+                )
+                return [{
+                    "title": "Fresh Wesseling", "source": "SiteKit regional",
+                    "source_id": "sitekit-wesseling", "date": "2026-06-09",
+                    "score": 1.0, "city": "Wesseling",
+                }]
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "sitekit-consecutive-test",
+                configure_logging("sitekit-consecutive-test", "ERROR", "", ""),
+            )
+            result = runner.run_import(context, {"SiteKit regional": still_partial})
+
+        retained = result.retention["retained_sources"]
+        self.assertEqual(len(retained), 1)
+        self.assertEqual(retained[0]["source_id"], "sitekit-bruehl")
+        self.assertEqual(retained[0]["retained_event_count"], 0)
+        self.assertEqual(retained[0]["consecutive_failures"], 2)
+
+    def test_retained_event_after_current_window_is_not_published(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-06-07T05:00:00",
+                    "events": [{
+                        "title": "Too Far Ahead", "source": "Lohmar",
+                        "source_id": "lohmar", "date": "2026-06-20",
+                        "score": 1.0, "city": "Lohmar",
+                    }],
+                    "source_results": {"Lohmar": {"event_source_ids": ["lohmar"]}},
+                }, handle)
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "upper-window-test", configure_logging("upper-window-test", "ERROR", "", ""),
+            )
+            result = runner.run_import(
+                context,
+                {"Lohmar": lambda: SourceFetchResult.parser_empty("layout changed")},
+            )
+
+        self.assertEqual(result.events, ())
+        self.assertEqual(result.retention["retained_event_count"], 0)
+        self.assertEqual(result.retention["retained_sources"][0]["source_id"], "lohmar")
+
+    def test_partial_source_keeps_missing_prior_events_while_fresh_wins(self):
+        def event(title: str, date: str, venue: str = "") -> dict:
+            return {
+                "title": title,
+                "source": "Lohmar",
+                "source_id": "lohmar",
+                "date": date,
+                "score": 1.0,
+                "city": "Lohmar",
+                "venue": venue,
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            previous_path = os.path.join(temp_dir, "previous.json")
+            previous_events = [
+                event("Keep fresh", "2026-06-09", "Old venue"),
+                event("Temporarily missing", "2026-06-10"),
+            ]
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-06-07T08:00:00+00:00",
+                    "events": previous_events,
+                    "source_results": {
+                        "Lohmar": {
+                            "event_source_ids": ["lohmar"],
+                        },
+                    },
+                }, handle)
+
+            def partial_source():
+                common.log_source_error(
+                    "Lohmar",
+                    RuntimeError("one endpoint timed out"),
+                    source_id="lohmar",
+                )
+                return [event("Keep fresh", "2026-06-09", "Fresh venue")]
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                "partial-test",
+                configure_logging("partial-test", "ERROR", "", ""),
+            )
+            result = runner.run_import(context, {"Lohmar": partial_source})
+
+        self.assertEqual([event.title for event in result.events], ["Keep fresh", "Temporarily missing"])
+        self.assertEqual(result.events[0].venue, "Fresh venue")
+        self.assertEqual(result.retention["retained_event_count"], 1)
 
     def test_fresh_duplicate_wins_wholesale_over_retained_record(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -433,9 +622,17 @@ class RunnerOutputTests(unittest.TestCase):
             paths = runner._publish_snapshots(settings, [{"title": "Event"}], metadata, "run-1")
             with open(paths["manifest"]) as handle:
                 manifest = json.load(handle)
+            with open(manifest["events_path"]) as handle:
+                immutable_events = json.load(handle)
+            with open(manifest["metadata_path"]) as handle:
+                immutable_metadata = json.load(handle)
 
         self.assertEqual(manifest["run_id"], "run-1")
         self.assertEqual(manifest["event_count"], 1)
+        self.assertEqual(immutable_events, [{"title": "Event"}])
+        self.assertEqual(immutable_metadata["run_id"], "run-1")
+        self.assertNotEqual(manifest["events_path"], paths["events"])
+        self.assertNotEqual(manifest["metadata_path"], paths["metadata"])
 
     def test_disabled_source_is_not_a_degraded_run(self):
         def fetch_event():

@@ -63,3 +63,15 @@ class RuntimeConfigTests(unittest.TestCase):
 
         self.assertEqual(result.status, SourceStatus.HEALTHY)
         self.assertEqual(result.endpoints["https://example.test"], {"attempts": 2, "status": 200})
+
+    def test_parser_empty_endpoint_is_not_authoritative_healthy_empty(self):
+        result = SourceResult(source="Fragile calendar")
+        result.endpoint(
+            "https://example.test/calendar",
+            status=200,
+            parser_empty=True,
+            parsed_event_count=0,
+        )
+        result.finish([])
+
+        self.assertEqual(result.status, SourceStatus.PARSER_EMPTY)

@@ -1210,7 +1210,7 @@ def _jsonld_schedule_time_text(schedule: dict) -> str:
 
 
 def events_from_jsonld(html: str, source: str, default_city: str, category: str,
-                       trust: float, default_link: str) -> list:
+                       trust: float, default_link: str, source_id: str = "") -> list:
     """Build events from every schema.org Event in a page's JSON-LD."""
     events = []
     for item in jsonld_event_items(html):
@@ -1230,6 +1230,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                 ev = make_event(
                     title, sched_start, sched_end, venue, city, desc, link, source,
                     category, trust, time_text=_jsonld_schedule_time_text(schedule),
+                    source_id=source_id,
                 )
                 if ev:
                     events.append(ev)
@@ -1238,7 +1239,10 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             # April→October, and must not be emitted as a stale appointment.
             continue
 
-        ev = make_event(title, start_dt, end_dt, venue, city, desc, link, source, category, trust)
+        ev = make_event(
+            title, start_dt, end_dt, venue, city, desc, link, source, category, trust,
+            source_id=source_id,
+        )
         if ev:
             events.append(ev)
     return events
@@ -1469,7 +1473,8 @@ def _ical_best_link(props: dict, feed_url: str) -> str:
     return (props.get("URL", "") or _ical_feed_page(feed_url)).strip()
 
 
-def fetch_ical(url: str, source: str, default_city: str, category: str = "", trust: float = 1.0) -> list:
+def fetch_ical(url: str, source: str, default_city: str, category: str = "",
+               trust: float = 1.0, source_id: str = "") -> list:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds)."""
     raw = _ical_unfold(fetch_url(
         url,
@@ -1510,6 +1515,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "", tru
             _ical_best_link(props, url),
             source, cat, trust,
             all_day=all_day,
+            source_id=source_id,
         )
         if ev:
             events.append(ev)

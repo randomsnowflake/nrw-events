@@ -109,12 +109,17 @@ def range_dates(text: str):
     return parse_dt(text), None
 
 
-def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25) -> list:
+def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
+                      *, source_id: str = "", empty_is_healthy: bool = False) -> list:
     try:
         html = common.fetch_url(url, timeout=timeout)
         with common.capture_parser_metrics() as metrics:
             events = parser(html)
-        parser_empty = not events and metrics["out_of_window_count"] == 0
+        parser_empty = (
+            not events
+            and metrics["out_of_window_count"] == 0
+            and not empty_is_healthy
+        )
         common._record_endpoint(
             url,
             parser_type="html",
@@ -124,8 +129,12 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
             parser_empty=parser_empty,
         )
         if parser_empty:
-            common.log_source_error(name, ParserEmptyError("parser returned no event records"))
+            common.log_source_error(
+                name,
+                ParserEmptyError("parser returned no event records"),
+                source_id=source_id,
+            )
         return events
     except Exception as e:
-        common.log_source_error(name, e)
+        common.log_source_error(name, e, source_id=source_id)
         return []
