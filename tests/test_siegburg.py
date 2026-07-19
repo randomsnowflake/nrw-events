@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import patch
 
-from scripts.nrw_events.sources import siegburg
-from scripts.nrw_events.sources import SOURCES
+from nrw_events.sources import siegburg
+from nrw_events.sources import SOURCES
 
 
 DETAIL_LINK = (

@@ -13,13 +13,7 @@ Usage:
   python3 scripts/nrw-events.py [days_ahead]   # default 3 (a Fri–Sun weekend)
 """
 
-import sys
-from pathlib import Path
-
-# Make the sibling package importable when run as a standalone script.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from nrw_events.runner import main  # noqa: E402
+from nrw_events.runner import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

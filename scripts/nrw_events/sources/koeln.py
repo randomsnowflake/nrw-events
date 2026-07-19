@@ -13,7 +13,7 @@ from .. import common
 
 
 def _clean_price(value: str) -> str:
-    price = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", value or "")).strip()
+    price = common.clean_html(value)
     if len(price) > 160:
         return price[:159].rstrip() + "…"
     return price
@@ -42,10 +42,7 @@ def fetch() -> list:
             end = item.get("endedatum", "")
             begin_dt = common.parse_date(begin) if begin else None
             end_dt = common.parse_date(end) if end else begin_dt
-            if begin_dt and end_dt:
-                if end_dt < common.TODAY or begin_dt > common.END_DATE:
-                    continue
-            elif begin_dt and begin_dt > common.END_DATE:
+            if not common.window_contains(begin_dt, end_dt):
                 continue
 
             lat = common.parse_float(item.get("latitude"))

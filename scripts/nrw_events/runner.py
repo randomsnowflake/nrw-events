@@ -12,7 +12,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -32,6 +32,7 @@ EXIT_SUCCESS = 0
 # usable import, so it must not break unattended wrappers that use `set -e`.
 EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
+SNAPSHOT_GENERATIONS_KEPT = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +96,7 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
         return result, []
     finally:
         result.duration_ms = round((time.monotonic() - started) * 1000)
+        common.flush_detail_page_caches()
         common.set_source_context(None)
 
 
@@ -203,17 +205,24 @@ def _validate_output_paths(settings: config.RuntimeConfig) -> None:
 
 
 def _previous_snapshot(path: str) -> dict:
+    metadata_path = Path(path).expanduser()
     try:
-        with Path(path).expanduser().open(encoding="utf-8") as handle:
+        with metadata_path.open(encoding="utf-8") as handle:
             payload = json.load(handle)
-            return payload if isinstance(payload, dict) else {}
+        if not isinstance(payload, dict):
+            return {}
+        if "events" not in payload and payload.get("events_path"):
+            events_path = Path(str(payload["events_path"])).expanduser()
+            if not events_path.is_absolute():
+                events_path = metadata_path.parent / events_path
+            try:
+                events = json.loads(events_path.read_text(encoding="utf-8"))
+                payload["events"] = events if isinstance(events, list) else []
+            except (OSError, ValueError, TypeError):
+                payload["events"] = []
+        return payload
     except (OSError, ValueError, AttributeError):
         return {}
-
-
-def _previous_source_results(path: str) -> dict:
-    """Backward-compatible helper for callers that only need source baselines."""
-    return _previous_snapshot(path).get("source_results", {})
 
 
 def _event_source_id(event: dict) -> str:
@@ -475,7 +484,7 @@ def _publish_snapshots(settings: config.RuntimeConfig, events: list, metadata: d
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
-        for obsolete in generations[3:]:
+        for obsolete in generations[SNAPSHOT_GENERATIONS_KEPT:]:
             shutil.rmtree(obsolete)
         return {
             "events": str(event_path),
@@ -500,6 +509,9 @@ def _parse_days(argv: list[str]) -> Optional[int]:
 def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
                executor_factory=ThreadPoolExecutor) -> ImportResult:
     """Execute, validate, filter, and deduplicate sources in memory."""
+    # Source adapters still read a compatibility facade; embedders must not
+    # need to configure that module-global window separately from RunContext.
+    common.configure_context(context)
     settings, logger, run_id = context.settings, context.logger, context.run_id
     previous_path = settings.previous_meta_json or settings.meta_json_out
     previous = _previous_snapshot(previous_path)
@@ -569,7 +581,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
                       for offset in range((end - start).days + 1))
     metadata = {
-        "snapshot_schema_version": 1,
+        "snapshot_schema_version": 2,
         "run_id": context.run_id, "run_status": import_result.run_status,
         "generated_at": context.clock().isoformat(timespec="seconds"),
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),
@@ -588,7 +600,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "expired_retained_event_count": import_result.retention.get("expired_retained_event_count", 0),
         "retained_sources": import_result.retention.get("retained_sources", []),
         "event_count": len(events), "quality_metrics": summarize_event_quality(events),
-        "events": events,
+        "events_path": context.settings.json_out,
     }
     return SnapshotPayload(events, metadata)
 
@@ -601,6 +613,10 @@ def publish_snapshot(snapshot: SnapshotPayload, settings: config.RuntimeConfig) 
 
 def cli(argv: list[str]) -> int:
     """Translate argv/environment and service results into CLI effects."""
+    if len(argv) == 2 and argv[1] in {"-h", "--help"}:
+        print("Usage: nrw-events [days_ahead]")
+        print("Import public NRW events for 1-90 days ahead (default: 3).")
+        return EXIT_SUCCESS
     try:
         config.load_env_file()
         settings = config.runtime_config(_parse_days(argv))

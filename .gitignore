@@ -15,8 +15,6 @@ venv/
 nrw-events-latest.json
 nrw-events-latest-meta.json
 nrw-events-latest-meta.json.manifest.json
-/tmp/nrw-events-latest.json
-/tmp/nrw-events-latest-meta.json
 
 # Editor / OS cruft
 .DS_Store

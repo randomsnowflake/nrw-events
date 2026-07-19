@@ -14,6 +14,13 @@ from pathlib import Path
 from typing import Optional
 
 
+def default_state_dir() -> Path:
+    """Return the private per-user directory used for generated snapshots."""
+    configured = os.environ.get("XDG_STATE_HOME", "").strip()
+    base = Path(configured).expanduser() if configured else Path.home() / ".local" / "state"
+    return base / "nrw-events"
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     days_ahead: int = 3
@@ -24,8 +31,8 @@ class RuntimeConfig:
     http_max_response_bytes: int = 5_000_000
     http_retry_max_delay_seconds: float = 60.0
     source_baseline_min_count: int = 10
-    json_out: str = "/tmp/nrw-events-latest.json"
-    meta_json_out: str = "/tmp/nrw-events-latest-meta.json"
+    json_out: str = str(default_state_dir() / "nrw-events-latest.json")
+    meta_json_out: str = str(default_state_dir() / "nrw-events-latest-meta.json")
     previous_meta_json: str = ""
     log_level: str = "INFO"
     log_file: str = ""
@@ -35,7 +42,7 @@ class RuntimeConfig:
 def load_env_file() -> Optional[str]:
     """Load the first configured env file while preserving real environment values."""
     repo_root = Path(__file__).resolve().parents[2]
-    for candidate in (os.environ.get("NRW_EVENTS_ENV_FILE", ""), repo_root / ".env", Path.cwd() / ".env"):
+    for candidate in (os.environ.get("NRW_EVENTS_ENV_FILE", ""), repo_root / ".env"):
         path = Path(candidate).expanduser() if candidate else None
         if not path or not path.is_file():
             continue
@@ -97,8 +104,12 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         http_max_response_bytes=_int("NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES", 5_000_000, 1_024, 50_000_000),
         http_retry_max_delay_seconds=_float("NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS", 60.0, 0.0, 300.0),
         source_baseline_min_count=_int("NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT", 10, 1, 10_000),
-        json_out=os.environ.get("NRW_EVENTS_JSON_OUT", "/tmp/nrw-events-latest.json"),
-        meta_json_out=os.environ.get("NRW_EVENTS_META_JSON_OUT", "/tmp/nrw-events-latest-meta.json"),
+        json_out=os.environ.get(
+            "NRW_EVENTS_JSON_OUT", str(default_state_dir() / "nrw-events-latest.json")
+        ),
+        meta_json_out=os.environ.get(
+            "NRW_EVENTS_META_JSON_OUT", str(default_state_dir() / "nrw-events-latest-meta.json")
+        ),
         previous_meta_json=os.environ.get("NRW_EVENTS_PREVIOUS_META_JSON", ""),
         log_level=level,
         log_file=os.environ.get("NRW_EVENTS_LOG_FILE", ""),

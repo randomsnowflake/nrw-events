@@ -4,8 +4,9 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import bonn
+from nrw_events import common
+from nrw_events.sources import bonn
+from tests.helpers import patch_window
 
 
 DETAIL_LINK = (
@@ -25,15 +26,10 @@ def detail_html(description: str = "Ein Konzert mit berührenden Klängen.") -> 
 
 class BonnDetailEnrichmentTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 13)
-        common.END_DATE = datetime(2026, 7, 27)
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 27))
         bonn._reset_detail_context_cache()
 
     def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
         bonn._reset_detail_context_cache()
 
     def test_sparse_listing_uses_detail_description_and_venue_once(self):
@@ -178,7 +174,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
             "os.environ",
             {
                 "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS": "24",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
             },
         ):
             with patch.object(common, "fetch_url", return_value=detail_html()) as fetch_url:
@@ -198,7 +194,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
             "os.environ",
             {
                 "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS": "24",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
             },
         ):
             with patch.object(common, "fetch_url", return_value="<main>No event metadata</main>") as fetch_url:
@@ -218,7 +214,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
             "os.environ",
             {
                 "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS": "24",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
             },
         ):
             with patch.object(common, "fetch_url", side_effect=TimeoutError("temporary")):
@@ -236,16 +232,16 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
             "os.environ",
             {
                 "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS": "1",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "1",
             },
         ):
-            with patch.object(bonn.time, "time", return_value=1_000), patch.object(
+            with patch.object(common.time, "time", return_value=1_000), patch.object(
                 common, "fetch_url", return_value=detail_html("Alte Beschreibung.")
             ):
                 bonn._fetch_detail_context(DETAIL_LINK)
 
             bonn._reset_detail_context_cache()
-            with patch.object(bonn.time, "time", return_value=4_601), patch.object(
+            with patch.object(common.time, "time", return_value=4_601), patch.object(
                 common, "fetch_url", return_value=detail_html("Neue Beschreibung.")
             ) as fetch_url:
                 refreshed = bonn._fetch_detail_context(DETAIL_LINK)
@@ -258,10 +254,10 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
             "os.environ",
             {
                 "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS": "24",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
             },
         ):
-            Path(cache_dir, bonn._DETAIL_CACHE_FILENAME).write_text("[]")
+            Path(cache_dir, "detail-pages-bonn-detail-v1.json").write_text("[]")
             with patch.object(common, "fetch_url", return_value=detail_html()) as fetch_url:
                 context = bonn._fetch_detail_context(DETAIL_LINK)
 

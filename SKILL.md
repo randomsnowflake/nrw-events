@@ -36,7 +36,7 @@ Bonn, Meetup, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
-Cölln Konzept, requested venue calendars, Eventbrite,
+Cölln Konzept and requested venue calendars,
 Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
 optional Grok Search. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
@@ -49,8 +49,8 @@ Ahrweiler≈0.74, Köln=0.7, Düsseldorf=0.4) × category preference
 (electronic/techno=1.8x, wine/winery/wine-walk=1.4–1.55x, hiking/guided
 walks/Drachenfels/Siebengebirge=1.3–1.45x, architecture=1.6x, concerts=1.5x,
 exhibitions=1.4x, kids-only=0.2x). Output: markdown report grouped by category +
-JSON event list at `/tmp/nrw-events-latest.json` + metadata JSON at
-`/tmp/nrw-events-latest-meta.json`.
+JSON event list plus metadata defaulting to the user's XDG state directory
+(`~/.local/state/nrw-events` when `XDG_STATE_HOME` is unset).
 
 ## Architecture (one file per source)
 
@@ -142,16 +142,17 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` / `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=5000000` — cap retry waits and response sizes.
 - `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT=10` — annotate a source that drops from a recent meaningful count to zero.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
-- `NRW_EVENTS_CACHE_DIR=~/.cache/nrw-events` — persistent cache root for bounded detail-page enrichment. The website wrapper uses `.cache/nrw-events-data` in the project.
+- `NRW_EVENTS_CACHE_DIR=~/.cache/nrw-events` — persistent cache root for bounded detail-page enrichment.
 - `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=24` — default TTL for successful generic detail-page fetches; `0` disables memory and disk caching.
-- `NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS=168` / `NRW_EVENTS_MECKENHEIM_DETAIL_CACHE_TTL_HOURS=168` — source-specific enrichment cache TTLs.
 - `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS=500` — target length for meaningful Bonn.de detail summaries after logistics boilerplate is removed.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.
 - `NRW_EVENTS_LOG_FILE` / `NRW_EVENTS_JSON_LOG_FILE` — optional durable text or JSON-lines logs.
 - `NRW_EVENTS_ENV_FILE` — optional explicit `.env` path for wrappers and callers.
 
-API keys and tuning values are read from the environment or a `.env` file. See [.env.example](.env.example).
+API keys and tuning values are read from the environment, an explicit
+`NRW_EVENTS_ENV_FILE`, or the repository `.env`; the current working directory
+is never searched. The canonical setting list is [.env.example](.env.example).
 
 Detail-page caches are deliberately bounded and versioned. Listing pages, APIs,
 and feeds remain live on every run; only enrichment requests are cached. Radio
@@ -173,8 +174,10 @@ than scraping HTML** — prefer it.
 - Before wiring a source in, probe it: `curl -sL '<url>' | grep -c 'BEGIN:VEVENT'`
   (iCal) or `grep -c 'application/ld+json'` (JSON-LD). Only wire sources that return
   real structured data.
-- Create `sources/<name>.py` with a `fetch()`, then add it to the `SOURCES` dict in
-  `sources/__init__.py`. Add any new town to `config.VENUE_COORDS`.
+- Add standard iCal/JSON-LD sources as a `SourceSpec` in `sources/__init__.py`
+  plus a contract case in `tests/sources/parser_cases.py`. For proprietary
+  formats, create a `fetch()` module and register it in `CUSTOM_SOURCES`.
+  Add any new town to `config.VENUE_COORDS`.
 
 ### Meetup groups (active)
 

@@ -2,8 +2,9 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import naturregion_sieg, regional_venues
+from nrw_events import common
+from nrw_events.sources import naturregion_sieg, regional_venues
+from tests.helpers import patch_window
 
 from .parser_cases import case_class
 
@@ -23,18 +24,13 @@ RegionalSourceTests = case_class(
 
 class RheinbachParserTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
         self.cache_env = patch.dict(
             "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.cache_env.start()
         common._reset_detail_page_cache()
-        common.TODAY = datetime(2026, 7, 13)
-        common.END_DATE = datetime(2026, 7, 26)
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
 
     def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
         common._reset_detail_page_cache()
         self.cache_env.stop()
 
@@ -114,18 +110,13 @@ class RheinbachParserTests(unittest.TestCase):
 
 class NaturregionSiegParserTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
         self.cache_env = patch.dict(
             "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.cache_env.start()
         common._reset_detail_page_cache()
-        common.TODAY = datetime(2026, 7, 13)
-        common.END_DATE = datetime(2026, 7, 26)
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
 
     def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
         common._reset_detail_page_cache()
         self.cache_env.stop()
 

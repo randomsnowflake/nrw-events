@@ -1,7 +1,7 @@
 import unittest
 
-from scripts.nrw_events.sources import radiobonn
-from scripts.nrw_events.sources import SOURCES
+from nrw_events.sources import radiobonn
+from nrw_events.sources import SOURCES
 
 
 class RadioBonnLocationTests(unittest.TestCase):

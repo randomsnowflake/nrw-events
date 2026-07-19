@@ -6,12 +6,13 @@ import unittest
 from datetime import datetime
 from unittest import mock
 
-from scripts.nrw_events import common, report, runner
-from scripts.nrw_events.health import SourceFetchResult, SourceStatus
-from scripts.nrw_events import config
-from scripts.nrw_events.observability import configure_logging
-from scripts.nrw_events.runtime import EventWindow, RunContext
-from scripts.nrw_events.sources import bonn_districts, regional_sitekit
+from nrw_events import common, report, runner
+from nrw_events.health import SourceFetchResult, SourceStatus
+from nrw_events import config
+from nrw_events.observability import configure_logging
+from nrw_events.runtime import EventWindow, RunContext
+from nrw_events.sources import bonn_districts, regional_sitekit
+from tests.helpers import patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
@@ -234,7 +235,7 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(events[0]["source_id"], "sitekit-bruehl")
 
     def test_authoritative_empty_rest_collection_clears_hardtberg(self):
-        with mock.patch("scripts.nrw_events.common.fetch_url", return_value="[]"):
+        with mock.patch("nrw_events.common.fetch_url", return_value="[]"):
             result, events = runner._run_source(
                 "Hardtberg Kultur", bonn_districts.fetch_hardtberg
             )
@@ -440,14 +441,7 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(runner._import_issues({"Filtered": result}), [])
 
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 6, 8)
-        common.END_DATE = datetime(2026, 6, 10)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 10))
 
     def test_default_json_output_preserves_top_level_event_list(self):
         def fetch_event():
@@ -485,12 +479,13 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertIsInstance(events_payload, list)
         self.assertEqual(events_payload[0]["title"], "Concert")
+        self.assertEqual(events_payload[0]["category_key"], "concert")
+        self.assertEqual(events_payload[0]["category_label"], "Konzert")
+        self.assertGreater(events_payload[0]["category_confidence"], 0)
+        self.assertIn("concert", events_payload[0]["category_reason"])
         self.assertIsInstance(meta_payload, dict)
-        self.assertEqual(meta_payload["events"][0]["title"], "Concert")
-        self.assertEqual(meta_payload["events"][0]["category_key"], "concert")
-        self.assertEqual(meta_payload["events"][0]["category_label"], "Konzert")
-        self.assertGreater(meta_payload["events"][0]["category_confidence"], 0)
-        self.assertIn("concert", meta_payload["events"][0]["category_reason"])
+        self.assertNotIn("events", meta_payload)
+        self.assertEqual(meta_payload["events_path"], json_out)
         self.assertGreaterEqual(len(meta_payload["categories"]), 12)
         self.assertIn({"key": "concert", "label": "Konzert"}, meta_payload["categories"])
         self.assertEqual(meta_payload["event_count"], 1)

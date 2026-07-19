@@ -3,8 +3,9 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import meckenheim
+from nrw_events import common
+from nrw_events.sources import meckenheim
+from tests.helpers import patch_window
 
 
 DETAIL_LINK = (
@@ -29,15 +30,10 @@ DETAIL_HTML = """
 
 class MeckenheimDetailTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 13)
-        common.END_DATE = datetime(2026, 7, 27)
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 27))
         meckenheim._reset_detail_context_cache()
 
     def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
         meckenheim._reset_detail_context_cache()
 
     def test_fetch_enriches_listing_event_from_detail_page(self):
@@ -69,7 +65,7 @@ class MeckenheimDetailTests(unittest.TestCase):
             "os.environ",
             {
                 "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_MECKENHEIM_DETAIL_CACHE_TTL_HOURS": "24",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
             },
         ):
             with patch.object(common, "fetch_url", return_value=DETAIL_HTML) as fetch_url:

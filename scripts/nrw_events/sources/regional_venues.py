@@ -133,12 +133,10 @@ def _rheinbach_date(block: str) -> str:
 
 
 def _rheinbach_field(block: str, tag: str, class_name: str) -> str:
-    match = re.search(
+    return rc.first_group_clean(
         rf'<{tag}[^>]*class="[^"]*\b{class_name}\b[^"]*"[^>]*>(.*?)</{tag}>',
         block,
-        re.S | re.I,
     )
-    return rc.clean(match.group(1)) if match else ""
 
 
 def _rheinbach_categories(block: str) -> list[str]:

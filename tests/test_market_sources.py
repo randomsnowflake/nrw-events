@@ -3,26 +3,20 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common, report
-from scripts.nrw_events.sources import (
+from nrw_events import common, report
+from nrw_events.sources import (
     SOURCES,
     coelln_konzept,
     grote_hiller,
     hofflohmaerkte,
     kinderflohmarkt,
 )
+from tests.helpers import patch_window
 
 
 class MarketSourceTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 19)
-        common.END_DATE = datetime(2027, 12, 31)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 7, 19), datetime(2027, 12, 31))
 
     def test_new_sources_are_registered_with_expected_authority(self):
         for source in (

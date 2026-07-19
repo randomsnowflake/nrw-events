@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events.sources import SOURCES, bonnjetzt
-from scripts.nrw_events.validation import validate_event
+from nrw_events.sources import SOURCES, bonnjetzt
+from nrw_events.validation import validate_event
 
 
 class BonnJetztTests(unittest.TestCase):
@@ -21,9 +21,9 @@ class BonnJetztTests(unittest.TestCase):
 </article>
 """
         with (
-            patch("scripts.nrw_events.common.fetch_url", return_value=html),
-            patch("scripts.nrw_events.common.TODAY", datetime(2026, 7, 12)),
-            patch("scripts.nrw_events.common.END_DATE", datetime(2026, 7, 25)),
+            patch("nrw_events.common.fetch_url", return_value=html),
+            patch("nrw_events.common.TODAY", datetime(2026, 7, 12)),
+            patch("nrw_events.common.END_DATE", datetime(2026, 7, 25)),
         ):
             events = bonnjetzt.fetch()
 

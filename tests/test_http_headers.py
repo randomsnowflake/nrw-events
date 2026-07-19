@@ -3,7 +3,7 @@ import urllib.error
 from email.message import Message
 from unittest.mock import Mock, patch
 
-from scripts.nrw_events import common
+from nrw_events import common
 
 
 class HttpHeaderTests(unittest.TestCase):
@@ -14,7 +14,7 @@ class HttpHeaderTests(unittest.TestCase):
         headers["Content-Type"] = "text/html; charset=UTF-8"
         response.headers = headers
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response):
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
             text = common.fetch_url("https://example.org/legacy-events")
 
         self.assertEqual(text, "Kölner Flohmärkte")
@@ -25,7 +25,7 @@ class HttpHeaderTests(unittest.TestCase):
         old_limit = common._HTTP_MAX_RESPONSE_BYTES
         common._HTTP_MAX_RESPONSE_BYTES = 10
         try:
-            with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response):
+            with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
                 with self.assertRaises(common.ResponseTooLargeError):
                     common.fetch_url("https://example.org/events")
         finally:
@@ -37,7 +37,7 @@ class HttpHeaderTests(unittest.TestCase):
         headers = Message()
         headers["Content-Type"] = "text/html"
         response.headers = headers
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response):
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
             with self.assertRaises(common.UnexpectedContentTypeError):
                 common.fetch_url("https://example.org/events", expected_content_types=("application/json",))
 
@@ -46,16 +46,16 @@ class HttpHeaderTests(unittest.TestCase):
         response.read.return_value = b'{"ok": true}'
         transient = urllib.error.HTTPError("https://example.org/api", 503, "Unavailable", Message(), None)
         self.addCleanup(transient.close)
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
-                patch("scripts.nrw_events.common.time.sleep"):
+        with patch("nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
+                patch("nrw_events.common.time.sleep"):
             self.assertEqual(common.post_json("https://example.org/api", {}, retry_safe=True), {"ok": True})
         self.assertEqual(urlopen.call_count, 2)
     def test_fetch_url_uses_browser_like_headers_by_default(self):
         response = Mock()
         response.read.return_value = b"ok"
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("scripts.nrw_events.common.urllib.request.Request") as request:
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+             patch("nrw_events.common.urllib.request.Request") as request:
             common.fetch_url("https://example.org/events")
 
         _, kwargs = request.call_args
@@ -73,8 +73,8 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"{}"
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("scripts.nrw_events.common.urllib.request.Request") as request:
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+             patch("nrw_events.common.urllib.request.Request") as request:
             common.fetch_url(
                 "https://example.org/events.json",
                 accept="application/json,*/*;q=0.8",
@@ -92,8 +92,8 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"ok"
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("scripts.nrw_events.common.urllib.request.Request") as request:
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+             patch("nrw_events.common.urllib.request.Request") as request:
             common.fetch_url(
                 "https://example.org/feed.json",
                 headers={"Accept": "application/feed+json", "User-Agent": "Custom Browser"},
@@ -108,8 +108,8 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"BEGIN:VCALENDAR\nEND:VCALENDAR\n"
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("scripts.nrw_events.common.urllib.request.Request") as request:
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+             patch("nrw_events.common.urllib.request.Request") as request:
             self.assertEqual(common.fetch_ical("https://example.org/events.ics", "Example", "Bonn"), [])
 
         headers = request.call_args.kwargs["headers"]
@@ -125,8 +125,8 @@ class HttpHeaderTests(unittest.TestCase):
             "https://example.org/events", 503, "Service Temporarily Unavailable", Message(), None)
         self.addCleanup(transient.close)
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
-             patch("scripts.nrw_events.common.time.sleep") as sleep:
+        with patch("nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
+             patch("nrw_events.common.time.sleep") as sleep:
             self.assertEqual(common.fetch_url("https://example.org/events"), "ok after retry")
 
         self.assertEqual(urlopen.call_count, 2)
@@ -137,8 +137,8 @@ class HttpHeaderTests(unittest.TestCase):
             "https://example.org/missing", 404, "Not Found", Message(), None)
         self.addCleanup(not_found.close)
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", side_effect=not_found) as urlopen, \
-             patch("scripts.nrw_events.common.time.sleep") as sleep:
+        with patch("nrw_events.common.urllib.request.urlopen", side_effect=not_found) as urlopen, \
+             patch("nrw_events.common.time.sleep") as sleep:
             with self.assertRaises(urllib.error.HTTPError):
                 common.fetch_url("https://example.org/missing")
 
@@ -154,9 +154,9 @@ class HttpHeaderTests(unittest.TestCase):
         common._HOST_LAST_FETCH_AT["bonn.de"] = 100.0
 
         try:
-            with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
-                 patch("scripts.nrw_events.common.time.monotonic", side_effect=[100.25, 101.0]), \
-                 patch("scripts.nrw_events.common.time.sleep") as sleep:
+            with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+                 patch("nrw_events.common.time.monotonic", side_effect=[100.25, 101.0]), \
+                 patch("nrw_events.common.time.sleep") as sleep:
                 self.assertEqual(common.fetch_url("https://www.bonn.de/citykey/events-json.php"), "ok")
         finally:
             common._HOST_LAST_FETCH_AT.clear()
@@ -168,8 +168,8 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b'{"ok": true}'
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("scripts.nrw_events.common.urllib.request.Request") as request:
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+             patch("nrw_events.common.urllib.request.Request") as request:
             self.assertEqual(common.post_json("https://example.org/api", {"q": "events"}), {"ok": True})
 
         headers = request.call_args.kwargs["headers"]
@@ -183,8 +183,8 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b'{"data": {"content": "ok"}}'
 
-        with patch("scripts.nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("scripts.nrw_events.common.urllib.request.Request") as request:
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+             patch("nrw_events.common.urllib.request.Request") as request:
             payload = common.post_form(
                 "https://example.org/events-api",
                 [("filter", "music"), ("category", "1"), ("category", "2")],

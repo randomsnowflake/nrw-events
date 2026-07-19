@@ -1,7 +1,9 @@
 import unittest
+from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events.sources import much
+from nrw_events import common
+from nrw_events.sources import much
 
 
 DETAIL_LINK = (
@@ -95,9 +97,11 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(
             context["description"],
-            (
-                "„Trauer Treff“ findet am 14.07.2026 von 16:00 bis 17:30 Uhr am "
-                "Veranstaltungsort „Amb. Hospizdienst Much, Dr. Wirtz Str. 6, 53804 Much“ statt."
+            common.factual_event_description(
+                "Trauer Treff", date_value=datetime(2026, 7, 14, 16),
+                time_text="16:00", end_time_text="17:30",
+                venue="Amb. Hospizdienst Much, Dr. Wirtz Str. 6, 53804 Much",
+                city="Much",
             ),
         )
         self.assertEqual(

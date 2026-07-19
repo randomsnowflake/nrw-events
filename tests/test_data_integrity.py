@@ -2,8 +2,9 @@ import unittest
 from datetime import datetime
 from unittest import mock
 
-from scripts.nrw_events import common, report
-from scripts.nrw_events.validation import EventValidationError, validate_event
+from nrw_events import common, report
+from nrw_events.validation import EventValidationError, validate_event
+from tests.helpers import patch_window
 
 
 class DataIntegrityTests(unittest.TestCase):
@@ -19,11 +20,7 @@ class DataIntegrityTests(unittest.TestCase):
         self.assertEqual(event.category_key, "other")
 
     def setUp(self):
-        self.old_today, self.old_end_date = common.TODAY, common.END_DATE
-        common.TODAY, common.END_DATE = datetime(2026, 6, 8), datetime(2026, 6, 30)
-
-    def tearDown(self):
-        common.TODAY, common.END_DATE = self.old_today, self.old_end_date
+        patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 30))
 
     def test_unknown_location_is_not_scored_as_bonn(self):
         event = common.make_event("Regional event", datetime(2026, 6, 12), None, "", "Unknown region", "",
@@ -49,7 +46,7 @@ DTEND:20260612T200000Z
 URL:https://example.test/event
 END:VEVENT
 END:VCALENDAR"""
-        with mock.patch("scripts.nrw_events.common.fetch_url", return_value=ical):
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical):
             events = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn", "concert")
         self.assertEqual(events[0]["time"], "20:00–22:00")
         self.assertEqual(events[0]["start_at"], "2026-06-12T20:00+02:00")
@@ -62,7 +59,7 @@ DTSTART;VALUE=DATE:20260612
 DTEND;VALUE=DATE:20260615
 END:VEVENT
 END:VCALENDAR"""
-        with mock.patch("scripts.nrw_events.common.fetch_url", return_value=ical):
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical):
             events = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
         self.assertEqual(events[0]["end_date"], "2026-06-14")
         self.assertTrue(events[0]["all_day"])

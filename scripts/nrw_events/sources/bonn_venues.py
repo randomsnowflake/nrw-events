@@ -228,19 +228,7 @@ def events_from_botgart(html: str, detail_fetcher=None) -> list:
         kind = match.group("kind")
         link = rc.abs_url("https://www.botgart.uni-bonn.de", href)
         fallback = _botgart_fallback_description(title, kind, start)
-        base_event = common.make_event(
-            title,
-            start,
-            start,
-            "Botanische Gärten Bonn",
-            "Bonn",
-            fallback,
-            link,
-            "Botanische Gärten Bonn",
-            f"botanische gärten bonn {kind} natur führung exkursion vortrag",
-            0.9,
-        )
-        if not base_event:
+        if not common.event_in_window_and_radius(start, start, "Bonn"):
             continue
         description = ""
         if detail_fetcher:
@@ -333,42 +321,17 @@ def _fetch_brotfabrik() -> list:
 
 def _fetch_vox_bona() -> list:
     try:
-        raw = common._ical_unfold(common.fetch_url(
+        return common.fetch_ical(
             _VOX_BONA_ICAL,
-            timeout=20,
-            accept="text/calendar,application/calendar+json;q=0.9,*/*;q=0.8",
-            sec_fetch_mode="no-cors",
-            sec_fetch_dest="empty",
-        ))
+            "Vox Bona",
+            "",
+            "vox bona chor kirchenmusik klassik konzert",
+            0.9,
+            city_resolver=_vox_bona_city,
+        )
     except Exception as e:
         common.log_source_error("Vox Bona", e)
         return []
-
-    events = []
-    for block in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S):
-        props = _ical_props(block)
-        title = common._ical_unescape(props.get("SUMMARY", ""))
-        location = common._ical_unescape(props.get("LOCATION", ""))
-        if not title:
-            continue
-        city = _vox_bona_city(location)
-        if not city:
-            continue
-        ev = common.make_event(
-            title,
-            common._ical_parse_dt(props.get("DTSTART", "")),
-            common._ical_parse_dt(props.get("DTEND", "")),
-            location,
-            city,
-            common._ical_unescape(props.get("DESCRIPTION", "")),
-            common._ical_best_link(props, _VOX_BONA_ICAL),
-            "Vox Bona",
-            "vox bona chor kirchenmusik klassik konzert",
-            0.9,
-        )
-        if ev:
-            events.append(ev)
-    return events
 
 
 def _fetch_bonner_muenster() -> list:
@@ -471,18 +434,6 @@ def _vox_bona_city(location: str) -> str:
     return ""
 
 
-def _ical_props(block: str) -> dict:
-    props = {}
-    for line in block.splitlines():
-        if ":" not in line:
-            continue
-        key, val = common._ical_content_line(line)
-        name = key.split(";")[0].strip().upper()
-        if name in ("SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL", "CATEGORIES", "ATTACH"):
-            props.setdefault(name, val)
-    return props
-
-
 def _coords_from_google_maps(text: str):
     match = re.search(r"daddr=([0-9.]+)N,([0-9.]+)E", text or "")
     if not match:
@@ -490,13 +441,8 @@ def _coords_from_google_maps(text: str):
     return float(match.group(1)), float(match.group(2))
 
 
-def _match_text(pattern: str, text: str) -> str:
-    match = re.search(pattern, text or "", re.S | re.I)
-    return match.group(1).strip() if match else ""
-
-
-def _match_clean(pattern: str, text: str) -> str:
-    return rc.clean(_match_text(pattern, text))
+_match_text = rc.first_group
+_match_clean = rc.first_group_clean
 
 
 def _clean_price(text: str) -> str:

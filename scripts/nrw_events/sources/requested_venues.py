@@ -1,7 +1,6 @@
 """Requested Bonn/Rhein-Sieg venue and municipal calendars."""
 
 import re
-import urllib.parse
 from datetime import datetime
 
 from .. import common
@@ -75,19 +74,7 @@ def _events_from_kunstmuseum_bonn(html: str, detail_fetcher=None) -> list:
         title = rc.clean(title_m.group(1))
         format_text = rc.clean(meta_m.group(1) if meta_m else "")
         fallback = _kunstmuseum_fallback_description(title, format_text, start)
-        base_event = common.make_event(
-            title,
-            start,
-            start,
-            "Kunstmuseum Bonn",
-            "Bonn",
-            fallback,
-            href,
-            "Kunstmuseum Bonn",
-            "museum kunst ausstellung führung workshop performance lesung konzert",
-            0.92,
-        )
-        if not base_event:
+        if not common.event_in_window_and_radius(start, start, "Bonn"):
             continue
         description = ""
         if detail_fetcher:

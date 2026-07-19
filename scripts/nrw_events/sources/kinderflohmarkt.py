@@ -28,7 +28,7 @@ def fetch() -> list:
             if not event.get("description"):
                 event["description"] = common.factual_event_description(
                     event.get("title", ""),
-                    date_value=event.get("start_date", ""),
+                    date_value=common.parse_iso_date(event.get("start_date", "")),
                     time_text=event.get("time", ""),
                     venue=event.get("venue", ""),
                     city=event["city"],

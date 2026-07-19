@@ -6,17 +6,6 @@ import urllib.parse
 from .. import common
 from . import regional_common as rc
 
-_TIME_PAGE_SOURCES = [
-    (
-        "Alfter",
-        "https://www.alfter.de/schnellzugriff/veranstaltungen/",
-        "Alfter",
-        "alfter lokal kultur markt fest",
-        0.84,
-        r'<h3>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>',
-    ),
-]
-
 _LOHMAR_BASE_URL = "https://www.lohmar.de/"
 _LOHMAR_CALENDAR_URL = urllib.parse.urljoin(
     _LOHMAR_BASE_URL,
@@ -31,8 +20,7 @@ def fetch() -> list:
         "https://www.swisttal.de/veranstaltungen/",
         _events_from_swisttal,
     ))
-    for name, url, city, category, trust, pattern in _TIME_PAGE_SOURCES:
-        events.extend(_fetch_time_page(url, name, city, category, trust, pattern))
+    events.extend(_fetch_alfter())
     events.extend(rc.fetch_html_events(
         "Lohmar",
         _LOHMAR_CALENDAR_URL,
@@ -60,23 +48,24 @@ def fetch() -> list:
     return rc.dedupe(events)
 
 
-def _fetch_time_page(url: str, source: str, city: str, category: str, trust: float,
-                     title_pattern: str = "") -> list:
+def _fetch_alfter() -> list:
+    url = "https://www.alfter.de/schnellzugriff/veranstaltungen/"
+
     def parse(html: str) -> list:
         base = urllib.parse.urlsplit(url)._replace(path="").geturl()
         return common.events_from_time_listing(
             html,
-            source,
-            city,
-            category,
-            trust,
+            "Alfter",
+            "Alfter",
+            "alfter lokal kultur markt fest",
+            0.84,
             base,
             min_title=3,
             max_chars=1800,
-            anchor_pattern=title_pattern or None,
+            anchor_pattern=r'<h3>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>',
         )
 
-    return rc.fetch_html_events(source, url, parse)
+    return rc.fetch_html_events("Alfter", url, parse)
 
 
 def _events_from_lohmar(html: str, detail_fetcher=None) -> list:

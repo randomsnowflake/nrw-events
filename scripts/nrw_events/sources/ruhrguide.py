@@ -8,6 +8,7 @@ keeps only entries whose location resolves to a known in-radius town.
 import re
 
 from .. import common
+from . import regional_common as rc
 
 _URL = "https://www.ruhr-guide.de/events/"
 
@@ -48,30 +49,18 @@ def _detail_description(html: str) -> str:
 
 def _fallback_description(event: dict) -> str:
     start = common.parse_iso_date(event.get("start_date") or "")
-    schedule = f" am {start:%d.%m.%Y}" if start else ""
-    time_text = event.get("time") or ""
-    times = re.findall(r"\d{1,2}:\d{2}", time_text)
-    if len(times) >= 2:
-        schedule += f" von {times[0]} bis {times[1]} Uhr"
-    elif times:
-        schedule += f" um {times[0]} Uhr"
-    place = f" am Veranstaltungsort „{event['venue']}“" if event.get("venue") else ""
-    city = f" in {event['city']}" if event.get("city") and not place else ""
-    return f"„{event.get('title', '')}“ findet{schedule}{place}{city} statt."
+    return common.factual_event_description(
+        event.get("title", ""), date_value=start, time_text=event.get("time", ""),
+        venue=event.get("venue", ""), city=event.get("city", ""),
+    )
 
 
 def _enrich_missing_descriptions(events: list, detail_fetcher) -> list:
-    descriptions_by_link: dict[str, str] = {}
-    failed_links = set()
-    for event in events:
-        if event.get("description"):
-            continue
-        link = (event.get("link") or "").strip()
-        if link and link not in descriptions_by_link and link not in failed_links:
-            try:
-                descriptions_by_link[link] = _detail_description(detail_fetcher(link))
-            except Exception as exc:
-                failed_links.add(link)
-                common.log_source_error("Ruhr-Guide detail", exc)
-        event["description"] = descriptions_by_link.get(link) or _fallback_description(event)
-    return events
+    return rc.enrich_descriptions(
+        events,
+        source="Ruhr-Guide detail",
+        cache_namespace="ruhrguide",
+        extract_context=lambda html, _event: _detail_description(html),
+        fallback=_fallback_description,
+        detail_fetcher=detail_fetcher,
+    )

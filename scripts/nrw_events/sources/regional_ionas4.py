@@ -4,7 +4,6 @@ import json
 import re
 import urllib.parse
 from datetime import timedelta
-from html.parser import HTMLParser
 
 from .. import common
 from ..models import normalize_source_id
@@ -68,44 +67,6 @@ def _detail_fetcher_for_city(city: str):
     )
 
 
-class _IonasDetailParser(HTMLParser):
-    _VOID_TAGS = {
-        "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-        "meta", "param", "source", "track", "wbr",
-    }
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.parts = {"description": [], "location": []}
-        self._target = ""
-        self._depth = 0
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        classes = (dict(attrs).get("class") or "").split()
-        target = ""
-        if "tvm-event--description" in classes:
-            target = "description"
-        elif "tvm-event--location" in classes:
-            target = "location"
-
-        if not self._target and target:
-            self._target = target
-            self._depth = 1
-        elif self._target and tag not in self._VOID_TAGS:
-            self._depth += 1
-
-    def handle_endtag(self, tag: str) -> None:
-        if not self._target:
-            return
-        self._depth -= 1
-        if self._depth == 0:
-            self._target = ""
-
-    def handle_data(self, data: str) -> None:
-        if self._target:
-            self.parts[self._target].append(data)
-
-
 def _detail_url(calendar_url: str, item: dict) -> str:
     query = dict(_DETAIL_QUERY)
     query.update({
@@ -116,14 +77,17 @@ def _detail_url(calendar_url: str, item: dict) -> str:
 
 
 def _detail_context(html: str) -> dict:
-    parser = _IonasDetailParser()
+    parser = rc.ClassScopedTextParser({
+        "description": lambda _tag, attrs: "tvm-event--description" in (attrs.get("class") or "").split(),
+        "location": lambda _tag, attrs: "tvm-event--location" in (attrs.get("class") or "").split(),
+    })
     parser.feed(html or "")
     link = re.search(
         r'navigator\.clipboard\.writeText\(\s*["\']([^"\']+)', html or "", re.S | re.I)
     return {
         "description": common.concise_description(
-            " ".join(parser.parts["description"]), max_chars=360),
-        "venue": common.normalize_venue_name(" ".join(parser.parts["location"])),
+            parser.text("description"), max_chars=360),
+        "venue": common.normalize_venue_name(parser.text("location")),
         "link": common.normalize_url(link.group(1)) if link else "",
     }
 
@@ -138,15 +102,10 @@ def _time_text(item: dict, start, end) -> str:
 
 def _fallback_description(event: dict) -> str:
     start = common.parse_iso_date(event.get("start_date", ""))
-    date_label = start.strftime("%d.%m.%Y") if start else event.get("date", "")
-    schedule = f" für den {date_label}" if date_label else ""
-    if event.get("time"):
-        schedule += f" um {event['time'].split('–', 1)[0]} Uhr"
-    if event.get("venue"):
-        schedule += f" am Veranstaltungsort „{event['venue']}“"
-    return (
-        f"„{event.get('title', '')}“ ist im Veranstaltungskalender von "
-        f"{event.get('city', '')}{schedule} angekündigt."
+    return common.factual_event_description(
+        event.get("title", ""), date_value=start or event.get("date", ""),
+        time_text=event.get("time", ""), venue=event.get("venue", ""),
+        city=event.get("city", ""), calendar_name=event.get("city", ""),
     )
 
 
@@ -196,22 +155,7 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             city,
             "kommunal lokal markt kultur",
         ])
-        base_event = common.make_event(
-            item.get("title") or "",
-            start,
-            end,
-            loc.get("name") or "",
-            city,
-            tag_text,
-            item.get("website") or calendar_url,
-            _SOURCE,
-            category,
-            trust,
-            _time_text(item, start, end),
-            all_day=item_all_day,
-            source_id=source_id,
-        )
-        if not base_event:
+        if not common.event_in_window_and_radius(start, end, city):
             continue
 
         context = {}

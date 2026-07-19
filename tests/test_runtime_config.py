@@ -5,10 +5,10 @@ from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-from scripts.nrw_events import common, config
-from scripts.nrw_events.observability import configure_logging
-from scripts.nrw_events.runtime import EventWindow, RunContext
-from scripts.nrw_events.health import SourceResult, SourceStatus
+from nrw_events import common, config
+from nrw_events.observability import configure_logging
+from nrw_events.runtime import EventWindow, RunContext
+from nrw_events.health import SourceResult, SourceStatus
 
 
 class RuntimeConfigTests(unittest.TestCase):

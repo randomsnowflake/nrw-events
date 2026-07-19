@@ -176,14 +176,6 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
     return keyword.value in text
 
 
-def _count_hits(text: str, keywords: Iterable[str | Keyword], *, is_title: bool) -> int:
-    return sum(1 for keyword in keywords if _matches(text, keyword, is_title=is_title))
-
-
-def _has_hit(text: str, keywords: Iterable[str | Keyword]) -> bool:
-    return any(_matches(text, keyword, is_title=False) for keyword in keywords)
-
-
 def _matched_values(text: str, keywords: Iterable[str | Keyword], *, is_title: bool) -> list[str]:
     values: list[str] = []
     for keyword in keywords:
