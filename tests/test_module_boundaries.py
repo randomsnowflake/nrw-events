@@ -1,13 +1,20 @@
+import importlib
 import unittest
+from unittest.mock import patch
 
-from scripts.nrw_events import common, dates, location, scoring
-from scripts.nrw_events.models import CanonicalEvent, RawEvent
-from scripts.nrw_events.source_types import SourceFetcher, TextParser
-from scripts.nrw_events.validation import canonicalize_event
-from scripts.nrw_events.sources import SOURCES, SOURCE_IDS, SOURCE_SPECS
+from nrw_events import common, dates, location, scoring
+from nrw_events.health import SourceStatus
+from nrw_events.models import CanonicalEvent, RawEvent
+from nrw_events.source_types import SourceFetcher, TextParser
+from nrw_events.validation import canonicalize_event
+from nrw_events.sources import SOURCES, SOURCE_IDS, SOURCE_SPECS, harmonie
 
 
 class ModuleBoundaryTests(unittest.TestCase):
+    def test_common_compatibility_import_has_one_canonical_module_identity(self):
+        self.assertIs(importlib.import_module("nrw_events.common"), common)
+        self.assertEqual(common.__name__, "nrw_events.core")
+
     def test_common_facade_reexports_stable_location_and_scoring_helpers(self):
         self.assertIs(common.haversine, location.haversine)
         self.assertIs(common.category_score, scoring.category_score)
@@ -38,3 +45,9 @@ class ModuleBoundaryTests(unittest.TestCase):
     def test_removed_sources_are_not_registered(self):
         self.assertNotIn("Songkick", SOURCES)
         self.assertNotIn("Rausgegangen Party", SOURCES)
+
+    def test_harmonie_exposes_its_reachable_typed_success_result(self):
+        with patch.object(harmonie.common, "fetch_ical", return_value=[{"title": "Concert"}]):
+            result = harmonie.fetch()
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.events, ({"title": "Concert"},))

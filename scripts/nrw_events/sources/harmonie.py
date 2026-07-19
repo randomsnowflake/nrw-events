@@ -7,10 +7,11 @@ Yields: concerts and club nights. Note: the venue takes a summer break, so this
 """
 
 from .. import common
+from ..health import SourceFetchResult
 
 
-def fetch() -> list:
-    return common.fetch_ical(
+def fetch() -> SourceFetchResult:
+    return SourceFetchResult.success(common.fetch_ical(
         "https://www.harmonie-bonn.de/?post_type=tribe_events&ical=1",
         "Harmonie Bonn", "Bonn", "concert", 1.0,
-    )
+    ))

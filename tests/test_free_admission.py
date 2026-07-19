@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.nrw_events.common import infer_free_admission_price
+from nrw_events.common import infer_free_admission_price
 
 
 class FreeAdmissionDetectionTests(unittest.TestCase):

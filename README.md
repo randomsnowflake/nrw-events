@@ -1,5 +1,7 @@
 # NRW Events
 
+[![CI](https://github.com/randomsnowflake/nrw-events/actions/workflows/ci.yml/badge.svg)](https://github.com/randomsnowflake/nrw-events/actions/workflows/ci.yml)
+
 **NRW Events** ist ein kostenloses Open-Source-Tool zur Event-Recherche für
 **Bonn und die Umgebung**. Der Schwerpunkt liegt bewusst auf Bonn: Innenstadt,
 Poppelsdorf, Endenich, Beuel, Bad Godesberg, Ippendorf, Dransdorf, Rheinaue,
@@ -55,10 +57,11 @@ bash scripts/nrw-events.sh 1
 ```
 
 Die Ausgabe erscheint als Markdown auf stdout. Eine vollständige JSON-Kopie wird
-unter `/tmp/nrw-events-latest.json` gespeichert. Duplikate werden feldweise
+unter `~/.local/state/nrw-events/nrw-events-latest.json` gespeichert (oder unter
+`$XDG_STATE_HOME/nrw-events`). Duplikate werden feldweise
 angereichert; offizielle und direkte lokale Quellen haben dabei Vorrang vor
 Aggregatoren und Suchtreffern. Zusätzlich schreibt der
-Metadaten-Export unter `/tmp/nrw-events-latest-meta.json` die stabile
+Metadaten-Export daneben die stabile
 Kategorieliste (`categories`) und je Event die kanonischen Felder
 `category_key`/`category_label`; das rohe Quellenfeld `category` bleibt für
 Debugging und Rückwärtskompatibilität erhalten.
@@ -70,8 +73,8 @@ Event kanonische Zeitfelder: `start_date`, `end_date`, `start_at`, `end_at`,
 Events werden nicht veröffentlicht; unvollständige oder ungültige Quellrecords
 werden mit einem Grund pro Quelle in `source_results` gezählt.
 
-Jeder Lauf veröffentlicht außerdem atomisch eine Manifest-Datei unter
-`/tmp/nrw-events-latest-meta.json.manifest.json`. Sie enthält die gemeinsame
+Jeder Lauf veröffentlicht außerdem atomisch eine Manifest-Datei neben den
+beiden JSON-Dateien. Sie enthält die gemeinsame
 `run_id`, den Laufstatus und die zugehörigen Artefaktpfade; Hintergrund-Consumer
 sollten nur Snapshots mit einem aktuellen Manifest lesen.
 
@@ -138,9 +141,9 @@ scripts/
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
-      koenigswinter.py  siebengebirge.py  siegburg.py  troisdorf.py
-      hennef.py  meckenheim.py  wachtberg.py  much.py  naturregion_sieg.py
-      regional_*.py  requested_venues.py  eventbrite.py
+      koenigswinter.py  siebengebirge.py  siegburg.py
+      meckenheim.py  much.py  naturregion_sieg.py
+      regional_*.py  requested_venues.py
       ruhrguide.py  search.py
 ```
 
@@ -170,11 +173,15 @@ cp .env.example .env
 $EDITOR .env
 ```
 
-Ladereihenfolge: echte Env Vars → `NRW_EVENTS_ENV_FILE` → `.env` im Repo → `.env`
-im aktuellen Arbeitsverzeichnis. Echte Umgebungsvariablen gewinnen immer.
+Ladereihenfolge: echte Env Vars → `NRW_EVENTS_ENV_FILE` → `.env` im Repo.
+Eine `.env` im aktuellen Arbeitsverzeichnis wird aus Sicherheitsgründen nicht
+geladen. Echte Umgebungsvariablen gewinnen immer.
 **`.env` ist gitignored.**
 
 ## Konfiguration über Umgebungsvariablen
+
+Die vollständig kommentierte [`.env.example`](.env.example) ist die kanonische
+Liste aller Einstellungen; CI prüft sie gegen die Zugriffe im Python-Code.
 
 Die Standardwerte bevorzugen **Vollständigkeit vor Kürze**. Ohne explizite
 Begrenzung werden alle gefundenen, deduplizierten und relevanten Events gezeigt.
@@ -195,13 +202,11 @@ kein Limit.
 | `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `5000000` | Harte Antwortgrößen-Grenze pro HTTP-Request. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
-| `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. Der Website-Wrapper nutzt `.cache/nrw-events-data` im Projekt. |
+| `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. |
 | `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS` | `24` | TTL für erfolgreiche HTML-Detailseiten-Abrufe von Quellen wie Siegburg, Much, Königswinter, Naturregion Sieg, Linz, IONAS-Kommunen und einzelnen Veranstaltungsorten. `0` deaktiviert Speicher- und Platten-Cache. Listen, APIs und Feeds bleiben ungecacht und werden bei jedem Import frisch geladen. |
-| `NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS` | `168` | Gültigkeit gecachter Bonn.de-Detaildaten in Stunden. `0` deaktiviert den persistenten Cache. |
 | `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `500` | Zielgröße des aus einer Bonn.de-Detailseite übernommenen Kurztexts; Logistikblöcke werden übersprungen und erklärende Absätze vollständig übernommen. Nur ein einzelner überlanger Absatz wird satz- bzw. wortnah gekürzt. |
-| `NRW_EVENTS_MECKENHEIM_DETAIL_CACHE_TTL_HOURS` | `168` | TTL für angereicherte Meckenheim-Detailseiten; erfolgreiche leere Ergebnisse werden ebenfalls zwischengespeichert. |
-| `NRW_EVENTS_JSON_OUT`         | `/tmp/nrw-events-latest.json` | Zielpfad für die Eventliste als JSON-Array. |
-| `NRW_EVENTS_META_JSON_OUT`    | `/tmp/nrw-events-latest-meta.json` | Zielpfad für Metadaten, Quellenstatistik, Warnungen und Eventliste. |
+| `NRW_EVENTS_JSON_OUT`         | Benutzer-State-Verzeichnis | Zielpfad für die Eventliste als JSON-Array. |
+| `NRW_EVENTS_META_JSON_OUT`    | Benutzer-State-Verzeichnis | Zielpfad für Metadaten, Quellenstatistik und Warnungen. |
 | `NRW_EVENTS_LOG_LEVEL`        | `INFO` | Log-Level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
 | `NRW_EVENTS_LOG_FILE`         | nicht gesetzt | Optionaler persistenter Text-Logpfad. |
 | `NRW_EVENTS_JSON_LOG_FILE`    | nicht gesetzt | Optionaler JSON-Lines-Logpfad für Monitoring. |
@@ -261,8 +266,8 @@ weiterhin gezielt überschreiben.
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
-- **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
-  Eventbrite und Ruhr-Guide.
+- **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt
+  und Ruhr-Guide.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
   `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 
@@ -281,11 +286,11 @@ JSON-LD ist stabiler als HTML-Scraping.
    curl -sL '<url>' | grep -c 'BEGIN:VEVENT'         # iCal
    curl -sL '<url>' | grep -c 'application/ld+json'  # JSON-LD
    ```
-2. `scripts/nrw_events/sources/<name>.py` mit `fetch()` anlegen.
-3. Bestehende Helfer verwenden: `common.fetch_ical(...)` oder
-   `common.events_from_jsonld(...)`.
-4. Quelle in `sources/__init__.py` registrieren.
-5. Neue Orte in `config.VENUE_COORDS` ergänzen, damit die Distanzwertung stimmt.
+2. Standard-iCal/JSON-LD: einen `SourceSpec` in `sources/__init__.py` und einen
+   Vertragstest in `tests/sources/parser_cases.py` ergänzen.
+3. Nur für proprietäre Formate ein Modul mit `fetch()` schreiben und es in
+   `CUSTOM_SOURCES` registrieren; dabei die gemeinsamen Parser verwenden.
+4. Neue Orte in `config.VENUE_COORDS` ergänzen, damit die Distanzwertung stimmt.
 
 Für Meetup-Gruppen: `config.MEETUP_GROUPS` bearbeiten. Öffentliche iCal-Feeds
 liegen unter `https://www.meetup.com/<slug>/events/ical/`.
@@ -294,14 +299,14 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
 
 - **Markdown auf stdout:** Kategorien, Eventname, Datum/Zeit, Ort, Distanz,
   Bewertung, Beschreibung und Link.
-- **JSON unter `/tmp/nrw-events-latest.json`:** vollständige deduplizierte und
+- **JSON im Benutzer-State-Verzeichnis:** vollständige deduplizierte und
   bewertete Eventliste als Top-Level-Array. Dieser Vertrag bleibt stabil für
   einfache Weiterverarbeitung.
-- **Metadaten-JSON unter `/tmp/nrw-events-latest-meta.json`:** Zeitfenster,
+- **Metadaten-JSON daneben:** Zeitfenster,
   Radius, Score-Schwelle, Roh-Zählungen je Quelle, hart fehlgeschlagene Quellen,
   weiche Quellenwarnungen, eine kompakte analysierbare Problemliste
   (`import_issues`), den detaillierten Status jeder Quelle (`source_results`),
-  stabile Kategorie-Taxonomie und die vollständige Eventliste. Der Laufstatus ist
+  stabile Kategorie-Taxonomie und einen `events_path` auf die Eventliste. Der Laufstatus ist
   `healthy`, `degraded` oder `failed`; einzelne fehlgeschlagene/degradierte
   Quellen werden als `degraded` veröffentlicht und beenden den Prozess mit Exit 0,
   solange der Lauf weiterhin Events erzeugt. Wenn `NRW_EVENTS_PREVIOUS_META_JSON`
@@ -329,15 +334,14 @@ Häufige Anpassungen:
 
 ## Entwicklung und Qualitätssicherung
 
-Die Laufzeit selbst braucht keine Drittanbieter-Pakete. Für die Tests wird
-`pytest` verwendet; falls es lokal fehlt, am besten eine virtuelle Umgebung
-nutzen:
+Die Laufzeit selbst braucht keine Drittanbieter-Pakete. Der kanonische, auch in
+CI verwendete Testlauf ist:
 
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install pytest
-python -m pytest
+bash scripts/test.sh
+
+# einzelnes Modul
+bash scripts/test.sh tests.test_report
 ```
 
 Schneller Smoke-Test ohne echte Ausgabedateien im Repo:

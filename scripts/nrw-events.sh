@@ -17,7 +17,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  echo "Usage: nrw-events.sh [days_ahead]"
+  echo "Import public NRW events for 1-90 days ahead (default: 3)."
+  exit 0
+fi
 DAYS="${1:-3}"
+export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 # The Python runner loads .env files itself while preserving real environment
 # variables. Keep the shell wrapper thin so `EXA_API_KEY=... bash ...` cannot be

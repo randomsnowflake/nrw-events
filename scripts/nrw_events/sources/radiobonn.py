@@ -140,12 +140,6 @@ def _split_title_dates(raw_title: str):
     return raw_title, common.parse_date(raw_title), None
 
 
-def _split_title_date(raw_title: str):
-    """Backward-compatible single-date view used by older adapter callers."""
-    title, start, _ = _split_title_dates(raw_title)
-    return title, start
-
-
 def _external_web_link(raw_link: str) -> str:
     link = common.normalize_url(urljoin(URL, unescape(raw_link or "").strip()))
     parsed = urlsplit(link)
@@ -200,7 +194,9 @@ def fetch() -> list:
         text = f"{title} {desc}"
         city = _city_for(text)
         venue = _venue_for(text, city)
-        category = "Sport" if re.search(r"\bSport|Sportverein|Bewegung|Fechten|Turnen|Segeln\b", text, re.I) else "Event"
+        category = "Sport" if re.search(
+            r"\b(?:Sport\w*|Bewegung|Fechten|Turnen|Segeln)\b", text, re.I
+        ) else "Event"
         time_text = ""
         m = re.search(r"\b(?:um|ab)\s+(\d{1,2})\s*Uhr\b", desc, re.I)
         if m:

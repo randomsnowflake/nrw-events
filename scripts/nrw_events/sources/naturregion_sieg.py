@@ -8,6 +8,7 @@ Yields: Windeck, Eitorf, Hennef, Wissen and Sieg-region cultural/outdoor events.
 from zoneinfo import ZoneInfo
 
 from .. import common
+from . import regional_common as rc
 
 _URL = "https://naturregion-sieg.de/service/veranstaltungskalender"
 _BASE = "https://naturregion-sieg.de"
@@ -24,17 +25,11 @@ _DETAIL_FIELDS = (
 def _fallback_description(event: dict) -> str:
     """Build a factual minimum description when a detail page is unavailable."""
     start = common.parse_iso_date(event.get("start_date", ""))
-    date_label = start.strftime("%d.%m.%Y") if start else event.get("date", "")
-    location = event.get("venue", "") or event.get("city", "")
-
-    details = []
-    if date_label:
-        details.append(f"am {date_label}")
-    if location:
-        details.append(f"bei {location}")
-    if details:
-        return f"Termin {' '.join(details)}. Weitere Informationen stehen auf der offiziellen Veranstaltungsseite."
-    return "Weitere Informationen stehen auf der offiziellen Veranstaltungsseite."
+    return common.factual_event_description(
+        event.get("title", ""), date_value=start or event.get("date", ""),
+        time_text=event.get("time", ""), venue=event.get("venue", ""),
+        city=event.get("city", ""), calendar_name="Naturregion Sieg",
+    )
 
 
 def _merge_detail_event(event: dict, detail_event: dict) -> dict:
@@ -108,25 +103,16 @@ def _enrich_from_detail(event: dict, html: str) -> dict:
 
 
 def _enrich_listing_events(events: list, detail_fetcher) -> list:
-    detail_html_by_link: dict[str, str] = {}
-    failed_links = set()
-    enriched_events = []
-
-    for event in events:
-        link = (event.get("link") or "").strip()
-        if link and link not in detail_html_by_link and link not in failed_links:
-            try:
-                detail_html_by_link[link] = detail_fetcher(link)
-            except Exception as exc:
-                failed_links.add(link)
-                common.log_source_error(f"{_SOURCE} detail", exc)
-
-        enriched = _enrich_from_detail(event, detail_html_by_link.get(link, "")) if link else event
-        if not enriched.get("description"):
-            enriched["description"] = _fallback_description(enriched)
-        enriched_events.append(enriched)
-
-    return enriched_events
+    return rc.enrich_descriptions(
+        events,
+        source=f"{_SOURCE} detail",
+        cache_namespace="naturregion-sieg",
+        extract_context=lambda html, event: _enrich_from_detail(event, html),
+        fallback=_fallback_description,
+        detail_fetcher=detail_fetcher,
+        needs_enrichment=lambda _event: True,
+        merge_context=lambda _event, enriched: enriched,
+    )
 
 
 def fetch() -> list:

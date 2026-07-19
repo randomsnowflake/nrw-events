@@ -14,7 +14,7 @@ from . import (
     koeln, bonn, harmonie, haus_der_geschichte, meetup, bonnjetzt,
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
     meckenheim, much, naturregion_sieg, siegburg,
-    ruhrguide, troisdorf, regional_feeds, regional_html, regional_ionas4,
+    ruhrguide, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
     bonn_venues, radiobonn, bonn_districts,
     kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept,
@@ -22,7 +22,6 @@ from . import (
 from ..source_specs import AdapterType, SourceSpec, adapter_for
 
 SOURCE_SPECS = (
-    SourceSpec("siegburg", "Siegburg", ("https://siegburg.de/kalender/kombinierter-kalender/event.ics?weekends=false&tagMode=ANY",), AdapterType.ICAL, "Siegburg"),
     SourceSpec("troisdorf", "Troisdorf", ("https://www.troisdorf.de/de/kalender/startseite/event.ics?weekends=false&tagMode=ANY",), AdapterType.ICAL, "Troisdorf", "troisdorf lokal kultur markt", 0.95),
     SourceSpec("wachtberg", "Wachtberg", ("https://www.wachtberg.de/kalender/veranstaltungen/event.ics?weekends=false&tagMode=ALL",), AdapterType.ICAL, "Wachtberg"),
     SourceSpec("hennef", "Hennef", ("https://www.hennef.de/veranstaltungen/",), AdapterType.JSON_LD, "Hennef", "lokal veranstaltung markt kultur outdoor", 0.95, 20),
@@ -72,6 +71,9 @@ CUSTOM_SOURCES = {
     "Exa Search": search.fetch_exa,
     "Grok Search": search.fetch_grok,
 }
+
+_SHADOWED_SOURCES = STANDARD_SOURCES.keys() & CUSTOM_SOURCES.keys()
+assert not _SHADOWED_SOURCES, f"shadowed sources: {sorted(_SHADOWED_SOURCES)}"
 
 SOURCES = {**STANDARD_SOURCES, **CUSTOM_SOURCES}
 SOURCE_IDS = {spec.display_name: spec.id for spec in SOURCE_SPECS} | {

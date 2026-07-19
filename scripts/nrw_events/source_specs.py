@@ -26,8 +26,6 @@ class SourceSpec:
     trust: float = 1.0
     timeout: int = 25
     headers: tuple[tuple[str, str], ...] = ()
-    critical: bool = False
-    optional: bool = False
 
 
 def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
@@ -42,4 +40,3 @@ def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
                                              spec.category_hint, spec.trust, spec.urls[0], spec.id)
         return fetch_json_ld
     raise ValueError(f"unsupported source adapter: {spec.adapter}")
-

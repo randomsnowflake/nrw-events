@@ -2,19 +2,13 @@ import json
 import unittest
 from datetime import datetime
 
-from scripts.nrw_events import common
+from nrw_events import common
+from tests.helpers import patch_window
 
 
 class JsonLdScheduleTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 6, 8)
-        common.END_DATE = datetime(2026, 6, 21)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 21))
 
     def test_ongoing_ranges_display_current_future_date_only(self):
         ev = common.make_event(

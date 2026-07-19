@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterable, Mapping
 
+from .core import _legacy_is_junk_event
+
 
 class QualityAction(str, Enum):
     KEEP = "keep"
@@ -63,11 +65,10 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
 def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     """Evaluate the ordered compatibility policy and explain its outcome.
 
-    Importing lazily avoids coupling the domain type to the legacy facade while
-    its individual policy families move into this module incrementally.
+    The compatibility policy is imported from the implementation module rather
+    than through ``common``, keeping the public facade out of the dependency
+    graph and making this module independently importable.
     """
-    from .common import _legacy_is_junk_event
-
     title = str(event.get("title") or "").lower()
     description = str(event.get("description") or "").lower()
     text = f"{title} {description}"

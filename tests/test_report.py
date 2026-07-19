@@ -1,11 +1,11 @@
 import unittest
 
-from scripts.nrw_events import report
+from nrw_events import report
 
 
 class ReportTests(unittest.TestCase):
     def test_every_category_has_one_deterministic_report_section(self):
-        from scripts.nrw_events.category_taxonomy import CATEGORIES
+        from nrw_events.category_taxonomy import CATEGORIES
         self.assertEqual({item["key"] for item in CATEGORIES}, set(report.CATEGORY_SECTIONS))
         for category in CATEGORIES:
             self.assertEqual(report._bucket({"category_key": category["key"]}),

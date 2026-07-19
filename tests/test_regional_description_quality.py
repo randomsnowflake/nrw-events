@@ -2,8 +2,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import (
+from nrw_events.sources import (
     bonn_venues,
     regional_feeds,
     regional_ionas4,
@@ -11,18 +10,12 @@ from scripts.nrw_events.sources import (
     requested_venues,
     ruhrguide,
 )
+from tests.helpers import patch_window
 
 
 class RegionalDescriptionQualityTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 13)
-        common.END_DATE = datetime(2026, 7, 26)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
 
     def test_ionas4_uses_detail_description_location_and_direct_link(self):
         items = [{

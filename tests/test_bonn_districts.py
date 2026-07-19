@@ -3,8 +3,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import SOURCES, bonn_districts
+from nrw_events import common
+from nrw_events.sources import SOURCES, bonn_districts
 
 
 BEUEL_HTML = """

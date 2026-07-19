@@ -4,7 +4,19 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+
+LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
+
+
+def _local_naive(value: datetime) -> datetime:
+    """Normalize aware source timestamps to naive Europe/Berlin datetimes."""
+    if value.tzinfo is not None:
+        value = value.astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
+    return value
 
 MONTH_DE = {
     "januar": 1, "jan": 1, "februar": 2, "feb": 2, "märz": 3, "maerz": 3,
@@ -23,7 +35,7 @@ def parse_iso_date(text: str) -> Optional[datetime]:
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+        return _local_naive(datetime.fromisoformat(text.replace("Z", "+00:00")))
     except ValueError:
         try:
             return datetime.strptime(text[:10], "%Y-%m-%d")
@@ -38,9 +50,17 @@ def parse_date(text: str) -> Optional[datetime]:
         return None
     text = re.split(r"\s*(?:–|\bbis\b)\s*", text, maxsplit=1)[0].strip()
     text = re.sub(r"^(?:mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\.?,?\s*", "", text, flags=re.I)
+    if "," in text:
+        try:
+            parsed = parsedate_to_datetime(text)
+            if parsed is not None:
+                return _local_naive(parsed)
+        except (TypeError, ValueError, OverflowError):
+            pass
     for fmt in ["%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y", "%a, %d %b %Y %H:%M:%S %z"]:
         try:
-            return datetime.strptime(text[:len(fmt) + 5], fmt).replace(tzinfo=None)
+            candidate = text if "%z" in fmt else text[:len(fmt) + 5]
+            return _local_naive(datetime.strptime(candidate, fmt))
         except (ValueError, IndexError):
             continue
     match = re.search(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
@@ -60,7 +80,6 @@ def parse_date(text: str) -> Optional[datetime]:
         if month_number:
             return datetime(int(year), month_number, int(day))
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).replace(tzinfo=None)
+        return _local_naive(datetime.fromisoformat(text.replace("Z", "+00:00")))
     except (ValueError, TypeError):
         return None
-

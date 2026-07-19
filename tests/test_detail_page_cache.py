@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.nrw_events import common
+from nrw_events import common
 
 
 class DetailPageCacheTests(unittest.TestCase):

@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -21,7 +22,9 @@ def redact(value: object) -> str:
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%SZ"),
+            "timestamp": datetime.fromtimestamp(
+                record.created, timezone.utc
+            ).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "level": record.levelname.lower(),
             "message": redact(record.getMessage()),
             "run_id": getattr(record, "run_id", ""),

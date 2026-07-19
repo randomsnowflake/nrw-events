@@ -30,10 +30,6 @@ _RANGE_RE = re.compile(
 )
 
 
-def _clean_heading(html: str) -> str:
-    return unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html))).strip()
-
-
 def _exhibition_cards(html: str) -> list:
     """Return (title, date text, detail URL) cards from exhibition sections."""
     cards = []
@@ -56,7 +52,7 @@ def _exhibition_cards(html: str) -> list:
             if first_internal:
                 href = first_internal.group(1)
         link = common.urllib.parse.urljoin(_URL, href) if href else _URL
-        cards.append((_clean_heading(h2.group(1)), _clean_heading(h3.group(1)), link))
+        cards.append((common.clean_html(h2.group(1)), common.clean_html(h3.group(1)), link))
     return cards
 
 
@@ -161,7 +157,7 @@ def _events_from_search_results(content: str, source: str = "Bundeskunsthalle") 
             continue
         date_text = common.clean_html(date_match.group(1))
         start = _card_date(date_text)
-        if not start or not (common.TODAY <= start <= common.END_DATE):
+        if not common.window_contains(start):
             continue
 
         title = common.clean_html(re.sub(

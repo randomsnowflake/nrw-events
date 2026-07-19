@@ -12,13 +12,9 @@ re-request unchanged pages. Fails soft (returns listing-only events) if the
 detail markup or an individual request fails.
 """
 
-import json
-import os
 import re
-import time
 from datetime import timedelta
 from html import unescape
-from pathlib import Path
 
 from .. import common
 
@@ -27,97 +23,9 @@ _BASE = "https://www.meckenheim.de"
 _TITLE = r'result-list_object-title[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
 _CATEGORY = "lokal veranstaltung markt kultur outdoor"
 _TRUST = 0.9
-_DETAIL_CACHE_VERSION = 1
-_DETAIL_CACHE_FILENAME = "meckenheim-detail-context-v1.json"
-_detail_context_cache = {}
-_detail_context_cache_entries = {}
-_detail_context_cache_loaded_path = None
-
-
-def _cache_ttl_seconds() -> float:
-    raw = os.environ.get("NRW_EVENTS_MECKENHEIM_DETAIL_CACHE_TTL_HOURS", "168")
-    try:
-        return max(float(raw), 0) * 60 * 60
-    except ValueError:
-        return 168 * 60 * 60
-
-
-def _detail_cache_path() -> Path:
-    configured = os.environ.get("NRW_EVENTS_CACHE_DIR", "").strip()
-    if configured:
-        cache_dir = Path(configured).expanduser()
-    else:
-        xdg_cache = os.environ.get("XDG_CACHE_HOME", "").strip()
-        cache_dir = Path(xdg_cache).expanduser() if xdg_cache else Path.home() / ".cache"
-        cache_dir /= "nrw-events"
-    return cache_dir / _DETAIL_CACHE_FILENAME
-
-
 def _reset_detail_context_cache() -> None:
-    global _detail_context_cache_loaded_path
-    _detail_context_cache.clear()
-    _detail_context_cache_entries.clear()
-    _detail_context_cache_loaded_path = None
-
-
-def _load_detail_context_cache() -> None:
-    global _detail_context_cache_loaded_path
-    path = _detail_cache_path()
-    path_key = str(path)
-    if _detail_context_cache_loaded_path == path_key:
-        return
-    _reset_detail_context_cache()
-    _detail_context_cache_loaded_path = path_key
-    ttl_seconds = _cache_ttl_seconds()
-    if not ttl_seconds:
-        return
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, TypeError, ValueError):
-        return
-    if not isinstance(payload, dict) or payload.get("version") != _DETAIL_CACHE_VERSION:
-        return
-    now = time.time()
-    for link, entry in (payload.get("entries") or {}).items():
-        if not isinstance(entry, dict) or not isinstance(entry.get("context"), dict):
-            continue
-        try:
-            fetched_at = float(entry.get("fetched_at", 0))
-        except (TypeError, ValueError):
-            continue
-        if now - fetched_at > ttl_seconds:
-            continue
-        context = {key: str(entry["context"].get(key) or "")
-                   for key in ("description", "venue", "city", "time", "price")}
-        _detail_context_cache[link] = context
-        _detail_context_cache_entries[link] = {"fetched_at": fetched_at, "context": context}
-
-
-def _persist_detail_context_cache() -> None:
-    ttl_seconds = _cache_ttl_seconds()
-    if not ttl_seconds:
-        return
-    now = time.time()
-    entries = {
-        link: entry for link, entry in _detail_context_cache_entries.items()
-        if now - float(entry.get("fetched_at", 0)) <= ttl_seconds
-    }
-    path = _detail_cache_path()
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary.write_text(
-            json.dumps({"version": _DETAIL_CACHE_VERSION, "entries": entries},
-                       ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
-    except OSError as exc:
-        common.log_source_error("Meckenheim detail cache", exc)
-        try:
-            temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
+    """Compatibility hook for isolated tests using the shared raw-page cache."""
+    common._reset_detail_page_cache("meckenheim-detail")
 
 
 def _field_values(html: str) -> dict:
@@ -172,21 +80,13 @@ def _parse_detail_context(html: str) -> dict:
 
 
 def _fetch_detail_context(link: str) -> dict:
-    _load_detail_context_cache()
-    if link in _detail_context_cache:
-        return _detail_context_cache[link]
-    fetched_successfully = False
     try:
-        context = _parse_detail_context(common.fetch_url(link, timeout=20))
-        fetched_successfully = True
+        return _parse_detail_context(common.fetch_detail_url(
+            link, cache_namespace="meckenheim-detail", timeout=20,
+        ))
     except Exception as exc:
         common.log_source_error("Meckenheim detail", exc)
-        context = {}
-    _detail_context_cache[link] = context
-    if fetched_successfully:
-        _detail_context_cache_entries[link] = {"fetched_at": time.time(), "context": context}
-        _persist_detail_context_cache()
-    return context
+        return {}
 
 
 def _event_datetimes(event: dict, time_text: str) -> tuple:

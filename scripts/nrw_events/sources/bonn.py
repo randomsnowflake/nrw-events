@@ -6,8 +6,6 @@ Fetchers, all reading bonn.de:
                              Primary source because it contains valid events that
                              the city JSON/RSS feeds omit or emit malformed.
   fetch_events_json()      — legacy JSON-only fallback for tests/manual probes.
-  fetch_html()             — Veranstaltungskalender HTML listing (legacy fallback)
-  fetch_rss()              — the same calendar as an RSS feed (legacy fallback)
   fetch_press_festivals()  — the annual "Veranstaltungsjahr" press release, which
                              lists district festivals / markets / Kirmes as <li>
                              items. This is the *live* replacement for the old
@@ -20,10 +18,8 @@ Fetchers, all reading bonn.de:
 import json
 import os
 import re
-import time
 from datetime import datetime
 from html import unescape
-from pathlib import Path
 
 from .. import common
 
@@ -61,116 +57,15 @@ _BLOCK = {
 }
 
 _venue_points_cache = None
-_detail_context_cache = {}
-_detail_context_cache_entries = {}
-_detail_context_cache_loaded_path = None
-
-_DETAIL_CACHE_VERSION = 2
-_DETAIL_CACHE_FILENAME = "bonn-detail-context-v2.json"
-
-
 def _env_number(name: str, default: float) -> float:
     try:
         return max(float(os.environ.get(name, str(default))), 0)
     except (TypeError, ValueError):
         return default
 
-
-def _detail_cache_ttl_seconds() -> float:
-    return _env_number("NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS", 168) * 60 * 60
-
-
-def _detail_cache_path() -> Path:
-    configured = os.environ.get("NRW_EVENTS_CACHE_DIR", "").strip()
-    if configured:
-        cache_dir = Path(configured).expanduser()
-    else:
-        xdg_cache = os.environ.get("XDG_CACHE_HOME", "").strip()
-        cache_dir = Path(xdg_cache).expanduser() if xdg_cache else Path.home() / ".cache"
-        cache_dir /= "nrw-events"
-    return cache_dir / _DETAIL_CACHE_FILENAME
-
-
 def _reset_detail_context_cache() -> None:
-    """Reset process-local state; primarily useful for isolated runs/tests."""
-    global _detail_context_cache_loaded_path
-    _detail_context_cache.clear()
-    _detail_context_cache_entries.clear()
-    _detail_context_cache_loaded_path = None
-
-
-def _load_detail_context_cache() -> None:
-    global _detail_context_cache_loaded_path
-    path = _detail_cache_path()
-    path_key = str(path)
-    if _detail_context_cache_loaded_path == path_key:
-        return
-
-    _detail_context_cache.clear()
-    _detail_context_cache_entries.clear()
-    _detail_context_cache_loaded_path = path_key
-    ttl_seconds = _detail_cache_ttl_seconds()
-    if not ttl_seconds:
-        return
-
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, ValueError, TypeError):
-        return
-    if not isinstance(payload, dict) or payload.get("version") != _DETAIL_CACHE_VERSION:
-        return
-
-    now = time.time()
-    for link, entry in (payload.get("entries") or {}).items():
-        if not isinstance(entry, dict):
-            continue
-        try:
-            fetched_at = float(entry.get("fetched_at", 0))
-        except (TypeError, ValueError):
-            continue
-        context = entry.get("context")
-        if now - fetched_at > ttl_seconds or not isinstance(context, dict):
-            continue
-        cleaned = {
-            "description": _concise_detail_description(str(context.get("description") or "")),
-            "venue": str(context.get("venue") or ""),
-            "city": str(context.get("city") or ""),
-        }
-        _detail_context_cache[link] = cleaned
-        _detail_context_cache_entries[link] = {
-            "fetched_at": fetched_at,
-            "context": cleaned,
-        }
-
-
-def _persist_detail_context_cache() -> None:
-    ttl_seconds = _detail_cache_ttl_seconds()
-    if not ttl_seconds:
-        return
-    now = time.time()
-    entries = {
-        link: entry for link, entry in _detail_context_cache_entries.items()
-        if now - float(entry.get("fetched_at", 0)) <= ttl_seconds
-    }
-    path = _detail_cache_path()
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary.write_text(
-            json.dumps(
-                {"version": _DETAIL_CACHE_VERSION, "entries": entries},
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
-    except OSError as e:
-        common.log_source_error("Bonn.de detail cache", e)
-        try:
-            temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
+    """Compatibility hook for isolated tests using the shared raw-page cache."""
+    common._reset_detail_page_cache("bonn-detail")
 
 
 def _loads_event_items(raw: str):
@@ -231,27 +126,6 @@ def _parse_dt(value: str):
             return None
 
 
-def _free_admission_price(item: dict, tags: set) -> str:
-    """Return a normalized free-admission label from Bonn's category/prose."""
-    if "Kostenlos" in tags:
-        return "kostenlos"
-
-    text = " ".join([
-        item.get("title") or "",
-        item.get("description") or "",
-    ]).lower()
-    if re.search(r"\b(eintritt frei|freier eintritt|kostenlos|kostenfreie?\w*|kostenlose?\w*)\b", text):
-        return "kostenlos"
-    return ""
-
-
-def _strip_html(value: str) -> str:
-    value = re.sub(r"<script\b.*?</script>", " ", value or "", flags=re.I | re.S)
-    value = re.sub(r"<style\b.*?</style>", " ", value, flags=re.I | re.S)
-    value = re.sub(r"<[^>]+>", " ", value)
-    return re.sub(r"\s+", " ", unescape(value)).strip()
-
-
 def _concise_detail_description(value: str) -> str:
     """Keep detail enrichment useful without exporting Bonn.de's full article."""
     cleaned = re.sub(r"\s+", " ", value or "").strip()
@@ -295,19 +169,19 @@ def _detail_paragraphs(html: str) -> list[str]:
     parts = []
     intro = re.search(r'<div class="SP-ArticleHeader__intro[^"]*"[^>]*>(.*?)</div>', html, flags=re.S)
     if intro:
-        text = _strip_html(intro.group(1))
+        text = common.clean_html(intro.group(1))
         if text:
             parts.append(text)
 
     for block in re.findall(r'<div data-sp-table class="SP-Paragraph">(.*?)</div>', html, flags=re.S):
         paragraphs = [
-            _strip_html(raw) for raw in re.findall(r"<p\b[^>]*>(.*?)</p>", block, re.S | re.I)
+            common.clean_html(raw) for raw in re.findall(r"<p\b[^>]*>(.*?)</p>", block, re.S | re.I)
         ]
         paragraphs = [text for text in paragraphs if text]
         if paragraphs:
             parts.extend(paragraphs)
         else:
-            text = _strip_html(block)
+            text = common.clean_html(block)
             if text:
                 parts.append(text)
         if len(parts) >= 14:
@@ -402,33 +276,19 @@ def _parse_detail_context(html: str) -> dict:
 def _fetch_detail_context(link: str) -> dict:
     if not link or "bonn.de/veranstaltungskalender/" not in link:
         return {}
-    _load_detail_context_cache()
-    if link in _detail_context_cache:
-        return _detail_context_cache[link]
-    fetched_successfully = False
     try:
-        html = common.fetch_url(
+        html = common.fetch_detail_url(
             link,
+            cache_namespace="bonn-detail",
             timeout=15,
             accept="text/html,*/*;q=0.8",
             sec_fetch_mode="navigate",
             sec_fetch_dest="document",
         )
-        context = _parse_detail_context(html)
-        fetched_successfully = True
+        return _parse_detail_context(html)
     except Exception as e:
         common.log_source_error("Bonn.de detail", e)
-        context = {}
-    _detail_context_cache[link] = context
-    # Persist successful negative lookups too. Otherwise a valid detail page
-    # without useful enrichment is requested again by every importer process.
-    if fetched_successfully:
-        _detail_context_cache_entries[link] = {
-            "fetched_at": time.time(),
-            "context": context,
-        }
-        _persist_detail_context_cache()
-    return context
+        return {}
 
 
 def _clean_free_title_prefix(title: str) -> str:
@@ -502,7 +362,10 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
 
         tags = set(item.get("category") or [])
         allow = tags & _ALLOW
-        price = _free_admission_price(item, tags)
+        price = common.infer_free_admission_price(
+            item.get("title", ""), item.get("description", ""),
+            "kostenlos" if "Kostenlos" in tags else "",
+        )
         free_allow = (tags & _FREE_ACTIVITY_ALLOW) if price else set()
         if (not allow and not free_allow) or (tags & _BLOCK):
             continue
@@ -563,61 +426,6 @@ _PRESS_URL_TEMPLATE = (
     "https://www.bonn.de/pressemitteilungen/dezember/"
     "abwechslungsreiches-veranstaltungsjahr-{year}-in-bonn.php"
 )
-
-
-def fetch_html() -> list:
-    source = "Bonn.de"
-    try:
-        html = common.fetch_url(_HTML_URL)
-        events = []
-        pattern = r'<a[^>]*href="(/veranstaltungskalender/[^"]+?)"[^>]*>(.*?)</a>'
-        for href, text in re.findall(pattern, html, re.DOTALL):
-            clean = unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text)).strip())
-            if "speichern" in clean.lower() or len(clean) < 10:
-                continue
-
-            cat_match = re.match(r"^([\w/|]+(?:\s*\|\s*[\w/]+)*)\s*", clean)
-            category = cat_match.group(1) if cat_match else ""
-            dates = re.findall(r"(\d{2}\.\d{2}\.\d{4})", clean)
-
-            title_part = clean[len(category):].strip() if category else clean
-            title_part = re.sub(r"\d{2}\.\d{2}\.\d{4}\s*\d{0,2}:?\d{0,2}\s*(?:Uhr)?\s*,?\s*", "", title_part)
-            title_part = re.sub(r"[\xa0 ]", " ", title_part)
-            title_part = re.sub(r"^[\s.,;]*\.{3}\s*", "", title_part)
-            title_part = re.sub(r"^\.\.\.\s*", "", title_part).strip()
-
-            for sep in [" Bei der ", " Die ", " Spannende ", " Im Rahmen ", " Informieren ",
-                        " Auf dieser ", " Eine ", " Das ", " Monatlicher "]:
-                if sep in title_part and len(title_part.split(sep)[0]) > 10:
-                    title_part = title_part.split(sep)[0]
-                    break
-            if len(title_part) > 80:
-                for brk in [" - ", " – ", " | ", ". "]:
-                    if brk in title_part[:80]:
-                        break
-                else:
-                    title_part = title_part[:80]
-            if not title_part or len(title_part) < 3:
-                continue
-
-            if dates and not any(common.in_date_range(d) for d in dates):
-                continue
-
-            full_text = f"{category} {title_part}"
-            events.append({
-                "title": title_part[:120],
-                "date": dates[0] if dates else "",
-                "time": "", "venue": "", "city": "Bonn", "description": "", "price": "",
-                "link": f"https://www.bonn.de{href}",
-                "distance_km": 0,
-                "score": round(common.distance_score(0) * common.category_score(full_text), 2),
-                "source": source,
-                "category": category,
-            })
-        return events
-    except Exception as e:
-        common.log_source_error(source, e)
-        return []
 
 
 def _calendar_search_url(page: int = 1, *, free_only: bool = True) -> str:
@@ -711,7 +519,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
         )
         for date_text, time_raw in date_matches:
             start = common.parse_date(date_text)
-            if not start or not (common.TODAY <= start <= common.END_DATE):
+            if not common.window_contains(start):
                 continue
             time_text = common.clean_html(time_raw)
             time_match = re.search(r"(\d{1,2}):(\d{2})", time_text)
@@ -732,7 +540,10 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
             if ev:
                 if description != classification_description:
                     ev["description"] = common.concise_description(description)
-                price = _free_admission_price({"title": raw_title, "description": description}, tags | ({"Kostenlos"} if free_only else set()))
+                price = common.infer_free_admission_price(
+                    raw_title, description,
+                    "kostenlos" if free_only or "Kostenlos" in tags else "",
+                )
                 if price:
                     ev["price"] = price
                 if free_allow and not allow:
@@ -909,7 +720,7 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
                     if enriched:
                         ev = enriched
             if ev:
-                price = _free_admission_price({"title": title, "description": desc}, set())
+                price = common.infer_free_admission_price(title, desc)
                 if price:
                     ev["price"] = price
                 events.append(ev)
@@ -932,10 +743,6 @@ def _merge_fallback_events(primary: list, fallback: list) -> list:
         merged.append(event)
         seen.add(key)
     return merged
-
-
-def fetch_rss() -> list:
-    return _fetch_rss_events("Bonn.de RSS")
 
 
 def fetch_press_festivals() -> list:
@@ -973,7 +780,7 @@ def fetch_press_festivals() -> list:
                     dates.append(datetime(int(yr or year), common.MONTH_DE[mon.lower()], int(day)))
                 except (ValueError, KeyError):
                     continue
-            in_window = [d for d in dates if common.TODAY <= d <= common.END_DATE]
+            in_window = [d for d in dates if common.window_contains(d)]
             if not in_window:
                 continue
             title = re.split(r",", text)[0].strip()

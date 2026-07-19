@@ -4,6 +4,7 @@ import re
 import urllib.parse
 from datetime import datetime
 from html import unescape
+from html.parser import HTMLParser
 from .. import common
 from ..dates import MONTH_DE, MONTH_EN
 from ..source_types import TextParser
@@ -11,6 +12,52 @@ from ..source_types import TextParser
 
 class ParserEmptyError(RuntimeError):
     """A source responded, but its parser produced no trustworthy records."""
+
+
+VOID_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr",
+})
+
+
+class ClassScopedTextParser(HTMLParser):
+    """Collect text inside elements selected by attribute matcher callables."""
+
+    def __init__(self, targets: dict[str, object]) -> None:
+        super().__init__(convert_charrefs=True)
+        self.targets = targets
+        self.parts = {name: [] for name in targets}
+        self._target = ""
+        self._depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if not self._target:
+            self._target = next((
+                name for name, matcher in self.targets.items()
+                if matcher(tag, attributes)
+            ), "")
+            if self._target:
+                self._depth = 1
+        elif tag not in VOID_TAGS:
+            self._depth += 1
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        return
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self._target or tag in VOID_TAGS:
+            return
+        self._depth -= 1
+        if self._depth == 0:
+            self._target = ""
+
+    def handle_data(self, data: str) -> None:
+        if self._target:
+            self.parts[self._target].append(data)
+
+    def text(self, target: str) -> str:
+        return common.clean_html(" ".join(self.parts.get(target, [])))
 
 
 _MONTH = {
@@ -25,7 +72,57 @@ def abs_url(base: str, href: str) -> str:
 
 
 def clean(text: str) -> str:
-    return common.clean_html(unescape(text or ""))
+    return common.clean_html(text or "")
+
+
+def first_group(pattern: str, text: str, *, flags: int = re.S | re.I) -> str:
+    match = re.search(pattern, text or "", flags)
+    return match.group(1).strip() if match else ""
+
+
+def first_group_clean(pattern: str, text: str, *, flags: int = re.S | re.I) -> str:
+    return clean(first_group(pattern, text, flags=flags))
+
+
+def enrich_descriptions(
+    events: list,
+    *,
+    source: str,
+    cache_namespace: str,
+    extract_context,
+    fallback,
+    timeout: int = 15,
+    detail_fetcher=None,
+    needs_enrichment=None,
+    merge_context=None,
+) -> list:
+    """Memoize shared detail fetches and fill missing event descriptions."""
+    html_by_link = {}
+    failed_links = set()
+    needs_enrichment = needs_enrichment or (lambda event: not event.get("description"))
+    for index, event in enumerate(events):
+        if not needs_enrichment(event):
+            continue
+        link = (event.get("link") or "").strip()
+        if link and link not in html_by_link and link not in failed_links:
+            try:
+                html_by_link[link] = detail_fetcher(link) if detail_fetcher else common.fetch_detail_url(
+                    link, cache_namespace=cache_namespace, timeout=timeout)
+            except Exception as exc:
+                failed_links.add(link)
+                common.log_source_error(source, exc)
+        context = extract_context(html_by_link.get(link, ""), event) if link in html_by_link else {}
+        if isinstance(context, str):
+            context = {"description": context}
+        if merge_context and context:
+            event = merge_context(event, context)
+            events[index] = event
+        replacement = context.get("description") or fallback(event)
+        if len(replacement) > len(event.get("description") or ""):
+            event["description"] = replacement
+        if not event.get("venue") and context.get("venue"):
+            event["venue"] = context["venue"]
+    return events
 
 
 def parse_dt(text: str):

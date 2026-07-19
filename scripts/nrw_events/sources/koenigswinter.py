@@ -10,6 +10,7 @@ import re
 import urllib.parse
 
 from .. import common
+from . import regional_common as rc
 
 
 _BASE_URL = "https://www.koenigswinter.de/"
@@ -90,17 +91,14 @@ def _listing_blocks(html: str) -> list[str]:
 
 
 def _card_text(block: str, class_name: str) -> str:
-    match = re.search(
+    return rc.first_group_clean(
         rf'<[^>]+class="[^"]*\b{class_name}\b[^"]*"[^>]*>(.*?)</[^>]+>',
         block,
-        re.S | re.I,
     )
-    return common.clean_html(match.group(1) if match else "")
 
 
 def _card_element_text(block: str, tag: str) -> str:
-    match = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", block, re.S | re.I)
-    return common.clean_html(match.group(1) if match else "")
+    return rc.first_group_clean(rf"<{tag}[^>]*>(.*?)</{tag}>", block)
 
 
 def _detail_copy(link: str, detail_fetcher) -> str:

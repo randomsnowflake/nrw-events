@@ -392,56 +392,32 @@ def fetch_hardtberg() -> list:
         return []
 
 
-class _TribeDescriptionParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.parts: list[str] = []
-        self._depth = 0
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        classes = (dict(attrs).get("class") or "").split()
-        if not self._depth and "tribe-events-single-event-description" in classes:
-            self._depth = 1
-        elif self._depth and tag not in {"br", "img", "input", "meta", "link"}:
-            self._depth += 1
-
-    def handle_endtag(self, tag: str) -> None:
-        if self._depth:
-            self._depth -= 1
-
-    def handle_data(self, data: str) -> None:
-        if self._depth:
-            self.parts.append(data)
-
-
 def _roleber_detail_description(html: str) -> str:
-    parser = _TribeDescriptionParser()
+    parser = regional_common.ClassScopedTextParser({
+        "description": lambda _tag, attrs: "tribe-events-single-event-description" in (attrs.get("class") or "").split(),
+    })
     parser.feed(html or "")
-    return common.concise_description(" ".join(parser.parts))
+    return common.concise_description(parser.text("description"))
 
 
 def _enrich_roleber_descriptions(events: list) -> list:
+    def fallback(event):
+        start = common.parse_iso_date(event.get("start_date") or "")
+        return common.factual_event_description(
+            event.get("title", ""), date_value=start,
+            time_text=event.get("time", ""), venue=event.get("venue", ""),
+            city=event.get("city", "Bonn-Roleber"),
+        )
+
+    events = regional_common.enrich_descriptions(
+        events,
+        source="BSV Roleber",
+        cache_namespace="bsv-roleber",
+        extract_context=lambda html, _event: _roleber_detail_description(html),
+        fallback=fallback,
+        needs_enrichment=lambda event: len(event.get("description") or "") < 120,
+    )
     for event in events:
-        description = event.get("description") or ""
-        if len(description) >= 120:
-            continue
-        link = event.get("link") or ""
-        if link:
-            try:
-                detail = _roleber_detail_description(
-                    common.fetch_detail_url(link, cache_namespace="bsv-roleber")
-                )
-                if len(detail) > len(description):
-                    event["description"] = detail
-            except Exception as exc:
-                common.log_source_error("BSV Roleber", exc)
-        if len(event.get("description") or "") < 120:
-            start = common.parse_iso_date(event.get("start_date") or "")
-            event["description"] = common.factual_event_description(
-                event.get("title", ""), date_value=start,
-                time_text=event.get("time", ""), venue=event.get("venue", ""),
-                city=event.get("city", "Bonn-Roleber"),
-            )
         # The global ranking deliberately downranks kids-only listings. This
         # requested, primary neighbourhood source should still clear the
         # publication threshold so Roleber is not left without its real camps.

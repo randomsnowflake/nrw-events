@@ -1,8 +1,8 @@
 import unittest
 from datetime import datetime
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import regional_html
+from nrw_events.sources import regional_html
+from tests.helpers import patch_window
 
 
 LISTING_HTML = """
@@ -32,14 +32,7 @@ LISTING_HTML = """
 
 class LohmarParserTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 13)
-        common.END_DATE = datetime(2026, 7, 26)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
 
     def test_listing_teaser_populates_description_without_detail_request(self):
         def unexpected_detail_request(_url):

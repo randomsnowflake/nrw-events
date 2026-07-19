@@ -1,6 +1,6 @@
 import unittest
 
-from scripts.nrw_events.category_taxonomy import CATEGORIES, categorize_event
+from nrw_events.category_taxonomy import CATEGORIES, categorize_event
 
 
 class CategoryTaxonomyTests(unittest.TestCase):

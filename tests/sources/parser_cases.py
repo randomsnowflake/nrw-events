@@ -2,29 +2,25 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import SOURCES
-from scripts.nrw_events.sources import (
+from nrw_events import common
+from nrw_events.sources import SOURCES
+from nrw_events.sources import (
     bonn, bonn_venues, bonnjetzt, bundeskunsthalle, haus_der_geschichte, koeln,
     regional_feeds, regional_ionas4, regional_tourism, requested_venues,
 )
+from tests.helpers import patch_window
 
 
 class SourceParserTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
         self.bonn_cache_env = patch.dict(
-            "os.environ", {"NRW_EVENTS_BONN_DETAIL_CACHE_TTL_HOURS": "0"}
+            "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}
         )
         self.bonn_cache_env.start()
         bonn._reset_detail_context_cache()
-        common.TODAY = datetime(2026, 6, 9)
-        common.END_DATE = datetime(2026, 6, 21)
+        patch_window(self, datetime(2026, 6, 9), datetime(2026, 6, 21))
 
     def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
         bonn._reset_detail_context_cache()
         self.bonn_cache_env.stop()
     def test_bonn_events_json_tolerates_appended_server_log_noise(self):
@@ -45,8 +41,8 @@ class SourceParserTests(unittest.TestCase):
         def fake_fetch(url, *args, **kwargs):
             return rss_payload if "sp%3Aout=rss" in url else json_payload
 
-        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("nrw_events.sources.bonn._venue_points", return_value={}):
             events = bonn.fetch_events_json()
 
         self.assertEqual([event["source"] for event in events], ["Bonn.de Events", "Bonn.de Events"])
@@ -82,7 +78,7 @@ class SourceParserTests(unittest.TestCase):
             {
                 "title": "Limes-Geburtstag",
                 "description": "Es werden kostenlose Führungen angeboten.",
-                "category": ["Bonn", "Bonn-Information", "Kultur", "Tourismus"],
+                "category": ["Bonn", "Bonn-Information", "Kultur", "Tourismus", "Kostenlos"],
                 "startDate": "2026-06-14 11:00:00",
                 "endDate": "2026-06-14 16:00:00",
                 "locationName": "Präsentationsfläche",
@@ -93,8 +89,8 @@ class SourceParserTests(unittest.TestCase):
             },
         ]
 
-        with patch("scripts.nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)), \
-             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+        with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)), \
+             patch("nrw_events.sources.bonn._venue_points", return_value={}):
             events = bonn.fetch_events_json()
 
         self.assertEqual([event["title"] for event in events], [
@@ -154,8 +150,8 @@ class SourceParserTests(unittest.TestCase):
                 return '<div class="SP-ArticleHeader__intro">Konzert in Bonn.</div>'
             raise AssertionError(f"unexpected URL {url}")
 
-        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("nrw_events.sources.bonn._venue_points", return_value={}):
             events = bonn.fetch_events()
 
         titles = [event["title"] for event in events]
@@ -211,8 +207,8 @@ class SourceParserTests(unittest.TestCase):
                 return '<div class="SP-ArticleHeader__intro">Kostenloses Event in Bonn.</div>'
             raise AssertionError(f"unexpected URL {url}")
 
-        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("scripts.nrw_events.sources.bonn._venue_points", return_value={}):
+        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("nrw_events.sources.bonn._venue_points", return_value={}):
             events = bonn.fetch_events()
 
         titles = [event["title"] for event in events]
@@ -220,8 +216,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertIn("Paid Concert", titles)
 
     def test_bonn_calendar_listing_recovers_non_extern_municipal_events(self):
-        common.TODAY = datetime(2026, 7, 9)
-        common.END_DATE = datetime(2026, 7, 11)
+        patch_window(self, datetime(2026, 7, 9), datetime(2026, 7, 11))
         html = """
 <article class="SP-Teaser SP-Teaser--illustrated">
   <a class="SP-Teaser__inner SPbg-accent--before" rel="bookmark" href="/veranstaltungskalender/veranstaltungen/hauptkalender/musikschule/sommerkonzert-des-bonner-jugendsinfonieorchesters-und-der-string-academy.php">
@@ -261,8 +256,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(context["city"], "Bonn")
 
     def test_kult41_events_manager_blocks_create_events(self):
-        common.TODAY = datetime(2026, 7, 1)
-        common.END_DATE = datetime(2026, 7, 31)
+        patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
         html = """
 <div class="em-event em-item ">
   <div class="em-item-info">
@@ -296,8 +290,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["price"], "")
 
     def test_repair_cafes_calendar_articles_create_events_with_coords(self):
-        common.TODAY = datetime(2026, 7, 1)
-        common.END_DATE = datetime(2026, 7, 31)
+        patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
         html = """
 <article class='calendar-event future-event'>
   <h3 class='event-title summary'><button>Repair Café Venusberg &amp; Ippendorf</button></h3>
@@ -324,8 +317,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertGreater(events[0]["distance_km"], 0)
 
     def test_brotfabrik_today_program_creates_events(self):
-        common.TODAY = datetime(2026, 7, 4)
-        common.END_DATE = datetime(2026, 7, 4)
+        patch_window(self, datetime(2026, 7, 4), datetime(2026, 7, 4))
         html = """
 <section id="programm">
   Kontaktimprovisation / Kommunikation durch Berührung Bib | 14:00 Uhr 04.07.2026
@@ -339,8 +331,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "20:00")
 
     def test_brotfabrik_api_items_create_events_and_skip_cancelled(self):
-        common.TODAY = datetime(2026, 7, 4)
-        common.END_DATE = datetime(2026, 7, 6)
+        patch_window(self, datetime(2026, 7, 4), datetime(2026, 7, 6))
         items = [
             {
                 "Titel": "Hofkultur am 04.07. entfällt",
@@ -372,8 +363,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["link"], "https://www.brotfabrik-theater.de/sin-cepillo-de-dientes/")
 
     def test_botanical_garden_event_links_create_events(self):
-        common.TODAY = datetime(2026, 7, 1)
-        common.END_DATE = datetime(2026, 7, 31)
+        patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
         html = """
 <a href="https://www.botgart.uni-bonn.de/de/ihr-besuch/veranstaltungen/2026/freundeskreis/teegarten-26">
   Exkursion Sonntag, 05.07.2026 11:00 Uhr Tschanara: Teegartenführung mit Teeverkostung
@@ -388,8 +378,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["source"], "Botanische Gärten Bonn")
 
     def test_bonner_muenster_music_pages_create_events(self):
-        common.TODAY = datetime(2026, 7, 1)
-        common.END_DATE = datetime(2026, 7, 31)
+        patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
         html = """
 <li class="list-entry teaser-tile tile-col col-12">
   <div class="teaser type-event">
@@ -412,8 +401,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "20:00–21:30")
 
     def test_vox_bona_ical_skips_non_regional_tour_dates(self):
-        common.TODAY = datetime(2026, 7, 1)
-        common.END_DATE = datetime(2026, 12, 31)
+        patch_window(self, datetime(2026, 7, 1), datetime(2026, 12, 31))
         ical = """
 BEGIN:VCALENDAR
 BEGIN:VEVENT
@@ -432,7 +420,7 @@ END:VEVENT
 END:VCALENDAR
 """
 
-        with patch("scripts.nrw_events.common.fetch_url", return_value=ical):
+        with patch("nrw_events.common.fetch_url", return_value=ical):
             events = bonn_venues._fetch_vox_bona()
 
         self.assertEqual(len(events), 1)
@@ -454,7 +442,7 @@ END:VCALENDAR
                 "link": "https://example.test/koeln",
             }]
         }
-        with patch("scripts.nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
+        with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
             events = koeln.fetch()
 
         self.assertEqual(len(events), 1)
@@ -477,7 +465,7 @@ END:VCALENDAR
                 "link": "https://example.test/koeln-price",
             }]
         }
-        with patch("scripts.nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
+        with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
             events = koeln.fetch()
 
         self.assertEqual(len(events), 1)
@@ -552,7 +540,7 @@ END:VEVENT
 END:VCALENDAR
 """
 
-        with patch("scripts.nrw_events.common.fetch_url", return_value=ical):
+        with patch("nrw_events.common.fetch_url", return_value=ical):
             events = common.fetch_ical("https://www.wachtberg.de/kalender/event.ics", "Wachtberg", "Wachtberg")
 
         self.assertEqual(len(events), 1)
@@ -571,7 +559,7 @@ END:VCALENDAR
 </section>
 """
 
-        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+        with patch("nrw_events.common.fetch_url", return_value=html):
             events = bundeskunsthalle.fetch()
 
         self.assertEqual(len(events), 1)
@@ -579,8 +567,7 @@ END:VCALENDAR
         self.assertEqual(events[0]["link"], "https://www.bundeskunsthalle.de/en/hujar")
 
     def test_bundeskunsthalle_event_api_keeps_next_primary_series_occurrence(self):
-        common.TODAY = datetime(2026, 7, 13)
-        common.END_DATE = datetime(2026, 7, 26)
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
         search_page = """
 <form id="event-search-form" data-api-search-url="/events-api/search-results">
   <input type="hidden" name="tx[eventToken]" value="fresh-token">
@@ -610,8 +597,8 @@ END:VCALENDAR
         def fake_fetch(url, *args, **kwargs):
             return search_page if url.endswith("/veranstaltungen") else ""
 
-        with patch("scripts.nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("scripts.nrw_events.common.post_form", return_value={"data": {"content": api_content}}) as post_form:
+        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("nrw_events.common.post_form", return_value={"data": {"content": api_content}}) as post_form:
             events = bundeskunsthalle.fetch()
 
         sundowner = [event for event in events if event["title"] == "Sundowner Bar"]
@@ -649,20 +636,18 @@ END:VCALENDAR
         self.assertEqual(event and event["date"], "2026-06-10")
 
     def test_date_for_window_rolls_over_new_year(self):
-        from scripts.nrw_events.sources import regional_common as rc
+        from nrw_events.sources import regional_common as rc
 
         # Late-December run: a January date must resolve to the coming year,
         # not the year that is ending (which would be dropped as stale).
-        common.TODAY = datetime(2026, 12, 28)
-        common.END_DATE = datetime(2027, 1, 4)
+        patch_window(self, datetime(2026, 12, 28), datetime(2027, 1, 4))
         self.assertEqual(rc.date_for_window(3, 1), datetime(2027, 1, 3))
         # A mid-year run keeps the current year.
-        common.TODAY = datetime(2026, 6, 9)
-        common.END_DATE = datetime(2026, 6, 21)
+        patch_window(self, datetime(2026, 6, 9), datetime(2026, 6, 21))
         self.assertEqual(rc.date_for_window(15, 6), datetime(2026, 6, 15))
 
     def test_regional_range_dates_handles_compact_start_without_year(self):
-        from scripts.nrw_events.sources import regional_common as rc
+        from nrw_events.sources import regional_common as rc
 
         start, end = rc.range_dates("06.07. – 10.07.2026")
 
@@ -819,7 +804,7 @@ END:VCALENDAR
 </article>
 """
 
-        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+        with patch("nrw_events.common.fetch_url", return_value=html):
             events = bonnjetzt.fetch()
 
         self.assertEqual(events, [])
@@ -839,7 +824,7 @@ END:VCALENDAR
 </article>
 """
 
-        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+        with patch("nrw_events.common.fetch_url", return_value=html):
             events = bonnjetzt.fetch()
 
         self.assertEqual(len(events), 1)
@@ -859,12 +844,12 @@ END:VCALENDAR
 </article>
 """
 
-        with patch("scripts.nrw_events.common.fetch_url", return_value=html):
+        with patch("nrw_events.common.fetch_url", return_value=html):
             events = bonnjetzt.fetch()
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["date"], "2026-06-12")
-        self.assertEqual(events[0]["time"], "Freitag, 12. Juni, 11:00-16:00")
+        self.assertEqual(events[0]["time"], "11:00-16:00")
 
     def test_make_event_skips_regular_wochenmarkt_entries(self):
         event = common.make_event(
@@ -1007,11 +992,11 @@ END:VCALENDAR
             (datetime(2026, 6, 12, 19, 0), datetime(2026, 6, 12, 23, 59), "", "19:00"),
             (datetime(2026, 6, 12, 19, 0), datetime(2026, 6, 13, 0, 0), "", "19:00"),
             (datetime(2026, 6, 12, 16, 18), datetime(2026, 6, 12, 16, 30), "", "16:15"),
-            (datetime(2026, 6, 12, 19, 31), None, "", "19:30"),
-            (datetime(2026, 6, 12, 19, 31), datetime(2026, 6, 12, 22, 30), "", "19:30–22:30"),
+            (datetime(2026, 6, 12, 19, 31), None, "", "19:31"),
+            (datetime(2026, 6, 12, 19, 31), datetime(2026, 6, 12, 22, 30), "", "19:31–22:30"),
             (datetime(2026, 6, 12, 20, 0), datetime(2026, 6, 12, 22, 30), "", "20:00–22:30"),
             (None, None, "16:18 bis 16:30", "16:15"),
-            (None, None, "19:31 bis 22:30", "19:30 bis 22:30"),
+            (None, None, "19:31 bis 22:30", "19:31 bis 22:30"),
             (None, None, "19:00 bis 23:59", "19:00"),
         ]
 

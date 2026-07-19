@@ -1,12 +1,13 @@
 import unittest
 from datetime import datetime
 
-from scripts.nrw_events import common
-from scripts.nrw_events.quality import (
+from nrw_events import common
+from nrw_events.quality import (
     QualityAction,
     evaluate_event_quality,
     summarize_event_quality,
 )
+from tests.helpers import patch_window
 
 
 def event(title, description="", category="", source="Test"):
@@ -46,14 +47,7 @@ class JunkFilterTests(unittest.TestCase):
         self.assertTrue(decision.reason)
 
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 6, 12)
-        common.END_DATE = datetime(2026, 6, 25)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 6, 12), datetime(2026, 6, 25))
 
     def test_blocks_recurring_community_and_basic_course_formats(self):
         blocked_titles = [
