@@ -42,6 +42,22 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
         self.assertEqual(len(events), 1)
 
+    def test_runner_rejects_malformed_date_types_without_dropping_valid_siblings(self):
+        current_date = common.TODAY.strftime("%Y-%m-%d")
+        result, events = runner._run_source("Malformed", lambda: [
+            {"title": "Bad start date", "source": "Malformed", "start_date": 123,
+             "score": 1.0, "city": "Bonn"},
+            {"title": "Bad legacy date", "source": "Malformed", "date": 123,
+             "score": 1.0, "city": "Bonn"},
+            {"title": "Valid event", "source": "Malformed", "date": current_date,
+             "score": 1.0, "city": "Bonn"},
+        ])
+
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertIsNone(result.error)
+        self.assertEqual(result.rejection_reasons, {"start_date_type": 1, "date_type": 1})
+        self.assertEqual([event.title for event in events], ["Valid event"])
+
     def test_runner_ignores_structural_defects_outside_the_report_window(self):
         with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), \
              mock.patch.object(common, "END_DATE", datetime(2026, 8, 1)):

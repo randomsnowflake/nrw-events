@@ -86,7 +86,13 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
             # Adapter feeds often include archives or future listings. Their
             # structural defects are irrelevant to the published window and
             # must not degrade an otherwise healthy current import.
-            if not common.event_in_window(event):
+            try:
+                in_window = common.event_in_window(event)
+            except (AttributeError, TypeError):
+                # Malformed date types are structural defects, not source-wide
+                # failures. Let canonical validation reject just this record.
+                in_window = True
+            if not in_window:
                 continue
             try:
                 canonical_event = validate_event(event)
