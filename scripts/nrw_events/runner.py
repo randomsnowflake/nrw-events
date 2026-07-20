@@ -77,6 +77,17 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
             result.status = typed_status
         accepted = []
         for event in events:
+            if not isinstance(event, dict):
+                try:
+                    validate_event(event)
+                except EventValidationError as exc:
+                    result.reject(str(exc))
+                continue
+            # Adapter feeds often include archives or future listings. Their
+            # structural defects are irrelevant to the published window and
+            # must not degrade an otherwise healthy current import.
+            if not common.event_in_window(event):
+                continue
             try:
                 canonical_event = validate_event(event)
                 if not common.event_in_window(canonical_event):

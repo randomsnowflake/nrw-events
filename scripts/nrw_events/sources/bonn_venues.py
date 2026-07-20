@@ -49,11 +49,16 @@ def fetch() -> list:
 def events_from_kult41(html: str) -> list:
     events = []
     for block in re.findall(r'<div class="em-event em-item .*?(?=<div class="em-event em-item |\Z)', html, re.S | re.I):
+        # The final card otherwise extends to the end of the page and picks up
+        # unrelated category links from the sidebar/footer.
+        metadata = block.split('<div class="em-item-desc">', 1)[0]
         title = re.search(r'<h3 class="em-item-title">\s*<a href="([^"]+)">(.*?)</a>\s*</h3>', block, re.S | re.I)
         date = re.search(r'class="[^"]*em-event-date[^"]*".*?</span>\s*([^<]+)</div>', block, re.S | re.I)
         time = re.search(r'class="[^"]*em-event-time[^"]*".*?em-icon-clock.*?</span>\s*([^<]+)</div>', block, re.S | re.I)
         desc = re.search(r'<div class="em-item-desc">\s*(.*?)\s*</div>', block, re.S | re.I)
-        cats = " ".join(rc.clean(cat) for cat in re.findall(r'events/categories/[^"]+">(.*?)</a>', block, re.S | re.I))
+        cats = " ".join(rc.clean(cat) for cat in re.findall(
+            r'events/categories/[^"]+">(.*?)</a>', metadata, re.S | re.I,
+        ))
         price = _match_clean(r'em-icon-ticket.*?</span>\s*([^<]+)</div>', block)
         if not (title and date):
             continue

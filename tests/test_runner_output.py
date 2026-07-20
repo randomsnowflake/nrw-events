@@ -42,6 +42,30 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
         self.assertEqual(len(events), 1)
 
+    def test_runner_ignores_structural_defects_outside_the_report_window(self):
+        with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), \
+             mock.patch.object(common, "END_DATE", datetime(2026, 8, 1)):
+            result, events = runner._run_source("Archive", lambda: [{
+                "title": "Old event", "source": "Archive", "date": "2025-11-02",
+                "score": 1.0, "city": "Bonn", "link": "mailto:old@example.test",
+            }])
+
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.rejection_reasons, {})
+        self.assertEqual(events, [])
+
+    def test_runner_still_rejects_structural_defects_inside_the_report_window(self):
+        with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), \
+             mock.patch.object(common, "END_DATE", datetime(2026, 8, 1)):
+            result, events = runner._run_source("Current", lambda: [{
+                "title": "Current event", "source": "Current", "date": "2026-07-29",
+                "score": 1.0, "city": "Bonn", "link": "/relative/event",
+            }])
+
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertEqual(result.rejection_reasons, {"link_invalid": 1})
+        self.assertEqual(events, [])
+
     def test_snapshot_builder_is_pure_with_fixed_context(self):
         canonical = runner.validate_event({
             "title": "Event", "source": "Memory", "date": "2026-06-08",

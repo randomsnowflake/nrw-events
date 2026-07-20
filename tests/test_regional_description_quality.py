@@ -61,6 +61,33 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         )
         self.assertIn("eventId=9697%3A0", requested[0])
 
+    def test_ionas4_resolves_relative_detail_links_against_the_calendar_origin(self):
+        events = regional_ionas4._events_from_items(
+            [{
+                "id": "29905:0",
+                "start": "2026-07-21T18:00",
+                "end": "2026-07-21T20:00",
+                "title": "Heizungsgespräche",
+                "website": "",
+                "category": {"name": "Klimaschutz"},
+                "tags": [],
+                "location": {"name": "Rathaus"},
+            }],
+            "Bad Honnef",
+            "https://meinbadhonnef.de/kalender/veranstaltungen/",
+            0.98,
+            detail_fetcher=lambda _url: """
+                <script>navigator.clipboard.writeText(
+                  "/stadt-bad-honnef/startseite/klima/aktuelles/"
+                );</script>
+            """,
+        )
+
+        self.assertEqual(
+            events[0]["link"],
+            "https://meinbadhonnef.de/stadt-bad-honnef/startseite/klima/aktuelles/",
+        )
+
     def test_ionas4_treats_all_day_midnight_end_as_exclusive(self):
         requested = []
         events = regional_ionas4._events_from_items(
@@ -141,6 +168,30 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 
     def test_bad_honnef_is_registered_for_ionas_detail_enrichment(self):
         self.assertIsNotNone(regional_ionas4._detail_fetcher_for_city("Bad Honnef"))
+
+    def test_kult41_category_extraction_stops_before_trailing_page_content(self):
+        html = """
+<div class="em-event em-item ">
+  <h3 class="em-item-title"><a href="https://kult41.de/events/show">Show</a></h3>
+  <div class="em-event-date"><span></span>21.07.26</div>
+  <div class="em-event-time"><span class="em-icon-clock"></span>19:00 - 22:00</div>
+  <div class="em-item-taxonomy em-event-categories">
+    <a href="https://kult41.de/events/categories/konzert">Konzert</a>
+  </div>
+  <div class="em-item-desc">Live-Musik.</div>
+</div>
+<aside>
+  <a href="https://kult41.de/events/categories/ausstellung">Ausstellung</a>
+  <a href="https://kult41.de/events/categories/literatur">Literatur</a>
+</aside>
+"""
+
+        events = bonn_venues.events_from_kult41(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertIn("Konzert", events[0]["category"])
+        self.assertNotIn("Ausstellung", events[0]["category"])
+        self.assertNotIn("Literatur", events[0]["category"])
 
     def test_botanical_garden_uses_official_detail_description(self):
         listing_html = """

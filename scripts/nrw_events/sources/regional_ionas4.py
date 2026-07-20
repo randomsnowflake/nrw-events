@@ -168,7 +168,8 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
 
         description = context.get("description") or tag_text
         venue = context.get("venue") or loc.get("name") or ""
-        link = context.get("link") or item.get("website") or calendar_url
+        raw_link = context.get("link") or item.get("website") or calendar_url
+        link = rc.abs_url(calendar_url, raw_link)
         event = common.make_event(
             item.get("title") or "",
             start,
