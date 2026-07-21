@@ -17,6 +17,10 @@ wird eine JSON-Datei für die Weiterverarbeitung geschrieben.
 Keine Frameworks, keine Paketinstallation, keine externen Python-Abhängigkeiten:
 nur Python 3 Standardbibliothek.
 
+## Live-Website
+
+Die aufbereiteten Termine werden unter https://www.veranstaltungen-bonn.de/ veröffentlicht; jeder Eintrag verweist zur Originalquelle.
+
 > **Unabhängig und nicht verbunden.** Dieses Repository ist nicht mit Bonn.de,
 > Köln Open Data, Bundeskunsthalle, Meetup, Exa, xAI oder irgendeiner
 > anderen Quelle verbunden, gesponsert oder offiziell autorisiert. Es ist nur ein
