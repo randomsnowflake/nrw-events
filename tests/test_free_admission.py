@@ -40,6 +40,31 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             with self.subTest(title=title, description=description, price=price):
                 self.assertEqual(infer_free_admission_price(title, description, price), "")
 
+    def test_infers_free_visitor_access_for_safe_public_event_types(self):
+        cases = [
+            ("Flohmarkt Kölner Altstadt", "Standpreis: 15 Euro pro laufendem Meter"),
+            ("Hofflohmarkt Rondorf", "Hausanwohner verkaufen in ihren Höfen."),
+            ("Antik- und Trödelmarkt Bad Godesberg", "Viele Verkaufsstände in der Innenstadt."),
+            ("Anna-Kirmes in Rommersdorf", "Fahrgeschäfte und Essen auf dem Festplatz."),
+            ("Tag der offenen Tür", "Blicke hinter die Kulissen."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                self.assertEqual(infer_free_admission_price(title, description), "kostenlos")
+
+    def test_does_not_infer_free_access_for_ticketed_or_ambiguous_markets(self):
+        cases = [
+            ("Nachtflohmarkt", "Tickets im Vorverkauf."),
+            ("Indoor-Flohmarkt", "In der Stadthalle."),
+            ("Flohmarkt Spezial", "Besuchereintritt 4 Euro."),
+            ("Designmarkt", "Lokale Labels und Kunsthandwerk."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                self.assertEqual(infer_free_admission_price(title, description), "")
+
 
 if __name__ == "__main__":
     unittest.main()

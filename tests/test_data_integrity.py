@@ -19,6 +19,17 @@ class DataIntegrityTests(unittest.TestCase):
         })
         self.assertEqual(event.category_key, "other")
 
+    def test_validation_infers_free_access_for_direct_dict_sources(self):
+        event = validate_event({
+            "title": "Hofflohmarkt Rondorf",
+            "source": "Hofflohmärkte Köln",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Köln",
+            "description": "Hausanwohner verkaufen in ihren Höfen.",
+        })
+        self.assertEqual(event.price, "kostenlos")
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 30))
 
