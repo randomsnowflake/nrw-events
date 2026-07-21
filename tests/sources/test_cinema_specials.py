@@ -65,6 +65,61 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         )
         self.assert_valid_cinema_events(events)
 
+    def test_rex_filmbuehne_keeps_specials_and_expands_series_occurrences(self):
+        html = """
+<div class="vorschau">
+  <div class="row film"><h2 class="col-md-12">Jim-Jarmusch-Reihe</h2></div>
+  <div class="row film_termin"><h4 class="col-md-12 termin">Ab Juli im Rex</h4></div>
+  <div class="filmbox row"><div class="beschreibung col-md-12">
+    <strong>Mittwoch, 22.07. um 20:15 Uhr im Rex-Kino<br>The Dead Don't Die OmU<br></strong>
+    Eine Retrospektive mit Filmen von Jim Jarmusch.
+    <strong>Montag, 27.07. um 20:45 Uhr im Rex-Kino<br>Only Lovers Left Alive<br></strong>
+  </div></div>
+</div>
+<div class="vorschau">
+  <div class="row film"><h2 class="col-md-12">Normaler Kinofilm</h2></div>
+  <div class="row film_termin"><h4 class="col-md-12 termin">Ab 23.07. im Rex</h4></div>
+  <div class="filmbox row"><div class="beschreibung col-md-12">Regulärer Kinostart.</div></div>
+</div>
+"""
+
+        events = cinema_specials._events_from_rex_filmbuehne(html)
+
+        self.assertEqual(
+            [event["title"] for event in events],
+            [
+                "Jim-Jarmusch-Reihe: The Dead Don't Die OmU",
+                "Jim-Jarmusch-Reihe: Only Lovers Left Alive",
+            ],
+        )
+        self.assertEqual([event["date"] for event in events], ["2026-07-22", "2026-07-27"])
+        self.assertEqual([event["time"] for event in events], ["20:15", "20:45"])
+        self.assertTrue(all(event["venue"] == "Rex-Lichtspieltheater" for event in events))
+        self.assertTrue(all(event["source_id"] == "rex-filmbuehne-specials" for event in events))
+        self.assert_valid_cinema_events(events)
+
+    def test_rex_filmbuehne_detects_guest_screening_without_importing_release_date(self):
+        html = """
+<div class="vorschau">
+  <div class="row film"><h2 class="col-md-12">To My Sisters</h2></div>
+  <div class="row film_termin"><h4 class="col-md-12 termin">Ab 23.07. | Preview: Mittwoch, 22.07. um 18:15 Uhr in der Neuen Filmbühne</h4></div>
+  <div class="filmbox row"><div class="beschreibung col-md-12">
+    <em><strong>Mittwoch, 22.07. um 18:15 Uhr in Anwesenheit des Regisseurs in der Neuen Filmbühne.</strong></em>
+    Eine einmalige Vorstellung mit anschließendem Gespräch.
+  </div></div>
+</div>
+"""
+
+        events = cinema_specials._events_from_rex_filmbuehne(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "To My Sisters")
+        self.assertEqual(events[0]["date"], "2026-07-22")
+        self.assertEqual(events[0]["time"], "18:15")
+        self.assertEqual(events[0]["venue"], "Neue Filmbühne")
+        self.assertIn("Anwesenheit des Regisseurs", events[0]["description"])
+        self.assert_valid_cinema_events(events)
+
     def test_stummfilmtage_builds_dates_from_tabs_and_skips_empty_day(self):
         html = """
 <section id="spielplan-calendar">
