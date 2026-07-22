@@ -226,9 +226,10 @@ def range_dates(text: str):
 
 
 def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
-                      *, source_id: str = "", empty_is_healthy: bool = False) -> list:
+                      *, source_id: str = "", empty_is_healthy: bool = False,
+                      fetcher=None) -> list:
     try:
-        html = common.fetch_url(url, timeout=timeout)
+        html = (fetcher or common.fetch_url)(url, timeout=timeout)
         with common.capture_parser_metrics() as metrics:
             events = parser(html)
         parser_empty = (

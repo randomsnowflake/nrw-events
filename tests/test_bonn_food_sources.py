@@ -1,6 +1,7 @@
 import json
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
 from scripts.nrw_events import common
 from scripts.nrw_events.sources import CUSTOM_SOURCES, bonn_food
@@ -92,6 +93,40 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "19:30–21:30")
         self.assertEqual(events[0]["price"], "99,95 EUR")
         self.assertIn("Friedrichstraße 49", events[0]["venue"])
+
+    def test_vomfass_fetch_uses_brightdata_fallback_for_listing_and_details(self):
+        listing = """
+        <article data-event-card data-city="bonn" data-partner="vomfass-bonn" data-date="2026-09-11">
+          <span class="ef-card__time">19:30</span><h3 class="ef-card__title"><a href="/pages/tasting-events/gin-bonn">Gin Tasting</a></h3>
+          <div class="ef-card__price">€99,95 p. P.</div></article>
+        """
+        with patch.object(
+            common,
+            "fetch_url_with_brightdata_fallback",
+            return_value=listing,
+        ) as listing_fetch, patch.object(
+            common,
+            "fetch_detail_url",
+            return_value="",
+        ) as detail_fetch:
+            events = bonn_food.fetch_vomfass()
+
+        self.assert_food_events(events, 1)
+        listing_fetch.assert_called_once_with(
+            "https://www.vomfass.de/pages/tastings",
+            timeout=25,
+            allowed_hosts=("www.vomfass.de",),
+            required_body_markers=("data-event-card",),
+        )
+        self.assertTrue(detail_fetch.call_args.kwargs["brightdata_fallback"])
+        self.assertEqual(
+            detail_fetch.call_args.kwargs["allowed_hosts"],
+            ("www.vomfass.de",),
+        )
+        self.assertEqual(
+            detail_fetch.call_args.kwargs["required_body_markers"],
+            ("application/ld+json",),
+        )
 
     def test_biertasting_derives_weekday_times_and_prices(self):
         html = """

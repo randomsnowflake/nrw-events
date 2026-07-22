@@ -169,7 +169,12 @@ END:VCALENDAR"""
             previous = os.getcwd()
             try:
                 os.chdir(tmpdir)
-                with mock.patch.dict(os.environ, {}, clear=True):
+                with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(
+                    Path,
+                    "is_file",
+                    autospec=True,
+                    side_effect=lambda path: path == Path(tmpdir, ".env"),
+                ):
                     self.assertIsNone(config.load_env_file())
                     self.assertEqual(config.runtime_config().days_ahead, 3)
             finally:

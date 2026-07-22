@@ -15,6 +15,7 @@ _BIERTASTING_URL = "https://www.biertasting-bonn.de/"
 _LUDWIGS_URL = "https://www.ludwigs-bonn.de/veranstaltungen"
 _REDUETTCHEN_URL = "https://reduettchen.de/events/"
 _STREET_FOOD_URL = "https://www.street-food-bonn.de/"
+_VOMFASS_ALLOWED_HOSTS = ("www.vomfass.de",)
 
 _MONTHS = {
     "januar": 1, "februar": 2, "märz": 3, "maerz": 3, "april": 4,
@@ -46,8 +47,14 @@ def fetch_vomfass() -> list:
         lambda html: events_from_vomfass(
             html,
             detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="vomfass-bonn", timeout=20),
+                url, cache_namespace="vomfass-bonn", timeout=20,
+                brightdata_fallback=True,
+                allowed_hosts=_VOMFASS_ALLOWED_HOSTS,
+                required_body_markers=("application/ld+json",)),
         ),
+        fetcher=lambda url, timeout: common.fetch_url_with_brightdata_fallback(
+            url, timeout=timeout, allowed_hosts=_VOMFASS_ALLOWED_HOSTS,
+            required_body_markers=("data-event-card",)),
     )
 
 

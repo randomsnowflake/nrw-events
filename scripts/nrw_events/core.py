@@ -26,7 +26,7 @@ from contextlib import closing, contextmanager
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
-from typing import Optional
+from typing import NoReturn, Optional
 from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, config
@@ -103,6 +103,7 @@ _HTTP_RETRY_ATTEMPTS = 5
 _HTTP_RETRY_BASE_SECONDS = 1.0
 _HTTP_RETRY_MAX_DELAY_SECONDS = 60.0
 _HTTP_MAX_RESPONSE_BYTES = 5_000_000
+_BRIGHT_DATA_API_URL = "https://api.brightdata.com/request"
 _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
     # Bonn.de's MyraCDN/backend intermittently returns 503 when the nightly run
     # fans out multiple official Bonn sources at once. Keep those requests
@@ -329,6 +330,113 @@ def fetch_url(
     raise RuntimeError("fetch_url retry loop exhausted unexpectedly")  # pragma: no cover
 
 
+def _raise_brightdata_failure(url: str, started: float, exc: Exception) -> NoReturn:
+    _record_endpoint(
+        url,
+        error_type=type(exc).__name__,
+        error=redact(exc),
+        duration_ms=round((time.perf_counter() - started) * 1000),
+        transport="brightdata",
+    )
+    raise exc
+
+
+def fetch_url_with_brightdata_fallback(
+    url: str,
+    timeout: int = 15,
+    *,
+    allowed_hosts: tuple[str, ...],
+    required_body_markers: tuple[str, ...] = (),
+    fallback_statuses: tuple[int, ...] = (429,),
+    country: str = "DE",
+    **fetch_kwargs,
+) -> str:
+    """Fetch directly first, then recover selected HTTP failures via Web Unlocker.
+
+    The fallback is deliberately opt-in per source. If credentials are absent,
+    the original direct-fetch error is preserved instead of changing behavior.
+    """
+    try:
+        return fetch_url(url, timeout=timeout, **fetch_kwargs)
+    except urllib.error.HTTPError as direct_error:
+        api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
+        zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
+        hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
+        eligible_host = hostname in {host.lower() for host in allowed_hosts}
+        if (direct_error.code not in fallback_statuses or not eligible_host
+                or not api_key or not zone):
+            raise
+
+    payload = {
+        "zone": zone,
+        "url": url,
+        "format": "raw",
+        "method": "GET",
+        "country": country.upper(),
+    }
+    request = urllib.request.Request(
+        _BRIGHT_DATA_API_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    started = time.perf_counter()
+    try:
+        with closing(urllib.request.urlopen(request, timeout=max(timeout, 120))) as response:
+            raw = response.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+            if len(raw) > _HTTP_MAX_RESPONSE_BYTES:
+                raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+            api_status = getattr(response, "status", 200)
+    except Exception as exc:
+        _raise_brightdata_failure(url, started, exc)
+
+    decoded = raw.decode("utf-8", errors="replace")
+    try:
+        result = json.loads(decoded)
+    except json.JSONDecodeError:
+        target_status = api_status
+        body = decoded
+    else:
+        if not isinstance(result, dict):
+            _raise_brightdata_failure(
+                url, started, RuntimeError("Bright Data returned an unexpected response"))
+        target_status = result.get("status_code")
+        body = result.get("body", "")
+
+    if not isinstance(target_status, (int, str)):
+        _raise_brightdata_failure(
+            url, started, RuntimeError("Bright Data response omitted the target status"))
+    try:
+        target_status = int(target_status)
+    except (TypeError, ValueError) as exc:
+        error = RuntimeError("Bright Data response omitted the target status")
+        error.__cause__ = exc
+        _raise_brightdata_failure(url, started, error)
+    if not 200 <= target_status < 300:
+        _raise_brightdata_failure(
+            url, started, RuntimeError(f"Bright Data target returned HTTP {target_status}"))
+    if not isinstance(body, str) or not body.strip():
+        _raise_brightdata_failure(
+            url, started, RuntimeError("Bright Data returned an empty target body"))
+    missing_markers = [marker for marker in required_body_markers if marker not in body]
+    if missing_markers:
+        _raise_brightdata_failure(
+            url, started, RuntimeError("Bright Data target body failed source validation"))
+
+    _record_endpoint(
+        url,
+        status=target_status,
+        content_type="text/html",
+        bytes=len(body.encode("utf-8")),
+        duration_ms=round((time.perf_counter() - started) * 1000),
+        transport="brightdata",
+    )
+    return body
+
+
 # Detail pages are comparatively expensive because one listing can fan out into
 # dozens of requests. Keep their raw HTML in small source-specific files so a
 # parser can be improved without coupling the cache format to its parsed fields.
@@ -464,6 +572,7 @@ def fetch_detail_url(
     *,
     cache_namespace: str,
     timeout: int = 15,
+    brightdata_fallback: bool = False,
     **fetch_kwargs,
 ) -> str:
     """Fetch a public event detail page through the persistent TTL cache.
@@ -471,9 +580,10 @@ def fetch_detail_url(
     Only successful responses are cached. Set
     ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to bypass both memory and disk.
     """
+    fetcher = fetch_url_with_brightdata_fallback if brightdata_fallback else fetch_url
     ttl_seconds = _detail_page_cache_ttl_seconds()
     if not ttl_seconds:
-        return fetch_url(url, timeout=timeout, **fetch_kwargs)
+        return fetcher(url, timeout=timeout, **fetch_kwargs)
 
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
@@ -482,7 +592,7 @@ def fetch_detail_url(
             return cached["body"]
         state["entries"].pop(url, None)
 
-    body = fetch_url(url, timeout=timeout, **fetch_kwargs)
+    body = fetcher(url, timeout=timeout, **fetch_kwargs)
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         state["entries"][url] = {"fetched_at": time.time(), "body": body}

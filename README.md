@@ -210,6 +210,7 @@ kein Limit.
 | `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `5000000` | Harte Antwortgrößen-Grenze pro HTTP-Request. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
+| `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` | nicht gesetzt | Optionaler Bright-Data-Web-Unlocker-Fallback für explizit freigeschaltete öffentliche Quellen nach ausgeschöpften direkten `429`-Retries (derzeit vomFASS). |
 | `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. |
 | `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS` | `24` | TTL für erfolgreiche HTML-Detailseiten-Abrufe von Quellen wie Siegburg, Much, Königswinter, Naturregion Sieg, Linz, IONAS-Kommunen und einzelnen Veranstaltungsorten. `0` deaktiviert Speicher- und Platten-Cache. Listen, APIs und Feeds bleiben ungecacht und werden bei jedem Import frisch geladen. |
 | `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `500` | Zielgröße des aus einer Bonn.de-Detailseite übernommenen Kurztexts; Logistikblöcke werden übersprungen und erklärende Absätze vollständig übernommen. Nur ein einzelner überlanger Absatz wird satz- bzw. wortnah gekürzt. |
