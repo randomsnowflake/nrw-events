@@ -142,9 +142,17 @@ def _merge_duplicate_metadata(winner, duplicate):
     if len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip()):
         updates["description"] = duplicate["description"]
 
-    # Classification is derived data, so retain the most confident result even
-    # when it did not come from the canonical publisher.
+    # Classification is derived data, but a broad aggregator label must not
+    # override a usable classification from the canonical publisher. Peers may
+    # still improve one another, and any source may fill an uncategorized record.
+    winner_category = winner.get("category_key")
+    category_authority_is_sufficient = (
+        winner_category in {None, "", "other"}
+        or source_authority(duplicate.get("source", ""))
+        >= source_authority(winner.get("source", ""))
+    )
     if (duplicate.get("category_key")
+            and category_authority_is_sufficient
             and duplicate.get("category_confidence", 0) > winner.get("category_confidence", 0)):
         for field in ("category", "category_key", "category_label", "category_confidence", "category_reason"):
             if duplicate.get(field):

@@ -40,8 +40,8 @@ class ReportTests(unittest.TestCase):
                 "category": "nightlife",
                 "category_key": "nightlife",
                 "category_label": "Nachtleben & Party",
-                "category_confidence": 1,
-                "category_reason": "forced:nightlife",
+                "category_confidence": 0.5,
+                "category_reason": "nightlife:title=bar",
             },
             {
                 "title": "kostenloser Eintritt: Sundowner Bar auf dem Dach der Bundeskunsthalle",
@@ -58,8 +58,8 @@ class ReportTests(unittest.TestCase):
                 "category": "Ausstellung | Fest/Festival",
                 "category_key": "festival",
                 "category_label": "Feste & Stadtleben",
-                "category_confidence": 0.8,
-                "category_reason": "festival:title=bar",
+                "category_confidence": 0.83,
+                "category_reason": "exhibition:source_category=ausstellung",
             },
         ]
 
@@ -68,6 +68,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["title"], "Sundowner Bar auf dem Dach der Bundeskunsthalle")
         self.assertEqual(deduped[0]["price"], "kostenlos")
+        self.assertEqual(deduped[0]["category_key"], "nightlife")
 
     def test_direct_source_owns_same_occurrence_without_dropping_later_date(self):
         events = [
