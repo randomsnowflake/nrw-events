@@ -79,6 +79,29 @@ class MeckenheimDetailTests(unittest.TestCase):
         self.assertEqual(first, second)
         fetch_url.assert_not_called()
 
+    def test_lesezirkel_keeps_enriched_cultural_event(self):
+        listing = f"""
+<li class="result-list_item">
+  <h3 class="result-list_object-title"><a href="{DETAIL_LINK}">Lieblingsbücher – Lesezirkel in der Bücherbrücke</a></h3>
+  <time datetime="2026-07-13 10:00:00">13.07.2026</time>
+</li>
+"""
+        detail_html = DETAIL_HTML.replace("Feierabend-Radtour", "Lieblingsbücher")
+
+        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
+            "os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}
+        ), patch.object(
+            common,
+            "fetch_url",
+            side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else detail_html,
+        ):
+            events = meckenheim.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["venue"], "Rathaus Meckenheim")
+        self.assertEqual(events[0]["category_key"], "talk")
+        self.assertEqual(events[0]["price"], "kostenlos")
+
 
 if __name__ == "__main__":
     unittest.main()

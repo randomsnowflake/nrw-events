@@ -1251,7 +1251,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     }
     cultural_event_bits = {
         "ausstellung", "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt",
-        "lesung", "live-musik", "museum", "theater", "vernissage", "wanderung",
+        "lesung", "lesekreis", "lesezirkel", "live-musik", "museum", "theater", "vernissage", "wanderung",
         "tag der offenen tür", "tag der offenen tuer",
     }
     if ("cinema-special" not in category
