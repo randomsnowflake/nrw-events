@@ -273,7 +273,7 @@ weiterhin gezielt überschreiben.
 - **Direkte Marktveranstalter:** Grote & Hiller, Hofflohmärkte Köln und Cölln
   Konzept liefern Termine, Uhrzeiten, Orte und direkte Veranstaltungsseiten.
 - **Kuratierte Kino-Sonderformate:** Bonner Kinemathek,
-  Internationale Stummfilmtage, Filmhaus Köln,
+  Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage, Filmhaus Köln,
   Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer
   Kulturbad. Breite Kinoprogramme werden nur bei expliziten Festival-, Open-Air-,
   Preview-, Gesprächs-, Workshop- oder vergleichbaren Event-Markierungen

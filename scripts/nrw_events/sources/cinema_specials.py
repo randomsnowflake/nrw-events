@@ -20,12 +20,14 @@ from . import regional_common as rc
 
 _BONNER_KINEMATHEK_URL = "https://www.bonnerkinemathek.de/programm/"
 _STUMMFILMTAGE_URL = "https://www.internationale-stummfilmtage.de/"
+_REX_FILMBUEHNE_URL = "https://www.rex-filmbuehne.de/inhalt/vorschau"
 _FILMHAUS_API = "https://backend.filmhaus-koeln.de/events"
 _KURZFILMWANDERUNG_URL = "https://kurzfilmwanderung-bonn.de/"
 _KULTURBAD_ICAL = "https://ruengsdorfer-kulturbad.de/events/?ical=1"
 
 _BONNER_KINEMATHEK_SOURCE_ID = "bonner-kinemathek"
 _STUMMFILMTAGE_SOURCE_ID = "internationale-stummfilmtage"
+_REX_FILMBUEHNE_SOURCE_ID = "rex-filmbuehne-specials"
 _FILMHAUS_SOURCE_ID = "filmhaus-koeln"
 _KURZFILMWANDERUNG_SOURCE_ID = "kurzfilmwanderung-bonn"
 _KULTURBAD_SOURCE_ID = "ruengsdorfer-kulturbad"
@@ -46,6 +48,32 @@ _FILMHAUS_SPECIAL_TAG_PATTERN = re.compile(
 )
 _KULTURBAD_CINEMA_PATTERN = re.compile(
     r"\b(?:open[ -]?air[ -]?kino|freiluftkino|film(?:nacht|nächte|naechte|festival|fest|tage))\b",
+    re.I,
+)
+_REX_SPECIAL_PATTERN = re.compile(
+    r"\b(?:sonder(?:vorstellung|veranstaltung)|film(?:gespräch|gespraech|reihe|nacht|nächte|naechte|tage)|"
+    r"retrospektive|preview|vorpremiere|premiere|festival|festspiele|reihe|live[ -]?event|"
+    r"in anwesenheit|zu gast|strick[ -]?kino|häkel[ -]?und[ -]?strick[ -]?kino|kinderwagen[ -]?kino|"
+    r"exhibition on screen|royal (?:opera|ballet)|oper(?:n|ette)?[ -]?(?:live|im kino))\b",
+    re.I,
+)
+_REX_DATE_TIME_PATTERN = re.compile(
+    r"(?P<day>\d{1,2})\.\s*(?:(?P<month_num>\d{1,2})\.|(?P<month_name>[A-Za-zäöüÄÖÜ]+))"
+    r"(?:\s*(?P<year>20\d{2}|\d{2}))?"
+    r"(?:(?!\d{1,2}\.\s*(?:\d{1,2}\.|[A-Za-zäöüÄÖÜ]+)).){0,90}?"
+    r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*Uhr",
+    re.I,
+)
+_REX_DATE_PATTERN = re.compile(
+    r"(?P<day>\d{1,2})\.\s*(?:(?P<month_num>\d{1,2})\.|"
+    r"(?P<month_name>Jan(?:uar)?|Feb(?:ruar)?|M(?:är|ae)(?:z|rz)|Apr(?:il)?|Mai|"
+    r"Jun(?:i)?|Jul(?:i)?|Aug(?:ust)?|Sep(?:tember)?|Okt(?:ober)?|Nov(?:ember)?|Dez(?:ember)?))"
+    r"(?:\s*(?P<year>20\d{2}|\d{2}))?",
+    re.I,
+)
+_REX_SHARED_TIME_PATTERN = re.compile(
+    r"(?:alle\s+(?:vorstellungen|termine)\s+(?:beginnen|starten)|jeweils|beginn(?:en)?(?:\s+ist)?)"
+    r".{0,50}?(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*Uhr",
     re.I,
 )
 
@@ -70,6 +98,12 @@ def fetch() -> list:
         _STUMMFILMTAGE_URL,
         _events_from_stummfilmtage,
         source_id=_STUMMFILMTAGE_SOURCE_ID,
+    ))
+    events.extend(_fetch_optional_html(
+        "Rex/Neue Filmbühne",
+        _REX_FILMBUEHNE_SOURCE_ID,
+        _REX_FILMBUEHNE_URL,
+        _events_from_rex_filmbuehne,
     ))
     events.extend(_fetch_filmhaus_events())
     events.extend(rc.fetch_html_events(
@@ -174,6 +208,112 @@ def _bonner_kinemathek_description(html: str) -> str:
 
 def _is_special_format(*values: str) -> bool:
     return bool(_SPECIAL_FORMAT_PATTERN.search(" ".join(value or "" for value in values)))
+
+
+def _events_from_rex_filmbuehne(html: str) -> list:
+    """Parse curated special screenings while excluding ordinary cinema releases."""
+    events = []
+    seen = set()
+    blocks = re.findall(
+        r'(<div class="vorschau">.*?)(?=<div class="vorschau">|</main>|<footer|$)',
+        html or "",
+        re.S | re.I,
+    )
+    for block in blocks:
+        title = rc.clean(_first_match(r'<h2[^>]*>(.*?)</h2>', block))
+        term_html = _first_match(r'<h4[^>]*\btermin\b[^>]*>(.*?)</h4>', block)
+        highlighted = re.findall(r'<(?:strong|b)[^>]*>(.*?)</(?:strong|b)>', block, re.S | re.I)
+        evidence = " ".join([title, rc.clean(term_html), *(rc.clean(value) for value in highlighted)])
+        if not title or not _REX_SPECIAL_PATTERN.search(evidence):
+            continue
+
+        description = common.concise_description(rc.clean(block), max_chars=420)
+        lines = [line for fragment in [term_html, *highlighted] for line in _html_lines(fragment)]
+        shared_time = _REX_SHARED_TIME_PATTERN.search(rc.clean(block))
+        for index, line in enumerate(lines):
+            matches = list(_REX_DATE_TIME_PATTERN.finditer(line))
+            if not matches and shared_time and not re.match(r"\s*Ab\b", line, re.I):
+                matches = list(_REX_DATE_PATTERN.finditer(line))
+            for match in matches:
+                start = _rex_datetime(
+                    match,
+                    hour=int(shared_time.group("hour")) if shared_time and "hour" not in match.re.groupindex else None,
+                    minute=int(shared_time.group("minute") or 0)
+                    if shared_time and "minute" not in match.re.groupindex
+                    else None,
+                )
+                venue = _rex_venue(line, evidence)
+                event_title = title
+                if re.search(r"reihe\b|retrospektive|festival", title, re.I) and index + 1 < len(lines):
+                    subtitle = lines[index + 1].strip(" .")
+                    if subtitle and not _REX_DATE_PATTERN.search(subtitle):
+                        event_title = f"{title}: {subtitle}"
+                key = (event_title.casefold(), start, venue.casefold())
+                if key in seen:
+                    continue
+                seen.add(key)
+                event = common.make_event(
+                    event_title,
+                    start,
+                    start,
+                    venue,
+                    "Bonn",
+                    description,
+                    _REX_FILMBUEHNE_URL,
+                    "Rex/Neue Filmbühne",
+                    "cinema-special kino film sondervorstellung filmgespräch preview retrospektive",
+                    0.94,
+                    source_id=_REX_FILMBUEHNE_SOURCE_ID,
+                )
+                if event:
+                    events.append(event)
+    return events
+
+
+def _first_match(pattern: str, text: str) -> str:
+    match = re.search(pattern, text or "", re.S | re.I)
+    return match.group(1) if match else ""
+
+
+def _html_lines(fragment: str) -> list[str]:
+    return [
+        common.clean_html(part)
+        for part in re.split(r"<br\s*/?>", fragment or "", flags=re.I)
+        if common.clean_html(part)
+    ]
+
+
+def _rex_datetime(match: re.Match, *, hour: int | None = None, minute: int | None = None) -> datetime:
+    day = int(match.group("day"))
+    if match.group("month_num"):
+        month = int(match.group("month_num"))
+    else:
+        month = common.MONTH_DE[match.group("month_name").lower().rstrip(".")]
+    raw_year = match.group("year")
+    year = int(raw_year) if raw_year else common.TODAY.year
+    if raw_year and year < 100:
+        year += 2000
+    if not raw_year and month < common.TODAY.month:
+        year += 1
+    return datetime(
+        year,
+        month,
+        day,
+        int(match.group("hour")) if "hour" in match.re.groupindex else int(hour or 0),
+        int(match.group("minute") or 0) if "minute" in match.re.groupindex else int(minute or 0),
+    )
+
+
+def _rex_venue(schedule_text: str, fallback_text: str) -> str:
+    schedule = schedule_text.lower()
+    if "filmbühne" in schedule or "filmbuehne" in schedule:
+        return "Neue Filmbühne"
+    if "rex" in schedule:
+        return "Rex-Lichtspieltheater"
+    fallback = fallback_text.lower()
+    if "filmbühne" in fallback or "filmbuehne" in fallback:
+        return "Neue Filmbühne"
+    return "Rex-Lichtspieltheater"
 
 
 def _events_from_stummfilmtage(html: str) -> list:

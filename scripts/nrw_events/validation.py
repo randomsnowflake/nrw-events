@@ -68,6 +68,16 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     for field, limit in (("time", 80), ("venue", 300), ("city", 160), ("description", 8000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    inferred_free_price = common.infer_free_admission_price(
+        event["title"],
+        event["description"],
+        event["price"],
+        venue=event["venue"],
+        source=event["source"],
+        link=event["link"],
+    )
+    if inferred_free_price:
+        event["price"] = inferred_free_price
     if event["link"]:
         parsed = urllib.parse.urlsplit(event["link"])
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:

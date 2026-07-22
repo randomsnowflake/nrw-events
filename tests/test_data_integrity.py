@@ -19,6 +19,28 @@ class DataIntegrityTests(unittest.TestCase):
         })
         self.assertEqual(event.category_key, "other")
 
+    def test_validation_infers_free_access_for_direct_dict_sources(self):
+        event = validate_event({
+            "title": "Hofflohmarkt Rondorf",
+            "source": "Hofflohmärkte Köln",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Köln",
+            "description": "Hausanwohner verkaufen in ihren Höfen.",
+        })
+        self.assertEqual(event.price, "kostenlos")
+
+    def test_validation_preserves_explicit_paid_price_for_implicit_free_event_type(self):
+        event = validate_event({
+            "title": "Flohmarkt Spezial",
+            "source": "Test",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "price": "4 Euro",
+        })
+        self.assertEqual(event.price, "4 Euro")
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 30))
 
