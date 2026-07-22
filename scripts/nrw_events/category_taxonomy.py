@@ -137,12 +137,12 @@ RULES: tuple[Rule, ...] = (
             "storytime", word("dino"),
         ),
     ),
-    Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "vhs", "basteln", "keramik", "malen", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
-    Rule("talk", 10, ("lesung", "lesekreis", "lesezirkel", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", "philosophisch", "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("talk"), title_only("meetup"), title_only("community meeting"))),
-    Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwochenende", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen", "boule", "schach")),
+    Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "keramik", "malen", "kreativ", "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
+    Rule("talk", 10, ("lesung", "lesekreis", "lesezirkel", "buchvorstellung", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", "philosophisch", "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", "forum", word("talk"), Keyword("info", title_only=True, word=True), title_only("meetup"), title_only("community meeting"))),
+    Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwochenende", "tennis", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen", "boule", "schach")),
     Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
     Rule("concert", 7, ("konzert", "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
-    Rule("nightlife", 6, ("techno", "electronic", "elektro", "party", "clubnacht", "clubabend", "club party", "dj", "nightlife", word("rave"), "disco", "beats", "lounge", "barhopping", "speeddating", "singles")),
+    Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro"), word("party"), "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
     Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "zirkus", "cirque", "tanz", "dance", "musical", "show", "improtheater", word("performance"), word("oper"), word("stage"), word("slam"))),
     Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "karikatur", "vernissage", "atelier", "installation")),
     Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", suffix_word("garten"), "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
@@ -188,6 +188,26 @@ def _matched_values(text: str, keywords: Iterable[str | Keyword], *, is_title: b
     return values
 
 
+def _category_keys_for_hint(hint_text: str) -> set[str]:
+    """Return canonical intents represented by a source category string."""
+    return {
+        rule.key
+        for rule in RULES
+        if _matched_values(hint_text, rule.keywords, is_title=False)
+    }
+
+
+def _forced_title_format(title_text: str) -> str:
+    """Prefer explicit event-format nouns over incidental descriptive words."""
+    if re.search(r"\b(?:sport\w*|\w*tennis\w*)\b", title_text):
+        return "sports"
+    if re.search(r"\b\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text):
+        return "outdoor"
+    if _contains_word(title_text, "bildungsurlaub"):
+        return "workshop"
+    return ""
+
+
 def categorize_event(source_category: str, title: str, description: str = "") -> CategoryResult:
     """Return the canonical category for an event.
 
@@ -207,6 +227,40 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
         # "Kultur Konzert" to routine meetups/courses. For those low-value title
         # shapes, only classify from the actual title/description.
         hint_text = ""
+
+    hint_category_keys = _category_keys_for_hint(hint_text)
+
+    # Broad municipal bags such as "Kultur Markt Ausstellung Konzert Führung"
+    # describe the entire calendar, not an individual event. Two focused tags
+    # can still express a legitimate hybrid format and retain their normal weak
+    # tie-breaking role.
+    if len(hint_category_keys) > 2:
+        hint_text = ""
+        hint_category_keys = set()
+
+    # A focused exhibition tag corroborated by an explicit description is more
+    # reliable than an incidental conceptual word such as "Natur" in the title.
+    if (
+        hint_category_keys == {"exhibition"}
+        and _contains_word(description_text, "ausstellung")
+    ):
+        category = CATEGORY_BY_KEY["exhibition"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:exhibition-source-content-consensus",
+        }
+
+    title_format = _forced_title_format(title_text)
+    if title_format:
+        category = CATEGORY_BY_KEY[title_format]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": f"forced:{title_format}-title-format",
+        }
 
     # Aggregator-style artist-at-venue titles can name a venue such as "Alte VHS".
     # The concert source category is more reliable than that venue token.
@@ -251,9 +305,9 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
         hint_matches = _matched_values(hint_text, rule.keywords, is_title=False)
         score = 3 * len(title_matches)
         score += 2 * len(description_matches)
-        # Source categories are weak fallbacks. They should classify otherwise
-        # ambiguous records, but must not outvote a competing title/description
-        # signal from another rule.
+        # Source categories remain weak fallbacks. Broad bags were discarded
+        # above; focused tags may break an otherwise unsupported tie but cannot
+        # overpower title or description evidence.
         score += 1 if hint_matches and not title_matches and not description_matches else 0
         if score == 0:
             continue

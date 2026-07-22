@@ -225,6 +225,86 @@ class CategoryTaxonomyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
+    def test_general_matching_prefers_event_format_over_substrings_and_broad_source_bags(self):
+        cases = [
+            (
+                "Klimaschutz kommunal lokal markt kultur",
+                "Info- und Aktionswochen zu Solar und Wärmepumpe",
+                "Die zentralen Technologien der Energiewende werden erklärt.",
+                "talk",
+            ),
+            (
+                "Aktion/Workshop, Kostenlos, Tanz",
+                "Mehrtägiges Hip-Hop-Kunstprojekt im HDJ",
+                "Tanz, Rap, DJing und Graffiti für Jugendliche.",
+                "workshop",
+            ),
+            (
+                "kommunal kultur markt ausstellung konzert führung",
+                "Kreativer Hüttenbau",
+                "Ein Pädagoge baut mit den Teilnehmenden verschiedene Behausungen.",
+                "workshop",
+            ),
+            (
+                "sankt augustin lokal kultur markt fest sport natur",
+                "Sport im Park",
+                "Kostenlos bewegen und draußen mitmachen.",
+                "sports",
+            ),
+            (
+                "naturregion outdoor kultur markt",
+                "Ferienspaß: Tischtennis für alle",
+                "Spiel und Teamgeist in der Turnhalle.",
+                "sports",
+            ),
+            (
+                "Ausstellungen, Barrierefrei",
+                "Werden zwischen Materie, Geschichte und Natur",
+                "In der Ausstellung zeigen zwei Keramikkünstler ihre Arbeiten.",
+                "exhibition",
+            ),
+            (
+                "Ausstellung, Fest/Festival",
+                "Sundowner Bar",
+                "Elektronische Musik, Kunst, kühle Drinks und Fingerfood.",
+                "nightlife",
+            ),
+            (
+                "lokal kultur markt",
+                "Kreativsommer im Museum",
+                "Kleine Bastelprofis gestalten gemeinsam kreative Arbeiten.",
+                "workshop",
+            ),
+            (
+                "Aktion/Workshop, Kostenlos, Lesung",
+                "Buchvorstellungen am Abend",
+                "Mehrere neue Bücher werden dem Publikum vorgestellt.",
+                "talk",
+            ),
+            (
+                "wein wanderung führung kultur ausstellung",
+                "Turnusführung Museum",
+                "Eine Führung durch das Museum.",
+                "outdoor",
+            ),
+            (
+                "lokal kultur markt fest sport natur",
+                "Tennismeisterschaften der Seniorinnen und Senioren",
+                "Das Turnier beginnt am Vormittag.",
+                "sports",
+            ),
+            (
+                "lokal kultur markt fest sport natur",
+                "Sicher sprechen und diskutieren im Bildungsurlaub",
+                "Ein fünftägiger Kurs mit praktischen Übungen.",
+                "workshop",
+            ),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
 
 if __name__ == "__main__":
     unittest.main()
