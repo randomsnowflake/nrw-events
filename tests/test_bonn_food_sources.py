@@ -94,16 +94,28 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["price"], "99,95 EUR")
         self.assertIn("Friedrichstraße 49", events[0]["venue"])
 
-    def test_vomfass_fetch_uses_brightdata_fallback_for_listing_and_details(self):
-        listing = """
-        <article data-event-card data-city="bonn" data-partner="vomfass-bonn" data-date="2026-09-11">
-          <span class="ef-card__time">19:30</span><h3 class="ef-card__title"><a href="/pages/tasting-events/gin-bonn">Gin Tasting</a></h3>
-          <div class="ef-card__price">€99,95 p. P.</div></article>
+    def test_vomfass_fetches_remaining_shopify_section_pages_and_details(self):
+        first_page = """
+        <div data-ef-results data-ef-section-id="template--123__main"
+             data-ef-page="1" data-ef-pages="2" data-ef-page-param="page_abc">
+          <article data-event-card data-city="jena" data-partner="vomfass-jena" data-date="2026-09-12">
+            <h3 class="ef-card__title"><a href="/pages/tasting-events/gin-jena">Gin Tasting Jena</a></h3>
+          </article>
+        </div>
+        """
+        second_page = """
+        <div data-ef-results data-ef-section-id="template--123__main"
+             data-ef-page="2" data-ef-pages="2" data-ef-page-param="page_abc">
+          <article data-event-card data-city="bonn" data-partner="vomfass-bonn" data-date="2026-09-11">
+            <span class="ef-card__time">19:30</span><h3 class="ef-card__title"><a href="/pages/tasting-events/gin-bonn">Gin Tasting</a></h3>
+            <div class="ef-card__price">€99,95 p. P.</div>
+          </article>
+        </div>
         """
         with patch.object(
             common,
             "fetch_url_with_brightdata_fallback",
-            return_value=listing,
+            side_effect=[first_page, second_page],
         ) as listing_fetch, patch.object(
             common,
             "fetch_detail_url",
@@ -112,12 +124,17 @@ class BonnFoodSourceTests(unittest.TestCase):
             events = bonn_food.fetch_vomfass()
 
         self.assert_food_events(events, 1)
-        listing_fetch.assert_called_once_with(
-            "https://www.vomfass.de/pages/tastings",
-            timeout=25,
-            allowed_hosts=("www.vomfass.de",),
-            required_body_markers=("data-event-card",),
+        self.assertEqual(
+            [call.args[0] for call in listing_fetch.call_args_list],
+            [
+                "https://www.vomfass.de/pages/tastings",
+                "https://www.vomfass.de/pages/tastings?section_id=template--123__main&page_abc=2",
+            ],
         )
+        for call in listing_fetch.call_args_list:
+            self.assertEqual(call.kwargs["timeout"], 25)
+            self.assertEqual(call.kwargs["allowed_hosts"], ("www.vomfass.de",))
+            self.assertEqual(call.kwargs["required_body_markers"], ("data-event-card",))
         self.assertTrue(detail_fetch.call_args.kwargs["brightdata_fallback"])
         self.assertEqual(
             detail_fetch.call_args.kwargs["allowed_hosts"],
