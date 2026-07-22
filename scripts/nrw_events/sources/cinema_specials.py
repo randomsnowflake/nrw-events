@@ -64,6 +64,18 @@ _REX_DATE_TIME_PATTERN = re.compile(
     r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*Uhr",
     re.I,
 )
+_REX_DATE_PATTERN = re.compile(
+    r"(?P<day>\d{1,2})\.\s*(?:(?P<month_num>\d{1,2})\.|"
+    r"(?P<month_name>Jan(?:uar)?|Feb(?:ruar)?|M(?:är|ae)(?:z|rz)|Apr(?:il)?|Mai|"
+    r"Jun(?:i)?|Jul(?:i)?|Aug(?:ust)?|Sep(?:tember)?|Okt(?:ober)?|Nov(?:ember)?|Dez(?:ember)?))"
+    r"(?:\s*(?P<year>20\d{2}|\d{2}))?",
+    re.I,
+)
+_REX_SHARED_TIME_PATTERN = re.compile(
+    r"(?:alle\s+(?:vorstellungen|termine)\s+(?:beginnen|starten)|jeweils|beginn(?:en)?(?:\s+ist)?)"
+    r".{0,50}?(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*Uhr",
+    re.I,
+)
 
 
 def fetch() -> list:
@@ -216,36 +228,45 @@ def _events_from_rex_filmbuehne(html: str) -> list:
             continue
 
         description = common.concise_description(rc.clean(block), max_chars=420)
-        for fragment in [term_html, *highlighted]:
-            lines = _html_lines(fragment)
-            for index, line in enumerate(lines):
-                for match in _REX_DATE_TIME_PATTERN.finditer(line):
-                    start = _rex_datetime(match)
-                    venue = _rex_venue(line, evidence)
-                    event_title = title
-                    if re.search(r"\breihe\b|retrospektive|festival", title, re.I) and index + 1 < len(lines):
-                        subtitle = lines[index + 1].strip(" .")
-                        if subtitle and not _REX_DATE_TIME_PATTERN.search(subtitle):
-                            event_title = f"{title}: {subtitle}"
-                    key = (event_title.casefold(), start, venue.casefold())
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    event = common.make_event(
-                        event_title,
-                        start,
-                        start,
-                        venue,
-                        "Bonn",
-                        description,
-                        _REX_FILMBUEHNE_URL,
-                        "Rex/Neue Filmbühne",
-                        "cinema-special kino film sondervorstellung filmgespräch preview retrospektive",
-                        0.94,
-                        source_id=_REX_FILMBUEHNE_SOURCE_ID,
-                    )
-                    if event:
-                        events.append(event)
+        lines = [line for fragment in [term_html, *highlighted] for line in _html_lines(fragment)]
+        shared_time = _REX_SHARED_TIME_PATTERN.search(rc.clean(block))
+        for index, line in enumerate(lines):
+            matches = list(_REX_DATE_TIME_PATTERN.finditer(line))
+            if not matches and shared_time and not re.match(r"\s*Ab\b", line, re.I):
+                matches = list(_REX_DATE_PATTERN.finditer(line))
+            for match in matches:
+                start = _rex_datetime(
+                    match,
+                    hour=int(shared_time.group("hour")) if shared_time and "hour" not in match.re.groupindex else None,
+                    minute=int(shared_time.group("minute") or 0)
+                    if shared_time and "minute" not in match.re.groupindex
+                    else None,
+                )
+                venue = _rex_venue(line, evidence)
+                event_title = title
+                if re.search(r"reihe\b|retrospektive|festival", title, re.I) and index + 1 < len(lines):
+                    subtitle = lines[index + 1].strip(" .")
+                    if subtitle and not _REX_DATE_PATTERN.search(subtitle):
+                        event_title = f"{title}: {subtitle}"
+                key = (event_title.casefold(), start, venue.casefold())
+                if key in seen:
+                    continue
+                seen.add(key)
+                event = common.make_event(
+                    event_title,
+                    start,
+                    start,
+                    venue,
+                    "Bonn",
+                    description,
+                    _REX_FILMBUEHNE_URL,
+                    "Rex/Neue Filmbühne",
+                    "cinema-special kino film sondervorstellung filmgespräch preview retrospektive",
+                    0.94,
+                    source_id=_REX_FILMBUEHNE_SOURCE_ID,
+                )
+                if event:
+                    events.append(event)
     return events
 
 
@@ -262,7 +283,7 @@ def _html_lines(fragment: str) -> list[str]:
     ]
 
 
-def _rex_datetime(match: re.Match) -> datetime:
+def _rex_datetime(match: re.Match, *, hour: int | None = None, minute: int | None = None) -> datetime:
     day = int(match.group("day"))
     if match.group("month_num"):
         month = int(match.group("month_num"))
@@ -278,8 +299,8 @@ def _rex_datetime(match: re.Match) -> datetime:
         year,
         month,
         day,
-        int(match.group("hour")),
-        int(match.group("minute") or 0),
+        int(match.group("hour")) if "hour" in match.re.groupindex else int(hour or 0),
+        int(match.group("minute") or 0) if "minute" in match.re.groupindex else int(minute or 0),
     )
 
 

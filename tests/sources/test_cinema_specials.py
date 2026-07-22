@@ -120,6 +120,34 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         self.assertIn("Anwesenheit des Regisseurs", events[0]["description"])
         self.assert_valid_cinema_events(events)
 
+    def test_rex_filmbuehne_applies_shared_time_to_date_only_series(self):
+        html = """
+<div class="vorschau">
+  <div class="row film"><h2 class="col-md-12">Exhibition on Screen: Sommerreihe 2026</h2></div>
+  <div class="row film_termin"><h4 class="col-md-12 termin">Ab 30.07. im Rex</h4></div>
+  <div class="filmbox row"><div class="beschreibung col-md-12">
+    <p><strong>Exhibition on Screen</strong> bringt Kunst ins Kino.
+    Alle Vorstellungen beginnen um <strong>11:00 Uhr</strong>.</p>
+    <p><strong>So 02.08. &amp; Mi 05.08.</strong><br><strong>Hockney</strong></p>
+    <p><strong>So 09.08. &amp; Mi 12.08.</strong><br><strong>Degas: Passion for Perfection</strong></p>
+  </div></div>
+</div>
+"""
+
+        events = cinema_specials._events_from_rex_filmbuehne(html)
+
+        self.assertEqual(
+            [(event["date"], event["time"], event["title"]) for event in events],
+            [
+                ("2026-08-02", "11:00", "Exhibition on Screen: Sommerreihe 2026: Hockney"),
+                ("2026-08-05", "11:00", "Exhibition on Screen: Sommerreihe 2026: Hockney"),
+                ("2026-08-09", "11:00", "Exhibition on Screen: Sommerreihe 2026: Degas: Passion for Perfection"),
+                ("2026-08-12", "11:00", "Exhibition on Screen: Sommerreihe 2026: Degas: Passion for Perfection"),
+            ],
+        )
+        self.assertTrue(all(event["venue"] == "Rex-Lichtspieltheater" for event in events))
+        self.assert_valid_cinema_events(events)
+
     def test_stummfilmtage_builds_dates_from_tabs_and_skips_empty_day(self):
         html = """
 <section id="spielplan-calendar">
