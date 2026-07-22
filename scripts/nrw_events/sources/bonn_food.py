@@ -2,6 +2,7 @@
 
 import json
 import re
+import urllib.parse
 from datetime import datetime, timedelta
 
 from .. import common
@@ -52,10 +53,41 @@ def fetch_vomfass() -> list:
                 allowed_hosts=_VOMFASS_ALLOWED_HOSTS,
                 required_body_markers=("application/ld+json",)),
         ),
-        fetcher=lambda url, timeout: common.fetch_url_with_brightdata_fallback(
-            url, timeout=timeout, allowed_hosts=_VOMFASS_ALLOWED_HOSTS,
-            required_body_markers=("data-event-card",)),
+        fetcher=_fetch_vomfass_listing,
     )
+
+
+def _fetch_vomfass_listing(url: str, timeout: int) -> str:
+    def fetch_page(page_url: str) -> str:
+        return common.fetch_url_with_brightdata_fallback(
+            page_url,
+            timeout=timeout,
+            allowed_hosts=_VOMFASS_ALLOWED_HOSTS,
+            required_body_markers=("data-event-card",),
+        )
+
+    first_page = fetch_page(url)
+    results_tag = _match(r"(<[^>]+data-ef-results\b[^>]*>)", first_page)
+    section_id = _match(r"data-ef-section-id=['\"]([A-Za-z0-9_-]+)", results_tag)
+    page_param = _match(r"data-ef-page-param=['\"]([A-Za-z0-9_-]+)", results_tag)
+    current_page = _match(r"data-ef-page=['\"](\d+)", results_tag)
+    total_pages = _match(r"data-ef-pages=['\"](\d+)", results_tag)
+    if not all((section_id, page_param, current_page, total_pages)):
+        return first_page
+
+    current_page_number = int(current_page)
+    total_page_count = int(total_pages)
+    if total_page_count > 20:
+        raise RuntimeError(f"vomFASS listing reported an implausible {total_page_count} pages")
+
+    base_url = urllib.parse.urlunsplit((*urllib.parse.urlsplit(url)[:3], "", ""))
+    pages = [first_page]
+    for page_number in range(1, total_page_count + 1):
+        if page_number == current_page_number:
+            continue
+        query = urllib.parse.urlencode({"section_id": section_id, page_param: page_number})
+        pages.append(fetch_page(f"{base_url}?{query}"))
+    return "\n".join(pages)
 
 
 def fetch_biertasting() -> list:
