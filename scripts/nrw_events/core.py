@@ -890,6 +890,8 @@ _FREE_ADMISSION_PATTERNS = (
     r"\beintritt\s+(?:ist|bleibt)\s+(?:(?:nach\s+wie\s+vor|weiterhin|auch|"
     r"(?:für|fuer|zu)\s+alle(?:n)?\s+(?:veranstaltungen|angebote|termine))\s+)*"
     r"(?:frei|kostenlos|kostenfrei)\b",
+    r"\beintritt\s+(?:auch\s+)?(?:zu|für|fuer)\s+[^.]{1,60}\s+"
+    r"(?:ist|bleibt)\s+(?:frei|kostenlos|kostenfrei)\b",
     r"\bfreier\s+eintritt\b",
     r"\b(?:bei|mit)\s+frei(?:em|en)\s+eintritt\b",
     r"\b(?:teilnahme|veranstaltung|performance|workshop|angebote?|programm|sportangebot|termin|event)"
@@ -921,10 +923,39 @@ _LIMITED_FREE_CONTEXT_PATTERNS = (
     r"\b(?:kostenlos|frei)[^.]{0,40}\bkinder(?:n)?\s+bis\s+\d+\b",
 )
 
+# These event types normally have no visitor admission even when the source only
+# publishes seller fees or leaves the price field empty. Keep the list narrow:
+# ticketed design/night/indoor markets are deliberately excluded.
+_IMPLICIT_FREE_TITLE_PATTERN = re.compile(
+    r"\b(?:flohmarkt|trödelmarkt|troedelmarkt|hofflohmarkt|hausflohmarkt|"
+    r"straßenflohmarkt|strassenflohmarkt|stadtflohmarkt|büchermarkt|buechermarkt|"
+    r"stadtteilfest|straßenfest|strassenfest|veedelsfest|dorffest|"
+    r"nachbarschaftsfest|tag\s+der\s+offenen\s+tür|tag\s+der\s+offenen\s+tuer)\b",
+    re.IGNORECASE,
+)
+_IMPLICIT_FREE_EXCLUSION_PATTERN = re.compile(
+    r"\b(?:nachtflohmarkt|indoor[-\s]?(?:floh|trödel|troedel)?markt|messe|"
+    r"stadthalle|eventhalle|ticket(?:s|preis)?|besucher(?:eintritt|preis))\b",
+    re.IGNORECASE,
+)
+_VISITOR_ADMISSION_AMOUNT_PATTERN = re.compile(
+    r"\b(?:eintritt|besucher(?:preis|eintritt)|ticket(?:preis)?)\b"
+    r"[^.]{0,60}\b\d+[,.]?\d*\s*(?:€|eur|euro)\b",
+    re.IGNORECASE,
+)
 
-def infer_free_admission_price(title: str, description: str, price: str = "") -> str:
-    """Return a normalized free-admission label from raw source text."""
-    raw = " ".join([title or "", description or "", price or ""])
+
+def infer_free_admission_price(
+    title: str,
+    description: str,
+    price: str = "",
+    *,
+    venue: str = "",
+    source: str = "",
+    link: str = "",
+) -> str:
+    """Return a normalized free-admission label from explicit or safe implicit evidence."""
+    raw = " ".join([title or "", description or "", price or "", venue or "", source or "", link or ""])
     text = clean_html(raw).lower()
     text = re.sub(r"\b(kostenfrei|kostenlos)(?=ab\s+\d)", r"\1 ", text)
     text = re.sub(r"\s+", " ", text)
@@ -937,6 +968,14 @@ def infer_free_admission_price(title: str, description: str, price: str = "") ->
     if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
         return "kostenlos"
     if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
+        return "kostenlos"
+    clean_title = clean_html(title or "")
+    if (
+        _IMPLICIT_FREE_TITLE_PATTERN.search(clean_title)
+        and not price_text
+        and not _IMPLICIT_FREE_EXCLUSION_PATTERN.search(text)
+        and not _VISITOR_ADMISSION_AMOUNT_PATTERN.search(text)
+    ):
         return "kostenlos"
     return ""
 
@@ -999,7 +1038,9 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "venue": normalize_venue_name(venue),
         "city": clean_html(city).title(),
         "description": concise_description(description),
-        "price": infer_free_admission_price(title, description),
+        "price": infer_free_admission_price(
+            title, description, venue=venue, source=source, link=event_link,
+        ),
         "link": event_link,
         "distance_km": round(km, 1) if km is not None else None,
         "location_confidence": location_confidence,
