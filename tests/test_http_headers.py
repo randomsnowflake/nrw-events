@@ -1,3 +1,4 @@
+import json
 import unittest
 import urllib.error
 from email.message import Message
@@ -144,6 +145,176 @@ class HttpHeaderTests(unittest.TestCase):
 
         self.assertEqual(urlopen.call_count, 1)
         sleep.assert_not_called()
+
+    def test_brightdata_fallback_recovers_exhausted_rate_limit(self):
+        rate_limited = urllib.error.HTTPError(
+            "https://www.vomfass.de/pages/tastings",
+            429,
+            "Too Many Requests",
+            Message(),
+            None,
+        )
+        self.addCleanup(rate_limited.close)
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.headers = Message()
+        bright_response.read.return_value = json.dumps({
+            "status_code": 200,
+            "body": "<article data-event-card>vomFASS tastings</article>",
+        }).encode()
+        old_attempts = common._HTTP_RETRY_ATTEMPTS
+        common._HTTP_RETRY_ATTEMPTS = 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+            }), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                side_effect=[rate_limited, bright_response],
+            ) as urlopen:
+                body = common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                    required_body_markers=("data-event-card",),
+                )
+        finally:
+            common._HTTP_RETRY_ATTEMPTS = old_attempts
+
+        self.assertEqual(body, "<article data-event-card>vomFASS tastings</article>")
+        bright_request = urlopen.call_args_list[1].args[0]
+        self.assertEqual(bright_request.full_url, "https://api.brightdata.com/request")
+        self.assertEqual(bright_request.get_header("Authorization"), "Bearer secret-key")
+        payload = json.loads(bright_request.data)
+        self.assertEqual(payload["zone"], "events-unlocker")
+        self.assertEqual(payload["url"], "https://www.vomfass.de/pages/tastings")
+        self.assertEqual(payload["format"], "raw")
+        self.assertEqual(payload["country"], "DE")
+
+    def test_brightdata_fallback_requires_credentials(self):
+        rate_limited = urllib.error.HTTPError(
+            "https://www.vomfass.de/pages/tastings",
+            429,
+            "Too Many Requests",
+            Message(),
+            None,
+        )
+        self.addCleanup(rate_limited.close)
+        old_attempts = common._HTTP_RETRY_ATTEMPTS
+        common._HTTP_RETRY_ATTEMPTS = 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "",
+                "BRIGHT_DATA_ZONE": "",
+            }, clear=False), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                side_effect=rate_limited,
+            ) as urlopen:
+                with self.assertRaises(urllib.error.HTTPError):
+                    common.fetch_url_with_brightdata_fallback(
+                        "https://www.vomfass.de/pages/tastings",
+                        allowed_hosts=("www.vomfass.de",),
+                    )
+        finally:
+            common._HTTP_RETRY_ATTEMPTS = old_attempts
+
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_brightdata_fallback_refuses_hosts_outside_source_allowlist(self):
+        metadata_url = "http://169.254.169.254/latest/meta-data/"
+        rate_limited = urllib.error.HTTPError(
+            metadata_url,
+            429,
+            "Too Many Requests",
+            Message(),
+            None,
+        )
+        self.addCleanup(rate_limited.close)
+        old_attempts = common._HTTP_RETRY_ATTEMPTS
+        common._HTTP_RETRY_ATTEMPTS = 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+            }), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                side_effect=rate_limited,
+            ) as urlopen:
+                with self.assertRaises(urllib.error.HTTPError):
+                    common.fetch_url_with_brightdata_fallback(
+                        metadata_url,
+                        allowed_hosts=("www.vomfass.de",),
+                    )
+        finally:
+            common._HTTP_RETRY_ATTEMPTS = old_attempts
+
+        self.assertEqual(urlopen.call_count, 1)
+
+    def test_brightdata_fallback_rejects_target_failure_wrapped_in_api_success(self):
+        rate_limited = urllib.error.HTTPError(
+            "https://www.vomfass.de/pages/tastings",
+            429,
+            "Too Many Requests",
+            Message(),
+            None,
+        )
+        self.addCleanup(rate_limited.close)
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.read.return_value = json.dumps({
+            "status_code": 429,
+            "body": "",
+        }).encode()
+        old_attempts = common._HTTP_RETRY_ATTEMPTS
+        common._HTTP_RETRY_ATTEMPTS = 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+            }), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                side_effect=[rate_limited, bright_response],
+            ):
+                with self.assertRaisesRegex(RuntimeError, "target returned HTTP 429"):
+                    common.fetch_url_with_brightdata_fallback(
+                        "https://www.vomfass.de/pages/tastings",
+                        allowed_hosts=("www.vomfass.de",),
+                    )
+        finally:
+            common._HTTP_RETRY_ATTEMPTS = old_attempts
+
+    def test_brightdata_fallback_rejects_body_without_source_marker(self):
+        rate_limited = urllib.error.HTTPError(
+            "https://www.vomfass.de/pages/tastings",
+            429,
+            "Too Many Requests",
+            Message(),
+            None,
+        )
+        self.addCleanup(rate_limited.close)
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.read.return_value = json.dumps({
+            "status_code": 200,
+            "body": "<html>generic challenge page</html>",
+        }).encode()
+        old_attempts = common._HTTP_RETRY_ATTEMPTS
+        common._HTTP_RETRY_ATTEMPTS = 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+            }), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                side_effect=[rate_limited, bright_response],
+            ):
+                with self.assertRaisesRegex(RuntimeError, "failed source validation"):
+                    common.fetch_url_with_brightdata_fallback(
+                        "https://www.vomfass.de/pages/tastings",
+                        allowed_hosts=("www.vomfass.de",),
+                        required_body_markers=("data-event-card",),
+                    )
+        finally:
+            common._HTTP_RETRY_ATTEMPTS = old_attempts
 
     def test_fetch_url_throttles_bonn_de_requests(self):
         response = Mock()
