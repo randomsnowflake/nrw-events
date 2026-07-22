@@ -890,6 +890,8 @@ _FREE_ADMISSION_PATTERNS = (
     r"\beintritt\s+(?:ist|bleibt)\s+(?:(?:nach\s+wie\s+vor|weiterhin|auch|"
     r"(?:für|fuer|zu)\s+alle(?:n)?\s+(?:veranstaltungen|angebote|termine))\s+)*"
     r"(?:frei|kostenlos|kostenfrei)\b",
+    r"\beintritt\s+(?:auch\s+)?(?:zu|für|fuer)\s+[^.]{1,60}\s+"
+    r"(?:ist|bleibt)\s+(?:frei|kostenlos|kostenfrei)\b",
     r"\bfreier\s+eintritt\b",
     r"\b(?:bei|mit)\s+frei(?:em|en)\s+eintritt\b",
     r"\b(?:teilnahme|veranstaltung|performance|workshop|angebote?|programm|sportangebot|termin|event)"
@@ -928,7 +930,7 @@ _IMPLICIT_FREE_TITLE_PATTERN = re.compile(
     r"\b(?:flohmarkt|trödelmarkt|troedelmarkt|hofflohmarkt|hausflohmarkt|"
     r"straßenflohmarkt|strassenflohmarkt|stadtflohmarkt|büchermarkt|buechermarkt|"
     r"stadtteilfest|straßenfest|strassenfest|veedelsfest|dorffest|"
-    r"nachbarschaftsfest|kirmes|tag\s+der\s+offenen\s+tür|tag\s+der\s+offenen\s+tuer)\b",
+    r"nachbarschaftsfest|tag\s+der\s+offenen\s+tür|tag\s+der\s+offenen\s+tuer)\b",
     re.IGNORECASE,
 )
 _IMPLICIT_FREE_EXCLUSION_PATTERN = re.compile(
@@ -970,6 +972,7 @@ def infer_free_admission_price(
     clean_title = clean_html(title or "")
     if (
         _IMPLICIT_FREE_TITLE_PATTERN.search(clean_title)
+        and not price_text
         and not _IMPLICIT_FREE_EXCLUSION_PATTERN.search(text)
         and not _VISITOR_ADMISSION_AMOUNT_PATTERN.search(text)
     ):

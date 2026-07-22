@@ -45,7 +45,7 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Flohmarkt Kölner Altstadt", "Standpreis: 15 Euro pro laufendem Meter"),
             ("Hofflohmarkt Rondorf", "Hausanwohner verkaufen in ihren Höfen."),
             ("Antik- und Trödelmarkt Bad Godesberg", "Viele Verkaufsstände in der Innenstadt."),
-            ("Anna-Kirmes in Rommersdorf", "Fahrgeschäfte und Essen auf dem Festplatz."),
+            ("Poppelsdorfer Straßenfest", "Vereine und Gastronomie feiern im Viertel."),
             ("Tag der offenen Tür", "Blicke hinter die Kulissen."),
         ]
 
@@ -55,15 +55,26 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
 
     def test_does_not_infer_free_access_for_ticketed_or_ambiguous_markets(self):
         cases = [
-            ("Nachtflohmarkt", "Tickets im Vorverkauf."),
-            ("Indoor-Flohmarkt", "In der Stadthalle."),
-            ("Flohmarkt Spezial", "Besuchereintritt 4 Euro."),
-            ("Designmarkt", "Lokale Labels und Kunsthandwerk."),
+            ("Nachtflohmarkt", "Tickets im Vorverkauf.", ""),
+            ("Indoor-Flohmarkt", "In der Stadthalle.", ""),
+            ("Flohmarkt Spezial", "Besuchereintritt 4 Euro.", ""),
+            ("Flohmarkt Spezial", "", "4 Euro"),
+            ("Designmarkt", "Lokale Labels und Kunsthandwerk.", ""),
+            ("St. Pantaleon Kirmes", "Traditionelles Kirmesprogramm.", ""),
         ]
 
-        for title, description in cases:
+        for title, description, price in cases:
             with self.subTest(title=title):
-                self.assertEqual(infer_free_admission_price(title, description), "")
+                self.assertEqual(infer_free_admission_price(title, description, price), "")
+
+    def test_requires_explicit_free_evidence_for_kirmes(self):
+        self.assertEqual(
+            infer_free_admission_price(
+                "Anna-Kirmes in Alfter",
+                "Der Eintritt auch zu den Konzerten ist frei.",
+            ),
+            "kostenlos",
+        )
 
 
 if __name__ == "__main__":
