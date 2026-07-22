@@ -160,6 +160,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "Cirque Buffon - Carrousel", "", "stage"),
             ("", "Literatur-Klatsch: Born this way", "", "talk"),
             ("", "Chris Warnat liest aus ihren Krimis", "", "talk"),
+            ("", "Lieblingsbücher – Lesezirkel in der Bücherbrücke", "", "talk"),
             ("", "Blick hinter die Kulissen der Steyler Mission", "", "outdoor"),
             ("", "Animany Convention Troisdorf 2026", "", "festival"),
             ("", "Sportwochenende des SV Leimersdorf", "", "sports"),
