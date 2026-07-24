@@ -18,6 +18,16 @@ _CITY_ALIASES = {
 }
 
 
+def _listing_city(title: str, venue: str) -> str:
+    """Prefer the explicit postal town over a misleading Bonn fallback."""
+    postal_city = re.search(r"\b\d{5}\s+([^,]+)", venue)
+    if postal_city:
+        city = postal_city.group(1).strip().split("-", 1)[0]
+    else:
+        city = rc.city_from_text(venue, rc.city_from_text(title, ""))
+    return _CITY_ALIASES.get(city.casefold(), city)
+
+
 def _events_from_listing(html: str, page_url: str) -> list:
     events = []
     blocks = re.split(
@@ -42,8 +52,13 @@ def _events_from_listing(html: str, page_url: str) -> list:
         start = common.parse_date(rc.clean(date_match.group(1)))
         title = rc.clean(title_match.group(1))
         venue = rc.clean(location_match.group(1))
-        city = rc.city_from_text(venue, rc.city_from_text(title, "Bonn"))
-        city = _CITY_ALIASES.get(city.casefold(), city)
+        city = _listing_city(title, venue)
+        # This organizer publishes markets throughout NRW. Do not turn an
+        # unknown/out-of-scope postal town into Bonn merely because it is not in
+        # the regional gazetteer.
+        resolved_coords, _, _ = common.resolve_location(city)
+        if not resolved_coords:
+            continue
         time_text = rc.time_text(rc.clean(block))
         link = rc.abs_url(_BASE_URL, link_match.group(1)) if link_match else page_url
         description = common.factual_event_description(

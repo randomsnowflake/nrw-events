@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import common, report
-from nrw_events.sources import SOURCES, geide, hoffloh_bonn, okken
+from nrw_events.sources import SOURCES, geide, grote_hiller, hoffloh_bonn, okken
 from tests.helpers import patch_window
 
 
@@ -16,6 +16,35 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertIs(SOURCES["HofFloh Bonn"], hoffloh_bonn.fetch)
         self.assertIs(SOURCES["Okken Märkte"], okken.fetch)
         self.assertIs(SOURCES["Geide Märkte"], geide.fetch)
+
+    def test_grote_hiller_keeps_regional_postal_city_and_rejects_unknown_town(self):
+        def listing(market_id, date, title, venue):
+            return f"""
+              <div id="markt{market_id}" class="listing">
+                <mark>{date}</mark>
+                <h3 class="h2">{title}</h3>
+                <img src="/marker-1.svg"><span>{venue}</span>
+                <a href="/unsere-maerkte/test-{market_id}/">Details</a>
+              </div>
+            """
+
+        html = listing(
+            1,
+            "16.08.2026",
+            "Siegburg, Trödelmarkt beim KAUFLAND",
+            "53721 Siegburg, Wilhelm-Ostwald-Straße 1",
+        ) + listing(
+            2,
+            "16.08.2026",
+            "Siegen, Trödelmarkt beim Globus",
+            "57072 Siegen, Eiserfelder Str. 170",
+        )
+
+        events = grote_hiller._events_from_listing(html, "https://www.grote-hiller.de/troedelmaerkte/")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["city"], "Siegburg")
+        self.assertEqual(events[0]["title"], "Siegburg, Trödelmarkt beim KAUFLAND")
 
     def test_hoffloh_keeps_scheduled_neighborhoods_and_skips_planned_entries(self):
         payload = {

@@ -45,7 +45,7 @@ class LampertSourceTests(unittest.TestCase):
         event = events[0]
         self.assertEqual(event["title"], "Flohmarkt Bonn Siemensstraße")
         self.assertEqual(event["time"], "08:00–14:00")
-        self.assertEqual(event["city"], "Bonn")
+        self.assertEqual(event["city"], "Dransdorf")
         self.assertEqual(event["venue"], "Ehemalige Biskuithalle, Siemensstraße 26")
         self.assertEqual(event["source"], "Lampert Märkte")
         self.assertEqual(event["source_id"], "lampert-bonn-siemensstrasse")

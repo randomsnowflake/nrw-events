@@ -91,7 +91,7 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
         f"{schedule['end_hour']:02d}:{schedule['end_minute']:02d}"
     )
     description = (
-        "Flohmarkt an der ehemaligen Biskuithalle in Bonn-Dransdorf/Endenich; "
+        "Flohmarkt an der ehemaligen Biskuithalle in Bonn-Dransdorf; "
         "jeden Samstag außer an den vom Veranstalter genannten Feiertagen. "
         f"Erlaubte Waren laut Veranstalter: {schedule['goods']}."
     )
@@ -118,7 +118,7 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
                 start,
                 end,
                 "Ehemalige Biskuithalle, Siemensstraße 26",
-                "Bonn",
+                "Dransdorf",
                 description,
                 _URL,
                 _SOURCE,
