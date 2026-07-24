@@ -211,7 +211,7 @@ kein Limit.
 | `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `5000000` | Harte Antwortgrößen-Grenze pro HTTP-Request. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
-| `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` | nicht gesetzt | Optionaler Bright-Data-Web-Unlocker-Fallback für explizit freigeschaltete öffentliche Quellen nach ausgeschöpften direkten `429`-Retries (derzeit vomFASS). |
+| `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` | nicht gesetzt | Bright-Data-Web-Unlocker-Zugang. vomFASS wird ausschließlich montags und ausschließlich über diesen Proxy aktualisiert; ohne Zugang schlägt der Montagsabruf kontrolliert fehl. |
 | `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. |
 | `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS` | `24` | TTL für erfolgreiche HTML-Detailseiten-Abrufe von Quellen wie Siegburg, Much, Königswinter, Naturregion Sieg, Linz, IONAS-Kommunen und einzelnen Veranstaltungsorten. `0` deaktiviert Speicher- und Platten-Cache. Listen, APIs und Feeds bleiben ungecacht und werden bei jedem Import frisch geladen. |
 | `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `500` | Zielgröße des aus einer Bonn.de-Detailseite übernommenen Kurztexts; Logistikblöcke werden übersprungen und erklärende Absätze vollständig übernommen. Nur ein einzelner überlanger Absatz wird satz- bzw. wortnah gekürzt. |
@@ -334,11 +334,14 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
   solange der Lauf weiterhin Events erzeugt. Wenn `NRW_EVENTS_PREVIOUS_META_JSON`
   auf einen dauerhaften vorherigen Metadaten-Snapshot zeigt, behält ein degradierter
   Lauf außerdem nicht abgelaufene Events vorübergehend unerreichbarer Quellen bei.
+  Planmäßig nur wöchentlich aktualisierte Quellen werden an den übrigen Tagen als
+  `scheduled_skip` geführt und behalten ebenfalls nur ihre noch nicht abgelaufenen Events.
   Frische Quelldaten gewinnen bei der Deduplizierung; abgelaufene Cache-Events werden
   entfernt. `fresh_event_count`, `retained_event_count`,
   `expired_retained_event_count` und `retained_sources` dokumentieren die Entscheidung.
   Erfolgreiche leere Quellen ersetzen ihren bisherigen Snapshot; nur Fehler,
-  Parser-Leerstände und auffällige Nullergebnisse lösen die Aufbewahrung aus.
+  Parser-Leerstände, planmäßige Auslassungen und auffällige Nullergebnisse lösen
+  die Aufbewahrung aus.
   `failed` bleibt für Läufe ohne veröffentlichbare Events oder
   Infrastruktur-/Konfigurationsfehler reserviert.
 

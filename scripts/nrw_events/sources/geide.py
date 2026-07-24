@@ -9,12 +9,20 @@ from . import regional_common as rc
 
 
 _SOURCE = "Geide Märkte"
-_SOURCE_ID = "geide-bonn"
 _PAGES = {
     "https://www.geide-maerkte.de/bonn-nord.html": {
         "title": "Trödelmarkt Bonn-Nord",
         "venue": "OBI/EDEKA, Bornheimer Straße 166",
         "address_pattern": r"Bornheimer\s+Str\.\s*166\s*-\s*53119\s+Bonn",
+        "hours": None,
+        "source_id": "geide-bonn-nord",
+    },
+    "https://www.geide-maerkte.de/bad-godesberg-hit-markt.html": {
+        "title": "Trödelmarkt Bad Godesberg am HIT-Markt",
+        "venue": "HIT-Markt, Drachenburgstraße 14",
+        "address_pattern": r"Drachenburgstra(?:ße|sse)\s*14\s*-\s*53179\s+Bonn",
+        "hours": (11, 18),
+        "source_id": "geide-bonn-bad-godesberg",
     },
 }
 
@@ -32,13 +40,17 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
         clean,
         re.I,
     )
-    if not (page and len(years) == 1 and address_ok and time_match):
+    configured_hours = page.get("hours") if page else None
+    if not (page and len(years) == 1 and address_ok and (time_match or configured_hours)):
         if strict:
             raise rc.ParserEmptyError("Geide year, address, or hours contract changed")
         return []
 
     year = years.pop()
-    start_hour, end_hour = (int(value) for value in time_match.groups())
+    start_hour, end_hour = (
+        tuple(int(value) for value in time_match.groups())
+        if time_match else configured_hours
+    )
     events = []
     valid_cards = 0
     for block in re.findall(r'<div[^>]+class="[^"]*\bevent-itm\b[^"]*"[^>]*>(.*?)</div>\s*</div>', html, re.S | re.I):
@@ -74,7 +86,7 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
             "trödelmarkt flohmarkt markt",
             0.98,
             f"{start_hour:02d}:00–{end_hour:02d}:00",
-            source_id=_SOURCE_ID,
+            source_id=page["source_id"],
         )
         if event:
             events.append(event)
@@ -91,7 +103,7 @@ def fetch() -> list:
             url,
             lambda html, page_url=url: _events_from_page(html, page_url, strict=True),
             timeout=20,
-            source_id=_SOURCE_ID,
+            source_id=_PAGES[url]["source_id"],
             empty_is_healthy=True,
         ))
     return rc.dedupe(events)

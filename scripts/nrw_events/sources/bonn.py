@@ -764,6 +764,92 @@ def _press_event_title(text: str) -> str:
     return parts[0]
 
 
+def _press_event_venue(text: str, title: str) -> str:
+    """Keep the official location text between the title and first date."""
+    remainder = text[len(title):].lstrip(" ,")
+    date_start = re.search(
+        r"\b\d{1,2}\.\s*(?:(?:bis|und)\s*\d{1,2}\.\s*)?"
+        r"(?:Januar|Februar|März|April|Mai|Juni|Juli|August|"
+        r"September|Oktober|November|Dezember)\b",
+        remainder,
+        re.I,
+    )
+    if not date_start:
+        return ""
+    return remainder[:date_start.start()].strip(" ,")
+
+
+def _press_date_ranges(text: str, default_year: int) -> list[tuple[datetime, datetime]]:
+    """Parse the date grammar used by Bonn's annual event press release."""
+    month_pattern = (
+        r"Januar|Februar|März|April|Mai|Juni|Juli|August|"
+        r"September|Oktober|November|Dezember"
+    )
+    consumed: list[tuple[int, int]] = []
+    ranges: list[tuple[datetime, datetime]] = []
+
+    def add(match, start_parts, end_parts) -> None:
+        try:
+            start = datetime(*start_parts)
+            end = datetime(*end_parts)
+        except (ValueError, KeyError):
+            return
+        consumed.append(match.span())
+        ranges.append((start, max(start, end)))
+
+    # 27. bis 29. November 2026 / 3. und 4. Oktober 2026
+    for match in re.finditer(
+        rf"(\d{{1,2}})\.\s*(?:bis|und)\s*(\d{{1,2}})\.\s*"
+        rf"({month_pattern})\s*(20\d{{2}})?",
+        text,
+        re.I,
+    ):
+        first, last, month_name, year_text = match.groups()
+        month = common.MONTH_DE.get(month_name.casefold())
+        if month:
+            year = int(year_text or default_year)
+            add(match, (year, month, int(first)), (year, month, int(last)))
+
+    # 20. November bis 23. Dezember 2026
+    for match in re.finditer(
+        rf"(\d{{1,2}})\.\s*({month_pattern})\s*(20\d{{2}})?\s*bis\s*"
+        rf"(\d{{1,2}})\.\s*({month_pattern})\s*(20\d{{2}})?",
+        text,
+        re.I,
+    ):
+        if any(start <= match.start() < end for start, end in consumed):
+            continue
+        first, first_month_name, first_year, last, last_month_name, last_year = match.groups()
+        first_month = common.MONTH_DE.get(first_month_name.casefold())
+        last_month = common.MONTH_DE.get(last_month_name.casefold())
+        if first_month and last_month:
+            end_year = int(last_year or first_year or default_year)
+            start_year = int(first_year or end_year)
+            add(
+                match,
+                (start_year, first_month, int(first)),
+                (end_year, last_month, int(last)),
+            )
+
+    for match in re.finditer(
+        rf"(\d{{1,2}})\.\s*({month_pattern})\s*(20\d{{2}})?",
+        text,
+        re.I,
+    ):
+        if any(start <= match.start() < end for start, end in consumed):
+            continue
+        day, month_name, year_text = match.groups()
+        month = common.MONTH_DE.get(month_name.casefold())
+        if not month:
+            continue
+        try:
+            value = datetime(int(year_text or default_year), month, int(day))
+        except ValueError:
+            continue
+        ranges.append((value, value))
+    return sorted(set(ranges))
+
+
 def fetch_press_festivals() -> list:
     """Parse the annual Bonn 'Veranstaltungsjahr' press release for district festivals.
 
@@ -789,28 +875,30 @@ def fetch_press_festivals() -> list:
             text = common.clean_html(li)
             if len(text) < 6:
                 continue
-            dates = []
-            for m in re.finditer(
-                r"(\d{1,2})\.\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s*(20\d{2})?",
-                text,
-            ):
-                day, mon, yr = m.groups()
-                try:
-                    dates.append(datetime(int(yr or year), common.MONTH_DE[mon.lower()], int(day)))
-                except (ValueError, KeyError):
-                    continue
-            in_window = [d for d in dates if common.window_contains(d)]
+            in_window = [
+                (start, end)
+                for start, end in _press_date_ranges(text, year)
+                if common.window_contains(start, end)
+            ]
             if not in_window:
                 continue
             title = _press_event_title(text)
             if len(title) < 3:
                 continue
+            venue = _press_event_venue(text, title)
             city = common.guess_city_from_text(text) or "Bonn"
-            for d in sorted(set(in_window)):
+            for start, end in in_window:
                 ev = common.make_event(
-                    title, d, d, "", city, text[:240], url, source,
+                    title, start, end, venue, city, text[:240], url, source,
                     "stadtteilfest market kirmes outdoor local", 1.0,
                 )
                 if ev:
                     events.append(ev)
-    return events
+    deduped = []
+    seen = set()
+    for event in events:
+        key = (event.get("title"), event.get("start_date"), event.get("end_date"))
+        if key not in seen:
+            deduped.append(event)
+            seen.add(key)
+    return deduped

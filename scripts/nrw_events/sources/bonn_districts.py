@@ -199,6 +199,14 @@ def events_from_beuel_html(html: str) -> list:
             continue
         venue = common.clean_html(card["venue"])
         links = [link for link in card["links"] if "/events/#" not in link and "/map/" not in link]
+        is_beuel_rathaus_market = (
+            title.casefold() == "flohmarkt"
+            and "möhneplatz" in venue.casefold()
+            and any("beuelhats.de" in link.casefold() for link in links)
+        )
+        if is_beuel_rathaus_market:
+            title = "Floh- und Trödelmarkt Beueler Rathausplatz"
+            venue = "Beueler Rathausplatz (Möhneplatz)"
         description = _beuel_description(card, title, date_text, venue)
         if not description:
             description = common.factual_event_description(
@@ -207,7 +215,12 @@ def events_from_beuel_html(html: str) -> list:
         event = common.make_event(
             title, start, end, venue, _beuel_city(venue), description,
             links[-1] if links else BEUEL_URL, "Beuel.net",
-            "stadtteil kultur markt familie", 0.95, time_text=time_text,
+            (
+                "stadtteil kultur flohmarkt trödelmarkt markt familie"
+                if is_beuel_rathaus_market
+                else "stadtteil kultur markt familie"
+            ),
+            0.95, time_text=time_text,
             all_day=not bool(time_text),
         )
         if event:

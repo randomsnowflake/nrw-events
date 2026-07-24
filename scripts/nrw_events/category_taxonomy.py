@@ -115,7 +115,11 @@ DESTINATION_TITLE_CONTEXT = (
 
 STRONG_MARKET_TITLE_CONTEXT = (
     "flohmarkt", "trödelmarkt", "troedelmarkt", "antikmarkt", "basar",
-    "designmarkt", "fashion, family & kids markt",
+    "designmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt",
+    "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt",
+    "fruehlingsmarkt", "töpfermarkt", "toepfermarkt", "kunsthandwerkermarkt",
+    "schallplattenbörse", "schallplattenboerse",
+    "fashion, family & kids markt",
 )
 
 
@@ -123,7 +127,7 @@ STRONG_MARKET_TITLE_CONTEXT = (
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "kindersachen flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "frischemarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "designmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", "kindersachenbasar", "kinderbasar", "fashion, family & kids markt", word("market"), Keyword("markt", title_only=True, word=True), Keyword("basar", title_only=True, word_suffix=True), Keyword("antik", title_only=True, word=True))),
+    Rule("market", 14, ("flohmarkt", "kindersachen flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "frischemarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "designmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt", "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt", "fruehlingsmarkt", "töpfermarkt", "toepfermarkt", "kunsthandwerkermarkt", "schallplattenbörse", "schallplattenboerse", "kindersachenbasar", "kinderbasar", "fashion, family & kids markt", word("market"), Keyword("markt", title_only=True, word=True), Keyword("basar", title_only=True, word_suffix=True), Keyword("antik", title_only=True, word=True))),
     Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "schlemmer", "grillen", "dîner", "diner en blanc", "wine", "winzer", "weinprobe", "weinfest", "weinmoment", "weinlounge", "biergarten", "tasting", word("wein"), word("bier"))),
     Rule(
         "kids",

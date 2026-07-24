@@ -126,7 +126,8 @@ class MarketSourceTests(unittest.TestCase):
         """
         detail = """
         <h2>Flohmarkt Kölner Altstadt</h2>
-        <p class='textmarkt'>Einer der ältesten Flohmärkte von NRW mit mehr als 150 Ständen.</p>
+        <p class='textmarkt'>Einer der ältesten Flohmärkte von NRW mit mehr als 150 Ständen.
+        Veranstaltung geht von 11 bis 17:00 Uhr.</p>
         <h3>Standort:</h3><p class='textmarkt'>Kölner Altstadt, Rheinpromenade,<br>50668 Köln</p>
         """
         linz_detail = """
@@ -143,6 +144,7 @@ class MarketSourceTests(unittest.TestCase):
         self.assertEqual(len(events), 2)
         self.assertEqual(events[0]["date"], "2026-07-25–2026-07-26")
         self.assertEqual(events[0]["city"], "Köln")
+        self.assertEqual(events[0]["time"], "11:00–17:00")
         self.assertIn("mehr als 150 Ständen", events[0]["description"])
         self.assertEqual(events[1]["date"], "2027-08-07–2027-08-08")
         self.assertEqual(events[1]["city"], "Linz Am Rhein")

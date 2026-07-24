@@ -36,7 +36,11 @@ def fetch() -> list:
     events.extend(rc.fetch_html_events(
         "Brückenforum Bonn",
         "https://www.brueckenforum.de/alle-events/",
-        _events_from_brueckenforum,
+        lambda html: _events_from_brueckenforum(
+            html,
+            detail_fetcher=lambda url: common.fetch_detail_url(
+                url, cache_namespace="brueckenforum-bonn", timeout=20),
+        ),
     ))
     return rc.dedupe(events)
 
@@ -210,7 +214,70 @@ def _events_from_springmaus(html: str) -> list:
     return events
 
 
-def _events_from_brueckenforum(html: str) -> list:
+def _brueckenforum_detail_context(html: str) -> dict:
+    event_section = re.search(
+        r'<section[^>]+id="single-event-header"[^>]*>(.*?)</section>',
+        html or "",
+        re.S | re.I,
+    )
+    body = event_section.group(1) if event_section else (html or "")
+    text = rc.clean(body)
+    time_match = re.search(
+        r"(?:Einlass|Zeitraum)[^0-9]{0,30}(?:Immer\s+)?von\s*"
+        r"(\d{1,2})(?::(\d{2}))?\s*[-–]\s*(\d{1,2})(?::(\d{2}))?\s*Uhr",
+        text,
+        re.I,
+    )
+    if not time_match:
+        time_match = re.search(
+            r"Einlass:\s*(\d{1,2}):(\d{2})(?::\d{2})?",
+            text,
+            re.I,
+        )
+    time_text = ""
+    if time_match and len(time_match.groups()) == 4:
+        start_hour, start_minute, end_hour, end_minute = time_match.groups()
+        time_text = (
+            f"{int(start_hour):02d}:{start_minute or '00'}–"
+            f"{int(end_hour):02d}:{end_minute or '00'}"
+        )
+    elif time_match:
+        start_hour, start_minute = time_match.groups()
+        time_text = f"{int(start_hour):02d}:{start_minute}"
+
+    visitor_free = bool(re.search(
+        r"Eintritt\s+für\s+Besucher\s*:\s*Kostenlos", text, re.I))
+    price_match = re.search(r"\bEintritt\s+(\d+(?:[,.]\d+)?)\s*€", text, re.I)
+    price = "kostenlos" if visitor_free else (
+        f"{price_match.group(1).replace(',', '.')} €" if price_match else ""
+    )
+    is_rathaus_market = bool(re.search(
+        r"(?:Floh|Trödelmarkt).*Rathausplatz|Beueler\s+Rathausplatz",
+        text,
+        re.I,
+    ))
+    description_candidates = []
+    for value in re.findall(r"<div\b[^>]*>(.*?)</div>", body, re.S | re.I):
+        cleaned = rc.clean(value)
+        if (
+            len(cleaned) >= 20
+            and not re.search(r"\b(?:Eintritt|Tickets|Einlass|Zeitraum)\b", cleaned, re.I)
+            and not re.fullmatch(r"\d{1,2}/\d{1,2}/20\d{2}.*", cleaned)
+        ):
+            description_candidates.append(cleaned)
+    description = common.concise_description(
+        max(description_candidates, key=len) if description_candidates else "",
+        max_chars=360,
+    )
+    return {
+        "time": time_text,
+        "price": price,
+        "description": description,
+        "is_rathaus_market": is_rathaus_market,
+    }
+
+
+def _events_from_brueckenforum(html: str, detail_fetcher=None) -> list:
     events = []
     for block in re.findall(r'<div class="event-single">(.*?)</div>\s*</div>\s*</div>',
                             html, re.S | re.I):
@@ -223,19 +290,45 @@ def _events_from_brueckenforum(html: str) -> list:
         category = rc.clean(category_m.group(1))
         if re.search(r"\babi|abiball|abschlussball", category, re.I):
             continue
-        ev = common.make_event(
+        start = _parse_slash_date(date_m.group(1))
+        link = href_m.group(1) if href_m else "https://www.brueckenforum.de/alle-events/"
+        detail = {}
+        is_market = bool(re.search(
+            r"floh|trödel|troedel",
             rc.clean(title_m.group(1)),
-            _parse_slash_date(date_m.group(1)),
-            None,
-            "Brückenforum Bonn",
+            re.I,
+        ))
+        if detail_fetcher and is_market and common.window_contains(start):
+            try:
+                detail = _brueckenforum_detail_context(detail_fetcher(link))
+            except Exception as exc:
+                common.log_source_error("Brückenforum Bonn detail", exc)
+        title = rc.clean(title_m.group(1))
+        venue = "Brückenforum Bonn"
+        if detail.get("is_rathaus_market"):
+            title = "Floh- und Trödelmarkt Beueler Rathausplatz"
+            venue = "Beueler Rathausplatz (Möhneplatz)"
+        start_with_time = _with_hhmm(start, detail.get("time", ""))
+        end_with_time = start_with_time
+        if "–" in detail.get("time", ""):
+            end_with_time = _with_hhmm(start, detail["time"].split("–", 1)[1])
+        ev = common.make_event(
+            title,
+            start_with_time,
+            end_with_time,
+            venue,
             "Bonn",
-            category,
-            href_m.group(1) if href_m else "https://www.brueckenforum.de/alle-events/",
+            detail.get("description") or category,
+            link,
             "Brückenforum Bonn",
             f"brückenforum {category} konzert comedy theater show markt party",
-            0.9,
+            0.98 if detail else 0.9,
+            detail.get("time", ""),
+            source_id="brueckenforum-bonn",
         )
         if ev:
+            if detail.get("price"):
+                ev["price"] = detail["price"]
             events.append(ev)
     return events
 

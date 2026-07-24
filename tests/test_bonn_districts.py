@@ -63,6 +63,20 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["start_date"], "2026-07-31")
         self.assertEqual(events[0]["end_date"], "2026-08-01")
         self.assertEqual(events[0]["time"], "")
+        self.assertEqual(events[0]["category_key"], "festival")
+
+    def test_beuel_rathaus_flea_market_uses_shared_canonical_identity(self):
+        html = """
+        <div class="yel"><a href="/events/#26.07.2026"><span class="title">Flohmarkt</span><br>
+        <b>So. 26.07.2026</b> | <a href="/map/?q=Möhneplatz">Möhneplatz</a><br>
+        <a href="https://beuelhats.de/">externer Link</a></a></div>
+        """
+
+        event = bonn_districts.events_from_beuel_html(html)[0]
+
+        self.assertEqual(event["title"], "Floh- und Trödelmarkt Beueler Rathausplatz")
+        self.assertEqual(event["venue"], "Beueler Rathausplatz (Möhneplatz)")
+        self.assertEqual(event["city"], "Bonn-Beuel")
 
     def test_bonn_district_refinement_prefers_specific_configured_place(self):
         self.assertEqual(

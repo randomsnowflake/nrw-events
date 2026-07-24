@@ -12,6 +12,7 @@ from .models import RawEvent
 class SourceStatus(str, Enum):
     HEALTHY = "healthy"
     HEALTHY_EMPTY = "healthy_empty"
+    SCHEDULED_SKIP = "scheduled_skip"
     DISABLED = "disabled"
     DEGRADED = "degraded"
     FAILED = "failed"
@@ -50,6 +51,10 @@ class SourceFetchResult:
         return cls(status=SourceStatus.DISABLED, disabled_reason=reason)
 
     @classmethod
+    def scheduled_skip(cls, reason: str) -> "SourceFetchResult":
+        return cls(status=SourceStatus.SCHEDULED_SKIP, disabled_reason=reason)
+
+    @classmethod
     def parser_empty(cls, warning: str = "parser returned no records") -> "SourceFetchResult":
         return cls(status=SourceStatus.PARSER_EMPTY, warnings=(warning,))
 
@@ -72,6 +77,7 @@ class SourceResult:
     event_source_ids: list[str] = field(default_factory=list)
     warnings: list[dict[str, str]] = field(default_factory=list)
     error: Optional[dict[str, str]] = None
+    status_reason: str = ""
 
     def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> None:
         warning = {"source": source, "error_type": error_type, "error": message}
@@ -97,7 +103,7 @@ class SourceResult:
     def finish(self, events: list[Any]) -> None:
         self.raw_event_count = len(events)
         self.accepted_event_count = len(events)
-        if self.status == SourceStatus.DISABLED:
+        if self.status in {SourceStatus.DISABLED, SourceStatus.SCHEDULED_SKIP}:
             return
         parser_empty = any(
             endpoint.get("parser_empty") is True
@@ -134,4 +140,5 @@ class SourceResult:
             "event_source_ids": self.event_source_ids,
             "warnings": self.warnings,
             "error": self.error,
+            "status_reason": self.status_reason,
         }

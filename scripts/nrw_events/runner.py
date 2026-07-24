@@ -59,6 +59,7 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
         if isinstance(fetched, SourceFetchResult):
             events = list(fetched.events)
             result.status = fetched.status
+            result.status_reason = fetched.disabled_reason
             for warning in fetched.warnings:
                 result.warning(name, "SourceWarning", warning)
             for endpoint in fetched.endpoints:
@@ -73,7 +74,10 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
             raise TypeError(f"source returned {type(events).__name__}, expected list")
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         result.finish(events)
-        if typed_status in {SourceStatus.DISABLED, SourceStatus.PARSER_EMPTY, SourceStatus.DEGRADED}:
+        if typed_status in {
+            SourceStatus.DISABLED, SourceStatus.SCHEDULED_SKIP,
+            SourceStatus.PARSER_EMPTY, SourceStatus.DEGRADED,
+        }:
             result.status = typed_status
         accepted = []
         for event in events:
@@ -305,6 +309,7 @@ def _retention_labels(results: dict[str, SourceResult], previous: dict) -> set[s
         unavailable = (
             result.status in {SourceStatus.FAILED, SourceStatus.PARSER_EMPTY}
             or (result.status == SourceStatus.DEGRADED and not fresh_labels)
+            or result.status == SourceStatus.SCHEDULED_SKIP
             or "zero_after_recent_nonempty" in result.anomalies
         )
         if unavailable:
@@ -418,14 +423,23 @@ def _retain_previous_events(
     retained_sources = []
     for label in sorted(labels):
         prior = previous_retention.get(label) or {}
+        runner_source = runner_sources.get(label) or prior.get("runner_source") or ""
+        scheduled_skip = (
+            runner_source in results
+            and results[runner_source].status == SourceStatus.SCHEDULED_SKIP
+        )
         retained_sources.append({
             "source": source_names.get(label, label),
             "source_id": label,
-            "runner_source": runner_sources.get(label) or prior.get("runner_source") or "",
+            "runner_source": runner_source,
             "retained_event_count": candidate_counts[label],
             "expired_event_count": expired_counts[label],
             "last_success_at": prior.get("last_success_at") or prior_generated_at,
-            "consecutive_failures": int(prior.get("consecutive_failures") or 0) + 1,
+            "consecutive_failures": (
+                int(prior.get("consecutive_failures") or 0)
+                if scheduled_skip
+                else int(prior.get("consecutive_failures") or 0) + 1
+            ),
         })
     return retained, {
         **empty_summary,
@@ -438,6 +452,8 @@ def _retain_previous_events(
 def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_count: int) -> None:
     """Expose count changes without treating seasonal empty calendars as failures."""
     for name, result in results.items():
+        if result.status == SourceStatus.SCHEDULED_SKIP:
+            continue
         prior = previous.get(name, {})
         prior_count = prior.get("raw_event_count")
         if not isinstance(prior_count, int):
@@ -549,7 +565,8 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
                 log(logger, 40, result.error["error"], run_id=run_id, source=name,
                     error_type=result.error["error_type"])
             marker = "✓" if result.status in {
-                SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY, SourceStatus.DISABLED,
+                SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY,
+                SourceStatus.SCHEDULED_SKIP, SourceStatus.DISABLED,
             } else "!"
             log(logger, 20 if marker == "✓" else 30,
                 f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",

@@ -99,6 +99,10 @@ class RunnerOutputTests(unittest.TestCase):
     def test_typed_source_result_distinguishes_adapter_states(self):
         self.assertEqual(SourceFetchResult.success([]).status, SourceStatus.HEALTHY_EMPTY)
         self.assertEqual(SourceFetchResult.disabled("missing key").status, SourceStatus.DISABLED)
+        self.assertEqual(
+            SourceFetchResult.scheduled_skip("weekly").status,
+            SourceStatus.SCHEDULED_SKIP,
+        )
         self.assertEqual(SourceFetchResult.parser_empty().status, SourceStatus.PARSER_EMPTY)
 
     def test_runner_preserves_typed_partial_success(self):
@@ -166,6 +170,65 @@ class RunnerOutputTests(unittest.TestCase):
             "last_success_at": "2026-06-07T05:00:00",
             "consecutive_failures": 1,
         }])
+
+    def test_scheduled_skip_retains_unexpired_events_without_degrading_run(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-07-20T05:00:00",
+                    "source_results": {
+                        "vomFASS Bonn": {
+                            "raw_event_count": 12,
+                            "event_source_ids": ["vomfass-bonn"],
+                        },
+                    },
+                    "events": [
+                        {
+                            "title": "Expired Tasting", "source": "vomFASS Bonn",
+                            "source_id": "vomfass-bonn", "date": "2026-07-23",
+                            "score": 1.0, "city": "Bonn",
+                        },
+                        {
+                            "title": "Upcoming Tasting", "source": "vomFASS Bonn",
+                            "source_id": "vomfass-bonn", "date": "2026-07-27",
+                            "score": 1.0, "city": "Bonn",
+                        },
+                    ],
+                    "retained_sources": [{
+                        "source": "vomFASS Bonn",
+                        "source_id": "vomfass-bonn",
+                        "runner_source": "vomFASS Bonn",
+                        "retained_event_count": 2,
+                        "expired_event_count": 0,
+                        "last_success_at": "2026-07-20T05:00:00",
+                        "consecutive_failures": 0,
+                    }],
+                }, handle)
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 7, 24), datetime(2026, 8, 20)),
+                "scheduled-skip-test",
+                configure_logging("scheduled-skip-test", "ERROR", "", ""),
+                clock=lambda: datetime(2026, 7, 24, 5),
+            )
+            result = runner.run_import(
+                context,
+                {"vomFASS Bonn": lambda: SourceFetchResult.scheduled_skip("Mondays only")},
+            )
+            metadata = runner.build_snapshot(result, context).metadata
+
+        self.assertEqual([event.title for event in result.events], ["Upcoming Tasting"])
+        self.assertEqual(result.run_status, "healthy")
+        self.assertEqual(metadata["import_issues"], [])
+        self.assertEqual(
+            metadata["source_results"]["vomFASS Bonn"]["status"],
+            "scheduled_skip",
+        )
+        self.assertEqual(metadata["retained_event_count"], 1)
+        self.assertEqual(metadata["expired_retained_event_count"], 1)
+        self.assertEqual(metadata["retained_sources"][0]["consecutive_failures"], 0)
 
     def test_healthy_source_replaces_previous_snapshot_instead_of_retaining_it(self):
         with tempfile.TemporaryDirectory() as tmpdir:

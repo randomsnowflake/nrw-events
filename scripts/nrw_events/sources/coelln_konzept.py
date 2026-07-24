@@ -46,7 +46,7 @@ def _detail_context(html: str) -> dict:
     description = common.concise_description(rc.clean(first_description.group(1) if first_description else ""))
     venue = rc.clean(location.group(1) if location else "")
     time_match = re.search(
-        r"(?:von|Marktzeit(?:en)?[^\d]{0,20})(\d{1,2})(?::(\d{2}))?\s*"
+        r"(?:von|Marktzeit(?:en)?[^\d]{0,20})\s*(\d{1,2})(?::(\d{2}))?\s*"
         r"(?:bis|[-–])\s*(\d{1,2})(?::(\d{2}))?\s*Uhr",
         f"{description} {rc.clean(html)}",
         re.I,

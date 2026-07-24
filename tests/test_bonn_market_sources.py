@@ -328,6 +328,27 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertEqual(geide._events_from_page(valid.replace("2026", "Termine"), url), [])
         self.assertEqual(geide._events_from_page(valid.replace("Bornheimer Str. 166", ""), url), [])
 
+    def test_geide_parses_bad_godesberg_hit_market(self):
+        html = """
+        <a href="files/pdf/2026/Termine-2026-Bonn-Bad-Godesberg.pdf">Download</a>
+        <div class="event-itm"><div class="event">
+          <div class="header"><span>Sep</span><strong>13</strong></div>
+          <h3>Bonn-Bad Godesberg</h3><div class="teaser"><p>Hit-Markt</p></div>
+          <a class="overlay-lnk" href="bad-godesberg-hit-markt/bonn-bad-godesberg-69.html"></a>
+        </div></div>
+        <h3>Adresse</h3><p>Drachenburgstraße 14 - 53179 Bonn</p>
+        """
+        url = "https://www.geide-maerkte.de/bad-godesberg-hit-markt.html"
+
+        events = geide._events_from_page(html, url)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Trödelmarkt Bad Godesberg am HIT-Markt")
+        self.assertEqual(events[0]["date"], "2026-09-13")
+        self.assertEqual(events[0]["time"], "11:00–18:00")
+        self.assertEqual(events[0]["venue"], "HIT-Markt, Drachenburgstraße 14")
+        self.assertEqual(events[0]["source_id"], "geide-bonn-bad-godesberg")
+
 
 if __name__ == "__main__":
     unittest.main()

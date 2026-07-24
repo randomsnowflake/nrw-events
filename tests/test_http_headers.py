@@ -190,6 +190,50 @@ class HttpHeaderTests(unittest.TestCase):
         self.assertEqual(payload["format"], "raw")
         self.assertEqual(payload["country"], "DE")
 
+    def test_brightdata_only_fetch_never_requests_target_directly(self):
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.read.return_value = json.dumps({
+            "status_code": 200,
+            "body": "<article data-event-card>vomFASS tastings</article>",
+        }).encode()
+        with patch.dict("os.environ", {
+            "BRIGHT_DATA_API_KEY": "secret-key",
+            "BRIGHT_DATA_ZONE": "events-unlocker",
+        }), patch(
+            "nrw_events.common.urllib.request.urlopen",
+            return_value=bright_response,
+        ) as urlopen:
+            body = common.fetch_url_with_brightdata(
+                "https://www.vomfass.de/pages/tastings",
+                allowed_hosts=("www.vomfass.de",),
+                required_body_markers=("data-event-card",),
+            )
+
+        self.assertEqual(body, "<article data-event-card>vomFASS tastings</article>")
+        self.assertEqual(urlopen.call_count, 1)
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.brightdata.com/request")
+        self.assertEqual(
+            json.loads(request.data)["url"],
+            "https://www.vomfass.de/pages/tastings",
+        )
+
+    def test_brightdata_only_fetch_requires_credentials_without_network(self):
+        with patch.dict("os.environ", {
+            "BRIGHT_DATA_API_KEY": "",
+            "BRIGHT_DATA_ZONE": "",
+        }, clear=False), patch(
+            "nrw_events.common.urllib.request.urlopen",
+        ) as urlopen:
+            with self.assertRaisesRegex(RuntimeError, "credentials are required"):
+                common.fetch_url_with_brightdata(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                )
+
+        urlopen.assert_not_called()
+
     def test_brightdata_fallback_requires_credentials(self):
         rate_limited = urllib.error.HTTPError(
             "https://www.vomfass.de/pages/tastings",

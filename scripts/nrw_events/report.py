@@ -49,6 +49,8 @@ def normalize_title(title: str) -> str:
     # occurrences. City, date, and venue checks still guard the match.
     normalized = normalized.replace("antikundtrödelmarkt", "antikmarkt")
     normalized = normalized.replace("antikkunstdesignmarkt", "antikmarkt")
+    normalized = normalized.replace(
+        "mädelskramundscheunentrödel", "flohmarktimkatharinenhof")
     return normalized
 
 
@@ -192,8 +194,36 @@ def events_are_duplicates(left, right) -> bool:
 
 def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     """Collapse duplicates, preferring source authority and then event score."""
+    direct_antique_schedules: dict[tuple[str, str, int], set[date]] = {}
+    for event in events:
+        bounds = _date_bounds(event)
+        normalized_title = normalize_title(event.get("title", ""))
+        if (
+            bounds
+            and normalized_title.startswith("antikmarkt")
+            and source_authority(event.get("source", "")) == 3
+        ):
+            key = (normalized_title, _normalized_city(event.get("city", "")), bounds[0].year)
+            direct_antique_schedules.setdefault(key, set()).add(bounds[0])
+
     result: list = []
     for ev in events:
+        bounds = _date_bounds(ev)
+        title_key = normalize_title(ev.get("title", ""))
+        schedule_key = (
+            title_key,
+            _normalized_city(ev.get("city", "")),
+            bounds[0].year if bounds else 0,
+        )
+        if (
+            bounds
+            and any(marker in " ".join(ev.get("source", "").casefold().split())
+                    for marker in _CIVIC_AGGREGATOR_SOURCE_MARKERS)
+            and title_key.startswith("antikmarkt")
+            and schedule_key in direct_antique_schedules
+            and bounds[0] not in direct_antique_schedules[schedule_key]
+        ):
+            continue
         match_index = next(
             (
                 index

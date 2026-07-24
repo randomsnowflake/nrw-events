@@ -4,6 +4,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from scripts.nrw_events import common
+from scripts.nrw_events.health import SourceStatus
 from scripts.nrw_events.sources import CUSTOM_SOURCES, bonn_food
 from scripts.nrw_events.validation import validate_event
 
@@ -112,9 +113,10 @@ class BonnFoodSourceTests(unittest.TestCase):
           </article>
         </div>
         """
+        common.TODAY = datetime(2026, 7, 20)
         with patch.object(
             common,
-            "fetch_url_with_brightdata_fallback",
+            "fetch_url_with_brightdata",
             side_effect=[first_page, second_page],
         ) as listing_fetch, patch.object(
             common,
@@ -135,7 +137,8 @@ class BonnFoodSourceTests(unittest.TestCase):
             self.assertEqual(call.kwargs["timeout"], 25)
             self.assertEqual(call.kwargs["allowed_hosts"], ("www.vomfass.de",))
             self.assertEqual(call.kwargs["required_body_markers"], ("data-event-card",))
-        self.assertTrue(detail_fetch.call_args.kwargs["brightdata_fallback"])
+        self.assertTrue(detail_fetch.call_args.kwargs["brightdata"])
+        self.assertNotIn("brightdata_fallback", detail_fetch.call_args.kwargs)
         self.assertEqual(
             detail_fetch.call_args.kwargs["allowed_hosts"],
             ("www.vomfass.de",),
@@ -144,6 +147,18 @@ class BonnFoodSourceTests(unittest.TestCase):
             detail_fetch.call_args.kwargs["required_body_markers"],
             ("application/ld+json",),
         )
+
+    def test_vomfass_skips_network_refresh_outside_monday(self):
+        common.TODAY = datetime(2026, 7, 24)
+        with patch.object(
+            common,
+            "fetch_url_with_brightdata",
+            side_effect=AssertionError("network request on scheduled skip"),
+        ):
+            result = bonn_food.fetch_vomfass()
+
+        self.assertEqual(result.status, SourceStatus.SCHEDULED_SKIP)
+        self.assertIn("Mondays", result.disabled_reason)
 
     def test_biertasting_derives_weekday_times_and_prices(self):
         html = """

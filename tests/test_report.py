@@ -4,6 +4,60 @@ from nrw_events import report
 
 
 class ReportTests(unittest.TestCase):
+    def test_katharinenhof_primary_record_absorbs_radio_title_variant(self):
+        base = {
+            "start_date": "2026-08-09", "end_date": "2026-08-09",
+            "date": "2026-08-09", "city": "Bonn", "venue": "Katharinenhof",
+            "description": "", "price": "", "time": "", "start_at": "", "end_at": "",
+        }
+        events = [
+            {
+                **base, "title": "Mädelskram und Scheunentrödel", "score": 0.94,
+                "source": "Radio Bonn/Rhein-Sieg",
+                "link": "https://www.radiobonn.de/artikel/was-geht-unsere-veranstaltungstipps-2674962",
+            },
+            {
+                **base, "title": "Flohmarkt im Katharinenhof", "score": 0.9,
+                "source": "Katharinenhof", "price": "3 €", "time": "10:00",
+                "link": "https://beikircher.de/events/flohmarkt/",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Katharinenhof")
+        self.assertEqual(deduped[0]["price"], "3 €")
+        self.assertEqual(deduped[0]["link"], "https://beikircher.de/events/flohmarkt/")
+
+    def test_direct_antique_market_schedule_suppresses_conflicting_civic_date(self):
+        def market(date, source, score, link):
+            return {
+                "title": (
+                    "Antik-, Kunst- & Designmarkt Bonn"
+                    if source == "Bonn district festivals"
+                    else "Antikmarkt Bonn"
+                ),
+                "start_date": date, "end_date": date, "date": date,
+                "city": "Bonn", "venue": "Friedensplatz", "score": score,
+                "source": source, "description": "", "price": "", "link": link,
+                "time": "11:00–17:00", "start_at": "", "end_at": "",
+            }
+
+        events = [
+            market("2026-08-16", "Cölln Konzept", 0.9, "https://coelln.test/antik"),
+            market("2026-08-16", "Bonn district festivals", 1.0, "https://bonn.test/press"),
+            market("2026-10-11", "Bonn district festivals", 1.0, "https://bonn.test/press"),
+            market("2026-10-18", "Cölln Konzept", 0.9, "https://coelln.test/antik"),
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(
+            [(event["start_date"], event["source"]) for event in deduped],
+            [("2026-08-16", "Cölln Konzept"), ("2026-10-18", "Cölln Konzept")],
+        )
+
     def test_every_category_has_one_deterministic_report_section(self):
         from nrw_events.category_taxonomy import CATEGORIES
         self.assertEqual({item["key"] for item in CATEGORIES}, set(report.CATEGORY_SECTIONS))

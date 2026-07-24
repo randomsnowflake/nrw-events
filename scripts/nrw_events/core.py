@@ -341,31 +341,23 @@ def _raise_brightdata_failure(url: str, started: float, exc: Exception) -> NoRet
     raise exc
 
 
-def fetch_url_with_brightdata_fallback(
+def fetch_url_with_brightdata(
     url: str,
     timeout: int = 15,
     *,
     allowed_hosts: tuple[str, ...],
     required_body_markers: tuple[str, ...] = (),
-    fallback_statuses: tuple[int, ...] = (429,),
     country: str = "DE",
-    **fetch_kwargs,
 ) -> str:
-    """Fetch directly first, then recover selected HTTP failures via Web Unlocker.
+    """Fetch a public page exclusively through Bright Data Web Unlocker."""
+    hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
+    if hostname not in {host.lower() for host in allowed_hosts}:
+        raise ValueError(f"Bright Data target host is not allowlisted: {hostname or '<missing>'}")
 
-    The fallback is deliberately opt-in per source. If credentials are absent,
-    the original direct-fetch error is preserved instead of changing behavior.
-    """
-    try:
-        return fetch_url(url, timeout=timeout, **fetch_kwargs)
-    except urllib.error.HTTPError as direct_error:
-        api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
-        zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
-        hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
-        eligible_host = hostname in {host.lower() for host in allowed_hosts}
-        if (direct_error.code not in fallback_statuses or not eligible_host
-                or not api_key or not zone):
-            raise
+    api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
+    zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
+    if not api_key or not zone:
+        raise RuntimeError("Bright Data credentials are required for this source")
 
     payload = {
         "zone": zone,
@@ -435,6 +427,41 @@ def fetch_url_with_brightdata_fallback(
         transport="brightdata",
     )
     return body
+
+
+def fetch_url_with_brightdata_fallback(
+    url: str,
+    timeout: int = 15,
+    *,
+    allowed_hosts: tuple[str, ...],
+    required_body_markers: tuple[str, ...] = (),
+    fallback_statuses: tuple[int, ...] = (429,),
+    country: str = "DE",
+    **fetch_kwargs,
+) -> str:
+    """Fetch directly first, then recover selected HTTP failures via Web Unlocker.
+
+    The fallback is deliberately opt-in per source. If credentials are absent,
+    the original direct-fetch error is preserved instead of changing behavior.
+    """
+    try:
+        return fetch_url(url, timeout=timeout, **fetch_kwargs)
+    except urllib.error.HTTPError as direct_error:
+        api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
+        zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
+        hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
+        eligible_host = hostname in {host.lower() for host in allowed_hosts}
+        if (direct_error.code not in fallback_statuses or not eligible_host
+                or not api_key or not zone):
+            raise
+
+    return fetch_url_with_brightdata(
+        url,
+        timeout=timeout,
+        allowed_hosts=allowed_hosts,
+        required_body_markers=required_body_markers,
+        country=country,
+    )
 
 
 # Detail pages are comparatively expensive because one listing can fan out into
@@ -573,6 +600,7 @@ def fetch_detail_url(
     cache_namespace: str,
     timeout: int = 15,
     brightdata_fallback: bool = False,
+    brightdata: bool = False,
     **fetch_kwargs,
 ) -> str:
     """Fetch a public event detail page through the persistent TTL cache.
@@ -580,7 +608,14 @@ def fetch_detail_url(
     Only successful responses are cached. Set
     ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to bypass both memory and disk.
     """
-    fetcher = fetch_url_with_brightdata_fallback if brightdata_fallback else fetch_url
+    if brightdata and brightdata_fallback:
+        raise ValueError("brightdata and brightdata_fallback are mutually exclusive")
+    if brightdata:
+        fetcher = fetch_url_with_brightdata
+    elif brightdata_fallback:
+        fetcher = fetch_url_with_brightdata_fallback
+    else:
+        fetcher = fetch_url
     ttl_seconds = _detail_page_cache_ttl_seconds()
     if not ttl_seconds:
         return fetcher(url, timeout=timeout, **fetch_kwargs)

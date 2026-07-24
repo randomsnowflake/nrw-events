@@ -6,6 +6,7 @@ import urllib.parse
 from datetime import datetime, timedelta
 
 from .. import common
+from ..health import SourceFetchResult
 from . import regional_common as rc
 
 
@@ -41,7 +42,11 @@ def fetch_bff() -> list:
     return rc.fetch_html_events("BFF Bonner Schifffahrt", _BFF_URL, events_from_bff)
 
 
-def fetch_vomfass() -> list:
+def fetch_vomfass() -> list | SourceFetchResult:
+    if common.TODAY.weekday() != 0:
+        return SourceFetchResult.scheduled_skip(
+            "weekly refresh runs on Mondays; retaining unexpired events"
+        )
     return rc.fetch_html_events(
         "vomFASS Bonn",
         _VOMFASS_URL,
@@ -49,7 +54,7 @@ def fetch_vomfass() -> list:
             html,
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="vomfass-bonn", timeout=20,
-                brightdata_fallback=True,
+                brightdata=True,
                 allowed_hosts=_VOMFASS_ALLOWED_HOSTS,
                 required_body_markers=("application/ld+json",)),
         ),
@@ -59,7 +64,7 @@ def fetch_vomfass() -> list:
 
 def _fetch_vomfass_listing(url: str, timeout: int) -> str:
     def fetch_page(page_url: str) -> str:
-        return common.fetch_url_with_brightdata_fallback(
+        return common.fetch_url_with_brightdata(
             page_url,
             timeout=timeout,
             allowed_hosts=_VOMFASS_ALLOWED_HOSTS,

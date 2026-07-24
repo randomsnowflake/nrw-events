@@ -39,6 +39,21 @@ class CategoryTaxonomyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
+    def test_seasonal_market_names_are_markets_without_generic_source_hints(self):
+        for title in (
+            "Bonner Weihnachtsmarkt",
+            "Duisdorfer Adventsmarkt",
+            "Nikolausmarkt Beuel",
+            "Bonner Dreikönigsmarkt",
+            "Kessenicher Herbstmarkt",
+            "Frühlingsmarkt in der Altstadt",
+            "Töpfermarkt Bonn",
+            "Kunsthandwerkermarkt",
+            "Schallplattenbörse",
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event("", title)["key"], "market")
+
     def test_known_bonn_fixture_regressions_use_specific_intent_before_broad_family_or_stage_terms(self):
         cases = [
             ("Märkte/Messen", "Kinderbücher-Flohmarkt", "", "market"),
