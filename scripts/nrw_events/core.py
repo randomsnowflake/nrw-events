@@ -1054,6 +1054,25 @@ _VISITOR_ADMISSION_AMOUNT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_DESTINATION_MARKET_PATTERN = re.compile(
+    r"\b(?:abendflohmarkt|antikmarkt|feierabendmarkt|flohmarkt|garagenflohmarkt|hausflohmarkt|"
+    r"hofflohmarkt|hof[-\s]?flohmarkt|jahrmarkt|kunstmarkt|nachbarschaftsmarkt|"
+    r"nachtflohmarkt|spezialmarkt|stadtflohmarkt|stadtteilmarkt|straßenflohmarkt|strassenflohmarkt|"
+    r"trödelmarkt|troedelmarkt|weihnachtsmarkt)\b",
+    re.IGNORECASE,
+)
+_DESTINATION_MARKET_EVENT_BITS = {
+    "festival", "kirmes", "stadtteilfest", "strassenfest", "straßenfest", "street food",
+}
+
+
+def _is_destination_market(text: str) -> bool:
+    """Return whether event content names a destination-worthy market format."""
+    normalized = clean_html(text or "").lower()
+    return bool(_DESTINATION_MARKET_PATTERN.search(normalized)) or any(
+        bit in normalized for bit in _DESTINATION_MARKET_EVENT_BITS
+    )
+
 
 def infer_free_admission_price(
     title: str,
@@ -1187,6 +1206,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     # venue name or URL path like `/museum/` that can also host civic meetings.
     content_text = f"{title} {desc} {category}"
     title_desc_text = f"{title} {desc}"
+    destination_market = _is_destination_market(content_text)
 
     junk_title_bits = {
         "privacy policy", "faq", "frequently asked questions", "contact", "kontakt",
@@ -1256,10 +1276,12 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     }
     if ("cinema-special" not in category
             and any(bit in text for bit in routine_or_political_bits)
+            and not destination_market
             and not any(bit in title_desc_text for bit in cultural_event_bits)):
         return True
     if ("cinema-special" not in category
             and any(bit in text for bit in routine_phrase_bits)
+            and not destination_market
             and not any(bit in title_desc_text for bit in cultural_event_bits)):
         return True
 
@@ -1269,13 +1291,8 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         # markets covered by the normal market/festival signals.
         "frischemarkt", "wochenmarkt",
     }
-    destination_market_bits = {
-        "antikmarkt", "feierabendmarkt", "festival", "flohmarkt", "jahrmarkt",
-        "kirmes", "kunstmarkt", "spezialmarkt", "stadtteilfest", "strassenfest",
-        "straßenfest", "street food", "trödelmarkt", "troedelmarkt", "weihnachtsmarkt",
-    }
     if (any(bit in text for bit in regular_low_value_bits)
-            and not any(bit in text for bit in destination_market_bits)):
+            and not destination_market):
         return True
 
     generic_low_value_bits = {
@@ -1318,7 +1335,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     # Web-search results are noisy: require topical + date/event signal, since they
     # also return static venue/shop/route pages.
     if ev.get("source") in {"Exa Search", "Grok Search"}:
-        strong_signal = any(k in text for k in [
+        strong_signal = destination_market or any(k in text for k in [
             "konzert", "concert", "ausstellung", "museum", "festival", "party", "dj",
             "techno", "electronic", "führung", "tour", "theater", "comedy", "lesung",
             "wein", "winzer", "weingut", "wanderung", "wandern", "wander", "walk",

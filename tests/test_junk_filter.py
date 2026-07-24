@@ -92,6 +92,71 @@ class JunkFilterTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertFalse(common.is_junk_event(event(title)))
 
+    def test_recurring_destination_markets_survive_routine_filter(self):
+        cases = [
+            ("Flohmarkt Bonn Siemensstraße", "Wöchentlich jeden Samstag"),
+            ("Trödelmarkt Bonn Siemensstraße", "Wöchentlich jeden Samstag"),
+            ("Troedelmarkt Bonn Siemensstraße", "Regelmäßig jeden Samstag"),
+            ("Antikmarkt Bonn", "Wöchentlich auf dem Marktplatz"),
+            ("Hofflohmarkt Bonn", "Regelmäßig in der Nachbarschaft"),
+            ("Nachbarschaftsmarkt Südstadt", "Jeden ersten Sonntag mit privaten Ständen"),
+            (
+                "Wochenmarkt-Spezial mit Abendflohmarkt",
+                "Sonderveranstaltung nach dem gewöhnlichen Wochenmarkt",
+            ),
+            ("Samstags wöchentlicher Trödelmarkt", "Konkreter Markttermin mit privaten Ständen"),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                self.assertFalse(common.is_junk_event(event(
+                    title,
+                    description=description,
+                    category="markt",
+                )))
+
+    def test_recurring_routine_markets_and_sales_remain_blocked(self):
+        cases = [
+            ("Wochenmarkt Bonn", "Wöchentlich mit Obst, Gemüse und Frischewaren"),
+            ("Frischemarkt Bonn", "Regelmäßig regionale Lebensmittel"),
+            ("Kleiderausgabe", "Jeden Donnerstag Verkauf gespendeter Kleidung"),
+            (
+                "Markt-Shop Bonn",
+                "Wöchentlich geöffnet. Öffnungszeiten und unser Sortiment im Laden.",
+            ),
+            ("Markt am Rathaus", "Wöchentlich wiederkehrender Markt"),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                self.assertTrue(common.is_junk_event(event(
+                    title,
+                    description=description,
+                    category="markt",
+                )))
+
+    def test_search_gate_accepts_dated_destination_markets_but_not_static_shops(self):
+        for title in (
+            "Flohmarkt Bonn am Samstag 15. August 2026",
+            "Trödelmarkt Bonn am 15.08.2026",
+            "Troedelmarkt Bonn am Sonntag 16. August 2026",
+            "Antikmarkt Bonn am 16.08.2026",
+        ):
+            with self.subTest(title=title):
+                self.assertFalse(common.is_junk_event(event(
+                    title,
+                    description="Konkreter Termin in Bonn",
+                    category="markt",
+                    source="Exa Search",
+                )))
+
+        self.assertTrue(common.is_junk_event(event(
+            "Antikmarkt-Shop Bonn",
+            description="Öffnungszeiten und unser Sortiment",
+            category="markt",
+            source="Grok Search",
+        )))
+
     def test_keeps_french_music_descriptions_out_of_language_course_filter(self):
         self.assertFalse(common.is_junk_event(event(
             "Mirecourtplatz-Konzert",

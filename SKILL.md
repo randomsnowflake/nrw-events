@@ -36,7 +36,8 @@ Bonn, Meetup, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
-Cölln Konzept, requested venue calendars,
+HofFloh Bonn, Lampert Märkte, Okken Märkte, Geide Märkte, Cölln Konzept,
+requested venue calendars,
 Theater Bonn, Junges Theater Bonn, Kleines Theater Bad Godesberg, Theater
 Marabu, Theater im Ballsaal, TiK Theater im Keller,
 Tanzschule Max7, AfterJobParty Bonn,

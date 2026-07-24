@@ -144,7 +144,8 @@ scripts/
       __init__.py          # SOURCES-Registry: Anzeigename -> fetch-Funktion
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
-      hofflohmaerkte.py  coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
+      hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
+      coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
       max7.py  afterjobparty.py  rheinevents.py  salsainbonn.py
