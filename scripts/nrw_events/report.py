@@ -20,7 +20,9 @@ _AGGREGATOR_SOURCE_MARKERS = (
     "bonn.jetzt", "eventbrite", "meetup", "radio bonn", "ruhr-guide",
     "kinderflohmarkt.com",
 )
-_CIVIC_AGGREGATOR_SOURCE_MARKERS = ("bonn.de events", "bonn.de sports")
+_CIVIC_AGGREGATOR_SOURCE_MARKERS = (
+    "bonn.de events", "bonn.de sports", "bonn district festivals",
+)
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 
 
@@ -42,7 +44,12 @@ def normalize_title(title: str) -> str:
     """Aggressively normalize a title for near-duplicate comparison."""
     t = (title or "").lower().strip()
     t = re.sub(r"^(ausstellung[:\s]*|exhibition[:\s]*|konzert[:\s]*|concert[:\s]*|kostenloser\s+eintritt[:\s]*|eintritt\s+frei[:\s]*|tickets?\s+für\s+)", "", t)
-    return re.sub(r"[^a-zäöüß0-9]", "", t)
+    normalized = re.sub(r"[^a-zäöüß0-9]", "", t)
+    # Official market calendars use these equivalent names for the same
+    # occurrences. City, date, and venue checks still guard the match.
+    normalized = normalized.replace("antikundtrödelmarkt", "antikmarkt")
+    normalized = normalized.replace("antikkunstdesignmarkt", "antikmarkt")
+    return normalized
 
 
 def _dedup_key(ev: dict) -> str:
@@ -56,7 +63,7 @@ def _dedup_key(ev: dict) -> str:
 def _normalized_city(value: str) -> str:
     city = re.sub(r"\s+", " ", (value or "").lower()).strip()
     city = re.sub(r"\s*\([^)]*\)\s*$", "", city)
-    if city.startswith("bonn-") or city in {"rheinaue", "poppelsdorf"}:
+    if city.startswith("bonn-") or city in {"bad godesberg", "rheinaue", "poppelsdorf"}:
         return "bonn"
     if city.startswith("köln-"):
         return "köln"
@@ -115,6 +122,11 @@ def _titles_match(left: dict, right: dict) -> bool:
     left_title = normalize_title(left.get("title", ""))
     right_title = normalize_title(right.get("title", ""))
     if left_title == right_title:
+        return True
+    if (
+        min(left_title, right_title, key=len) == "antikmarkt"
+        and max(left_title, right_title, key=len).startswith("antikmarkt")
+    ):
         return True
     if min(len(left_title), len(right_title)) >= 12 and (
         left_title in right_title or right_title in left_title

@@ -748,6 +748,22 @@ def _merge_fallback_events(primary: list, fallback: list) -> list:
     return merged
 
 
+def _press_event_title(text: str) -> str:
+    """Extract the event name before the press-release venue/date fields.
+
+    A comma normally separates the title from the venue. Some official names
+    contain a punctuation comma themselves, notably "Antik-, Kunst- &
+    Designmarkt Bonn". Keep the following segment when the text before the
+    first comma ends in a hyphen so the title is not truncated to "Antik-".
+    """
+    parts = [part.strip() for part in text.split(",")]
+    if not parts:
+        return ""
+    if parts[0].endswith("-") and len(parts) > 1:
+        return f"{parts[0]}, {parts[1]}".strip()
+    return parts[0]
+
+
 def fetch_press_festivals() -> list:
     """Parse the annual Bonn 'Veranstaltungsjahr' press release for district festivals.
 
@@ -786,7 +802,7 @@ def fetch_press_festivals() -> list:
             in_window = [d for d in dates if common.window_contains(d)]
             if not in_window:
                 continue
-            title = re.split(r",", text)[0].strip()
+            title = _press_event_title(text)
             if len(title) < 3:
                 continue
             city = common.guess_city_from_text(text) or "Bonn"

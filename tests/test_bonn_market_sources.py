@@ -137,6 +137,86 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertEqual(deduped[0]["source"], "Okken Märkte")
         self.assertEqual(deduped[0]["link"], "https://okkengmbh.de/flohmarkt-bonn/")
 
+    def test_antikmarkt_title_variants_resolve_to_direct_organizers(self):
+        def event(title, city, date, source, link, venue="", score=1.0, end_date=None):
+            return {
+                "title": title,
+                "start_date": date,
+                "end_date": end_date or date,
+                "date": date if not end_date else f"{date}–{end_date}",
+                "city": city,
+                "venue": venue,
+                "score": score,
+                "description": title,
+                "price": "",
+                "time": "",
+                "start_at": "",
+                "end_at": "",
+                "source": source,
+                "link": link,
+            }
+
+        deduped = report.deduplicate([
+            event(
+                "Antik- und Trödelmarkt Bad Godesberg",
+                "Bonn-Bad Godesberg",
+                "2026-08-02",
+                "Bonn district festivals",
+                "https://www.bonn.de/presse/veranstaltungsjahr",
+                score=1.3,
+            ),
+            event(
+                "Antik- und Trödelmarkt",
+                "Bad Godesberg",
+                "2026-08-02",
+                "Bad Godesberg Stadtmarketing",
+                "https://bad-godesberg.info/antikmarkt",
+                venue="Bad Godesberger Innenstadt",
+            ),
+            event(
+                "Antik-, Kunst- & Designmarkt Bonn",
+                "Bonn",
+                "2026-08-16",
+                "Bonn district festivals",
+                "https://www.bonn.de/presse/veranstaltungsjahr",
+                score=1.3,
+            ),
+            event(
+                "Antikmarkt Bonn",
+                "Bonn",
+                "2026-08-16",
+                "Cölln Konzept",
+                "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
+                venue="Friedensplatz",
+            ),
+            event(
+                "Antik- und Trödelmarkt Linz am Rhein",
+                "Linz am Rhein",
+                "2026-08-08",
+                "Linz am Rhein",
+                "https://www.linz.de/antikmarkt",
+                venue="Innenstadt Linz am Rhein",
+            ),
+            event(
+                "Antikmarkt - Linz am Rhein",
+                "Linz am Rhein",
+                "2026-08-08",
+                "Cölln Konzept",
+                "https://www.coelln-konzept.de/markt/antik_linz.html",
+                end_date="2026-08-09",
+            ),
+        ])
+
+        self.assertEqual(len(deduped), 3)
+        self.assertEqual(
+            {item["link"] for item in deduped},
+            {
+                "https://bad-godesberg.info/antikmarkt",
+                "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
+                "https://www.coelln-konzept.de/markt/antik_linz.html",
+            },
+        )
+
     def test_weekly_lampert_occurrences_stay_separate_and_troedelfabrik_stays_distinct(self):
         base = {
             "city": "Bonn",
