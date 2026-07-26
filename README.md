@@ -283,7 +283,8 @@ weiterhin gezielt überschreiben.
   Gürzenich, Neumarkt, Maternusplatz Rodenkirchen und Rheinauhafen. Die Seite ist
   handgepflegt, entsprechend locker sind die Datumsangaben (Feiertagsnamen,
   mehrere Tage per `+` oder `und`, Monat nur einmal am Ende). Unplausible
-  Jahreszahlen aus Tippfehlern werden mit Warnung verworfen, nicht repariert.
+  Jahreszahlen aus Tippfehlern werden als erwarteter Qualitätsausschluss
+  verworfen, nicht repariert und degradieren keinen ansonsten gesunden Lauf.
 - **Kuratierte Kino-Sonderformate:** Bonner Kinemathek,
   Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage, Filmhaus Köln,
   Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer

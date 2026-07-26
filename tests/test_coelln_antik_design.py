@@ -11,6 +11,7 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common
+from nrw_events.health import SourceResult, SourceStatus
 from nrw_events.sources import SOURCES, coelln_antik_design as cad
 from tests.helpers import patch_window
 
@@ -46,12 +47,6 @@ FIXTURE = (
 class CoellnAntikDesignTests(unittest.TestCase):
     def setUp(self):
         patch_window(self, datetime(2026, 1, 1), datetime(2026, 12, 31))
-        self._warnings = []
-        patcher = mock.patch.object(
-            common, "log_source_error",
-            side_effect=lambda source, exc: self._warnings.append(str(exc)))
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def _events(self):
         return cad.events_from_page(FIXTURE)
@@ -92,10 +87,30 @@ class CoellnAntikDesignTests(unittest.TestCase):
         self.assertEqual(event["end_date"], "2026-04-06")
 
     def test_typo_year_is_dropped_with_a_warning_not_repaired(self):
-        dates = {event["start_date"] for event in self._events()}
+        quality_skips = []
+        with mock.patch.object(
+            common,
+            "log_source_quality_skip",
+            side_effect=lambda source, reason: quality_skips.append(reason),
+        ):
+            dates = {event["start_date"] for event in self._events()}
 
         self.assertNotIn("2026-12-27", dates)
-        self.assertTrue(any("222026" in warning for warning in self._warnings))
+        self.assertTrue(any("222026" in reason for reason in quality_skips))
+
+    def test_typo_year_is_a_quality_skip_not_a_degraded_source_warning(self):
+        result = SourceResult("Cölln Antik&Design")
+        with mock.patch.object(common, "_SOURCE_CONTEXT") as context:
+            context.result = result
+            events = cad.events_from_page(FIXTURE)
+        result.finish(events)
+
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.warnings, [])
+        self.assertEqual(
+            result.rejection_reasons,
+            {"quality:implausible-year:222026": 1},
+        )
 
     def test_implausible_year_bounds(self):
         self.assertTrue(cad._plausible_year(common.TODAY.year))
@@ -115,6 +130,23 @@ class CoellnAntikDesignTests(unittest.TestCase):
 
     def test_every_parsed_event_carries_a_time(self):
         self.assertTrue(all(event["time"] for event in self._events()))
+
+    def test_advertised_hours_populate_canonical_timestamps(self):
+        single_day = self._by_date("2026-03-15")
+        multi_day = self._by_date("2026-03-20")
+
+        self.assertEqual(single_day["start_at"], "2026-03-15T11:00+01:00")
+        self.assertEqual(single_day["end_at"], "2026-03-15T18:00+01:00")
+        self.assertEqual(multi_day["start_at"], "2026-03-20T11:00+01:00")
+        self.assertEqual(multi_day["end_at"], "2026-03-22T18:00+01:00")
+
+    def test_events_use_a_stable_source_id(self):
+        self.assertTrue(
+            all(
+                event["source_id"] == "coelln-antik-design"
+                for event in self._events()
+            )
+        )
 
 
 if __name__ == "__main__":

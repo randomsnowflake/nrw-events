@@ -10,9 +10,9 @@ weekday prefixes including holiday names ("Ostersonntag"), several days joined b
 ``+`` or ``und``, the month named once at the end, and outright typos in the year
 ("27. Dezember 222026", "16. Mai 22027").
 
-Implausible years are dropped with a logged warning rather than repaired. Guessing
-that "222026" means 2026 would be right here and wrong elsewhere, and every affected
-date sits far outside any normal reporting window anyway.
+Implausible years are recorded as expected quality skips rather than repaired.
+Guessing that "222026" means 2026 would be right here and wrong elsewhere, and
+every affected date sits far outside any normal reporting window anyway.
 """
 
 import re
@@ -25,6 +25,7 @@ from . import regional_common as rc
 
 _URL = "https://coelln-antik-design.de/?page_id=13"
 _SOURCE = "Cölln Antik&Design"
+_SOURCE_ID = "coelln-antik-design"
 
 _ENTRY_CONTENT = re.compile(
     r'<div class="entry-content">(.*?)</div>\s*<!--\s*\.entry-content', re.S | re.I)
@@ -39,6 +40,9 @@ _YEAR_IN_TEXT = re.compile(r"\b(\d{4,})\b")
 _POSTAL_CITY = re.compile(r"\b\d{5}\s+([A-Za-zÄÖÜäöüß][\w.\-]*(?:\s[A-ZÄÖÜ][\w.\-]*)?)")
 _PRICE = re.compile(r"Eintritt\s*([\d.,]+\s*(?:EUR|€))", re.I)
 _HOUR_RANGE = re.compile(r"\b(\d{1,2})\s*[–-]\s*(\d{1,2})\s*(?:Uhr)?")
+_NORMALIZED_HOUR_RANGE = re.compile(
+    r"^(\d{2}):(\d{2})–(\d{2}):(\d{2})$"
+)
 
 
 def _plausible_year(value: int) -> bool:
@@ -70,9 +74,9 @@ def _parse_date_item(text: str):
         return None, None
     raw_year = year_match.group(1)
     if len(raw_year) != 4 or not _plausible_year(int(raw_year)):
-        common.log_source_error(
+        common.log_source_quality_skip(
             _SOURCE,
-            ValueError(f"implausible year {raw_year!r} in date entry {text.strip()!r}"),
+            f"implausible-year:{raw_year}",
         )
         return None, None
     year = int(raw_year)
@@ -109,6 +113,19 @@ def _market_heading(paragraph_html: str) -> tuple[str, str]:
             return "", ""
         name, detail = lines[0], " ".join(lines[1:])
     return name, detail
+
+
+def _apply_hours(start: datetime, end: datetime | None, time_text: str):
+    """Apply the advertised opening range to canonical timestamps."""
+    match = _NORMALIZED_HOUR_RANGE.fullmatch(time_text or "")
+    if not match:
+        return start, end
+    start_hour, start_minute, end_hour, end_minute = (
+        int(value) for value in match.groups()
+    )
+    timed_start = start.replace(hour=start_hour, minute=start_minute)
+    timed_end = (end or start).replace(hour=end_hour, minute=end_minute)
+    return timed_start, timed_end
 
 
 def events_from_page(html: str) -> list:
@@ -151,6 +168,7 @@ def events_from_page(html: str) -> list:
             start, end = _parse_date_item(item_text)
             if start is None:
                 continue
+            start, end = _apply_hours(start, end, time_text)
             description = common.factual_event_description(
                 pending_name,
                 date_value=start,
@@ -170,6 +188,7 @@ def events_from_page(html: str) -> list:
                 "antikmarkt designmarkt kunstmarkt trödelmarkt markt",
                 0.9,
                 time_text,
+                source_id=_SOURCE_ID,
             )
             if event:
                 if price:
@@ -182,7 +201,7 @@ def fetch() -> list:
     try:
         parsed = events_from_page(common.fetch_url(_URL, timeout=20))
     except Exception as exc:
-        common.log_source_error(_SOURCE, exc)
+        common.log_source_error(_SOURCE, exc, source_id=_SOURCE_ID)
         return []
     common._record_endpoint(
         _URL,
