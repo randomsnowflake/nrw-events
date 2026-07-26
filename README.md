@@ -145,6 +145,7 @@ scripts/
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
+      rhein_antik.py
       coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
@@ -273,6 +274,10 @@ weiterhin gezielt überschreiben.
   weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
 - **Direkte Marktveranstalter:** Grote & Hiller, Hofflohmärkte Köln und Cölln
   Konzept liefern Termine, Uhrzeiten, Orte und direkte Veranstaltungsseiten.
+  **Rhein Antik** (`rhein_antik.py`) ist der Veranstalter der Antik-, Kunst- und
+  Designmärkte auf dem Bonner Friedensplatz sowie in Siegburg, Königswinter und
+  Bad Honnef; diese Termine kamen vorher nur zweiter Hand über einen Kölner
+  Marktbetreiber und den Bonner Pressekalender herein.
 - **Kuratierte Kino-Sonderformate:** Bonner Kinemathek,
   Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage, Filmhaus Köln,
   Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer
