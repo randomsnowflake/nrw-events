@@ -23,6 +23,7 @@ from . import regional_common as rc
 
 _URL = "https://rhein-antik.de/termine/"
 _SOURCE = "Rhein Antik"
+_SOURCE_ID = "rhein-antik"
 
 _ITEM_PATTERN = re.compile(
     r'<span[^>]+class="[^"]*\belementor-icon-list-text\b[^"]*"[^>]*>(.*?)</span>',
@@ -75,7 +76,18 @@ def _parse_dates(text: str, year: int):
 
 def _city_and_venue(text: str) -> tuple[str, str]:
     """Split "Bonn - Friedensplatz" and "Koblenz / Mülheim-Kärlich"."""
-    city, _, venue = _strip_badges(text).partition(" - ")
+    cleaned = _strip_badges(text)
+    city, separator, venue = cleaned.partition(" - ")
+    if not separator and " / " in cleaned:
+        # The organizer uses a regional label before the slash for the
+        # Mülheim-Kärlich venue: "Koblenz / Mülheim-Kärlich CORE
+        # Eventlocation". Keep the actual municipality and venue rather than
+        # publishing it as a venue-less Koblenz market.
+        _, local = cleaned.split(" / ", 1)
+        venue_suffix = "CORE Eventlocation"
+        if local.endswith(venue_suffix):
+            city = local.removesuffix(venue_suffix).strip()
+            venue = venue_suffix
     city = city.split("/", 1)[0].strip()
     return city, _strip_badges(venue)
 
@@ -132,6 +144,7 @@ def events_from_listing(html: str) -> list:
             _SOURCE,
             "antikmarkt kunstmarkt designmarkt trödelmarkt markt",
             0.95,
+            source_id=_SOURCE_ID,
         )
         if event:
             events.append(event)

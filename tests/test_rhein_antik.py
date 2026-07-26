@@ -33,6 +33,8 @@ FIXTURE = (
     + _item("Sa 10. &amp; So 11. Okt.")
     + _item("Bendorf - Industriedenkmal Sayner Hütte NEU!!!")
     + _item("So 25. Oktober") + _item("Bad Schwalbach - Kurhaus INDOOR NEU!!!")
+    + _item("So 13. Dezember")
+    + _item("Koblenz / Mülheim-Kärlich CORE Eventlocation INDOOR NEU!!!")
 )
 
 
@@ -95,6 +97,18 @@ class RheinAntikSourceTests(unittest.TestCase):
         cities = {event["city"] for event in self._events()}
 
         self.assertNotIn("Bad Schwalbach", cities)
+
+    def test_slash_region_uses_actual_municipality_and_core_venue(self):
+        event = self._by_date("2026-12-13")
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event["city"], "Mülheim-Kärlich")
+        self.assertEqual(event["venue"], "CORE Eventlocation")
+
+    def test_events_use_a_stable_source_id(self):
+        self.assertTrue(
+            all(event["source_id"] == "rhein-antik" for event in self._events())
+        )
 
     def test_titles_dedupe_against_the_press_calendar_market_name(self):
         """The organizer record must collapse with the same civic occurrence."""
