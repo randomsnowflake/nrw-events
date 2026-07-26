@@ -28,6 +28,7 @@ from . import regional_common as rc
 
 _BASE_URL = "https://www.marktcom.de"
 _SOURCE = "marktcom"
+_SOURCE_ID = "marktcom"
 _LISTING_PATH = "/termine/radius"
 
 # Verified against the live category select plus the unlisted-but-live id 42.
@@ -56,14 +57,12 @@ WANTED_CATEGORIES = {
 # dropped here rather than published as a near-duplicate.
 #
 # Keep this list in step with the registry: an entry for an organizer that is *not*
-# registered as its own source silently drops coverage. ``rhein antik`` assumes the
-# Rhein Antik source is present; until then its markets still arrive through the
-# Bad Godesberg district calendar and the Köln market operator.
+# registered as its own source silently drops coverage.
 _INTEGRATED_ORGANIZERS = (
     "geide", "grote", "hiller", "lampert", "okken", "cölln", "coelln",
     "hofflohmärkte", "hofflohmaerkte", "hoffloh", "kinderflohmarkt",
     "rhein antik", "rhein-antik", "brückenforum", "brueckenforum",
-    "katharinenhof",
+    "katharinenhof", "melan", "krewelshof",
 )
 
 # Safety stop for pagination; reaching it is logged rather than silently truncated.
@@ -79,6 +78,10 @@ _DATE = re.compile(r"fa-calendar'></i>\s*(\d{2}\.\d{2}\.\d{4})")
 _CATEGORY_ICON = re.compile(r"/system/icons/(\d+)/")
 _NEXT_PAGE = re.compile(r"page=(\d+)")
 _MARKET_NAME_HINT = re.compile(r"markt|börse|boerse|trödel|troedel|floh|basar", re.I)
+_LISTING_CONTAINER = re.compile(
+    r"class=['\"][^'\"]*\bmarktliste\b[^'\"]*['\"]",
+    re.I,
+)
 
 
 def listing_url(category_id: int, page: int = 1) -> str:
@@ -122,7 +125,7 @@ def _market_title(event_name: str, category_label: str, city: str) -> str:
 
 def events_from_listing(html: str, category_id: int) -> list:
     """Parse one listing page. Ad blocks and integrated organizers are skipped."""
-    category_label = WANTED_CATEGORIES.get(category_id, "Markt")
+    query_category_label = WANTED_CATEGORIES.get(category_id, "Markt")
     events = []
     for block in _BLOCK_SPLIT.split(html or ""):
         name_match = _EVENTNAME.search(block)
@@ -133,8 +136,13 @@ def events_from_listing(html: str, category_id: int) -> list:
         # A record may be filed under a different format than the one requested;
         # trust the badge icon over the query parameter.
         icon_match = _CATEGORY_ICON.search(block)
-        if icon_match and int(icon_match.group(1)) not in WANTED_CATEGORIES:
+        badge_category_id = int(icon_match.group(1)) if icon_match else category_id
+        if badge_category_id not in WANTED_CATEGORIES:
             continue
+        category_label = WANTED_CATEGORIES.get(
+            badge_category_id,
+            query_category_label,
+        )
 
         organizer_match = _ORGANIZER.search(block)
         organizer = rc.clean(organizer_match.group(1)) if organizer_match else ""
@@ -142,10 +150,16 @@ def events_from_listing(html: str, category_id: int) -> list:
             continue
 
         start = common.parse_date(date_match.group(1))
-        city = rc.clean(city_match.group(2)).split("-", 1)[0].strip()
+        city = rc.clean(city_match.group(2))
         # marktcom lists markets across Germany; never coerce an unknown postal
         # town into Bonn just because the gazetteer does not know it.
         resolved_coords, _, _ = common.resolve_location(city)
+        # Some listings append a district after a spaced separator. Resolve the
+        # full municipality first so hyphenated names such as
+        # "Neunkirchen-Seelscheid" are not truncated to a different town.
+        if not resolved_coords and " - " in city:
+            city = city.split(" - ", 1)[0].strip()
+            resolved_coords, _, _ = common.resolve_location(city)
         if not resolved_coords:
             continue
 
@@ -167,6 +181,7 @@ def events_from_listing(html: str, category_id: int) -> list:
             _SOURCE,
             f"{category_label} markt trödelmarkt flohmarkt",
             0.75,
+            source_id=_SOURCE_ID,
         )
         if event:
             events.append(event)
@@ -184,6 +199,11 @@ def _has_page(html: str, page: int) -> bool:
     return any(int(found) >= page for found in _NEXT_PAGE.findall(html or ""))
 
 
+def _listing_contract_present(html: str) -> bool:
+    """Return whether the known listing container exists, even with no events."""
+    return bool(_LISTING_CONTAINER.search(html or ""))
+
+
 def _fetch_category(category_id: int) -> list:
     events = []
     for page in range(1, _MAX_PAGES + 1):
@@ -194,7 +214,7 @@ def _fetch_category(category_id: int) -> list:
             url,
             parser_type="html",
             parsed_event_count=len(parsed),
-            parser_empty=not bool(parsed),
+            parser_empty=not _listing_contract_present(html),
         )
         events.extend(parsed)
         if _page_starts_after_window(html) or not _has_page(html, page + 1):
@@ -206,6 +226,7 @@ def _fetch_category(category_id: int) -> list:
                 f"category {category_id}: stopped at the {_MAX_PAGES}-page safety "
                 "limit; later dates in this format were not read"
             ),
+            source_id=_SOURCE_ID,
         )
     return events
 
@@ -216,5 +237,9 @@ def fetch() -> list:
         try:
             events.extend(_fetch_category(category_id))
         except Exception as exc:
-            common.log_source_error(f"{_SOURCE} (category {category_id})", exc)
+            common.log_source_error(
+                f"{_SOURCE} (category {category_id})",
+                exc,
+                source_id=_SOURCE_ID,
+            )
     return rc.dedupe(events)

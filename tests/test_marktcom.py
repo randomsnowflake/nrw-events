@@ -7,8 +7,10 @@ badge icon path.
 
 import unittest
 from datetime import datetime
+from unittest import mock
 
 from nrw_events import common, report
+from nrw_events.health import SourceResult, SourceStatus
 from nrw_events.sources import SOURCES, marktcom
 from tests.helpers import patch_window
 
@@ -50,7 +52,7 @@ FIXTURE = _listing(
                  "Sankt Augustin", "Geide-Märkte", "26.07.2026", 42),
     _advert_block(),
     _event_block("pferderennbahn-in-50737-koeln", "Pferderennbahn Parkplatz", "50737",
-                 "Köln", "Melan macht Märkte", "29.07.2026", 42),
+                 "Köln", "Trödelfabrik Köln", "29.07.2026", 42),
     _event_block("antik-troedelmarkt-in-53177-bonn", "Antik- und Trödelmarkt Bad Godesberg",
                  "53177", "Bonn", "Marktveranstaltungen Nikolopoulos", "02.08.2026", 42),
     _event_block("antikmarkt-in-53111-bonn", "Friedensplatz", "53111", "Bonn",
@@ -110,10 +112,51 @@ class MarktcomSourceTests(unittest.TestCase):
                 self.assertTrue(marktcom._is_integrated_organizer(organizer))
 
     def test_new_organizers_are_kept(self):
-        for organizer in ("Melan macht Märkte", "Marktveranstaltungen Nikolopoulos",
-                          "Trödelfabrik Bonn", "Stadt Neuwied"):
+        for organizer in ("Marktveranstaltungen Nikolopoulos", "Trödelfabrik Bonn",
+                          "Stadt Neuwied"):
             with self.subTest(organizer=organizer):
                 self.assertFalse(marktcom._is_integrated_organizer(organizer))
+
+    def test_new_first_party_sources_are_not_duplicated_from_the_directory(self):
+        for organizer in ("Melan macht Märkte", "Krewelshof"):
+            with self.subTest(organizer=organizer):
+                self.assertTrue(marktcom._is_integrated_organizer(organizer))
+
+    def test_hyphenated_municipality_is_preserved(self):
+        html = _listing(
+            _event_block(
+                "hofmarkt-neunkirchen-seelscheid",
+                "Dorfplatz",
+                "53819",
+                "Neunkirchen-Seelscheid",
+                "Dorfverein",
+                "02.08.2026",
+                39,
+            )
+        )
+
+        event = marktcom.events_from_listing(html, 39)[0]
+
+        self.assertEqual(event["city"], "Neunkirchen-Seelscheid")
+        self.assertEqual(event["source_id"], "marktcom")
+
+    def test_badge_category_replaces_requested_category_in_title(self):
+        html = _listing(
+            _event_block(
+                "hofmarkt-neunkirchen-seelscheid",
+                "Dorfplatz",
+                "53819",
+                "Neunkirchen-Seelscheid",
+                "Dorfverein",
+                "02.08.2026",
+                39,
+            )
+        )
+
+        event = marktcom.events_from_listing(html, 42)[0]
+
+        self.assertIn("privater Hof-/Garagentrödel", event["title"])
+        self.assertNotIn("Antik-Trödelmarkt", event["title"])
 
     def test_unknown_town_is_not_coerced_into_bonn(self):
         cities = {event["city"] for event in self._events()}
@@ -173,6 +216,26 @@ class MarktcomPaginationTests(unittest.TestCase):
 
         self.assertTrue(marktcom._has_page(html, 2))
         self.assertFalse(marktcom._has_page(html, 3))
+
+    def test_valid_empty_listing_is_healthy_not_parser_empty(self):
+        result = SourceResult("marktcom")
+        html = _listing(_advert_block())
+
+        with mock.patch.object(common, "fetch_url", return_value=html), \
+                mock.patch.object(common, "_SOURCE_CONTEXT") as context:
+            context.result = result
+            events = marktcom._fetch_category(42)
+
+        result.finish(events)
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
+        self.assertTrue(result.endpoints)
+        self.assertFalse(
+            any(
+                endpoint.get("parser_empty") is True
+                for endpoint in result.endpoints.values()
+            )
+        )
 
 
 if __name__ == "__main__":
