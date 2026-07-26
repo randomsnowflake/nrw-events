@@ -26,7 +26,7 @@ def search_queries() -> list:
         f"Bonn Konzert Club Party Live-Musik Indie Electronic Kulturzentrum {month}",
         f"Bonn Brotfabrik Pantheon Harmonie Bla Theater Lesung Comedy Kabarett Programm {month}",
         f"Bonn Museum Ausstellung Vernissage Kunstmuseum Bundeskunsthalle LVR Haus der Geschichte {month}",
-        f"Bonn Flohmarkt Trödelmarkt Wochenmarkt Bauernmarkt Kunsthandwerkermarkt {month}",
+        f"Bonn Flohmarkt Trödelmarkt Antikmarkt Hofflohmarkt Nachtflohmarkt Kunsthandwerkermarkt {month}",
         f"Königswinter Siebengebirge Drachenfels Wanderung Führung Markt Wochenende {month}",
         f"site:vv-siebengebirge.de/veranstaltung Siebengebirge Wanderung Natur Führung {year}",
         f"Ahrtal Ahrweiler Dernau Mayschoss Weinwanderung Weinprobe Weinfest {month}",

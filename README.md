@@ -293,6 +293,29 @@ weiterhin gezielt überschreiben.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
   `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 
+### Quellenautorität bei Duplikaten
+
+`report.source_authority` entscheidet, welcher Publisher den kanonischen Datensatz
+besitzt, wenn zwei Quellen dieselbe Veranstaltung melden. Die Stufen sind:
+
+| Stufe | Quellenart |
+|-------|------------|
+| `3`   | Direkte Veranstalter und kommunale Kalender (Standard) |
+| `2`   | Civic-Aggregatoren (`bonn.de`) |
+| `1`   | Aggregatoren und **fremde Marktverzeichnisse** |
+| `0`   | Websuche (Exa, Grok) |
+
+Marktverzeichnisse listen die Termine der Veranstalter erneut und servieren dabei
+auch Termine weiter, die der Veranstalter bereits abgesagt hat. Sie stehen deshalb
+bewusst auf Stufe `1` und dürfen ein Dedup-Duell gegen den Veranstalter nie
+gewinnen — unabhängig vom Score. Metadaten des Verzeichnisses ergänzen den
+Gewinner-Datensatz trotzdem feldweise.
+
+`krencky24.de`, `meine-flohmarkt-termine.de` und `meine-kunsthandwerker-termine.de`
+gehören einem Betreiber (Kampagne Spezial GmbH) und liefern eine gemeinsame
+Datenbank von einem Host. Sie listen sich gegenseitig; sinnvoll ist genau ein
+Frontend als Quelle.
+
 Das Ahrtal, z.B. Ahrweiler, Bad Neuenahr, Dernau und Mayschoss, ist trotz des
 NRW-Namens im praktischen Suchraum, weil es von Bonn gut erreichbar ist und für
 Wein, Wandern und Wochenendausflüge relevant sein kann.

@@ -574,9 +574,14 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
             all_events.extend(events)
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered = [event for event in all_events if event["score"] >= settings.score_floor]
-    fresh_deduped = report.deduplicate(filtered)
+    cancellations = [
+        event
+        for result in source_results.values()
+        for event in result.cancelled_events
+    ]
+    fresh_deduped = report.deduplicate(filtered, cancellations=cancellations)
     retained, retention = _retain_previous_events(source_results, previous, context)
-    retained_deduped = report.deduplicate(retained)
+    retained_deduped = report.deduplicate(retained, cancellations=cancellations)
     retained_only = [
         candidate
         for candidate in retained_deduped
