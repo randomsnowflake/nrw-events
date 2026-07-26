@@ -39,7 +39,7 @@ class IcalFeedCategoryTests(unittest.TestCase):
             return common.fetch_ical(
                 "https://example.test/event.ics", "Troisdorf", "Troisdorf", hint)
 
-    def test_feed_categories_are_combined_with_the_static_hint(self):
+    def test_event_categories_replace_the_static_feed_hint(self):
         payload = _calendar(summary="Spicher Dorftrödel",
                             categories="Markt,Trödelmarkt,Innenstadt",
                             ionas_category="Markt")
@@ -48,8 +48,8 @@ class IcalFeedCategoryTests(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         category_text = events[0]["category"]
-        self.assertIn("troisdorf lokal kultur markt", category_text)
-        self.assertIn("Trödelmarkt", category_text)
+        self.assertEqual(category_text, "Markt,Trödelmarkt,Innenstadt")
+        self.assertNotIn("troisdorf lokal kultur markt", category_text)
 
     def test_flea_market_tag_classifies_as_market(self):
         payload = _calendar(summary="Spicher Dorftrödel",
@@ -85,6 +85,15 @@ class IcalFeedCategoryTests(unittest.TestCase):
             _calendar(summary="Dorfflohmarkt in Pech", categories="Markt,Flohmarkt"))
 
         self.assertEqual(events[0]["category"], "Markt,Flohmarkt")
+
+    def test_event_categories_cannot_form_a_broad_bag_with_the_hint(self):
+        events = self._fetch(
+            _calendar(summary="Sommerabend", categories="Party,Festival"),
+            hint="concert",
+        )
+
+        self.assertEqual(events[0]["category"], "Party,Festival")
+        self.assertNotEqual(events[0]["category_key"], "other")
 
     def test_blank_hint_and_blank_categories_do_not_leak_whitespace(self):
         events = self._fetch(_calendar(summary="Treffen", categories=""), hint="   ")
