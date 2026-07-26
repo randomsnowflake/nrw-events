@@ -1,4 +1,4 @@
-"""SiteKit teaser calendars for Brühl and Wesseling."""
+"""SiteKit teaser calendars for municipal sources on the Sitepark CMS."""
 
 import re
 
@@ -9,6 +9,10 @@ _SOURCE = "SiteKit regional"
 _CALENDARS = [
     ("Brühl", "sitekit-bruehl", "https://www.bruehl.de/tksf/veranstaltungskalender/veranstaltungskalender.php", 0.9),
     ("Wesseling", "sitekit-wesseling", "https://www.wesseling.de/kultur-sport/veranstaltungskalender.php", 0.86),
+    ("Frechen", "sitekit-frechen", "https://www.stadt-frechen.de/veranstaltungskalender", 0.9),
+    ("Hürth", "sitekit-huerth", "https://www.huerth.de/veranstaltungskalender.php", 0.9),
+    ("Erftstadt", "sitekit-erftstadt", "https://www.erftstadt.de/aktuelles/terminkalender.php", 0.9),
+    ("Zülpich", "sitekit-zuelpich", "https://www.zuelpich.de/kultur-sport/veranstaltungskalender.php", 0.88),
 ]
 
 

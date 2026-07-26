@@ -11,7 +11,9 @@ from . import regional_common as rc
 
 _SOURCE = "ionas4 regional"
 _DETAIL_QUERY = {"i4xpath": "69646770502a424b29235b33", "h": "1", "h_": "1"}
-_DETAIL_CITIES = frozenset({"Bad Honnef", "Grafschaft", "Sinzig"})
+_DETAIL_CITIES = frozenset({
+    "Bad Honnef", "Grafschaft", "Sinzig", "Rösrath", "Ruppichteroth",
+})
 
 _CALENDARS = [
     (
@@ -31,6 +33,18 @@ _CALENDARS = [
         "https://tourismus.sinzig.de/kalender/events.json?weekends=false&tagMode=ALL",
         "https://tourismus.sinzig.de/kalender/",
         0.82,
+    ),
+    (
+        "Rösrath",
+        "https://www.roesrath.de/kalender/events.json",
+        "https://www.roesrath.de/kalender/",
+        0.95,
+    ),
+    (
+        "Ruppichteroth",
+        "https://www.ruppichteroth.de/kalender/events.json",
+        "https://www.ruppichteroth.de/kalender/",
+        0.95,
     ),
 ]
 
@@ -168,7 +182,9 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
 
         description = context.get("description") or tag_text
         venue = context.get("venue") or loc.get("name") or ""
-        raw_link = context.get("link") or item.get("website") or calendar_url
+        raw_link = (context.get("link")
+                    or common.normalize_url(item.get("website") or "")
+                    or calendar_url)
         link = rc.abs_url(calendar_url, raw_link)
         event = common.make_event(
             item.get("title") or "",
