@@ -100,6 +100,8 @@ class JunkFilterTests(unittest.TestCase):
             ("Antikmarkt Bonn", "Wöchentlich auf dem Marktplatz"),
             ("Hofflohmarkt Bonn", "Regelmäßig in der Nachbarschaft"),
             ("Nachbarschaftsmarkt Südstadt", "Jeden ersten Sonntag mit privaten Ständen"),
+            ("Feierabendmarkt - meet&eat", "Jeden ersten Donnerstag mit wechselnden Ständen"),
+            ("Vieh- und Krammarkt", "Alle zwei Wochen auf dem Marktplatz"),
             (
                 "Wochenmarkt-Spezial mit Abendflohmarkt",
                 "Sonderveranstaltung nach dem gewöhnlichen Wochenmarkt",

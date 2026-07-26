@@ -1098,7 +1098,7 @@ _DESTINATION_MARKET_PATTERN = re.compile(
     r"\b(?:abendflohmarkt|antikmarkt|feierabendmarkt|flohmarkt|garagenflohmarkt|hausflohmarkt|"
     r"hofflohmarkt|hof[-\s]?flohmarkt|jahrmarkt|kunstmarkt|nachbarschaftsmarkt|"
     r"nachtflohmarkt|spezialmarkt|stadtflohmarkt|stadtteilmarkt|straßenflohmarkt|strassenflohmarkt|"
-    r"trödelmarkt|troedelmarkt|weihnachtsmarkt)\b",
+    r"trödelmarkt|troedelmarkt|krammarkt|viehmarkt|weihnachtsmarkt)\b",
     re.IGNORECASE,
 )
 _DESTINATION_MARKET_EVENT_BITS = {

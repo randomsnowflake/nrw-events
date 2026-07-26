@@ -50,6 +50,8 @@ class CategoryTaxonomyTests(unittest.TestCase):
             "Töpfermarkt Bonn",
             "Kunsthandwerkermarkt",
             "Schallplattenbörse",
+            "Feierabendmarkt - meet&eat in Wesseling",
+            "Vieh- und Krammarkt",
         ):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event("", title)["key"], "market")
