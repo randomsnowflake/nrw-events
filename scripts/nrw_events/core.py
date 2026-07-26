@@ -1324,7 +1324,19 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         # Recurring basic markets are useful civic infrastructure, not a
         # destination-worthy event for this report. Keep explicit flea/special
         # markets covered by the normal market/festival signals.
-        "frischemarkt", "wochenmarkt",
+        #
+        # Produce-oriented markets belong here for the same reason: the market
+        # section exists for flea, antique and collector formats, and third-party
+        # market directories mix produce markets into the same category feeds.
+        # ``krammarkt`` is deliberately absent: a "Antik- und Krammarkt" is a
+        # wanted second-hand format, so the substring would drop real hits.
+        #
+        # ``feierabendmarkt`` is listed in ``_DESTINATION_MARKET_PATTERN`` and is
+        # therefore kept by the destination-market override below, even though
+        # ``abendmarkt`` matches it as a substring. That whitelist entry is an
+        # editorial decision owned elsewhere; this set does not try to override it.
+        "frischemarkt", "wochenmarkt", "bauernmarkt", "biomarkt",
+        "abendmarkt", "zwiebelmarkt",
     }
     if (any(bit in text for bit in regular_low_value_bits)
             and not destination_market):
