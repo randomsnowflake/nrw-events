@@ -1897,7 +1897,15 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         )
         if recurrence_warning:
             log_source_error(f"{source} recurrence", ValueError(recurrence_warning))
-        cat = category or _ical_unescape(props.get("CATEGORIES", ""))
+        # A source's static category hint describes the whole feed; CATEGORIES
+        # describes the single event and is therefore strictly more informative.
+        # Combine them instead of letting the hint win: an ionas4 municipal feed
+        # tags each entry ("Markt,Flohmarkt,Trödelmarkt" vs "Wochenmarkt"), and a
+        # hint of "… markt" would otherwise flatten that distinction away.
+        cat = " ".join(
+            part for part in (category, _ical_unescape(props.get("CATEGORIES", "")))
+            if part and part.strip()
+        )
         for occurrence_start in starts:
             occurrence_end = occurrence_start + duration
             # RFC 5545 all-day DTEND is exclusive. Present the inclusive last day.
