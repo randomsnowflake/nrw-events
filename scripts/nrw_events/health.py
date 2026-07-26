@@ -75,6 +75,7 @@ class SourceResult:
     duration_ms: int = 0
     event_sources: list[str] = field(default_factory=list)
     event_source_ids: list[str] = field(default_factory=list)
+    cancelled_events: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[dict[str, str]] = field(default_factory=list)
     error: Optional[dict[str, str]] = None
     status_reason: str = ""
@@ -138,6 +139,7 @@ class SourceResult:
             "duration_ms": self.duration_ms,
             "event_sources": self.event_sources,
             "event_source_ids": self.event_source_ids,
+            "cancelled_event_count": len(self.cancelled_events),
             "warnings": self.warnings,
             "error": self.error,
             "status_reason": self.status_reason,

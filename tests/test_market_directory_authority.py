@@ -12,6 +12,7 @@ import unittest
 from datetime import datetime
 
 from nrw_events import core, report
+from nrw_events.health import SourceResult
 from nrw_events.sources import search
 from tests.helpers import patch_window
 
@@ -75,6 +76,60 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
         self.assertEqual(deduped[0]["source"], "Grote & Hiller")
         self.assertEqual(deduped[0]["price"], "Eintritt frei")
         self.assertEqual(deduped[0]["time"], "11:00–17:00")
+
+    def test_organizer_cancellation_suppresses_stale_directory_copy(self):
+        """Cancelled organizers stay unpublished but act as tombstones."""
+        source_result = SourceResult("Grote & Hiller")
+        core.set_source_context(source_result)
+        try:
+            cancelled = core.make_event(
+                "-ABGESAGT- Trödelmarkt beim KAUFLAND",
+                datetime(2026, 8, 9, 11),
+                datetime(2026, 8, 9, 17),
+                "Wilhelm-Ostwald-Straße 1",
+                "Siegburg",
+                "Der Termin wurde abgesagt.",
+                "https://www.grote-hiller.de/markt/",
+                "Grote & Hiller",
+                "trödelmarkt markt",
+            )
+        finally:
+            core.set_source_context(None)
+
+        self.assertIsNone(cancelled)
+        self.assertEqual(len(source_result.cancelled_events), 1)
+        directory = _market(
+            "marktcom",
+            1.0,
+            "https://www.marktcom.de/veranstaltung/12345",
+        )
+        self.assertEqual(
+            report.deduplicate(
+                [directory],
+                cancellations=source_result.cancelled_events,
+            ),
+            [],
+        )
+
+    def test_directory_cancellation_cannot_suppress_direct_organizer(self):
+        organizer = _market(
+            "Grote & Hiller",
+            0.5,
+            "https://www.grote-hiller.de/markt/",
+        )
+        directory_cancellation = {
+            **organizer,
+            "source": "marktcom",
+            "status": "cancelled",
+        }
+
+        self.assertEqual(
+            report.deduplicate(
+                [organizer],
+                cancellations=[directory_cancellation],
+            ),
+            [organizer],
+        )
 
     def test_sibling_directories_collapse_to_a_single_record(self):
         """One operator, one database: three frontends must not yield three markets."""

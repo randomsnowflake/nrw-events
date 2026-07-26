@@ -1226,7 +1226,16 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "category_confidence": canonical_category.get("confidence", 0),
         "category_reason": canonical_category.get("reason", ""),
     }
-    return None if status == "cancelled" or is_junk_event(ev) else ev
+    if status == "cancelled":
+        # Keep cancellations out of every adapter's public event list while
+        # preserving them as per-run tombstones. The runner passes these to the
+        # canonical deduplicator so an authoritative organizer cancellation can
+        # suppress a stale directory copy of the same occurrence.
+        result = getattr(_SOURCE_CONTEXT, "result", None)
+        if result is not None:
+            result.cancelled_events.append(ev)
+        return None
+    return None if is_junk_event(ev) else ev
 
 
 def _legacy_is_junk_event(ev: dict) -> bool:

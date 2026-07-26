@@ -58,6 +58,12 @@ def source_authority(source: str) -> int:
 def normalize_title(title: str) -> str:
     """Aggressively normalize a title for near-duplicate comparison."""
     t = (title or "").lower().strip()
+    t = re.sub(
+        r"^\s*[-–—:()]*\s*(?:abgesagt|entfällt|entfaellt|fällt\s+aus|"
+        r"faellt\s+aus)\s*[-–—:()]*\s*",
+        "",
+        t,
+    )
     t = re.sub(r"^(ausstellung[:\s]*|exhibition[:\s]*|konzert[:\s]*|concert[:\s]*|kostenloser\s+eintritt[:\s]*|eintritt\s+frei[:\s]*|tickets?\s+für\s+)", "", t)
     normalized = re.sub(r"[^a-zäöüß0-9]", "", t)
     # Official market calendars use these equivalent names for the same
@@ -207,8 +213,18 @@ def events_are_duplicates(left, right) -> bool:
     return _same_occurrence(left, right) and _titles_match(left, right)
 
 
-def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
-    """Collapse duplicates, preferring source authority and then event score."""
+def deduplicate(
+    events: list[CanonicalEvent],
+    *,
+    cancellations: list[dict] | None = None,
+) -> list[CanonicalEvent]:
+    """Collapse duplicates and apply authoritative cancellation tombstones."""
+    authoritative_cancellations = [
+        event
+        for event in (cancellations or [])
+        if event.get("status") == "cancelled"
+        and source_authority(event.get("source", "")) >= 2
+    ]
     direct_antique_schedules: dict[tuple[str, str, int], set[date]] = {}
     for event in events:
         bounds = _date_bounds(event)
@@ -223,6 +239,13 @@ def deduplicate(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
 
     result: list = []
     for ev in events:
+        if any(
+            source_authority(cancelled.get("source", ""))
+            >= source_authority(ev.get("source", ""))
+            and events_are_duplicates(cancelled, ev)
+            for cancelled in authoritative_cancellations
+        ):
+            continue
         bounds = _date_bounds(ev)
         title_key = normalize_title(ev.get("title", ""))
         schedule_key = (
