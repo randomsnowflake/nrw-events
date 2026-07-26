@@ -10,6 +10,7 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common
+from nrw_events.health import SourceResult, SourceStatus
 from nrw_events.sources import SOURCES, mec_municipal
 
 
@@ -115,8 +116,13 @@ class MecCalendarFetchTests(unittest.TestCase):
 
 class MecSiteIntegrationTests(unittest.TestCase):
     def test_only_market_candidates_trigger_a_calendar_request(self):
-        site = mec_municipal.MecSite("Hennef Märkte", "https://www.hennef.de",
-                                     "Hennef", (74,))
+        site = mec_municipal.MecSite(
+            "Hennef Märkte",
+            "hennef-maerkte",
+            "https://www.hennef.de",
+            "Hennef",
+            (74,),
+        )
         listing = json.dumps([
             _rest_item(19512, "Garagenflohmarkt in Hennef-Lichtenberg"),
             _rest_item(17802, "Pflanzentauschbörse im Schaugarten"),
@@ -139,15 +145,64 @@ class MecSiteIntegrationTests(unittest.TestCase):
         self.assertEqual(events[0]["start_date"], "2026-09-06")
         self.assertEqual(events[0]["city"], "Hennef")
         self.assertEqual(events[0]["source"], "Hennef Märkte")
+        self.assertEqual(events[0]["source_id"], "hennef-maerkte")
 
     def test_listing_failure_does_not_break_the_run(self):
-        site = mec_municipal.MecSite("Broken", "https://broken.test", "Hennef", (1,))
+        site = mec_municipal.MecSite(
+            "Broken",
+            "broken-site",
+            "https://broken.test",
+            "Hennef",
+            (1,),
+        )
+        result = SourceResult("Municipal MEC markets")
 
         with mock.patch.object(common, "fetch_url", side_effect=OSError("boom")), \
-                mock.patch.object(common, "log_source_error") as logged:
+                mock.patch.object(common, "_SOURCE_CONTEXT") as context:
+            context.result = result
             self.assertEqual(mec_municipal.events_for_site(site), [])
 
-        logged.assert_called()
+        self.assertEqual(result.warnings[0]["source_id"], "broken-site")
+
+    def test_filtered_calendar_record_is_healthy_not_parser_empty(self):
+        site = mec_municipal.MecSite(
+            "Hennef Märkte",
+            "hennef-maerkte",
+            "https://www.hennef.de",
+            "Hennef",
+            (74,),
+        )
+        listing = json.dumps([
+            _rest_item(19512, "Garagenflohmarkt in Hennef-Lichtenberg"),
+        ])
+        result = SourceResult("Municipal MEC markets")
+
+        with mock.patch.object(common, "TODAY", datetime(2026, 7, 26)), \
+                mock.patch.object(common, "END_DATE", datetime(2026, 7, 28)), \
+                mock.patch.object(common, "fetch_url", return_value=listing), \
+                mock.patch.object(
+                    common,
+                    "fetch_detail_url",
+                    return_value=_calendar(
+                        "Wochenmarkt auf dem Marktplatz",
+                        start="20260727T080000Z",
+                        end="20260727T140000Z",
+                    ),
+                ), \
+                mock.patch.object(common, "_SOURCE_CONTEXT") as context:
+            context.result = result
+            events = mec_municipal.events_for_site(site)
+
+        result.finish(events)
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
+        self.assertTrue(result.endpoints)
+        self.assertFalse(
+            any(
+                endpoint.get("parser_empty") is True
+                for endpoint in result.endpoints.values()
+            )
+        )
 
     def test_listing_url_and_ical_url_shapes(self):
         site = mec_municipal.SITES[0]

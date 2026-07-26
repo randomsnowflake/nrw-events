@@ -36,6 +36,7 @@ from . import regional_common as rc
 @dataclass(frozen=True, slots=True)
 class MecSite:
     source: str
+    source_id: str
     base_url: str
     city: str
     category_ids: tuple[int, ...]
@@ -44,9 +45,20 @@ class MecSite:
 
 # Category ids verified against each site's own taxonomy.
 SITES = (
-    MecSite("Hennef Märkte", "https://www.hennef.de", "Hennef", (74, 240)),
-    MecSite("Sankt Augustin Märkte", "https://www.sankt-augustin.de",
-            "Sankt Augustin", (308,)),
+    MecSite(
+        "Hennef Märkte",
+        "hennef-maerkte",
+        "https://www.hennef.de",
+        "Hennef",
+        (74, 240),
+    ),
+    MecSite(
+        "Sankt Augustin Märkte",
+        "sankt-augustin-maerkte",
+        "https://www.sankt-augustin.de",
+        "Sankt Augustin",
+        (308,),
+    ),
 )
 
 _CACHE_NAMESPACE = "mec-municipal"
@@ -132,6 +144,7 @@ def _list_category(site: MecSite, category_id: int) -> list:
                 f"category {category_id}: stopped at the {_MAX_PAGES}-page listing "
                 "limit; later entries in this category were not read"
             ),
+            source_id=site.source_id,
         )
     return items
 
@@ -142,7 +155,11 @@ def events_for_site(site: MecSite) -> list:
         try:
             items = _list_category(site, category_id)
         except Exception as exc:
-            common.log_source_error(f"{site.source} (category {category_id})", exc)
+            common.log_source_error(
+                f"{site.source} (category {category_id})",
+                exc,
+                source_id=site.source_id,
+            )
             continue
         for post_id, title in market_candidates(items):
             url = ical_url(site, post_id)
@@ -152,18 +169,17 @@ def events_for_site(site: MecSite) -> list:
                     site.source,
                     site.city,
                     trust=site.trust,
+                    source_id=site.source_id,
                     city_resolver=_city_resolver(site),
                     fetcher=_cached_calendar_fetcher,
                 )
             except Exception as exc:
-                common.log_source_error(f"{site.source} ({title[:40]})", exc)
+                common.log_source_error(
+                    f"{site.source} ({title[:40]})",
+                    exc,
+                    source_id=site.source_id,
+                )
                 continue
-            common._record_endpoint(
-                url,
-                parser_type="ical",
-                parsed_event_count=len(parsed),
-                parser_empty=not bool(parsed),
-            )
             events.extend(parsed)
     return rc.dedupe(events)
 
@@ -174,5 +190,9 @@ def fetch() -> list:
         try:
             events.extend(events_for_site(site))
         except Exception as exc:
-            common.log_source_error(site.source, exc)
+            common.log_source_error(
+                site.source,
+                exc,
+                source_id=site.source_id,
+            )
     return events

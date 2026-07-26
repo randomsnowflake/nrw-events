@@ -1943,7 +1943,13 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
             )
             if ev:
                 events.append(ev)
-    _record_endpoint(url, parser_type="ical", candidate_count=len(blocks), parsed_event_count=len(events))
+    _record_endpoint(
+        url,
+        parser_type="ical",
+        candidate_count=len(blocks),
+        parsed_event_count=len(events),
+        parser_empty=not bool(blocks),
+    )
     return events
 
 
