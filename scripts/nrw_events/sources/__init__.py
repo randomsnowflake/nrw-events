@@ -18,7 +18,7 @@ from . import (
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
     bonn_venues, bonn_food, radiobonn, bonn_districts, cinema_specials, uni_bonn,
     kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept, lampert,
-    rhein_antik, coelln_antik_design, mec_municipal,
+    rhein_antik, coelln_antik_design, mec_municipal, marktcom,
     hoffloh_bonn, okken, geide, krewelshof, melan,
     rheinbach_flohmarkt, bonner_weihnachtsmarkt, katharinenhof,
     kleines_theater, theater_bonn, junges_theater_bonn, theater_marabu,
@@ -66,6 +66,7 @@ CUSTOM_SOURCES = {
     "Rhein Antik": rhein_antik.fetch,
     "Cölln Antik&Design": coelln_antik_design.fetch,
     "Municipal MEC markets": mec_municipal.fetch,
+    "marktcom": marktcom.fetch,   # radius+format market directory (aggregator tier)
     "Bonner Weihnachtsmarkt": bonner_weihnachtsmarkt.fetch,
     "Katharinenhof Flohmarkt": katharinenhof.fetch,
     "Tanzschule Max7": max7.fetch,

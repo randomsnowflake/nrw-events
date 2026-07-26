@@ -146,7 +146,7 @@ scripts/
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
       rhein_antik.py  coelln_konzept.py  coelln_antik_design.py
-      mec_municipal.py
+      mec_municipal.py  marktcom.py
       bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
@@ -318,6 +318,15 @@ weiterhin gezielt überschreiben.
   (`?method=ical&id=`). Weil das einen Abruf pro Event bedeutet, werden Kandidaten
   zuerst per Titel auf Second-Hand-Formate eingegrenzt und jeder Kalenderabruf
   läuft durch den persistenten TTL-Cache.
+- **Marktverzeichnis nach Format:** marktcom (`marktcom.py`) ist das einzige
+  Verzeichnis, dessen Suche gleichzeitig über einen Radius um Koordinaten *und*
+  über das Marktformat adressierbar ist. Angefragt werden nur Second-Hand-Formate
+  (`WANTED_CATEGORIES`); `Wochenmarkt`, `Garten-/Pflanzenmarkt` und
+  `Tiere und Zubehör` werden nie abgefragt, statt sie hinterher wieder
+  herauszufiltern. Es werden ausschließlich Listenseiten geladen, keine
+  Detailseiten, und die Paginierung endet bei der ersten Seite jenseits des
+  Berichtsfensters — ein kurzes Fenster kostet also einen Request pro Format.
+  Datensätze von Veranstaltern, die wir bereits direkt lesen, werden verworfen.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
   `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 

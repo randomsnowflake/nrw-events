@@ -40,6 +40,7 @@ HofFloh Bonn, Lampert Märkte, Okken Märkte, Geide Märkte, Cölln Konzept,
 Rhein Antik,
 Cölln Antik&Design,
 kommunale MEC-Marktkalender (Hennef, Sankt Augustin),
+marktcom (Marktverzeichnis, nur Second-Hand-Formate),
 requested venue calendars,
 Theater Bonn, Junges Theater Bonn, Kleines Theater Bad Godesberg, Theater
 Marabu, Theater im Ballsaal, TiK Theater im Keller,
