@@ -20,6 +20,19 @@ _AGGREGATOR_SOURCE_MARKERS = (
     "bonn.jetzt", "eventbrite", "meetup", "radio bonn", "ruhr-guide",
     "kinderflohmarkt.com",
 )
+# Third-party market directories relist the same occurrences that the market
+# organizers publish themselves, and they keep serving records the organizer has
+# already cancelled. They must never win a dedup contest against the organizer,
+# so they are ranked with the aggregators rather than defaulting to the
+# direct-publisher tier.
+#
+# ``krencky24``, ``meine-flohmarkt-termine`` and ``meine-kunsthandwerker-termine``
+# are one operator (Kampagne Spezial GmbH) serving one database from a single
+# host, so they also relist each other. Prefer integrating a single frontend.
+_MARKET_DIRECTORY_SOURCE_MARKERS = (
+    "marktcom", "krencky24", "meine-flohmarkt-termine",
+    "meine-kunsthandwerker-termine", "flohmarkt-termine", "flohmap",
+)
 _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
     "bonn.de events", "bonn.de sports", "bonn district festivals",
 )
@@ -32,6 +45,8 @@ def source_authority(source: str) -> int:
     if any(marker in normalized for marker in _SEARCH_SOURCE_MARKERS):
         return 0
     if any(marker in normalized for marker in _AGGREGATOR_SOURCE_MARKERS):
+        return 1
+    if any(marker in normalized for marker in _MARKET_DIRECTORY_SOURCE_MARKERS):
         return 1
     if any(marker in normalized for marker in _CIVIC_AGGREGATOR_SOURCE_MARKERS):
         return 2
