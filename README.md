@@ -145,6 +145,7 @@ scripts/
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
+      marktcom.py
       coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
@@ -290,6 +291,15 @@ weiterhin gezielt überschreiben.
   Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
+- **Marktverzeichnis nach Format:** marktcom (`marktcom.py`) ist das einzige
+  Verzeichnis, dessen Suche gleichzeitig über einen Radius um Koordinaten *und*
+  über das Marktformat adressierbar ist. Angefragt werden nur Second-Hand-Formate
+  (`WANTED_CATEGORIES`); `Wochenmarkt`, `Garten-/Pflanzenmarkt` und
+  `Tiere und Zubehör` werden nie abgefragt, statt sie hinterher wieder
+  herauszufiltern. Es werden ausschließlich Listenseiten geladen, keine
+  Detailseiten, und die Paginierung endet bei der ersten Seite jenseits des
+  Berichtsfensters — ein kurzes Fenster kostet also einen Request pro Format.
+  Datensätze von Veranstaltern, die wir bereits direkt lesen, werden verworfen.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
   `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 

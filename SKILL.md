@@ -37,6 +37,7 @@ VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
 HofFloh Bonn, Lampert Märkte, Okken Märkte, Geide Märkte, Cölln Konzept,
+marktcom (Marktverzeichnis, nur Second-Hand-Formate),
 requested venue calendars,
 Theater Bonn, Junges Theater Bonn, Kleines Theater Bad Godesberg, Theater
 Marabu, Theater im Ballsaal, TiK Theater im Keller,
