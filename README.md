@@ -145,6 +145,7 @@ scripts/
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
+      mec_municipal.py
       coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
@@ -290,6 +291,15 @@ weiterhin gezielt überschreiben.
   Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
+- **Kommunale MEC-Kalender (Marktausläufer):** Hennef und Sankt Augustin fahren
+  WordPress mit Modern Events Calendar (`mec_municipal.py`). Die
+  `mec-events`-REST-Kategorie erreicht den kompletten Marktausläufer, den die
+  öffentliche Kalenderseite nicht rendert — bei Hennef die Hof-, Garagen-, Dorf-
+  und Gassenflohmärkte, die Monate voraus liegen. Der REST-Payload enthält **kein**
+  Eventdatum, deshalb kommt das Datum aus dem autoritativen Ein-Event-iCal
+  (`?method=ical&id=`). Weil das einen Abruf pro Event bedeutet, werden Kandidaten
+  zuerst per Titel auf Second-Hand-Formate eingegrenzt und jeder Kalenderabruf
+  läuft durch den persistenten TTL-Cache.
 - **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
   `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
 

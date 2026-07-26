@@ -1852,9 +1852,15 @@ def _ical_recurrence_starts(
 
 def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                trust: float = 1.0, source_id: str = "", event_filter=None,
-               city_resolver=None) -> list:
-    """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds)."""
-    raw = _ical_unfold(fetch_url(
+               city_resolver=None, fetcher=None) -> list:
+    """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds).
+
+    ``fetcher`` optionally replaces the plain HTTP read with a ``(url, **kwargs) ->
+    str`` callable. Sources that must request one small calendar *per event* use it
+    to route through the persistent TTL cache, so a repeat run costs no requests.
+    """
+    read = fetcher or fetch_url
+    raw = _ical_unfold(read(
         url,
         timeout=20,
         accept="text/calendar,application/calendar+json;q=0.9,*/*;q=0.8",
