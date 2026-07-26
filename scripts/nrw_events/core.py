@@ -745,6 +745,11 @@ def clean_html(text: str) -> str:
 def normalize_url(url: str) -> str:
     """Decode HTML entities and make internationalized hostnames link-safe."""
     url = unescape(url or "").strip()
+    # Municipal calendars occasionally publish Windows-style separators
+    # ("http:\\example.de"). Browsers repair those, urlsplit does not, so the
+    # link would otherwise reach the site unusable.
+    if "\\" in url:
+        url = url.replace("\\", "/")
     parts = urllib.parse.urlsplit(url)
     if parts.scheme not in {"http", "https"} or not parts.hostname:
         return url
