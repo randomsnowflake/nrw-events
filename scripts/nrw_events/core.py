@@ -1988,3 +1988,17 @@ def log_source_error(source: str, err: Exception, *, source_id: str = "") -> Non
     if result is not None:
         result.warning(source, type(err).__name__, message, source_id=source_id)
     log(_LOGGER, logging.WARNING, message, run_id=_RUN_ID, source=source, error_type=type(err).__name__)
+
+
+def log_source_quality_skip(source: str, reason: str) -> None:
+    """Record an expected bad source record without degrading source health."""
+    result = getattr(_SOURCE_CONTEXT, "result", None)
+    if result is not None:
+        result.reject(f"quality:{reason}")
+    log(
+        _LOGGER,
+        logging.INFO,
+        f"skipped source record: {reason}",
+        run_id=_RUN_ID,
+        source=source,
+    )

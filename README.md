@@ -145,8 +145,8 @@ scripts/
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
-      rhein_antik.py
-      coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
+      rhein_antik.py  coelln_konzept.py  coelln_antik_design.py
+      bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
       max7.py  afterjobparty.py  rheinevents.py  salsainbonn.py
@@ -278,6 +278,13 @@ weiterhin gezielt überschreiben.
   Designmärkte auf dem Bonner Friedensplatz sowie in Siegburg, Königswinter und
   Bad Honnef; diese Termine kamen vorher nur zweiter Hand über einen Kölner
   Marktbetreiber und den Bonner Pressekalender herein.
+  **Cölln Antik&Design** (`coelln_antik_design.py`) ist ein anderer Betreiber als
+  das bereits integrierte Cölln Konzept und bespielt andere Orte: Kölner Flora,
+  Gürzenich, Neumarkt, Maternusplatz Rodenkirchen und Rheinauhafen. Die Seite ist
+  handgepflegt, entsprechend locker sind die Datumsangaben (Feiertagsnamen,
+  mehrere Tage per `+` oder `und`, Monat nur einmal am Ende). Unplausible
+  Jahreszahlen aus Tippfehlern werden als erwarteter Qualitätsausschluss
+  verworfen, nicht repariert und degradieren keinen ansonsten gesunden Lauf.
 - **Kuratierte Kino-Sonderformate:** Bonner Kinemathek,
   Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage, Filmhaus Köln,
   Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer
