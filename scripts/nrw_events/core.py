@@ -1906,7 +1906,13 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         )
         if recurrence_warning:
             log_source_error(f"{source} recurrence", ValueError(recurrence_warning))
-        cat = category or _ical_unescape(props.get("CATEGORIES", ""))
+        # Keep feed-level and event-level signals separate. CATEGORIES describes
+        # this VEVENT and is therefore preferred when present; the static hint is
+        # only a fallback. Concatenating both can create an artificial broad bag
+        # with more than two category intents, which the taxonomy deliberately
+        # rejects as untrustworthy.
+        event_categories = _ical_unescape(props.get("CATEGORIES", "")).strip()
+        cat = event_categories or (category or "").strip()
         for occurrence_start in starts:
             occurrence_end = occurrence_start + duration
             # RFC 5545 all-day DTEND is exclusive. Present the inclusive last day.

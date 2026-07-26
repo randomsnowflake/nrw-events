@@ -157,6 +157,13 @@ scripts/
       ruhrguide.py  search.py
 ```
 
+Bei iCal-Quellen wird der statische `category_hint` des `SourceSpec` mit dem
+`CATEGORIES`-Feld des jeweiligen Events **kombiniert**, nicht davon überschrieben.
+Der Hint beschreibt den Feed, `CATEGORIES` beschreibt das einzelne Event: die
+ionas4-Kommunalkalender taggen jeden Eintrag präzise (`Markt,Trödelmarkt` gegenüber
+`Volksfest,Fest` gegenüber `Ausstellung,Kunst`), und ein Hint wie
+`troisdorf lokal kultur markt` würde diese Unterscheidung sonst plattmachen.
+
 Standard-iCal- und JSON-LD-Quellen werden deklarativ als `SourceSpec` in
 `sources/__init__.py` registriert; eine neue Standardquelle benötigt nur einen
 Spec plus Fixture-/Vertragstest. Proprietäre HTML-Parser bleiben als eigenes
