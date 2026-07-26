@@ -145,7 +145,8 @@ scripts/
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
-      coelln_konzept.py  bundeskunsthalle.py  bonnjetzt.py
+      coelln_konzept.py  coelln_antik_design.py
+      bundeskunsthalle.py  bonnjetzt.py
       kleines_theater.py  theater_bonn.py  junges_theater_bonn.py
       theater_marabu.py  theater_im_ballsaal.py  tik_bonn.py
       max7.py  afterjobparty.py  rheinevents.py  salsainbonn.py
@@ -273,6 +274,12 @@ weiterhin gezielt überschreiben.
   weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
 - **Direkte Marktveranstalter:** Grote & Hiller, Hofflohmärkte Köln und Cölln
   Konzept liefern Termine, Uhrzeiten, Orte und direkte Veranstaltungsseiten.
+  **Cölln Antik&Design** (`coelln_antik_design.py`) ist ein anderer Betreiber als
+  das bereits integrierte Cölln Konzept und bespielt andere Orte: Kölner Flora,
+  Gürzenich, Neumarkt, Maternusplatz Rodenkirchen und Rheinauhafen. Die Seite ist
+  handgepflegt, entsprechend locker sind die Datumsangaben (Feiertagsnamen,
+  mehrere Tage per `+` oder `und`, Monat nur einmal am Ende). Unplausible
+  Jahreszahlen aus Tippfehlern werden mit Warnung verworfen, nicht repariert.
 - **Kuratierte Kino-Sonderformate:** Bonner Kinemathek,
   Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage, Filmhaus Köln,
   Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer
