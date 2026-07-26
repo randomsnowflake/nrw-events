@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime
+from unittest import mock
 
 from nrw_events import common, config
 from nrw_events.source_specs import AdapterType
@@ -43,6 +44,23 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
     def test_sitekit_source_ids_are_unique(self):
         ids = [source_id for _city, source_id, _url, _trust in regional_sitekit._CALENDARS]
         self.assertEqual(len(ids), len(set(ids)))
+
+    def test_sitekit_pagination_metadata_and_url_are_supported(self):
+        html = (
+            '<div class="SP-Pagination" '
+            'data-page="{&quot;min&quot;:1,&quot;max&quot;:11}"></div>'
+        )
+
+        self.assertEqual(regional_sitekit._pagination_max(html), 11)
+        self.assertIn(
+            "sp%3Apage%5BeventSearch-1.form%5D%5B0%5D=3",
+            regional_sitekit._page_url("https://example.test/events", 3),
+        )
+        self.assertTrue(
+            regional_sitekit._page_starts_after_window(
+                '<span class="SP-Scheduling__date">01.09.2026</span>'
+            )
+        )
 
     def test_waldbroel_is_registered_as_an_ical_spec(self):
         spec = next((s for s in SOURCE_SPECS if s.id == "waldbroel"), None)
@@ -164,6 +182,55 @@ class Ionas4EventQualityTests(unittest.TestCase):
         )
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["link"], "http://www.ernteverein.de")
+
+
+class SitekitPaginationTests(unittest.TestCase):
+    def setUp(self):
+        patch_window(self, datetime(2026, 7, 13), datetime(2026, 8, 31))
+
+    @staticmethod
+    def _teaser(title: str, date: str) -> str:
+        return (
+            '<article class="SP-Teaser">'
+            f'<a class="SP-Teaser__inner" href="/events/{title.lower()}">'
+            f'<h4 class="SP-Teaser__headline">{title}</h4>'
+            f'<span class="SP-Scheduling__date">{date}</span>'
+            '<div class="SP-Teaser__abstract">Offizielle Beschreibung.</div>'
+            '</a></article>'
+        )
+
+    def test_fetch_follows_every_advertised_result_page(self):
+        first = (
+            self._teaser("Erster Markt", "01.08.2026")
+            + '<div class="SP-Pagination" '
+            'data-page="{&quot;min&quot;:1,&quot;max&quot;:2}"></div>'
+        )
+        second = self._teaser("Zweiter Markt", "02.08.2026")
+        urls = []
+
+        def fake_fetch(url, **_kwargs):
+            urls.append(url)
+            return first if len(urls) == 1 else second
+
+        with mock.patch.object(
+            regional_sitekit,
+            "_CALENDARS",
+            [("Teststadt", "sitekit-test", "https://example.test/events", 0.9)],
+        ), mock.patch.object(common, "fetch_url", side_effect=fake_fetch):
+            events = regional_sitekit.fetch()
+
+        self.assertEqual(
+            {event["title"] for event in events},
+            {"Erster Markt", "Zweiter Markt"},
+        )
+        self.assertEqual(len(urls), 2)
+        self.assertTrue(
+            all(len(event["description"]) >= 40 for event in events)
+        )
+        self.assertIn(
+            "sp%3Apage%5BeventSearch-1.form%5D%5B0%5D=2",
+            urls[1],
+        )
 
 
 if __name__ == "__main__":

@@ -1306,6 +1306,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         "fraktion", "infostand", "kreistag", "mitgliederversammlung", "ortsbeirat", "parteitag",
         "ratssitzung", "ratsinformationssystem", "seniorenbeirat", "seniorenvertretung", "sitzung",
         "sprechstunde", "sprechtag", "stadtrat", "stadtverordnete", "tagesordnung",
+        "telefon-hotline bürgermeister", "telefon-hotline buergermeister",
         "verwaltungsrat", "wahlkampf", "wahlstand",
     }
     routine_phrase_bits = {
