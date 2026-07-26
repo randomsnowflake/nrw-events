@@ -29,6 +29,7 @@ SOURCE_SPECS = (
     SourceSpec("troisdorf", "Troisdorf", ("https://www.troisdorf.de/de/kalender/startseite/event.ics?weekends=false&tagMode=ANY",), AdapterType.ICAL, "Troisdorf", "troisdorf lokal kultur markt", 0.95),
     SourceSpec("wachtberg", "Wachtberg", ("https://www.wachtberg.de/kalender/veranstaltungen/event.ics?weekends=false&tagMode=ALL",), AdapterType.ICAL, "Wachtberg"),
     SourceSpec("hennef", "Hennef", ("https://www.hennef.de/veranstaltungen/",), AdapterType.JSON_LD, "Hennef", "lokal veranstaltung markt kultur outdoor", 0.95, 20),
+    SourceSpec("waldbroel", "Waldbröl", ("https://www.waldbroel.de/veranstaltungen/?ical=1",), AdapterType.ICAL, "Waldbröl", "oberberg lokal markt kultur konzert", 0.92),
 )
 
 STANDARD_SOURCES = {spec.display_name: adapter_for(spec) for spec in SOURCE_SPECS}
