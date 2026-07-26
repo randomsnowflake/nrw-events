@@ -38,6 +38,7 @@ Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
 HofFloh Bonn, Lampert Märkte, Okken Märkte, Geide Märkte, Cölln Konzept,
 Rhein Antik,
+Cölln Antik&Design,
 requested venue calendars,
 Theater Bonn, Junges Theater Bonn, Kleines Theater Bad Godesberg, Theater
 Marabu, Theater im Ballsaal, TiK Theater im Keller,
