@@ -1630,11 +1630,15 @@ def _jsonld_offer_price(offers) -> Optional[str]:
         currency_text = (
             "" if isinstance(currency, (dict, list)) else clean_html(str(currency or "")).strip()
         )
-        if (
-            _FREE_PRICE_PATTERN.fullmatch(amount_text)
-            or re.fullmatch(r"0+(?:[.,]0+)?", amount_text)
-        ):
+        if _FREE_PRICE_PATTERN.fullmatch(amount_text):
             return "kostenlos"
+        if re.fullmatch(r"0+(?:[.,]0+)?", amount_text):
+            # A bare zero without a currency is what many calendar plugins emit for
+            # "no price maintained". Only trust it as free when the source states a
+            # currency, otherwise leave it to the remaining offers or text inference.
+            if currency_text:
+                return "kostenlos"
+            continue
         return " ".join(part for part in (amount_text, currency_text) if part)
     return None
 
