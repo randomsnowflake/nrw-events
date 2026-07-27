@@ -51,6 +51,29 @@ class AdmissionDefaultTests(unittest.TestCase):
         self.assertEqual(event["price"], "")
         self.assertEqual(event["admission_basis"], "")
 
+    def test_euro_sign_visitor_price_prevents_free_by_nature_default(self):
+        for description in (
+            "Eintritt: 4,50 €",
+            "Eintritt 12 €",
+            "Ticketpreis 8 €",
+        ):
+            with self.subTest(description=description):
+                event = common.make_event(
+                    "Offene Reparaturwerkstatt",
+                    datetime(2026, 7, 4, 10),
+                    datetime(2026, 7, 4, 14),
+                    "Gemeindezentrum",
+                    "Bonn",
+                    description,
+                    "https://example.test/repair",
+                    "Repair-Initiative",
+                    "repair nachhaltigkeit",
+                    admission=AdmissionDefault.FREE_BY_NATURE,
+                )
+
+                self.assertEqual(event["price"], "")
+                self.assertEqual(event["admission_basis"], "")
+
     def test_source_spec_passes_admission_default_to_standard_adapter(self):
         spec = SourceSpec(
             "repair-feed",

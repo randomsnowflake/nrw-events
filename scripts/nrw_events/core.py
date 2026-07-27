@@ -1110,7 +1110,7 @@ _FREE_PRICE_PATTERN = re.compile(
 )
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(
     r"\b(?:kosten|preise?|eintritt|teilnahme|gebühr|gebuehr|führungen?|fuehrungen?|"
-    r"erwachsene|ermäßigt|ermaessigt)\b[^.]{0,100}\b\d+[,.]?\d*\s*(?:€|eur|euro)\b",
+    r"erwachsene|ermäßigt|ermaessigt)\b[^.]{0,100}\b\d+[,.]?\d*\s*(?:€|eur|euro)(?!\w)",
     re.IGNORECASE,
 )
 _LIMITED_FREE_CONTEXT_PATTERNS = (
@@ -1136,7 +1136,9 @@ _IMPLICIT_FREE_EXCLUSION_PATTERN = re.compile(
 )
 _VISITOR_ADMISSION_AMOUNT_PATTERN = re.compile(
     r"\b(?:eintritt|besucher(?:preis|eintritt)|ticket(?:preis)?)\b"
-    r"[^.]{0,60}\b\d+[,.]?\d*\s*(?:€|eur|euro)\b",
+    # `\b` after `€` would never match at end of string: use a word-char guard so
+    # the common German notation ("Eintritt: 4,50 €") is recognised.
+    r"[^.]{0,60}\b\d+[,.]?\d*\s*(?:€|eur|euro)(?!\w)",
     re.IGNORECASE,
 )
 
