@@ -21,7 +21,7 @@ import re
 from datetime import datetime
 from html import unescape
 
-from .. import common
+from .. import category_taxonomy, common
 
 # Full official event calendar as structured JSON. This endpoint has repeatedly
 # emitted malformed/truncated payloads and can miss entries visible in the public
@@ -36,13 +36,27 @@ _VENUE_GEOJSON_URLS = (
     "https://stadtplan.bonn.de/geojson?OD=4489",  # Kleinkunst / Kabarett / Varieté
 )
 
-# Municipal category taxonomy → keep only real outings; drop civic/admin noise.
-_ALLOW = {
-    "Fest/Festival", "Musik/Konzert", "Kabarett", "Tanz", "Theater", "Ausstellungen",
-    "Führungen/Rundgänge/Touren", "Tour", "Lesung", "Vorträge/Lesungen/Diskussionen",
-    "Märkte/Messen", "Film/Medien", "Tag des offenen Denkmals", "Beethovenfest",
-    "Weihnachtsmarkt", "Wissenschaftsnacht-Vorträge",
+# Curated Bonn source taxonomy → canonical public category. Unlike keyword
+# hints, these finite source-owned values are authoritative when unambiguous.
+_SOURCE_CATEGORY_MAP = {
+    "Fest/Festival": "festival",
+    "Musik/Konzert": "concert",
+    "Kabarett": "stage",
+    "Tanz": "stage",
+    "Theater": "stage",
+    "Ausstellungen": "exhibition",
+    "Führungen/Rundgänge/Touren": "outdoor",
+    "Tour": "outdoor",
+    "Lesung": "talk",
+    "Vorträge/Lesungen/Diskussionen": "talk",
+    "Märkte/Messen": "market",
+    "Film/Medien": "cinema",
+    "Tag des offenen Denkmals": "festival",
+    "Beethovenfest": "concert",
+    "Weihnachtsmarkt": "market",
+    "Wissenschaftsnacht-Vorträge": "talk",
 }
+_ALLOW = set(_SOURCE_CATEGORY_MAP)
 _FREE_ACTIVITY_ALLOW = {
     "Aktion/Workshop", "Bonn-Information", "Familien/Kinder", "Ferienaktion",
     "Kinder (0 bis 5 Jahre)", "Kinder (5 bis 12 Jahre)", "Kultur", "Sport",
@@ -55,6 +69,9 @@ _BLOCK = {
     "Beratung", "Spendenaktion", "Online-Veranstaltung", "Bürger*innenbeteiligung",
     "Next Stop Job", "Bürger*innensprechstunde OB Déus",
 }
+_KNOWN_SOURCE_CATEGORIES = (
+    _ALLOW | _FREE_ACTIVITY_ALLOW | _BLOCK | {"Ausstellung", "Bonn", "Kostenlos"}
+)
 
 _venue_points_cache = None
 def _env_number(name: str, default: float) -> float:
@@ -296,6 +313,35 @@ def _clean_free_title_prefix(title: str) -> str:
     return re.sub(r"^\s*(?:kostenloser\s+eintritt|eintritt\s+frei)\s*:\s*", "", title or "", flags=re.I).strip()
 
 
+def _unknown_source_categories(tags: set[str]) -> set[str]:
+    return tags - _KNOWN_SOURCE_CATEGORIES
+
+
+def _warn_unknown_source_categories(source: str, categories: set[str]) -> None:
+    if categories:
+        common.log_source_error(
+            f"{source} category taxonomy",
+            ValueError("unknown Bonn source categories: " + ", ".join(sorted(categories))),
+        )
+
+
+def _apply_source_category_mapping(ev: dict, tags: set[str]) -> dict:
+    mapped_tags = sorted(tag for tag in tags if tag in _SOURCE_CATEGORY_MAP)
+    mapped_keys = {_SOURCE_CATEGORY_MAP[tag] for tag in mapped_tags}
+    if len(mapped_keys) != 1:
+        # Conflicting or absent source categories remain keyword-classifier input.
+        return ev
+    key = mapped_keys.pop()
+    category = category_taxonomy.CATEGORY_BY_KEY[key]
+    return {
+        **ev,
+        "category_key": key,
+        "category_label": category["label"],
+        "category_confidence": 1.0,
+        "category_reason": "bonn-source-category:" + ", ".join(mapped_tags),
+    }
+
+
 def _apply_free_category_override(ev: dict, tags: set) -> dict:
     """Respect strong Bonn tags for free records admitted through free_allow."""
     if "Sport" in tags:
@@ -355,6 +401,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
 
     points = _venue_points()
     events = []
+    unknown_categories = set()
     for item in items:
         title = (item.get("title") or "").strip()
         if not title:
@@ -362,12 +409,14 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
 
         tags = set(item.get("category") or [])
         allow = tags & _ALLOW
+        unknown = _unknown_source_categories(tags)
+        unknown_categories.update(unknown)
         price = common.infer_free_admission_price(
             item.get("title", ""), item.get("description", ""),
             "kostenlos" if "Kostenlos" in tags else "",
         )
         free_allow = (tags & _FREE_ACTIVITY_ALLOW) if price else set()
-        if (not allow and not free_allow) or (tags & _BLOCK):
+        if (tags & _BLOCK) or (tags and not allow and not free_allow and not unknown):
             continue
 
         start_dt = _parse_dt(item.get("startDate", ""))
@@ -397,12 +446,13 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             if item.get("hasEndTime") and end_dt and (end_dt.hour or end_dt.minute):
                 time_text += f"–{end_dt:%H:%M}"
 
-        category_tags = allow or free_allow
+        category_tags = tags if unknown or not tags else (allow or free_allow)
         ev = common.make_event(
             title, start_dt, end_dt, venue, city, description, link,
             source, ", ".join(sorted(category_tags)), time_text=time_text,
             coords=points.get(venue.lower()))
         if ev:
+            ev = _apply_source_category_mapping(ev, tags)
             if free_allow and not allow:
                 ev = _apply_free_category_override(ev, tags)
             if price:
@@ -410,6 +460,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
                 if free_allow:
                     ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
             events.append(ev)
+    _warn_unknown_source_categories(source, unknown_categories)
     if len(events) < 20:
         events = _merge_fallback_events(events, _fetch_rss_events(source))
         events = _merge_fallback_events(events, _fetch_free_calendar_events(source))
@@ -472,6 +523,7 @@ def _is_sparse_listing_description(description: str, title: str) -> bool:
 
 def _listing_events_from_html(html: str, source: str, *, free_only: bool = False) -> list:
     events, seen = [], set()
+    unknown_categories = set()
     for m in re.finditer(r'<article class="SP-Teaser\b.*?</article>', html, re.S | re.I):
         body = m.group(0)
         href_m = re.search(r'<a[^>]+class="[^"]*SP-Teaser__inner[^"]*"[^>]+href="([^"]+)"', body, re.S | re.I)
@@ -489,7 +541,9 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
         tags = _split_tags(category)
         allow = tags & _ALLOW
         free_allow = tags & _FREE_ACTIVITY_ALLOW
-        if (not allow and not free_allow) or (tags & _BLOCK):
+        unknown = _unknown_source_categories(tags)
+        unknown_categories.update(unknown)
+        if (tags & _BLOCK) or (tags and not allow and not free_allow and not unknown):
             continue
 
         link = common.urllib.parse.urljoin("https://www.bonn.de", href)
@@ -540,6 +594,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 source, ", ".join(sorted(tags | ({"Kostenlos"} if free_only else set()))), trust=0.86, time_text=time_text,
             )
             if ev:
+                ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:
                     ev["description"] = common.concise_description(description)
                 price = common.infer_free_admission_price(
@@ -553,6 +608,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                     if price:
                         ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
                 events.append(ev)
+    _warn_unknown_source_categories(source, unknown_categories)
     return events
 
 
