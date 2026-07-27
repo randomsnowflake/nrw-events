@@ -184,6 +184,17 @@ class BonnLiteratureSourceTests(unittest.TestCase):
         )
         self.assertEqual(event["category_key"], "talk")
 
+    def test_parkbuchhandlung_preserves_explicit_comedy_format(self):
+        html = PARK_HTML.replace(
+            "Gianrico Carofiglio &raquo;Der Horizont der Nacht&laquo;",
+            "Kabarett mit Max Uthoff",
+        )
+
+        events = bonn_literature.events_from_parkbuchhandlung_html(html)
+
+        event = next(item for item in events if item["title"] == "Kabarett mit Max Uthoff")
+        self.assertEqual(event["category_key"], "comedy")
+
     def test_parkbuchhandlung_enriches_time_price_and_description_once_per_link(self):
         calls = []
 

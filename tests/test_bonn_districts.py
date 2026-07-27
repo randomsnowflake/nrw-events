@@ -205,6 +205,42 @@ class BonnDistrictSourceTests(unittest.TestCase):
         html = HOLZLAR_HTML.replace("August", "").replace("2026", "", 1)
 
         self.assertEqual(len(bonn_districts.events_from_holzlar_html(html)), 1)
+    def test_bonn_postcodes_resolve_the_outer_stadtbezirke(self):
+        for venue, expected in (
+            ("Siegburger Str. 42, 53229 Bonn", "Bonn-Beuel"),
+            ("Kurfürstenallee 2-3, 53177 Bonn", "Bonn-Bad Godesberg"),
+            ("Stadthalle, 53123 Bonn", "Bonn-Hardtberg"),
+        ):
+            event = common.make_event(
+                "Testtermin", datetime(2026, 9, 1), None, venue, "Bonn",
+                "Beschreibung", "https://example.test/e", "Testquelle", "kultur", 1.0,
+            )
+            with self.subTest(venue=venue):
+                self.assertEqual(event["city"], expected)
+
+    def test_central_postcodes_and_generic_venue_words_stay_plain_bonn(self):
+        # The central Stadtbezirk is itself named "Bonn", and "Zentrum" is an
+        # everyday word in venue names rather than a district. 53125 spans
+        # Stadtbezirke Bonn and Hardtberg and cannot be resolved from PLZ alone.
+        for venue in (
+            "Frongasse 8a, 53121 Bonn",
+            "Unbekannter Veranstaltungsort, 53125 Bonn",
+            "Max7 Zentrum, Oxfordstr. 6",
+        ):
+            event = common.make_event(
+                "Testtermin", datetime(2026, 9, 1), None, venue, "Bonn",
+                "Beschreibung", "https://example.test/e", "Testquelle", "kultur", 1.0,
+            )
+            with self.subTest(venue=venue):
+                self.assertEqual(event["city"], "Bonn")
+
+    def test_non_bonn_cities_are_never_rewritten(self):
+        event = common.make_event(
+            "Testtermin", datetime(2026, 9, 1), None, "Marktplatz, 53721 Siegburg",
+            "Siegburg", "Beschreibung", "https://example.test/e", "Testquelle", "kultur", 1.0,
+        )
+
+        self.assertEqual(event["city"], "Siegburg")
 
 
 if __name__ == "__main__":

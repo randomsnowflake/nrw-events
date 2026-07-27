@@ -56,6 +56,27 @@ def guess_city_from_text(text: str) -> Optional[str]:
     return None
 
 
+def district_from_postcode(text: str) -> str:
+    """Return the Bonn city district encoded in a postcode found in ``text``."""
+    for match in re.findall(r"\b(53\d{3})\b", text or ""):
+        district = config.BONN_POSTCODE_DISTRICTS.get(match)
+        if district:
+            return district
+    return ""
+
+
+def refine_bonn_location(city: str, text: str) -> str:
+    """Resolve a bare "Bonn" to its district using a postcode, then a name.
+
+    Most sources only ever say "Bonn". A postal address in the venue is the
+    strongest available signal and is checked first; the configured district
+    names in :func:`refine_city_from_text` handle the rest.
+    """
+    if (city or "").strip().casefold() != "bonn":
+        return city
+    return district_from_postcode(text) or refine_city_from_text(city, text)
+
+
 def refine_city_from_text(city: str, text: str) -> str:
     """Refine a coarse Bonn location to a configured district found in text.
 

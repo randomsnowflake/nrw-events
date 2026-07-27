@@ -33,6 +33,7 @@ from . import category_taxonomy, config
 from .health import SourceResult, SourceStatus
 from .location import coords_for_city as coords_for_city
 from .location import refine_city_from_text as refine_city_from_text
+from .location import refine_bonn_location as refine_bonn_location
 from .location import guess_city_from_text, haversine, resolve_location
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
@@ -1162,6 +1163,9 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     """
     if not title or (start_dt is None and end_dt is not None):
         return None
+    # Most sources only ever report "Bonn". Resolve the district centrally from
+    # the venue so every source benefits instead of each repeating the lookup.
+    city = refine_bonn_location(city, f"{venue} {city}")
     outside_window = bool(
         (end_dt is not None and start_dt is None)
         or (start_dt is not None and not window_contains(start_dt, end_dt))

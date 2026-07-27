@@ -359,5 +359,28 @@ class CategoryTaxonomyTests(unittest.TestCase):
                 )
 
 
+    def test_kabarett_and_comedy_have_their_own_category(self):
+        cases = [
+            # A cabaret house passes its own genre; the title is just a name.
+            ("kabarett kleinkunst", "Max Uthoff - uns.ich.er", "", "comedy"),
+            ("kabarett kleinkunst", "Wladimir Kaminer - Müttertage", "", "comedy"),
+            ("comedy kabarett impro", "LOL Sommer Open Air", "", "comedy"),
+            ("", "Kabarett-Abend", "", "comedy"),
+            ("", "Improtheater Bonn", "", "comedy"),
+            ("", "Poetry Slam", "", "comedy"),
+            # Drama, dance and opera stay on the stage category.
+            ("", "Theaterstück Hamlet", "", "stage"),
+            ("", "Tanztheater", "", "stage"),
+            ("", "Oper: Carmen", "", "stage"),
+            # A concert keeps winning on its own title.
+            ("kabarett kleinkunst", "Konzert der Big Band", "", "concert"),
+        ]
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"], expected
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
