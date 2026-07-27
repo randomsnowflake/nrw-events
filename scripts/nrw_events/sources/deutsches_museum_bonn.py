@@ -10,6 +10,7 @@ from . import regional_common as rc
 _URL = "https://www.deutsches-museum.de/bonn/programm"
 _SOURCE = "Deutsches Museum Bonn"
 _VENUE = "Deutsches Museum Bonn"
+_PRIMARY_SOURCE_SCORE_FLOOR = 0.45
 
 
 def _ajax_url(html: str) -> str:
@@ -71,6 +72,9 @@ def events_from_html(html: str) -> list:
             all_day=False,
         )
         if event:
+            # Preserve requested first-party museum programmes even when the
+            # global ranking downranks their kids-only wording.
+            event["score"] = max(float(event.get("score") or 0), _PRIMARY_SOURCE_SCORE_FLOOR)
             events.append(event)
     return rc.dedupe_occurrences(events)
 

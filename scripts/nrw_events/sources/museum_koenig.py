@@ -9,6 +9,7 @@ from . import regional_common as rc
 _URL = "https://bonn.leibniz-lib.de/de/veranstaltungen.html"
 _SOURCE = "Museum Koenig Bonn"
 _VENUE = "Museum Koenig Bonn"
+_PRIMARY_SOURCE_SCORE_FLOOR = 0.45
 
 
 def _card_blocks(html: str) -> list[str]:
@@ -110,6 +111,9 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
             all_day=False,
         )
         if event:
+            # Preserve requested first-party museum programmes even when the
+            # global ranking downranks their kids-only wording.
+            event["score"] = max(float(event.get("score") or 0), _PRIMARY_SOURCE_SCORE_FLOOR)
             events.append(event)
     events = rc.dedupe_occurrences(events)
     if detail_fetcher:

@@ -47,6 +47,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
             event["source_id"] == "haus-der-geschichte-begleitungen"
             for event in sunday
         ))
+        self.assertTrue(all(event["score"] >= 0.4 for event in sunday))
 
     def test_haus_der_geschichte_embedded_family_tours_are_searchable_occurrences(self):
         html = """
@@ -77,6 +78,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
         )
         self.assertEqual(events[1]["category_key"], "kids")
         self.assertEqual(len(report.deduplicate(events)), 3)
+        self.assertTrue(all(event["score"] >= 0.4 for event in events))
 
     def test_haus_der_geschichte_keeps_calendar_when_guided_tour_page_fails(self):
         calendar = """
@@ -119,6 +121,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertTrue(all("Museumseintritt kann zusätzlich anfallen" in event["description"] for event in events))
         self.assertEqual(events[1]["category_key"], "exhibition")
         self.assertEqual(events[0]["link"], "https://bonn.leibniz-lib.de/de/veranstaltungen/wir-lesen-vor.html")
+        self.assertTrue(all(event["score"] >= 0.4 for event in events))
 
     def test_museum_koenig_does_not_mislabel_free_tour_plus_paid_entry(self):
         detail = """
@@ -170,6 +173,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["end_at"], "2026-08-22T14:00+02:00")
         self.assertEqual(events[0]["venue"], "Deutsches Museum Bonn")
         self.assertIn("Exklusiver KI:ckstart", events[0]["description"])
+        self.assertGreaterEqual(events[0]["score"], 0.4)
 
     def test_deutsches_museum_detail_uses_body_copy_and_cost_facts(self):
         detail = """

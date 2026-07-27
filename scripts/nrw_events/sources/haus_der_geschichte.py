@@ -10,6 +10,7 @@ _URL = "https://www.hdg.de/haus-der-geschichte/veranstaltungen"
 _GUIDED_TOURS_URL = "https://www.hdg.de/haus-der-geschichte/begleitungen"
 _SOURCE = "Haus der Geschichte"
 _DEFAULT_VENUE = "Haus der Geschichte"
+_PRIMARY_SOURCE_SCORE_FLOOR = 0.45
 _WEEKDAYS = {
     "montag": 0,
     "dienstag": 1,
@@ -106,7 +107,12 @@ def events_from_html(html: str) -> list:
         if event:
             events.append(event)
         events.extend(_embedded_family_tours(panel, date_match.group(1), link))
-    return rc.dedupe_occurrences(events)
+    events = rc.dedupe_occurrences(events)
+    for event in events:
+        # The global ranking deliberately downranks kids-only listings. This
+        # requested first-party museum programme must still reach publication.
+        event["score"] = max(float(event.get("score") or 0), _PRIMARY_SOURCE_SCORE_FLOOR)
+    return events
 
 
 def _guided_tour_sections(html: str) -> list[tuple[str, str]]:
