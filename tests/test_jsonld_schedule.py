@@ -136,6 +136,23 @@ class JsonLdScheduleTests(unittest.TestCase):
                 "kostenlos",
             ),
             (
+                "bare zero without currency is not a free claim",
+                {"offers": {"@type": "Offer", "price": 0}},
+                "",
+                "",
+            ),
+            (
+                "bare zero without currency defers to a later priced offer",
+                {
+                    "offers": [
+                        {"@type": "Offer", "price": 0},
+                        {"@type": "Offer", "price": 15, "priceCurrency": "EUR"},
+                    ]
+                },
+                "",
+                "15 EUR",
+            ),
+            (
                 "free flag wins over contradictory paid offer",
                 {
                     "isAccessibleForFree": "true",
@@ -147,6 +164,7 @@ class JsonLdScheduleTests(unittest.TestCase):
         ]
 
         for label, admission, description, expected_price in fixtures:
+            expected_basis = "explicit" if expected_price else ""
             with self.subTest(label=label):
                 payload = {
                     "@context": "https://schema.org",
@@ -164,10 +182,10 @@ class JsonLdScheduleTests(unittest.TestCase):
 
                 self.assertEqual(len(events), 1)
                 self.assertEqual(events[0]["price"], expected_price)
-                self.assertEqual(events[0]["admission_basis"], "explicit")
+                self.assertEqual(events[0]["admission_basis"], expected_basis)
                 canonical = canonicalize_event(events[0])
                 self.assertEqual(canonical.price, expected_price)
-                self.assertEqual(canonical.admission_basis, "explicit")
+                self.assertEqual(canonical.admission_basis, expected_basis)
 
 
 if __name__ == "__main__":
