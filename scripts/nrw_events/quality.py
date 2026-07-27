@@ -63,6 +63,10 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
 
 
 _WORK_TITLE = re.compile(r"[»«„““”\"']\s*\S")
+_ADVERTISING_MARKER = re.compile(
+    r"^\s*(anzeige|advertorial|sponsored)\b",
+    re.IGNORECASE,
+)
 _ONLINE_ONLY_VENUE = re.compile(
     r"^(zoom|webex|jitsi|bigbluebutton|(?:ms|microsoft)\s+teams|online|digital)$",
     re.IGNORECASE,
@@ -96,6 +100,18 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     title = str(event.get("title") or "").lower()
     description = str(event.get("description") or "").lower()
     text = f"{title} {description}"
+
+    advertising_marker = next(
+        (match for content in (title, description) if (match := _ADVERTISING_MARKER.match(content))),
+        None,
+    )
+    if advertising_marker:
+        return QualityDecision(
+            QualityAction.DROP,
+            "editorial.advertising-marker",
+            "publisher marked the event content as advertising",
+            (advertising_marker.group(1).lower(),),
+        )
 
     # Public participation records are valuable civic information, but they are
     # planning procedures rather than dated leisure events.

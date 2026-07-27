@@ -46,6 +46,28 @@ class JunkFilterTests(unittest.TestCase):
         self.assertTrue(decision.rule_id)
         self.assertTrue(decision.reason)
 
+    def test_advertising_markers_at_content_start_are_dropped_by_named_rule(self):
+        cases = (
+            {"title": "IWK Ausbildung", "description": "ANZEIGE: Jetzt bewerben"},
+            {"title": " Advertorial – Neues aus der Region", "description": ""},
+            {"title": "Sommerfest", "description": "\n  Sponsored: Präsentiert von Acme"},
+        )
+
+        for candidate in cases:
+            with self.subTest(candidate=candidate):
+                decision = evaluate_event_quality(candidate)
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "editorial.advertising-marker")
+                self.assertTrue(decision.matched_terms)
+
+    def test_advertising_words_away_from_content_start_do_not_trigger_marker_rule(self):
+        decision = evaluate_event_quality({
+            "title": "Diskussion über Advertorials",
+            "description": "Eine Führung mit anschließender Diskussion über Sponsored Content.",
+        })
+
+        self.assertNotEqual(decision.rule_id, "editorial.advertising-marker")
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 12), datetime(2026, 6, 25))
 
