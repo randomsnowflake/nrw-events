@@ -41,7 +41,6 @@ CATEGORIES: list[Category] = [
     {"key": "concert", "label": "Konzert"},
     {"key": "nightlife", "label": "Nachtleben & Party"},
     {"key": "stage", "label": "Theater & Bühne"},
-    {"key": "comedy", "label": "Kabarett & Comedy"},
     {"key": "cinema", "label": "Kino & Film"},
     {"key": "exhibition", "label": "Ausstellung"},
     {"key": "festival", "label": "Feste & Stadtleben"},
@@ -52,6 +51,7 @@ CATEGORIES: list[Category] = [
     {"key": "talk", "label": "Vorträge & Lesungen"},
     {"key": "workshop", "label": "Workshops & Kurse"},
     {"key": "kids", "label": "Familie & Kinder"},
+    {"key": "activities", "label": "Aktivitäten & Treffen"},
     {"key": "other", "label": "Sonstiges"},
 ]
 
@@ -75,8 +75,8 @@ FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     # belongs to a curated cinema format, so incidental words in a synopsis
     # (such as "Sportlehrerin") cannot move the event into another category.
     ("cinema", ("cinema-special",)),
-    # Photo-club meetings are recurring community meetups, not club nights.
-    ("other", ("fotoclub", "foto club")),
+    # Photo-club meetings are recurring community activities, not club nights.
+    ("activities", ("fotoclub", "foto club")),
     # KUNST!RASEN is a Bonn concert venue; the "kunst" substring is not an
     # exhibition signal in aggregator-style "artist @ venue" titles.
     ("concert", ("kunst!rasen", "kunstrasen")),
@@ -111,7 +111,7 @@ LOW_VALUE_TITLE_CONTEXT = (
 DESTINATION_TITLE_CONTEXT = (
     "festival", "flohmarkt", "konzert", "theater", "kino", "ausstellung", "vernissage",
     "führung", "fuehrung", "tour", "soundwalk", "tag der offenen tür", "tag der offenen tuer",
-    "repair café", "repair cafe", "biker-treffen",
+    "repair café", "repair cafe", "reparatur-café", "reparatur-cafe", "biker-treffen",
 )
 
 STRONG_MARKET_TITLE_CONTEXT = (
@@ -140,19 +140,57 @@ RULES: tuple[Rule, ...] = (
             "mitmach", "märchen", "maerchen", "puppentheater", "puppenspiel", "kinderbühne", "kinderbuehne", "kasper", "vorlesen", "lese-abenteuer",
             "sommerleseclub", "lesesommer", "vorlesesommer", "vorlesehund",
             "feriencamp", "ferienaktion", "ferienprogramm",
+            "ferienspaß", "ferienspass", "kuscheltierübernachtung",
             "bambini", "krabbel", "lego", "zauberwürfel", "zauberwuerfel",
             "storytime", "martinszug", word("dino"),
         ),
     ),
-    Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "schmücken", "schmuecken", "keramik", "malen", "kreativ", "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
-    Rule("talk", 10, ("lesung", "lesekreis", "lesezirkel", "buchvorstellung", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", "philosophisch", "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("forum"), word("talk"), Keyword("info", title_only=True, word=True), title_only("meetup"), title_only("community meeting"))),
-    Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwochenende", "tennis", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen", "boule", "schach")),
+    Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "summer school", "zeichnen lernen", "gag-schreiben", "repair", "reparatur-café", "reparatur-cafe", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "schmücken", "schmuecken", "keramik", "malen", "kreativ", "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
+    Rule("talk", 10, ("lesung", "lesekreis", "lesezirkel", "buchtreff", "buchvorstellung", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", "philosophisch", "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("forum"), word("talk"), Keyword("info", title_only=True, word=True), title_only("meetup"), title_only("community meeting"))),
+    Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwoche", "sportwochenende", "tennis", "volleyball", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "radlertreff", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "paddeln", "klettern", "schwimmen", "boule", "schach")),
     Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
     Rule("concert", 7, ("konzert", "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
     Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro"), word("party"), "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
-    Rule("comedy", 6, ("kabarett", "comedy", "comedian", "kleinkunst", "stand-up", "standup", "satire", "impro", "improtheater", "improvisationstheater", "variete", "varieté", "revue", "poetry slam", "poetryslam", "lachen", word("slam"))),
-    Rule("stage", 5, ("theater", "bühne", "buehne", "zirkus", "cirque", "tanz", "dance", "musical", "show", word("performance"), word("oper"), word("stage"))),
+    Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "comedian", "kleinkunst", "stand-up", "standup", "satire", "impro", "improtheater", "improvisationstheater", "variete", "varieté", "revue", "poetry slam", "poetryslam", "lachen", "zirkus", "cirque", word("tanz"), word("dance"), "musical", "show", word("performance"), word("oper"), word("stage"), word("slam"))),
     Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "karikatur", "vernissage", "atelier", "installation")),
+    Rule(
+        "activities",
+        3,
+        (
+            Keyword("aktivität", title_only=True, word_suffix=True),
+            Keyword("treff", title_only=True, word_suffix=True),
+            Keyword("treffen", title_only=True, word_suffix=True),
+            Keyword("spiele", title_only=True, word=True),
+            title_only("spieletreff"),
+            title_only("spieleabend"),
+            title_only("spielnachmittag"),
+            title_only("spielenachmittag"),
+            title_only("spiele-nachmittag"),
+            title_only("brettspiel"),
+            title_only("board game"),
+            title_only("board games"),
+            title_only("skat-treff"),
+            Keyword("bingo", title_only=True, word=True),
+            Keyword("gaming", title_only=True, word=True),
+            Keyword("quiz", title_only=True, word=True),
+            title_only("kaffeeklatsch"),
+            title_only("gemeindecafé"),
+            title_only("gemeindecafe"),
+            title_only("trauercafé"),
+            title_only("trauer-café"),
+            title_only("friedhofscafé"),
+            title_only("friedhofscafe"),
+            title_only("gartencafe"),
+            title_only("gartencafé"),
+            title_only("mittagstisch"),
+            title_only("mitbringbrunch"),
+            title_only("selbsthilfegruppe"),
+            title_only("gemeinsam statt einsam"),
+            title_only("gemeinsam freizeit"),
+            title_only("cleanup"),
+            title_only("clean-up"),
+        ),
+    ),
     Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "herbstfahrt", "natur", suffix_word("garten"), "exkursion", "ausflug", "hohes venn", suffix_word("park"), "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
     Rule("festival", 1, (suffix_word("fest"), "festival", "kirmes", "kerb", "meile", "karneval", "weihnachtsfeier", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "tag des offenen denkmals", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
 )
@@ -207,7 +245,7 @@ def _category_keys_for_hint(hint_text: str) -> set[str]:
 
 def _forced_title_format(title_text: str) -> str:
     """Prefer explicit event-format nouns over incidental descriptive words."""
-    if re.search(r"\b(?:sport\w*|\w*tennis\w*)\b", title_text):
+    if re.search(r"\b(?:sport|\w*tennis\w*)\b", title_text):
         return "sports"
     if re.search(r"\b\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text):
         return "outdoor"
@@ -216,7 +254,185 @@ def _forced_title_format(title_text: str) -> str:
     return ""
 
 
-def categorize_event(source_category: str, title: str, description: str = "") -> CategoryResult:
+def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def _match_count(text: str, patterns: tuple[str, ...]) -> int:
+    return sum(1 for pattern in patterns if re.search(pattern, text))
+
+
+def _contextual_event_format(
+    title_text: str,
+    description_text: str,
+) -> tuple[str, str, float] | None:
+    """Infer formats from corroborating, reusable content signals.
+
+    These rules deliberately describe event shapes rather than named events,
+    performers, venues, or sources. Ambiguous single words are insufficient:
+    each branch either requires multiple signals or a well-defined public
+    programme marker.
+    """
+
+    content = f"{title_text} {description_text}"
+    child_program = _contains_any(
+        content,
+        (
+            r"\bbibliotheks(?:sommer|ferien)\b",
+            r"\b(?:kinder|jugend|ferien)(?:programm|aktion|spaß|spass)\b",
+        ),
+    )
+    interactive_play = _contains_any(
+        content,
+        (
+            r"\b(?:vr|virtual reality)\b",
+            r"\bcontroller\w*\b",
+            r"\b(?:brett|karten|rollen|video|gesellschafts)spiel(?:e|en|abend|treff)?\b",
+            r"\bsocial[ -]?deduction[ -]?spiel\w*\b",
+            r"\bgaming\b",
+        ),
+    )
+    if child_program and interactive_play:
+        return ("kids", "format:interactive-child-programme", 0.95)
+
+    practical_process = _match_count(
+        content,
+        (
+            r"\bexperimentier\w*\b",
+            r"\bschritt für schritt\b",
+            r"\b(?:selbst|gemeinsam) (?:gestalten|schreiben|bauen|erarbeiten)\b",
+            r"\b(?:\w*auffrisch|aufzufrisch|frisch\w*.{0,20}\bauf)\w*\b",
+            r"\b(?:\w*(?:fähigkeiten|kenntnisse)\w*.{0,30}\bstärk\w*|stärk\w*.{0,30}\w*(?:fähigkeiten|kenntnisse))\b",
+            r"\bunsicherheiten (?:abbauen|abzubauen)\b",
+            r"\b(?:schreiben|erzählen|gestalten).{0,80}(?:entsteh|erarbeit)\w*\b",
+        ),
+    )
+    creative_process = _match_count(
+        description_text,
+        (
+            r"\bschreib\w*\b",
+            r"\berzähl\w*\b",
+            r"\bgestalt\w*\b",
+            r"\bentsteh\w*\b",
+        ),
+    )
+    if practical_process >= 2 or creative_process >= 3:
+        return ("workshop", "format:guided-practical-learning", 0.9)
+
+    social_format = _contains_any(
+        content,
+        (
+            r"\bmedit\w*\b",
+            r"\bselbsthilfe(?:gruppe)?\b",
+            r"\btrauer(?:gruppe|treff|café|cafe|nde)?\b",
+            r"\b(?:häkeln|stricken|nähen|handarbeit)\b",
+            r"\bmitmachformat\w*\b",
+            r"\bfreizeitprogramm\b",
+            r"\bmiteinander\b",
+            r"\blernt sich kennen\b",
+        ),
+    )
+    participation = _contains_any(
+        content,
+        (
+            r"\bgemeinsam\b",
+            r"\bteilnehm\w*\b",
+            r"\boffen für\b",
+            r"\bgleichgesinnt\w*\b",
+            r"\bunterstützen sich\b",
+            r"\bmitmachen\b",
+            r"\bmitgestalten\b",
+            r"\bkomm mit uns\b",
+            r"\b\w*programm\b",
+            r"\blernt sich kennen\b",
+        ),
+    )
+    playable_format = interactive_play and _contains_any(
+        content,
+        (r"\bbring\w*\b", r"\bspiel\w*\b", r"\bcontroller\w*\b"),
+    )
+    if (social_format and participation) or playable_format:
+        return ("activities", "format:participatory-social-activity", 0.9)
+
+    outdoor_context = _match_count(
+        content,
+        (
+            r"\b(?:wiese|weide|heide|wald|tongrube|weiher)\w*\b",
+            r"\b(?:kräuter|kraeuter|flora|fauna|tier\w*)\b",
+            r"\b(?:eifel|naturgebiet|landschaft)\b",
+            r"\bkomm mit uns\b",
+        ),
+    )
+    if outdoor_context >= 2:
+        return ("outdoor", "format:guided-nature-experience", 0.85)
+
+    exhibition_context = _match_count(
+        content,
+        (
+            r"\bkünstler\w*\b",
+            r"\bintervention\b",
+            r"\b(?:skulptur|installation|kunstobjekt)\w*\b",
+            r"\bprojekt\b",
+        ),
+    )
+    if exhibition_context >= 2:
+        return ("exhibition", "format:artistic-installation", 0.9)
+
+    concert_context = (
+        _contains_any(content, (r"\btribute\b",))
+        and _contains_any(content, (r"\blive\b", r"\bband\b", r"\bmusik\b"))
+    ) or (
+        _match_count(
+            content,
+            (
+                r"\b(?:metal|gothic|postpunk|punkrock|dark wave|cold wave|ebm)\b",
+                r"\b(?:klänge|klaenge|klange|stücke|stuecke)\b",
+                r"\b(?:live club|live-band|live band)\b",
+                r"\bopen[ -]?air\b",
+            ),
+        )
+        >= 2
+    )
+    if concert_context:
+        return ("concert", "format:live-music-performance", 0.9)
+
+    stage_context = _contains_any(content, (r"\bpräsentiert\w*\b", r"\bpraesentiert\w*\b"))
+    stage_context = stage_context and _contains_any(content, (r"\bhommage\b", r"\bprogramm\b"))
+    if stage_context:
+        return ("stage", "format:presented-stage-programme", 0.8)
+
+    information_context = _contains_any(
+        description_text,
+        (
+            r"\binformiert und berät\b",
+            r"\binformiert und beraet\b",
+            r"^wie kann ich\b",
+            r"\bwie (?:kann|können) (?:ich|wir|man)\b",
+        ),
+    )
+    if information_context:
+        return ("talk", "format:public-information-session", 0.8)
+
+    civic_celebration = _contains_any(content, (r"\bverleihung\b", r"\bpreisübergabe\b"))
+    civic_celebration = civic_celebration and _contains_any(
+        description_text,
+        (r"\bim rahmen (?:der|des)\b", r"\b(?:fest|festival|partie)\w*\b"),
+    )
+    organisation_anniversary = bool(
+        re.search(r"\b\d{1,3}\s+jahre\b", title_text)
+        and re.search(r"\b(?:e\.?\s*v\.?|verein|initiative|hilfe)\b", title_text)
+    )
+    if civic_celebration or organisation_anniversary:
+        return ("festival", "format:public-celebration", 0.85)
+
+    return None
+
+
+def categorize_event(
+    source_category: str,
+    title: str,
+    description: str = "",
+) -> CategoryResult:
     """Return the canonical category for an event.
 
     Titles are the strongest signal, descriptions are moderate, and source
@@ -227,6 +443,19 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
     title_text = normalize_text(title)
     hint_text = normalize_text(source_category)
     description_text = normalize_text(description)
+
+    # Explicit sport and guided-listening formats in the title outrank broader
+    # programme context such as "Ferienspaß" or "künstlerische Intervention".
+    explicit_title_format = _forced_title_format(title_text)
+    if explicit_title_format == "sports" or _contains_word(title_text, "soundwalk"):
+        key = explicit_title_format or "outdoor"
+        category = CATEGORY_BY_KEY[key]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": f"forced:{key}-title-format",
+        }
 
     if ("cinema-special" not in hint_text
             and any(bit in title_text for bit in LOW_VALUE_TITLE_CONTEXT)
@@ -324,11 +553,13 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
         description_matches = _matched_values(description_text, rule.keywords, is_title=False)
         hint_matches = _matched_values(hint_text, rule.keywords, is_title=False)
         score = 3 * len(title_matches)
-        score += 2 * len(description_matches)
+        # A description corroborates an intent, but repeated synonyms must not
+        # snowball past an explicit title format.
+        score += 2 if description_matches else 0
         # Source categories remain weak fallbacks. Broad bags were discarded
         # above; focused tags may break an otherwise unsupported tie but cannot
         # overpower title or description evidence.
-        score += 1 if hint_matches and not title_matches and not description_matches else 0
+        score += 1 if hint_matches else 0
         if score == 0:
             continue
         if score > best_score or (score == best_score and rule.priority > best_priority):
@@ -343,6 +574,18 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
             if hint_matches:
                 bits.append("source_category=" + ",".join(hint_matches[:3]))
             best_reason = f"{rule.key}:" + ";".join(bits)
+
+    if best_key == "other":
+        contextual_format = _contextual_event_format(title_text, description_text)
+        if contextual_format:
+            key, reason, confidence = contextual_format
+            category = CATEGORY_BY_KEY[key]
+            return {
+                "key": category["key"],
+                "label": category["label"],
+                "confidence": confidence,
+                "reason": reason,
+            }
 
     category = CATEGORY_BY_KEY[best_key]
     return {

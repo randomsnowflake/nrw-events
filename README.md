@@ -325,10 +325,10 @@ weiterhin gezielt überschreiben.
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
 - **Kabarett & Comedy:** Kabarett, Comedy, Impro, Poetry Slam und Kleinkunst
-  bilden eine eigene Kategorie statt in „Theater & Bühne" oder „Sonstiges" zu
-  verschwinden. Spielstätten mit einem festen Genre (Pantheon, Haus der
-  Springmaus) geben ihr Genre als Quellhinweis mit; der Brotfabrik-Feed nutzt
-  sein eigenes `Gewerk`-Feld je Termin.
+  bleiben wegen der derzeit kleinen Terminmenge Teil von „Theater & Bühne",
+  statt eine dünn besetzte eigene Kategorie zu bilden. Pantheon und Haus der
+  Springmaus geben passende Genre-Hinweise mit; der Brotfabrik-Feed nutzt sein
+  eigenes `Gewerk`-Feld je Termin.
 - **Bonner Stadtbezirke:** `make_event` löst ein bloßes „Bonn" zentral über die
   Postleitzahl im Veranstaltungsort auf (Bad Godesberg, Beuel, Hardtberg). Die
   zentralen Postleitzahlen bleiben „Bonn", weil der zentrale Stadtbezirk selbst

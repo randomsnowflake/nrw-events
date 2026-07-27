@@ -101,7 +101,46 @@ def fetch() -> list:
     events = []
     for calendar in _CALENDARS:
         events.extend(_fetch_calendar(*calendar))
-    return rc.dedupe(events)
+    events = rc.dedupe(events)
+    events = rc.enrich_descriptions(
+        events,
+        source=_SOURCE,
+        cache_namespace="regional-sitekit-detail",
+        extract_context=lambda html, _event: {
+            "description": _detail_description(html),
+        },
+        fallback=lambda event: event.get("description", ""),
+        needs_enrichment=lambda event: event.get("category_key") == "other",
+    )
+    for event in events:
+        if event.get("category_key") != "other":
+            continue
+        canonical = common.category_taxonomy.categorize_event(
+            event.get("category", ""),
+            event.get("title", ""),
+            event.get("description", ""),
+        )
+        event.update({
+            "category_key": canonical["key"],
+            "category_label": canonical["label"],
+            "category_confidence": canonical.get("confidence", 0),
+            "category_reason": canonical.get("reason", ""),
+        })
+    return events
+
+
+def _detail_description(html: str) -> str:
+    """Prefer visible SiteKit body copy over a teaser synopsis."""
+    paragraphs = [
+        rc.clean(fragment)
+        for fragment in re.findall(
+            r'<div[^>]+class="[^"]*\bSP-Paragraph\b[^"]*"[^>]*>(.*?)</div>',
+            html or "",
+            re.S | re.I,
+        )
+    ]
+    paragraphs = [paragraph for paragraph in paragraphs if paragraph]
+    return common.concise_description(" ".join(paragraphs))
 
 
 def _events_from_teasers(html: str, base: str, city: str, trust: float,

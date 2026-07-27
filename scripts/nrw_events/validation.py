@@ -112,7 +112,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     # URLs contain venue slugs and navigation words such as ``museum`` or
     # ``events``; they are transport metadata, not editorial category evidence.
     canonical = category_taxonomy.categorize_event(
-        event["category"], event["title"], event["description"]
+        event["category"],
+        event["title"],
+        event["description"],
     )
     event.setdefault("category_key", canonical["key"])
     event.setdefault("category_label", canonical["label"])

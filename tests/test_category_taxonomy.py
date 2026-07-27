@@ -20,8 +20,78 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
         self.assertGreaterEqual(len(keys), 12)
         self.assertEqual(len(keys), len(set(keys)))
-        for key in ["concert", "nightlife", "market", "food", "sports", "workshop", "cinema"]:
+        for key in ["concert", "nightlife", "market", "food", "sports", "workshop", "cinema", "activities"]:
             self.assertIn(key, keys)
+
+    def test_activities_and_meetings_use_explicit_public_event_signals(self):
+        cases = [
+            ("", "Offener Spieletreff", "", "activities"),
+            ("", "After Work Spieleabend", "", "activities"),
+            ("", "Spielenachmittag", "", "activities"),
+            ("", "Gemütlicher Kaffeeklatsch – gemeinsam statt einsam", "", "activities"),
+            ("", "Alzheimer-Selbsthilfegruppe", "", "activities"),
+            ("", "Foto Club Wachtberg – Clubabend", "", "activities"),
+            ("", "Buchtreff", "", "talk"),
+            ("", "Radlertreff des ADFC", "", "sports"),
+            ("", "18. Biker-Treffen", "Live-Musik am Abend", "festival"),
+            ("", "Treffpunkt im Park", "", "outdoor"),
+            ("", "Mitgliederversammlung des Vereins", "", "other"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
+    def test_contextual_formats_require_corroborating_reusable_evidence(self):
+        cases = [
+            (
+                "",
+                "Abendliche Ruhezeit",
+                "Die Teilnehmenden meditieren gemeinsam; das Angebot ist offen für alle.",
+                "activities",
+            ),
+            (
+                "",
+                "Kreativwoche",
+                "Gemeinsam schreiben, erzählen und gestalten wir; dabei entstehen eigene Hefte.",
+                "workshop",
+            ),
+            (
+                "",
+                "Mobil bleiben",
+                "Wir frischen Verkehrsregeln auf, bauen Unsicherheiten ab und stärken Fahrfähigkeiten.",
+                "workshop",
+            ),
+            (
+                "",
+                "Dunkler Donnerstag",
+                "Ein Abend mit Gothic, Dark Wave und düsteren Klängen im Live Club.",
+                "concert",
+            ),
+            (
+                "",
+                "Einladung in die Eifel",
+                "Du magst Tiere? Dann komm mit uns in die Eifel.",
+                "outdoor",
+            ),
+            (
+                "",
+                "20 Jahre Nachbarschaftshilfe e. V.",
+                "Wir feiern von Mittag bis Abend.",
+                "festival",
+            ),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"],
+                    expected,
+                )
+
+        # One vague word must not be enough to invent a format.
+        self.assertEqual(categorize_event("", "Gemeinsamer Abend", "")["key"], "other")
+        self.assertEqual(categorize_event("", "Hommage", "")["key"], "other")
 
     def test_categorizes_clear_event_intent(self):
         cases = [
@@ -140,7 +210,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
     def test_current_classifier_regressions_avoid_broad_substring_traps(self):
         cases = [
-            ("konzert", 'Handarbeitstreff "Em Ahle Kluster"', "", "other"),
+            ("konzert", 'Handarbeitstreff "Em Ahle Kluster"', "", "activities"),
             ("konzert", 'Frühstückszeit "Em Ahle Kluster"', "", "other"),
             ("", "Künstlerische Intervention: Mapping Waidmarkt – Soundwalk", "", "outdoor"),
             ("", "NEU! Die sanfte Art sich zu bewegen: Gymnastik mal tänzerisch!", "", "sports"),
@@ -171,7 +241,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("open air", "Puppenspiel auf der Kinderbühne", "", "kids"),
             ("", "Jazz für Ohr und Gaumen", "", "concert"),
             ("", "Autorenlesung Udo Weinbörner", "", "talk"),
-            ("", "Spiele ausprobieren", "Brettspiel-Event zum Ausprobieren der nominierten Spiele", "other"),
+            ("", "Spiele ausprobieren", "Brettspiel-Event zum Ausprobieren der nominierten Spiele", "activities"),
             ("", "Wanderung mit Weinmomenten", "", "food"),
             ("", "Andino Project", "", "other"),
             ("", "Live-Band im Biergarten", "", "concert"),
@@ -201,7 +271,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "Sportwochenende des SV Leimersdorf", "", "sports"),
             ("", "Gag-Schreiben", "", "workshop"),
             ("", "SchachXperten", "", "sports"),
-            ("Sonstige Veranstaltung", "Foto Club Wachtberg - Clubabend", "Im Fotoclub Wachtberg treffen sich Fotoamateure.", "other"),
+            ("Sonstige Veranstaltung", "Foto Club Wachtberg - Clubabend", "Im Fotoclub Wachtberg treffen sich Fotoamateure.", "activities"),
             ("", 'Schumanns Carneval und von Ravel die "mirroirs"', "Klavierabend", "concert"),
             ("", "Pop-up-WeinLounge im Park", "Sommerlicher Weinausschank", "food"),
             ("concert", "Montez @ KUNST!RASEN", "", "concert"),
@@ -359,15 +429,15 @@ class CategoryTaxonomyTests(unittest.TestCase):
                 )
 
 
-    def test_kabarett_and_comedy_have_their_own_category(self):
+    def test_kabarett_and_comedy_remain_in_the_stage_category(self):
         cases = [
             # A cabaret house passes its own genre; the title is just a name.
-            ("kabarett kleinkunst", "Max Uthoff - uns.ich.er", "", "comedy"),
-            ("kabarett kleinkunst", "Wladimir Kaminer - Müttertage", "", "comedy"),
-            ("comedy kabarett impro", "LOL Sommer Open Air", "", "comedy"),
-            ("", "Kabarett-Abend", "", "comedy"),
-            ("", "Improtheater Bonn", "", "comedy"),
-            ("", "Poetry Slam", "", "comedy"),
+            ("kabarett kleinkunst", "Max Uthoff - uns.ich.er", "", "stage"),
+            ("kabarett kleinkunst", "Wladimir Kaminer - Müttertage", "", "stage"),
+            ("comedy kabarett impro", "LOL Sommer Open Air", "", "stage"),
+            ("", "Kabarett-Abend", "", "stage"),
+            ("", "Improtheater Bonn", "", "stage"),
+            ("", "Poetry Slam", "", "stage"),
             # Drama, dance and opera stay on the stage category.
             ("", "Theaterstück Hamlet", "", "stage"),
             ("", "Tanztheater", "", "stage"),

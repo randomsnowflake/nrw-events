@@ -232,6 +232,41 @@ class SitekitPaginationTests(unittest.TestCase):
             urls[1],
         )
 
+    def test_sitekit_enriches_ambiguous_teasers_from_visible_detail_copy(self):
+        listing = (
+            '<article class="SP-Teaser">'
+            '<a class="SP-Teaser__inner" href="/events/open-game">'
+            '<h4 class="SP-Teaser__headline">Offene Spielrunde</h4>'
+            '<span class="SP-Scheduling__date">21.08.2026</span>'
+            '<div class="SP-Teaser__abstract">'
+            'Ein Dämon geht nachts um. Wem kannst du trauen?'
+            '</div></a></article>'
+        )
+        detail = (
+            '<div class="SP-Text"><div class="SP-Paragraph">'
+            '<p>Für alle ab 16 Jahre, die Fans von Social-Deduction-Spielen sind.</p>'
+            '</div></div>'
+        )
+
+        with mock.patch.object(
+            regional_sitekit,
+            "_CALENDARS",
+            [("Teststadt", "sitekit-test", "https://example.test/events", 0.9)],
+        ), mock.patch.object(common, "fetch_url", return_value=listing), mock.patch.object(
+            common,
+            "fetch_detail_url",
+            return_value=detail,
+        ):
+            events = regional_sitekit.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertIn("Social-Deduction-Spielen", events[0]["description"])
+        self.assertEqual(events[0]["category_key"], "activities")
+        self.assertEqual(
+            events[0]["category_reason"],
+            "format:participatory-social-activity",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

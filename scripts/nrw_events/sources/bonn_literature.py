@@ -165,12 +165,12 @@ def events_from_parkbuchhandlung_html(html: str, detail_fetcher=None) -> list:
         if event:
             if detail.get("price"):
                 event["price"] = detail["price"].replace("€", " €").strip()
-            # The publisher calendar mixes readings with occasional concerts,
-            # comedy and stage formats. Preserve those explicit formats;
-            # otherwise literary titles such as "Leibspeisen" must remain talks.
+            # The publisher calendar mixes readings with occasional concerts
+            # and stage formats. Preserve those explicit formats; otherwise
+            # literary titles such as "Leibspeisen" must remain talks.
             key = (
                 event.get("category_key")
-                if event.get("category_key") in {"comedy", "concert", "stage"}
+                if event.get("category_key") in {"concert", "stage"}
                 else "talk"
             )
             _set_category(event, key, f"source:Parkbuchhandlung; title-format:{key}")
