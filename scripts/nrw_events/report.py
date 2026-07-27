@@ -65,6 +65,11 @@ def normalize_title(title: str) -> str:
         t,
     )
     t = re.sub(r"^(ausstellung[:\s]*|exhibition[:\s]*|konzert[:\s]*|concert[:\s]*|kostenloser\s+eintritt[:\s]*|eintritt\s+frei[:\s]*|tickets?\s+für\s+)", "", t)
+    t = re.sub(
+        r"\bfloh\s*[-/&]?\s*und\s+trödelmarkt\s+am\b",
+        "flohmarkt ",
+        t,
+    )
     normalized = re.sub(r"[^a-zäöüß0-9]", "", t)
     # Official market calendars use these equivalent names for the same
     # occurrences. City, date, and venue checks still guard the match.

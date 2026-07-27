@@ -4,6 +4,51 @@ from nrw_events import report
 
 
 class ReportTests(unittest.TestCase):
+    def test_civic_market_absorbs_directory_title_variant_at_same_venue(self):
+        base = {
+            "start_date": "2026-08-23", "end_date": "2026-08-23",
+            "date": "2026-08-23", "city": "Unkel", "description": "",
+            "price": "", "time": "", "start_at": "", "end_at": "",
+        }
+        events = [
+            {
+                **base,
+                "title": "Floh- und Trödelmarkt am Vorteil Center",
+                "venue": "Vorteil Center Unkel",
+                "source": "VG Unkel",
+                "score": 1.02,
+                "link": "https://rhein.info/unkel/",
+            },
+            {
+                **base,
+                "title": "Flohmarkt Unkel, Vorteil Center",
+                "venue": "Flohmarkt Unkel, Vorteil Center",
+                "source": "marktcom",
+                "score": 0.71,
+                "link": "https://www.marktcom.de/veranstaltung/flohmarkt-unkel",
+            },
+            {
+                **base,
+                "title": "Hof- und Garagenflohmarkt in Unkel-Heister",
+                "venue": "in den Straßen von Unkel-Heister",
+                "source": "VG Unkel",
+                "score": 1.02,
+                "link": "https://rhein.info/unkel-heister/",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 2)
+        self.assertEqual(deduped[0]["source"], "VG Unkel")
+        self.assertEqual(
+            {event["title"] for event in deduped},
+            {
+                "Floh- und Trödelmarkt am Vorteil Center",
+                "Hof- und Garagenflohmarkt in Unkel-Heister",
+            },
+        )
+
     def test_katharinenhof_primary_record_absorbs_radio_title_variant(self):
         base = {
             "start_date": "2026-08-09", "end_date": "2026-08-09",
