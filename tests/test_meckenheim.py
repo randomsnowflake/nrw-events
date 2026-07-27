@@ -79,7 +79,12 @@ class MeckenheimDetailTests(unittest.TestCase):
         self.assertEqual(first, second)
         fetch_url.assert_not_called()
 
-    def test_lesezirkel_keeps_enriched_cultural_event(self):
+    def test_standing_reading_circle_is_dropped(self):
+        # Reverses ef73ff6 ("fix: keep cultural reading circles"). Library
+        # reading circles are standing groups that meet to discuss a book among
+        # themselves, so they are no longer published as destination events.
+        # Curated literary series naming the discussed work still pass — see
+        # BonnLiteratureSourceTests.
         listing = f"""
 <li class="result-list_item">
   <h3 class="result-list_object-title"><a href="{DETAIL_LINK}">Lieblingsbücher – Lesezirkel in der Bücherbrücke</a></h3>
@@ -94,6 +99,25 @@ class MeckenheimDetailTests(unittest.TestCase):
             common,
             "fetch_url",
             side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else detail_html,
+        ):
+            events = meckenheim.fetch()
+
+        self.assertEqual(events, [])
+
+    def test_detail_enrichment_still_supplies_venue_and_price(self):
+        listing = f"""
+<li class="result-list_item">
+  <h3 class="result-list_object-title"><a href="{DETAIL_LINK}">Lesung mit Judith Merchant</a></h3>
+  <time datetime="2026-07-13 10:00:00">13.07.2026</time>
+</li>
+"""
+
+        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
+            "os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}
+        ), patch.object(
+            common,
+            "fetch_url",
+            side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else DETAIL_HTML,
         ):
             events = meckenheim.fetch()
 

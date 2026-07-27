@@ -229,5 +229,41 @@ class JunkFilterTests(unittest.TestCase):
                 self.assertNotEqual(decision.rule_id, "legacy.editorial-policy")
 
 
+    def test_standing_reading_circles_are_dropped(self):
+        for title in (
+            "Literaturkreis Neubrück", "Lesekreis in Sülz", "Ehrenfelder Lesekreis",
+            "Swisttaler Lesekreis", "Lieblingsbücher – Lesezirkel in der Bücherbrücke",
+        ):
+            decision = evaluate_event_quality({"title": title, "venue": "Stadtteilbibliothek"})
+            with self.subTest(title=title):
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "civic.reading-circle")
+
+    def test_reading_circles_naming_the_discussed_work_are_kept(self):
+        decision = evaluate_event_quality({
+            "title": "LESEZIRKEL DAVID SZALAY »WAS NICHT GESAGT WERDEN KANN«",
+            "venue": "The Art of Books",
+        })
+
+        self.assertFalse(decision.should_drop)
+
+    def test_online_only_sessions_are_dropped(self):
+        for venue in ("Zoom", "Zoom (Der Link wird am Tag der Veranstaltung veröffentlicht.)",
+                      "MS Teams", "online"):
+            decision = evaluate_event_quality({"title": "Info Wohnraum", "venue": venue})
+            with self.subTest(venue=venue):
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "civic.online-only")
+
+    def test_physical_venues_are_not_mistaken_for_platforms(self):
+        # An open-air cinema named ZOOM and a venue that merely mentions a
+        # stream both keep a real address to visit.
+        for title, venue in (("ZOOM OPEN AIR 26", "Brühl"),
+                             ("Lesung", "Zoom Kulturhaus Bonn")):
+            decision = evaluate_event_quality({"title": title, "venue": venue})
+            with self.subTest(venue=venue):
+                self.assertFalse(decision.should_drop)
+
+
 if __name__ == "__main__":
     unittest.main()

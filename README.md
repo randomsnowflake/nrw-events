@@ -330,6 +330,12 @@ weiterhin gezielt überschreiben.
   Beuel.net, Bad Godesberg Stadtmarketing, Hardtberg Kultur, BSV Roleber und
   BV Holzlar (`bonn_districts.py`) decken die Vereins- und Ortsfeste ab; der
   Bonner Termin von Rhein in Flammen kommt über `bonn_venues.py`.
+- **Literatur in Bonn:** Literaturhaus Bonn (iCal) und Parkbuchhandlung Bad
+  Godesberg liefern Autorenlesungen, Buchpremieren und Literaturgespräche
+  (`bonn_literature.py`). Stehende Lesekreise und Literaturkreise werden
+  bewusst nicht veröffentlicht — sie sind feste Gruppentreffen, keine
+  besuchbaren Termine. Kuratierte Reihen, die das besprochene Werk im Titel
+  nennen, bleiben erhalten.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
 - **Kommunale MEC-Kalender (Marktausläufer):** Hennef und Sankt Augustin fahren

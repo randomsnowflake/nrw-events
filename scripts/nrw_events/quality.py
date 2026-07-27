@@ -62,6 +62,30 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
     }
 
 
+_WORK_TITLE = re.compile(r"[»«„““”\"']\s*\S")
+_ONLINE_ONLY_VENUE = re.compile(
+    r"^(zoom|webex|jitsi|bigbluebutton|(?:ms|microsoft)\s+teams|online|digital)$",
+    re.IGNORECASE,
+)
+
+
+def _names_a_work(title: str) -> bool:
+    """Whether a title quotes the specific work an event is built around."""
+    return bool(_WORK_TITLE.search(title))
+
+
+def _online_only_platform(venue: str) -> str:
+    """Return the conferencing platform when a venue is nothing but a platform.
+
+    Parenthetical joining hints ("Zoom (Der Link folgt)") are stripped first, so
+    a real venue that merely mentions a stream is not mistaken for one.
+    """
+    stripped = re.sub(r"\([^)]*\)", " ", venue)
+    stripped = re.sub(r"\s+", " ", stripped).strip(" ,;-")
+    match = _ONLINE_ONLY_VENUE.match(stripped)
+    return match.group(0) if match else ""
+
+
 def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     """Evaluate the ordered compatibility policy and explain its outcome.
 
@@ -97,6 +121,27 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
             "civic.organizational-meeting",
             "organizational meeting is not a destination event",
             ("plenum",),
+        )
+
+    reading_circle = re.search(r"\b(?:lesekreis|literaturkreis|lesezirkel)\b", title)
+    if reading_circle and not _names_a_work(title):
+        # Library and club reading circles are standing groups that meet to
+        # discuss a book among themselves. Curated literary series carry the
+        # discussed work in the title ("Lesezirkel: Autor »Titel«") and stay.
+        return QualityDecision(
+            QualityAction.DROP,
+            "civic.reading-circle",
+            "standing reading group is not a destination event",
+            (reading_circle.group(0),),
+        )
+
+    platform = _online_only_platform(str(event.get("venue") or ""))
+    if platform:
+        return QualityDecision(
+            QualityAction.DROP,
+            "civic.online-only",
+            "online-only session has no venue to visit",
+            (platform,),
         )
 
     recurring = re.search(

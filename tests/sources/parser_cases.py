@@ -1177,6 +1177,7 @@ END:VCALENDAR
             ("Veranstaltung fällt leider aus! Erleben Sie ein Stück lebendiger Geschichte", "Die historische Wassermühle öffnet ihre Tore."),
             ("Konzert im Park", "Die Veranstaltung entfällt krankheitsbedingt."),
             ("Lesung mit Autorin", "Der Termin fällt aus und wird nachgeholt."),
+            ("Lesung mit Autorin – FINDET NICHT STATT!", ""),
             ("Theaterabend verschoben", "Neuer Termin folgt"),
         ]
 

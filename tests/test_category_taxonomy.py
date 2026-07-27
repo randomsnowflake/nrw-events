@@ -340,6 +340,24 @@ class CategoryTaxonomyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
+    def test_compound_words_do_not_trigger_forum_or_park_categories(self):
+        # "Rheinforum" is a venue, not a discussion forum; "Parkbuchhandlung"
+        # is a bookshop, not a park. Both used to match as bare substrings.
+        cases = [
+            ("kino film kultur", "Kinotag im Rheinforum", '"Das Dschungelbuch".', "cinema"),
+            ("lesung literatur", "Weidle stellen »Die rastlosen Jahre« vor",
+             "Veranstaltungsort: Parkbuchhandlung, Bonn-Bad Godesberg.", "talk"),
+            # Genuine matches must survive.
+            ("", "Forum Wissenschaft", "", "talk"),
+            ("", "CULTRA x Stadtpark Ost", "", "outdoor"),
+            ("", "Treffpunkt im Park", "", "outdoor"),
+        ]
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"], expected
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

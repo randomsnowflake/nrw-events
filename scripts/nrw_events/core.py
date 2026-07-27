@@ -871,7 +871,8 @@ def factual_event_description(
 
 _CANCELLED_STATUS_WORDS = (
     r"abgesagt(?:\s+(?:werden|wird|wurde))?|entfällt|entfaellt|"
-    r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|verschoben"
+    r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|"
+    r"findet\s+(?:leider\s+)?nicht\s+statt|verschoben"
 )
 _CANCELLED_STATUS_SUBJECTS = (
     r"veranstaltung|termin|event|konzert|lesung|theaterabend|show|kurs|workshop|"
