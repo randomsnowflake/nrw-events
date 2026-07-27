@@ -204,6 +204,7 @@ VENUE_COORDS = {
     "oberkassel": (50.7158, 7.1667), "oberdollendorf": (50.6990, 7.1850),
     "venusberg": (50.7047, 7.0968), "lannesdorf": (50.6606, 7.1556),
     "rheinaue": (50.7106, 7.1283), "freizeitpark rheinaue": (50.7106, 7.1283),
+    "bonn-hardtberg": (50.7108, 7.0378),
     # Siebengebirge
     "siebengebirge": (50.6710, 7.2370), "kottenforst": (50.6670, 7.0400),
     "drachenfels": (50.6652, 7.2107), "petersberg": (50.6869, 7.2078),
@@ -240,3 +241,18 @@ MEETUP_GROUPS = [
     ("board-games-in-bonn", "Bonn", "spiele meetup", 0.8),
     ("sprachcafe-bonn", "Bonn", "sprache meetup", 0.8),
 ]
+
+
+# Bonner Postleitzahlen je Stadtbezirk. Auf Ortsteilebene wäre die Zuordnung
+# nicht eindeutig — eine PLZ schneidet dort mehrere Ortsteile —, auf
+# Stadtbezirksebene ist sie es.
+BONN_POSTCODE_DISTRICTS = {
+    "53173": "Bonn-Bad Godesberg", "53175": "Bonn-Bad Godesberg",
+    "53177": "Bonn-Bad Godesberg", "53179": "Bonn-Bad Godesberg",
+    "53225": "Bonn-Beuel", "53227": "Bonn-Beuel", "53229": "Bonn-Beuel",
+    "53123": "Bonn-Hardtberg", "53125": "Bonn-Hardtberg",
+    # 53111-53129 belong to the central Stadtbezirk, which is itself named
+    # "Bonn". Mapping them would add no information, and a district literally
+    # called "Zentrum" would make the everyday word in venue names such as
+    # "Max7 Zentrum" resolve as a location.
+}

@@ -175,7 +175,7 @@ def _events_from_pantheon(html: str) -> list:
             types,
             link,
             "Pantheon Bonn",
-            "theater kabarett comedy konzert lesung poetry slam kultur",
+            "kabarett kleinkunst",
             0.92,
         )
         if ev:
@@ -206,7 +206,7 @@ def _events_from_springmaus(html: str) -> list:
             rc.clean(price_m.group(1) if price_m else ""),
             link,
             "Haus der Springmaus",
-            "theater comedy kabarett impro konzert kultur",
+            "comedy kabarett impro",
             0.92,
         )
         if ev:

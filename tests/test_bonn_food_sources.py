@@ -295,7 +295,8 @@ class BonnFoodSourceTests(unittest.TestCase):
         events = bonn_food.events_from_original_street_food(html)
         self.assert_food_events(events, 1)
         self.assertEqual(events[0]["date"], "2026-10-01–2026-10-04")
-        self.assertEqual(events[0]["city"], "Bonn")
+        # Postcode 53225 in the venue resolves the Beueler Rheinufer.
+        self.assertEqual(events[0]["city"], "Bonn-Beuel")
         self.assertIn("Rheinaustraße", events[0]["venue"])
         self.assertEqual(events[0]["link"], "https://street-food-festival.de/bonn")
 

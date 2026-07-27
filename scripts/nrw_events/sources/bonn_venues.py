@@ -182,7 +182,7 @@ def events_from_brotfabrik_items(items: list) -> list:
             item.get("Beschreibung") or "",
             item.get("Url") or _BROTFABRIK_URL + "#programm",
             "Brotfabrik Bonn",
-            f"brotfabrik {gewerk} theater kino tanz konzert workshop kultur",
+            f"brotfabrik {gewerk}",
             0.86,
         )
         if ev:
