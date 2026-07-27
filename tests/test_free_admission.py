@@ -1,6 +1,10 @@
 import unittest
 
-from nrw_events.common import infer_free_admission_price
+from nrw_events import common
+from nrw_events.validation import canonicalize_event
+
+
+infer_free_admission_price = common.infer_free_admission_price
 
 
 class FreeAdmissionDetectionTests(unittest.TestCase):
@@ -75,6 +79,24 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ),
             "kostenlos",
         )
+
+    def test_transport_and_venue_metadata_are_not_free_admission_evidence(self):
+        event = common.make_event(
+            "Abendkonzert",
+            common.TODAY,
+            None,
+            "Eintritt frei Kulturzentrum",
+            "Bonn",
+            "Live-Musik am Abend.",
+            "https://example.test/eintritt-frei/abendkonzert",
+            "Kostenlose Veranstaltungen Bonn",
+            "konzert",
+        )
+
+        self.assertIsNotNone(event)
+        assert event is not None
+        self.assertEqual(event["price"], "")
+        self.assertEqual(canonicalize_event(event).price, "")
 
 
 if __name__ == "__main__":

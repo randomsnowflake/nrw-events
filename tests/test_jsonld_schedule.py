@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime
 
 from nrw_events import common
+from nrw_events.validation import canonicalize_event
 from tests.helpers import patch_window
 
 
@@ -96,6 +97,77 @@ class JsonLdScheduleTests(unittest.TestCase):
         current = next(ev for ev in events if ev["date"] == "2026-06-20")
         self.assertEqual(current["time"], "08:00–18:00")
         self.assertNotIn("2026-04-18–2026-10-17", [ev["date"] for ev in events])
+
+    def test_jsonld_structured_admission_overrides_text_inference(self):
+        fixtures = [
+            (
+                "explicitly free",
+                {"isAccessibleForFree": True},
+                "Tickets kosten 12 EUR.",
+                "kostenlos",
+            ),
+            (
+                "explicitly not free",
+                {"isAccessibleForFree": False},
+                "Der Eintritt ist frei.",
+                "kostenpflichtig",
+            ),
+            (
+                "priced offer",
+                {"offers": {"@type": "Offer", "price": "12.50", "priceCurrency": "EUR"}},
+                "Der Eintritt ist frei.",
+                "12.50 EUR",
+            ),
+            (
+                "priced offer list",
+                {
+                    "offers": [
+                        {"@type": "Offer", "availability": "https://schema.org/SoldOut"},
+                        {"@type": "Offer", "price": 8, "priceCurrency": "EUR"},
+                    ]
+                },
+                "",
+                "8 EUR",
+            ),
+            (
+                "zero-priced offer",
+                {"offers": {"@type": "Offer", "price": 0, "priceCurrency": "EUR"}},
+                "",
+                "kostenlos",
+            ),
+            (
+                "free flag wins over contradictory paid offer",
+                {
+                    "isAccessibleForFree": "true",
+                    "offers": {"@type": "Offer", "price": 20, "priceCurrency": "EUR"},
+                },
+                "",
+                "kostenlos",
+            ),
+        ]
+
+        for label, admission, description, expected_price in fixtures:
+            with self.subTest(label=label):
+                payload = {
+                    "@context": "https://schema.org",
+                    "@type": "Event",
+                    "name": "Admission test event",
+                    "startDate": "2026-06-12T19:00:00+02:00",
+                    "description": description,
+                    **admission,
+                }
+                html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+                events = common.events_from_jsonld(
+                    html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+                )
+
+                self.assertEqual(len(events), 1)
+                self.assertEqual(events[0]["price"], expected_price)
+                self.assertEqual(events[0]["admission_basis"], "explicit")
+                canonical = canonicalize_event(events[0])
+                self.assertEqual(canonical.price, expected_price)
+                self.assertEqual(canonical.admission_basis, "explicit")
 
 
 if __name__ == "__main__":
