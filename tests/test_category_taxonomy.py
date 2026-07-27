@@ -208,6 +208,39 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertEqual(category.get("confidence"), 1.0)
         self.assertEqual(category.get("reason"), "forced:talk")
 
+    def test_single_ambiguous_signals_do_not_invent_categories(self):
+        cases = [
+            ("", "Schadstoff und Elektro-Kleinteile-Mobil", "", "other"),
+            ("", "GA-Sommergarten – Albie Donnelly's Supercharge", "", "other"),
+            (
+                "",
+                "Die Göttliche Komödie nach Dante",
+                "Die Inszenierung wurde später auch als Film veröffentlicht.",
+                "other",
+            ),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"],
+                    expected,
+                )
+
+    def test_ambiguous_signals_still_work_when_corroborated(self):
+        cases = [
+            ("", "Elektro Party", "", "nightlife"),
+            ("", "Sommergarten Konzert", "Live-Musik unter freiem Himmel", "concert"),
+            ("", "Filmabend", "Öffentliche Vorführung im Kino", "cinema"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"],
+                    expected,
+                )
+
     def test_current_classifier_regressions_avoid_broad_substring_traps(self):
         cases = [
             ("konzert", 'Handarbeitstreff "Em Ahle Kluster"', "", "activities"),

@@ -28,6 +28,7 @@ class Keyword:
     title_only: bool = False
     word: bool = False
     word_suffix: bool = False
+    weak: bool = False
 
 
 @dataclass(frozen=True)
@@ -58,12 +59,12 @@ CATEGORIES: list[Category] = [
 CATEGORY_BY_KEY = {category["key"]: category for category in CATEGORIES}
 
 
-def word(value: str) -> Keyword:
-    return Keyword(value=value, word=True)
+def word(value: str, *, weak: bool = False) -> Keyword:
+    return Keyword(value=value, word=True, weak=weak)
 
 
-def suffix_word(value: str) -> Keyword:
-    return Keyword(value=value, word_suffix=True)
+def suffix_word(value: str, *, weak: bool = False) -> Keyword:
+    return Keyword(value=value, word_suffix=True, weak=weak)
 
 
 def title_only(value: str) -> Keyword:
@@ -148,9 +149,9 @@ RULES: tuple[Rule, ...] = (
     Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "summer school", "zeichnen lernen", "gag-schreiben", "repair", "reparatur-café", "reparatur-cafe", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "schmücken", "schmuecken", "keramik", "malen", "kreativ", "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
     Rule("talk", 10, ("lesung", "lesekreis", "lesezirkel", "buchtreff", "buchvorstellung", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", "philosophisch", "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("forum"), word("talk"), Keyword("info", title_only=True, word=True), title_only("meetup"), title_only("community meeting"))),
     Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwoche", "sportwochenende", "tennis", "volleyball", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "radlertreff", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "paddeln", "klettern", "schwimmen", "boule", "schach")),
-    Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
+    Rule("cinema", 8, ("kino", word("film", weak=True), "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
     Rule("concert", 7, ("konzert", "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", "klavier", "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
-    Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro"), word("party"), "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
+    Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro", weak=True), word("party"), "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
     Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "comedian", "kleinkunst", "stand-up", "standup", "satire", "impro", "improtheater", "improvisationstheater", "variete", "varieté", "revue", "poetry slam", "poetryslam", "lachen", "zirkus", "cirque", word("tanz"), word("dance"), "musical", "show", word("performance"), word("oper"), word("stage"), word("slam"))),
     Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "karikatur", "vernissage", "atelier", "installation")),
     Rule(
@@ -191,7 +192,7 @@ RULES: tuple[Rule, ...] = (
             title_only("clean-up"),
         ),
     ),
-    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "herbstfahrt", "natur", suffix_word("garten"), "exkursion", "ausflug", "hohes venn", suffix_word("park"), "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
+    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "herbstfahrt", "natur", suffix_word("garten", weak=True), "exkursion", "ausflug", "hohes venn", suffix_word("park"), "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
     Rule("festival", 1, (suffix_word("fest"), "festival", "kirmes", "kerb", "meile", "karneval", "weihnachtsfeier", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "tag des offenen denkmals", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
 )
 
@@ -226,12 +227,32 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
     return keyword.value in text
 
 
+def _matched_keywords(
+    text: str,
+    keywords: Iterable[str | Keyword],
+    *,
+    is_title: bool,
+) -> list[str | Keyword]:
+    return [keyword for keyword in keywords if _matches(text, keyword, is_title=is_title)]
+
+
 def _matched_values(text: str, keywords: Iterable[str | Keyword], *, is_title: bool) -> list[str]:
-    values: list[str] = []
-    for keyword in keywords:
-        if _matches(text, keyword, is_title=is_title):
-            values.append(keyword if isinstance(keyword, str) else keyword.value)
-    return values
+    return [
+        keyword if isinstance(keyword, str) else keyword.value
+        for keyword in _matched_keywords(text, keywords, is_title=is_title)
+    ]
+
+
+def _has_enough_evidence(matches: Iterable[str | Keyword]) -> bool:
+    """Reject a lone signal explicitly marked too ambiguous to classify by itself."""
+    matched = list(matches)
+    if any(isinstance(keyword, str) or not keyword.weak for keyword in matched):
+        return True
+    return len({
+        keyword.value
+        for keyword in matched
+        if isinstance(keyword, Keyword)
+    }) >= 2
 
 
 def _category_keys_for_hint(hint_text: str) -> set[str]:
@@ -444,6 +465,18 @@ def categorize_event(
     hint_text = normalize_text(source_category)
     description_text = normalize_text(description)
 
+    # Curated cinema adapters add this internal marker only after proving that
+    # the listing is a special public screening. Resolve it before broad source
+    # bags are discarded, otherwise incidental words in the synopsis can win.
+    if _contains_word(hint_text, "cinema-special"):
+        category = CATEGORY_BY_KEY["cinema"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:cinema",
+        }
+
     # Explicit sport and guided-listening formats in the title outrank broader
     # programme context such as "Ferienspaß" or "künstlerische Intervention".
     explicit_title_format = _forced_title_format(title_text)
@@ -549,9 +582,23 @@ def categorize_event(
     best_priority = -1
     best_reason = "other:no-match"
     for rule in RULES:
-        title_matches = _matched_values(title_text, rule.keywords, is_title=True)
-        description_matches = _matched_values(description_text, rule.keywords, is_title=False)
-        hint_matches = _matched_values(hint_text, rule.keywords, is_title=False)
+        title_keywords = _matched_keywords(title_text, rule.keywords, is_title=True)
+        description_keywords = _matched_keywords(description_text, rule.keywords, is_title=False)
+        hint_keywords = _matched_keywords(hint_text, rule.keywords, is_title=False)
+        if not _has_enough_evidence(title_keywords + description_keywords + hint_keywords):
+            continue
+        title_matches = [
+            keyword if isinstance(keyword, str) else keyword.value
+            for keyword in title_keywords
+        ]
+        description_matches = [
+            keyword if isinstance(keyword, str) else keyword.value
+            for keyword in description_keywords
+        ]
+        hint_matches = [
+            keyword if isinstance(keyword, str) else keyword.value
+            for keyword in hint_keywords
+        ]
         score = 3 * len(title_matches)
         # A description corroborates an intent, but repeated synonyms must not
         # snowball past an explicit title format.
