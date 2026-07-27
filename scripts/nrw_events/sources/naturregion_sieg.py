@@ -16,7 +16,7 @@ _SOURCE = "Naturregion Sieg"
 _CATEGORY = "naturregion sieg outdoor kultur markt"
 _TRUST = 0.9
 _DETAIL_FIELDS = (
-    "description", "price", "time", "venue", "city", "distance_km",
+    "description", "description_source", "price", "time", "venue", "city", "distance_km",
     "location_confidence", "location_source", "status", "start_at", "end_at",
     "end_date", "all_day", "timezone",
 )
@@ -48,6 +48,7 @@ def _merge_raw_jsonld_item(event: dict, item: dict) -> dict:
     description = common.concise_description(item.get("description", ""))
     if description:
         enriched["description"] = description
+        enriched["description_source"] = "scraped"
         enriched["price"] = common.infer_free_admission_price(
             enriched.get("title", ""), description, enriched.get("price", ""),
         )

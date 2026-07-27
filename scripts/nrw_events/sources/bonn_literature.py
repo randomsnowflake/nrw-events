@@ -88,6 +88,7 @@ def fetch_literaturhaus() -> list:
                 venue=event.get("venue", ""),
                 city=event.get("city", "Bonn"),
             )
+            event["description_source"] = "generated"
     return rc.dedupe(events)
 
 

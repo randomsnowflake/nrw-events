@@ -33,6 +33,7 @@ def fetch() -> list:
                     venue=event.get("venue", ""),
                     city=event["city"],
                 )
+                event["description_source"] = "generated"
         common._record_endpoint(
             _URL,
             parser_type="json-ld",

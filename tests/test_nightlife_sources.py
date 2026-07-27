@@ -138,6 +138,7 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "14:00–22:00")
         self.assertEqual(events[0]["price"], "ab 22 €")
         self.assertIn("Felix Kröcher", events[0]["description"])
+        self.assertEqual(events[0]["description_source"], "generated")
         self.assert_canonical(events[0])
 
     def test_salsa_in_bonn_keeps_public_dances_and_filters_meetings(self):

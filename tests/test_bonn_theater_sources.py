@@ -110,6 +110,7 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["category_key"], "stage")
         self.assertEqual(events[0]["link"], "https://tickets.theater-bonn.de/42")
         self.assertIn("Veranstaltungsort", events[0]["description"])
+        self.assertEqual(events[0]["description_source"], "generated")
         self.assert_canonical(events[0], "theater-bonn")
 
     def test_junges_theater_parses_regular_and_kulturgarten_rows(self):

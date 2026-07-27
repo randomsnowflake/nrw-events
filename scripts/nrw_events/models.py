@@ -24,6 +24,7 @@ class RawEvent(TypedDict, total=False):
     city: str
     link: str
     description: str
+    description_source: str
     price: str
     category: str
     category_key: str
@@ -57,6 +58,7 @@ class CanonicalEvent(Mapping[str, Any]):
     city: str = ""
     link: str = ""
     description: str = ""
+    description_source: str = "scraped"
     price: str = ""
     category: str = ""
     category_key: str = "other"

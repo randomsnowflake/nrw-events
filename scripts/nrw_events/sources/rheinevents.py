@@ -79,6 +79,7 @@ def _events_from_listing(html: str) -> list:
             title, start, end, venue, city, description, link, SOURCE,
             "open air electronic techno party nightlife dj concert", 0.98,
             source_id="rheinevents",
+            description_source="generated",
         )
         if event:
             price = _price(item)

@@ -122,6 +122,7 @@ def enrich_descriptions(
         replacement = context.get("description") or fallback(event)
         if len(replacement) > len(event.get("description") or ""):
             event["description"] = replacement
+            event["description_source"] = common.description_source_for(replacement)
         if not event.get("venue") and context.get("venue"):
             event["venue"] = context["venue"]
     return events

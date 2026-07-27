@@ -267,11 +267,13 @@ def _merge_duplicate_metadata(winner, duplicate):
     winner_has_charge = _has_separate_admission_charge(winner)
     if duplicate_has_charge and not winner_has_charge:
         updates["description"] = duplicate["description"]
+        updates["description_source"] = duplicate.get("description_source", "scraped")
     elif (
         len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip())
         and not (winner_has_charge and not duplicate_has_charge)
     ):
         updates["description"] = duplicate["description"]
+        updates["description_source"] = duplicate.get("description_source", "scraped")
 
     # Classification is derived data, but a broad aggregator label must not
     # override a usable classification from the canonical publisher. Peers may
