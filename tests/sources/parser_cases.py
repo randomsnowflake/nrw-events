@@ -345,6 +345,8 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["date"], "2026-07-04")
         self.assertEqual(events[0]["time"], "10:00–14:00")
         self.assertEqual(events[0]["venue"], "Repaircafe Venusberg & Ippendorf")
+        self.assertEqual(events[0]["price"], "kostenlos")
+        self.assertEqual(events[0]["admission_basis"], "implicit")
         self.assertGreater(events[0]["distance_km"], 0)
 
     def test_brotfabrik_today_program_creates_events(self):

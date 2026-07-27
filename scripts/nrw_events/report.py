@@ -248,11 +248,22 @@ def _merge_duplicate_metadata(winner, duplicate):
     )
     if separate_admission_charge:
         updates["price"] = ""
+        updates["admission_basis"] = ""
     for field in ("price", "venue", "time", "start_at", "end_at"):
         if field == "price" and separate_admission_charge:
             continue
         if not winner.get(field) and duplicate.get(field):
             updates[field] = duplicate[field]
+            if field == "price":
+                updates["admission_basis"] = duplicate.get("admission_basis", "")
+
+    if (
+        winner.get("price")
+        and not winner.get("admission_basis")
+        and duplicate.get("price") == winner.get("price")
+        and duplicate.get("admission_basis")
+    ):
+        updates["admission_basis"] = duplicate["admission_basis"]
 
     winner_link = winner.get("link", "")
     duplicate_link = duplicate.get("link", "")

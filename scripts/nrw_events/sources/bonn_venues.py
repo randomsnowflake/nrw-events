@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 
 from .. import common
+from ..models import AdmissionDefault
 from . import regional_common as rc
 
 _KULT41_URL = "https://www.kult41.de/veranstaltungen/programm"
@@ -126,6 +127,7 @@ def events_from_repair_cafes(html: str) -> list:
             "repair café reparatur offene werkstatt nachhaltigkeit fahrrad nähen",
             0.9,
             coords=coords,
+            admission=AdmissionDefault.FREE_BY_NATURE,
         )
         if ev:
             events.append(ev)

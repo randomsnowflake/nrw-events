@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from enum import Enum
 import re
 from typing import Any, Iterator, Mapping, Optional, TypedDict
+
+
+class AdmissionDefault(str, Enum):
+    """Conservative admission assumptions explicitly declared by a source."""
+
+    FREE_BY_NATURE = "free_by_nature"
 
 
 class RawEvent(TypedDict, total=False):
@@ -26,6 +33,7 @@ class RawEvent(TypedDict, total=False):
     description: str
     description_source: str
     price: str
+    admission_basis: str
     category: str
     category_key: str
     category_label: str
@@ -60,6 +68,7 @@ class CanonicalEvent(Mapping[str, Any]):
     description: str = ""
     description_source: str = "scraped"
     price: str = ""
+    admission_basis: str = ""
     category: str = ""
     category_key: str = "other"
     category_label: str = "Other"
