@@ -315,17 +315,21 @@ weiterhin gezielt überschreiben.
   einen leeren Parse.
   **Choco Dealer** (Bad Godesberg) betreibt eine eigene Buchungsplattform ohne
   JSON-LD; die Terminkarten der Events-Kategorie werden direkt aus dem HTML
-  gelesen. Bekannte Grenze: Radio Bonn/Rhein-Sieg führt dieselben Termine unter
-  dem generischen Titel „Schokoladentasting“. Da der Veranstalter seine Events
-  mit eigenen Marketing-Überschriften betitelt, teilen beide Titel keine
-  Wortbestandteile und die Titelähnlichkeitsprüfung greift nicht. Ein Abgleich
-  wäre nur über hart codierte Eventnamen möglich — das ist ausgeschlossen.
+  gelesen. Wenn der direkte Buchungspfad eine Tasting-Art ausweist, die
+  Marketing-Überschrift aber nicht, ergänzt der Adapter diese sachliche
+  Bezeichnung. So kann die allgemeine Titelähnlichkeitsprüfung beispielsweise
+  ein parallel bei Radio Bonn/Rhein-Sieg gelistetes „Schokoladentasting“
+  zusammenführen, ohne Eventnamen oder Termine hart zu codieren.
 - **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
 - **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
   Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
+- **Stadtteilfeste und Bonner Großveranstaltungen:** Bürgerverein Vilich-Müldorf,
+  Beuel.net, Bad Godesberg Stadtmarketing, Hardtberg Kultur, BSV Roleber und
+  BV Holzlar (`bonn_districts.py`) decken die Vereins- und Ortsfeste ab; der
+  Bonner Termin von Rhein in Flammen kommt über `bonn_venues.py`.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
 - **Kommunale MEC-Kalender (Marktausläufer):** Hennef und Sankt Augustin fahren

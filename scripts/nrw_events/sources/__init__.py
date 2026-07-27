@@ -111,6 +111,7 @@ CUSTOM_SOURCES = {
     "Bad Godesberg Stadtmarketing": bonn_districts.fetch_bad_godesberg,
     "Hardtberg Kultur": bonn_districts.fetch_hardtberg,
     "BSV Roleber": bonn_districts.fetch_roleber,
+    "BV Holzlar": bonn_districts.fetch_holzlar,
     "Ruhr-Guide": ruhrguide.fetch,
     # Web-search fallbacks (lowest trust)
     "Exa Search": search.fetch_exa,

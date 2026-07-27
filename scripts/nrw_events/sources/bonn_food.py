@@ -130,17 +130,16 @@ def fetch_reduettchen() -> list:
 
 
 def fetch_street_food() -> list:
-    return rc.fetch_html_events(
-        "Street Food Bonn", _STREET_FOOD_URL, events_from_street_food,
-        fetcher=_fetch_street_food_pages,
-    )
-
-
-def _fetch_street_food_pages(url: str, timeout: int) -> str:
-    return "\n".join(
-        common.fetch_url(page, timeout=timeout)
-        for page in (url, _STREET_FOOD_SIEGBURG_URL)
-    )
+    events = []
+    for page_url in (_STREET_FOOD_URL, _STREET_FOOD_SIEGBURG_URL):
+        events.extend(rc.fetch_html_events(
+            "Street Food Bonn",
+            page_url,
+            lambda html, source_url=page_url: events_from_street_food(
+                html, source_url=source_url,
+            ),
+        ))
+    return rc.dedupe(events)
 
 
 def fetch_original_street_food() -> list:
@@ -345,7 +344,7 @@ def events_from_reduettchen(html: str, detail_fetcher=None) -> list:
     return rc.dedupe(events)
 
 
-def events_from_street_food(html: str) -> list:
+def events_from_street_food(html: str, *, source_url: str = _STREET_FOOD_URL) -> list:
     text = rc.clean(html)
     # Both landing pages of the organiser are parsed in one pass, so the term
     # list is bounded by the next date or the imprint block instead of by a
@@ -368,7 +367,7 @@ def events_from_street_food(html: str) -> list:
             city, venue = rc.city_from_text(location, location), location
         ev = common.make_event(
             "Street Food Festival", start, end, venue, city,
-            f"Street Food Festival in {location}.", _STREET_FOOD_URL,
+            f"Street Food Festival in {location}.", source_url,
             "Street Food Bonn", "street food markt festival genuss", 0.96,
             all_day=True,
         )
@@ -421,6 +420,17 @@ def events_from_choco_dealer(html: str) -> list:
         )
         if not (link and title and stamp):
             continue
+        absolute_link = rc.abs_url(_CHOCO_DEALER_URL, link)
+        booking_path = urllib.parse.unquote(
+            urllib.parse.urlsplit(absolute_link).path
+        ).replace("-", " ")
+        if "tasting" not in title.casefold():
+            tasting_kind = _match(
+                r"\b((?:wein\s+)?schokoladen\s+tasting)\b",
+                booking_path,
+            )
+            if tasting_kind:
+                title = f"{tasting_kind.title()}: {title}"
         day, month, year, start_time, end_time = stamp.groups()
         try:
             start = datetime(2000 + int(year), int(month), int(day))
@@ -436,7 +446,7 @@ def events_from_choco_dealer(html: str) -> list:
         )
         ev = common.make_event(
             title, start, rc.with_time(start, end_time), venue, "Bonn-Bad Godesberg",
-            description, rc.abs_url(_CHOCO_DEALER_URL, link), "Choco Dealer",
+            description, absolute_link, "Choco Dealer",
             "schokolade tasting verkostung genuss", 0.97,
         )
         if ev:

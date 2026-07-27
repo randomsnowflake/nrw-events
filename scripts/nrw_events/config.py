@@ -197,6 +197,7 @@ VENUE_COORDS = {
     "bonn-beuel": (50.7390, 7.1170), "bonn-bad godesberg": (50.6830, 7.1500),
     "bonn-duisdorf": (50.7150, 7.0420), "bonn-oberkassel": (50.7158, 7.1667),
     "bonn-pützchen": (50.7470, 7.1630), "bonn-roleber": (50.7330, 7.1860),
+    "bonn-holzlar": (50.7420, 7.1750),
     "bonn-vilich": (50.7550, 7.1230), "bonn-vilich-müldorf": (50.7520, 7.1570),
     "ippendorf": (50.7065, 7.0780), "dransdorf": (50.7355, 7.0508),
     "plittersdorf": (50.7018, 7.1435), "bonn-plittersdorf": (50.7018, 7.1435),

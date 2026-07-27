@@ -239,6 +239,43 @@ class BonnFoodSourceTests(unittest.TestCase):
             [("2026-08-28–2026-08-30", "Bonn-Bad Godesberg"),
              ("2026-10-16–2026-10-18", "Troisdorf")],
         )
+        self.assertTrue(all(
+            event["link"] == "https://www.street-food-bonn.de/"
+            for event in events
+        ))
+
+    def test_street_food_keeps_bonn_events_when_siegburg_page_fails(self):
+        bonn_page = """
+        <h2>Nächste Termine</h2>
+        <p>28. - 30.08.2026 Street Food Festival - Bonn Bad Godesberg</p>
+        <h2>Veranstalter</h2>
+        """
+        with patch.object(
+            common, "fetch_url", side_effect=[bonn_page, TimeoutError("offline")],
+        ), patch.object(common, "log_source_error") as log_error:
+            events = bonn_food.fetch_street_food()
+
+        self.assert_food_events(events, 1)
+        self.assertEqual(events[0]["city"], "Bonn-Bad Godesberg")
+        self.assertEqual(events[0]["link"], "https://www.street-food-bonn.de/")
+        log_error.assert_called_once()
+
+    def test_street_food_keeps_siegburg_page_provenance(self):
+        siegburg_page = """
+        <h2>Nächste Termine</h2>
+        <p>12. - 13.09.2026 Street Food Festival Siegburg</p>
+        <h2>Veranstalter</h2>
+        """
+        events = bonn_food.events_from_street_food(
+            siegburg_page,
+            source_url="https://www.streetfood-siegburg.de/",
+        )
+
+        self.assert_food_events(events, 1)
+        self.assertEqual(events[0]["city"], "Siegburg")
+        self.assertEqual(
+            events[0]["link"], "https://www.streetfood-siegburg.de/"
+        )
 
     def test_original_street_food_takes_dates_from_html_not_stale_jsonld(self):
         item = {
@@ -295,6 +332,10 @@ class BonnFoodSourceTests(unittest.TestCase):
         """
         events = bonn_food.events_from_choco_dealer(html)
         self.assert_food_events(events, 2)
+        self.assertEqual(
+            events[0]["title"],
+            "Schokoladen Tasting: DIE WELT DER SCHOKOLADE ENTDECKEN - EINSTEIGER",
+        )
         self.assertEqual([event["time"] for event in events], ["19:00–20:30", "19:00–22:00"])
         self.assertEqual([event["start_date"] for event in events], ["2026-07-31", "2026-08-07"])
         self.assertTrue(all(event["city"] == "Bonn-Bad Godesberg" for event in events))

@@ -347,6 +347,42 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["link"], "https://pridebonn.org/")
         self.assertIn("Ausführliche Informationen", deduped[0]["description"])
 
+    def test_choco_dealer_title_absorbs_generic_radio_listing(self):
+        base = {
+            "start_date": "2026-07-31", "end_date": "2026-07-31",
+            "date": "2026-07-31", "city": "Bonn-Bad Godesberg",
+            "description": "", "price": "", "time": "19:00",
+            "start_at": "2026-07-31T19:00:00+02:00",
+            "end_at": "2026-07-31T20:30:00+02:00",
+        }
+        events = [
+            {
+                **base,
+                "title": "Schokoladentasting",
+                "venue": "Bonn",
+                "score": 0.8,
+                "source": "Radio Bonn/Rhein-Sieg",
+                "link": "https://www.radiobonn.de/artikel/was-geht-unsere-veranstaltungstipps-2674962",
+            },
+            {
+                **base,
+                "title": (
+                    "Schokoladen Tasting: "
+                    "DIE WELT DER SCHOKOLADE ENTDECKEN - EINSTEIGER"
+                ),
+                "venue": "CHOCO DEALER SHOP, Elsässer Str. 8, 53175 Bonn",
+                "score": 0.97,
+                "source": "Choco Dealer",
+                "link": "https://choco-dealer.com/SCHOKOLADEN-TASTING-FUER-EINSTEIGER/EVENT-BBA",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Choco Dealer")
+        self.assertTrue(deduped[0]["link"].startswith("https://choco-dealer.com/"))
+
     def test_deduplicate_replaces_only_radio_fallback_link_from_search_record(self):
         events = [
             {

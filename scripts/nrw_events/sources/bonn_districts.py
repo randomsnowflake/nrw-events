@@ -20,6 +20,7 @@ BAD_GODESBERG_DETAILS_API = (
 HARDTBERG_API = "https://www.hardtbergkultur.de/wp-json/wp/v2/posts"
 ROLEBER_ICAL = "https://bsvroleber.de/events/?ical=1"
 _ROLEBER_SCORE_FLOOR = 0.45
+HOLZLAR_URL = "https://bv-holzlar.de/veranstaltungen"
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -448,3 +449,70 @@ def fetch_roleber() -> list:
     except Exception as exc:
         common.log_source_error(source, exc)
         return []
+
+
+# The Holzlar association publishes one Elementor loop item per event. Each item
+# carries the day ("13" or "14.-15."), the month and year as two separate icon
+# list entries, the title as an <h2>, and the venue as the following icon list
+# entry. The WordPress REST API exposes the same posts but without any event
+# date — the listing markup is the only place the real date exists.
+_HOLZLAR_ITEM_BOUNDARY = r'(?=class="[^"]*\bveranstaltung type-veranstaltung\b)'
+_HOLZLAR_DAY = re.compile(r'<p class="elementor-heading-title[^"]*">([^<]+)</p>')
+_HOLZLAR_TITLE = re.compile(r'<h2 class="elementor-heading-title[^"]*">([^<]+)</h2>')
+_HOLZLAR_LIST_TEXT = re.compile(r'elementor-icon-list-text">([^<]*)</span>')
+_HOLZLAR_LINK = re.compile(r'href="(https://bv-holzlar\.de/veranstaltung/[^"]+)"')
+
+
+def _holzlar_dates(day_text: str, month: str, year: str) -> tuple:
+    days = re.findall(r"\d{1,2}", day_text or "")
+    if not days or not month or not year:
+        return None, None
+    start = common.parse_date(f"{days[0]}. {month} {year}")
+    if start is None or len(days) == 1:
+        return start, start
+    end = common.parse_date(f"{days[-1]}. {month} {year}")
+    if end is None:
+        return start, start
+    if end < start:
+        # A range may straddle a month boundary ("30.-02. September"); only the
+        # closing month is printed, so roll the start back one month.
+        month_number = start.month - 1 or 12
+        year_number = start.year - (1 if start.month == 1 else 0)
+        try:
+            start = start.replace(year=year_number, month=month_number)
+        except ValueError:
+            return end, end
+    return start, end
+
+
+def events_from_holzlar_html(html: str) -> list:
+    events = []
+    for block in re.split(_HOLZLAR_ITEM_BOUNDARY, html or "")[1:]:
+        title = common.clean_html(regional_common.first_group(_HOLZLAR_TITLE.pattern, block))
+        list_texts = [regional_common.clean(text) for text in _HOLZLAR_LIST_TEXT.findall(block)]
+        list_texts = [text for text in list_texts if text]
+        day_text = regional_common.clean(regional_common.first_group(_HOLZLAR_DAY.pattern, block))
+        month = list_texts[0] if list_texts else ""
+        year = list_texts[1] if len(list_texts) > 1 else ""
+        venue = list_texts[2] if len(list_texts) > 2 else ""
+        start, end = _holzlar_dates(day_text, month, year)
+        if not title or start is None:
+            continue
+        link = regional_common.first_group(_HOLZLAR_LINK.pattern, block) or HOLZLAR_URL
+        city = common.refine_city_from_text("Bonn-Holzlar", venue)
+        event = common.make_event(
+            title, start, end, venue, city,
+            common.factual_event_description(
+                title, date_value=start, venue=venue, city=city,
+            ),
+            link, "BV Holzlar",
+            "stadtteil verein fest kirmes markt familie", 1.0,
+            all_day=True,
+        )
+        if event:
+            events.append(event)
+    return regional_common.dedupe(events)
+
+
+def fetch_holzlar() -> list:
+    return regional_common.fetch_html_events("BV Holzlar", HOLZLAR_URL, events_from_holzlar_html)

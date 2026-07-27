@@ -49,6 +49,8 @@ RheinEvents, Salsa in Bonn,
 Food & Genuss primary sources (Craftquelle, BFF Bonner Schifffahrt, vomFASS,
 Biertasting Bonn, Ludwig's, Redüttchen, Street Food Bonn incl. the organiser's
 Siegburg landing page, Street Food Festival "Das Original", Choco Dealer),
+BV Holzlar (Bonn-Ost neighbourhood associations: Holzlar, Kohlkaul,
+Roleber-Gielgen, Mühlenverein), Rhein in Flammen Bonn,
 Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
 optional Grok Search. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,

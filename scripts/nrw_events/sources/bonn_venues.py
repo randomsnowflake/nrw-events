@@ -15,6 +15,7 @@ _VOLKSSTERNWARTE_ICAL = "https://www.volkssternwarte-bonn.de/wordpress/kalender/
 _BOTGART_URL = "https://www.botgart.uni-bonn.de/de/ihr-besuch/veranstaltungen"
 _VOX_BONA_ICAL = "https://vox-bona.de/kalender/?ical=1"
 _BONNER_MUENSTER_URL = "https://www.bonner-muenster.de/musik/"
+_RHEIN_IN_FLAMMEN_URL = "https://www.rhein-in-flammen.com/"
 
 
 def fetch() -> list:
@@ -43,6 +44,11 @@ def fetch() -> list:
     ))
     events.extend(_fetch_vox_bona())
     events.extend(_fetch_bonner_muenster())
+    events.extend(rc.fetch_html_events(
+        "Rhein in Flammen Bonn",
+        _RHEIN_IN_FLAMMEN_URL,
+        events_from_rhein_in_flammen,
+    ))
     return rc.dedupe(events)
 
 
@@ -451,3 +457,34 @@ _match_clean = rc.first_group_clean
 def _clean_price(text: str) -> str:
     text = rc.clean(text)
     return "" if text in {"Eintritt: €", "Eintritt:"} else text
+
+
+# The festival navigation lists every host town as
+# ``<a href="/bonn/bonn.html">Bonn<small> - 2. Mai 2026</small></a>``. Only the
+# Bonn leg is published here: the remaining legs are Middle-Rhine towns whose
+# coordinates this project does not carry, so they would land without a
+# resolvable location instead of being filtered by the radius check.
+_RHEIN_IN_FLAMMEN_ENTRY = re.compile(
+    r'<a href="(/bonn/[^"]*\.html)"[^>]*>\s*(Bonn)\s*<small>[^<]*?(\d{1,2}\.\s*[^<]+?)\s*</small>\s*</a>',
+    re.I,
+)
+
+
+def events_from_rhein_in_flammen(html: str) -> list:
+    events = []
+    for href, town, date_text in _RHEIN_IN_FLAMMEN_ENTRY.findall(html or ""):
+        start = common.parse_date(rc.clean(date_text))
+        if start is None:
+            continue
+        title = f"Rhein in Flammen {town}"
+        venue = "Rheinaue und Rheinufer"
+        event = common.make_event(
+            title, start, start, venue, town,
+            common.factual_event_description(title, date_value=start, venue=venue, city=town),
+            rc.abs_url(_RHEIN_IN_FLAMMEN_URL, href), "Rhein in Flammen Bonn",
+            "fest festival feuerwerk rhein open air stadtleben", 1.0,
+            all_day=True,
+        )
+        if event:
+            events.append(event)
+    return rc.dedupe(events)
