@@ -506,7 +506,7 @@ def events_from_holzlar_html(html: str) -> list:
                 title, date_value=start, venue=venue, city=city,
             ),
             link, "BV Holzlar",
-            "stadtteil verein fest kirmes markt familie", 1.0,
+            "stadtteil verein gemeinschaft", 1.0,
             all_day=True,
         )
         if event:

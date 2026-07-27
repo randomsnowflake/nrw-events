@@ -83,6 +83,24 @@ class CategoryTaxonomyTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
+    def test_neighbourhood_calendar_titles_do_not_inherit_a_blanket_family_label(self):
+        cases = {
+            "BV Roleber-Gielgen / BV Holzlar: Herbstfahrt": "outdoor",
+            "Mühlenverein: Tag des offenen Denkmals": "festival",
+            "Martinszug Holzlar": "kids",
+            "Proklamation und Karneval Om Berg": "festival",
+            "BV Holzlar: Weihnachtsbaum schmücken": "workshop",
+            "BV Kohlkaul: Martinimarkt": "market",
+            "BV Holzlar: Geburtstagskaffee": "other",
+            "BV Kohlkaul: Weihnachtsfeier": "festival",
+        }
+        for title, expected in cases.items():
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event("stadtteil verein gemeinschaft", title)["key"],
+                    expected,
+                )
+
     def test_category_result_exposes_debug_reason_and_confidence(self):
         result = categorize_event("Märkte/Messen", "Kinderbücher-Flohmarkt", "")
 

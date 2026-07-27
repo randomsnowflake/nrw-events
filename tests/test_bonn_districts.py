@@ -189,6 +189,8 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events[1]["end_date"], "2026-11-04")
         self.assertEqual(events[0]["venue"], "Georg-Fenninger-Platz")
         self.assertEqual(events[1]["city"], "Bonn-Holzlar")
+        self.assertEqual(events[0]["category_key"], "food")
+        self.assertEqual(events[1]["category_key"], "kids")
         self.assertEqual(events[1]["link"],
                          "https://bv-holzlar.de/veranstaltung/martinszug-holzlar/")
         self.assertTrue(all(event["description"] for event in events))

@@ -118,7 +118,8 @@ STRONG_MARKET_TITLE_CONTEXT = (
     "feierabendmarkt", "jahrmarkt", "krammarkt", "viehmarkt",
     "designmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt",
     "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt",
-    "fruehlingsmarkt", "töpfermarkt", "toepfermarkt", "kunsthandwerkermarkt",
+    "fruehlingsmarkt", "martinimarkt", "töpfermarkt", "toepfermarkt",
+    "kunsthandwerkermarkt",
     "schallplattenbörse", "schallplattenboerse",
     "fashion, family & kids markt",
 )
@@ -128,7 +129,7 @@ STRONG_MARKET_TITLE_CONTEXT = (
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "kindersachen flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "frischemarkt", "feierabendmarkt", "jahrmarkt", "krammarkt", "viehmarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "designmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt", "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt", "fruehlingsmarkt", "töpfermarkt", "toepfermarkt", "kunsthandwerkermarkt", "schallplattenbörse", "schallplattenboerse", "kindersachenbasar", "kinderbasar", "fashion, family & kids markt", word("market"), Keyword("markt", title_only=True, word=True), Keyword("basar", title_only=True, word_suffix=True), Keyword("antik", title_only=True, word=True))),
+    Rule("market", 14, ("flohmarkt", "kindersachen flohmarkt", "trödel", "troedel", "wochenmarkt", "freitagsmarkt", "frischemarkt", "feierabendmarkt", "jahrmarkt", "krammarkt", "viehmarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "designmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt", "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt", "fruehlingsmarkt", "martinimarkt", "töpfermarkt", "toepfermarkt", "kunsthandwerkermarkt", "schallplattenbörse", "schallplattenboerse", "kindersachenbasar", "kinderbasar", "fashion, family & kids markt", word("market"), Keyword("markt", title_only=True, word=True), Keyword("basar", title_only=True, word_suffix=True), Keyword("antik", title_only=True, word=True))),
     Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", "kulinar", "genuss", "schlemmer", "grillen", "dîner", "diner en blanc", "wine", "winzer", "weinprobe", "weinfest", "weinmoment", "weinlounge", "biergarten", "tasting", word("wein"), word("bier"))),
     Rule(
         "kids",
@@ -139,10 +140,10 @@ RULES: tuple[Rule, ...] = (
             "sommerleseclub", "lesesommer", "vorlesesommer", "vorlesehund",
             "feriencamp", "ferienaktion", "ferienprogramm",
             "bambini", "krabbel", "lego", "zauberwürfel", "zauberwuerfel",
-            "storytime", word("dino"),
+            "storytime", "martinszug", word("dino"),
         ),
     ),
-    Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "keramik", "malen", "kreativ", "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
+    Rule("workshop", 11, ("workshop", "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "gag-schreiben", "repair", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "schmücken", "schmuecken", "keramik", "malen", "kreativ", "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quilten")),
     Rule("talk", 10, ("lesung", "lesekreis", "lesezirkel", "buchvorstellung", "vorlesung", "vortrag", "lecture", "diskussion", "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", "philosophisch", "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", "forum", word("talk"), Keyword("info", title_only=True, word=True), title_only("meetup"), title_only("community meeting"))),
     Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwochenende", "tennis", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "fahrrad", "rennrad", "stadtradeln", "radeln", "pedelec", "klettern", "schwimmen", "boule", "schach")),
     Rule("cinema", 8, ("kino", "film", "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
@@ -150,8 +151,8 @@ RULES: tuple[Rule, ...] = (
     Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro"), word("party"), "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
     Rule("stage", 5, ("theater", "bühne", "buehne", "kabarett", "comedy", "variete", "varieté", "revue", "zirkus", "cirque", "tanz", "dance", "musical", "show", "improtheater", word("performance"), word("oper"), word("stage"), word("slam"))),
     Rule("exhibition", 4, ("ausstellung", "exhibition", "museum", "galerie", "gallery", "kunst", "karikatur", "vernissage", "atelier", "installation")),
-    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "natur", suffix_word("garten"), "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
-    Rule("festival", 1, (suffix_word("fest"), "festival", "kirmes", "kerb", "meile", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
+    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", "führung", "fuehrung", "tour", "blick hinter die kulissen", "wander", "spaziergang", "rundgang", "rundfahrt", "herbstfahrt", "natur", suffix_word("garten"), "exkursion", "ausflug", "hohes venn", "park", "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
+    Rule("festival", 1, (suffix_word("fest"), "festival", "kirmes", "kerb", "meile", "karneval", "weihnachtsfeier", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "tag des offenen denkmals", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
 )
 
 _NON_WORD = r"[^\wäöüÄÖÜß]"
