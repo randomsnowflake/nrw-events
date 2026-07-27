@@ -30,7 +30,31 @@ def _detail_description(html: str, _event: dict) -> dict:
             f"{description} Für das Angebot fällt kein zusätzliches Entgelt an; "
             "regulärer Museumseintritt ist erforderlich."
         )
-    return {"description": description}
+    tiered_price = re.search(
+        r"Kostenlos\s+für[^<]{0,100}Nichtmitglieder[^<]{0,100}(?:Euro|€)",
+        html or "",
+        re.I,
+    )
+    if tiered_price:
+        description = f"{description} {rc.clean(tiered_price.group(0))}."
+    meeting_point = re.search(
+        r"<p>\s*Treffpunkt\s*</p>.*?e-list__item-text.*?<p>(.*?)</p>",
+        html or "",
+        re.S | re.I,
+    )
+    return {
+        "description": description,
+        "venue": rc.clean(meeting_point.group(1) if meeting_point else ""),
+    }
+
+
+def _merge_detail(event: dict, context: dict) -> dict:
+    if (
+        event.get("venue", "").casefold() == "externe veranstaltung"
+        and context.get("venue")
+    ):
+        event["venue"] = context["venue"]
+    return event
 
 
 def events_from_html(html: str, detail_fetcher=None) -> list:
@@ -69,18 +93,18 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
         if free:
             description_parts.append("Das Angebot ist als kostenlos gekennzeichnet; Museumseintritt kann zusätzlich anfallen.")
         description = " ".join(description_parts) or "Veranstaltung im Museum Koenig Bonn."
-        category = " ".join(tags) or "Museum"
         link = rc.abs_url(_URL, title_match.group(1))
+        venue = "Externe Veranstaltung" if location.casefold() == "externe veranstaltung" else _VENUE
         event = common.make_event(
             rc.clean(title_match.group(2)),
             start,
             None,
-            _VENUE,
+            venue,
             "Bonn",
             description,
             link,
             _SOURCE,
-            f"Museum Führung Familie Kinder Wissenschaft {category}",
+            "Museum",
             1.0,
             start.strftime("%H:%M"),
             all_day=False,
@@ -97,9 +121,13 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
             fallback=lambda event: event.get("description", ""),
             detail_fetcher=detail_fetcher,
             needs_enrichment=lambda _event: True,
+            merge_context=_merge_detail,
         )
         for event in events:
-            if "regulärer Museumseintritt ist erforderlich" in event["description"]:
+            if (
+                "regulärer Museumseintritt ist erforderlich" in event["description"]
+                or re.search(r"Nichtmitglieder.*(?:Euro|€)", event["description"], re.I)
+            ):
                 event["price"] = ""
             else:
                 event["price"] = common.infer_free_admission_price(event["title"], event["description"])

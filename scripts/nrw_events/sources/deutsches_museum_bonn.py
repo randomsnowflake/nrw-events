@@ -65,7 +65,7 @@ def events_from_html(html: str) -> list:
             description,
             rc.abs_url(_URL, title_match.group(1)),
             _SOURCE,
-            "Museum Wissenschaft Technik KI Führung Workshop Familie Kinder " + " ".join(labels),
+            "Museum",
             1.0,
             rc.time_text(visible_time) or start.strftime("%H:%M"),
             all_day=False,
@@ -89,6 +89,8 @@ def _detail_description(html: str, _event: dict) -> dict:
     facts = []
     if re.search(r"Der\s+Eintritt\s+ist\s+frei", html or "", re.I):
         facts.append("Eintritt frei.")
+    if re.search(r"Die\s+Teilnahme\s+ist\s+im\s+Museumseintritt\s+enthalten", html or "", re.I):
+        facts.append("Teilnahme im Museumseintritt enthalten.")
     registration = re.search(r"Nur\s+nach\s+Anmeldung[^<.]*", html or "", re.I)
     if registration:
         facts.append(rc.clean(registration.group(0)).rstrip(".") + ".")
@@ -118,7 +120,20 @@ def fetch() -> list:
         cards = common.fetch_url(endpoint, timeout=25)
         if not _article_blocks(cards):
             raise rc.ParserEmptyError("Deutsches Museum Bonn program cards not found")
-        return _enrich_details(events_from_html(cards))
+        with common.capture_parser_metrics() as metrics:
+            events = events_from_html(cards)
+        parser_empty = not events and metrics["out_of_window_count"] == 0
+        common._record_endpoint(
+            endpoint,
+            parser_type="html",
+            candidate_count=metrics["candidate_count"],
+            out_of_window_count=metrics["out_of_window_count"],
+            parsed_event_count=len(events),
+            parser_empty=parser_empty,
+        )
+        if parser_empty:
+            raise rc.ParserEmptyError("Deutsches Museum Bonn program parser returned no events")
+        return _enrich_details(events)
     except Exception as exc:
-        common.log_source_error(_SOURCE, exc)
+        common.log_source_error(_SOURCE, exc, source_id="deutsches-museum-bonn")
         return []

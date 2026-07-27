@@ -113,7 +113,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertTrue(all(event["venue"] == "Museum Koenig Bonn" for event in events))
         self.assertTrue(all(event["price"] == "" for event in events))
         self.assertTrue(all("Museumseintritt kann zusätzlich anfallen" in event["description"] for event in events))
-        self.assertEqual(events[1]["category_key"], "outdoor")
+        self.assertEqual(events[1]["category_key"], "exhibition")
         self.assertEqual(events[0]["link"], "https://bonn.leibniz-lib.de/de/veranstaltungen/wir-lesen-vor.html")
 
     def test_museum_koenig_does_not_mislabel_free_tour_plus_paid_entry(self):
@@ -124,6 +124,27 @@ class BonnMuseumSourceTests(unittest.TestCase):
         parsed = museum_koenig._detail_description(detail, {})
 
         self.assertIn("regulärer Museumseintritt ist erforderlich", parsed["description"])
+
+    def test_museum_koenig_external_event_uses_detail_meeting_point(self):
+        listing = """
+        <li class="e-lib-event-calendar__list-item" data-publication-date="2026-08-08 11:00:00">
+          <p class="e-lib-event-calendar__date-location">Samstag, 08.08.2026, 11:00 Uhr, Externe Veranstaltung</p>
+          <h2 class="e-lib-event-calendar__list-item-title"><a href="/de/veranstaltungen/waldspaziergang.html">Waldspaziergang Kunst und Biologie</a></h2>
+          <span class="e-lib-cards__tag">Exkursion</span>
+        </li>
+        """
+        detail = """
+        <main><p>Ein Waldspaziergang mit Kunst und Biologie.</p>
+        <div class="e-list__item-keyword"><p>Treffpunkt</p></div>
+        <div class="e-list__item-text"><span><p>Zugang zum Klufterbachtal in Bonn-Friesdorf</p></span></div>
+        <p>Kostenlos für AKG-Mitglieder, Nichtmitglieder: 10 Euro</p></main>
+        """
+
+        events = museum_koenig.events_from_html(listing, detail_fetcher=lambda _url: detail)
+
+        self.assertEqual(events[0]["venue"], "Zugang zum Klufterbachtal in Bonn-Friesdorf")
+        self.assertEqual(events[0]["price"], "")
+        self.assertIn("Nichtmitglieder: 10 Euro", events[0]["description"])
 
     def test_deutsches_museum_ajax_cards_preserve_end_time_and_description(self):
         html = """
@@ -161,6 +182,17 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertIn("Nur nach Anmeldung", parsed["description"])
         self.assertNotIn("Kurzer Teaser", parsed["description"])
 
+    def test_deutsches_museum_preserves_admission_included_semantics(self):
+        detail = """
+        <div class="event-detail-text"><p>Programmierwerkstatt für Kinder.</p></div>
+        <section><h2>Kosten</h2><li>Die Teilnahme ist im Museumseintritt enthalten.</li></section>
+        """
+
+        parsed = deutsches_museum_bonn._detail_description(detail, {})
+
+        self.assertIn("Teilnahme im Museumseintritt enthalten", parsed["description"])
+        self.assertNotIn("Eintritt frei", parsed["description"])
+
     def test_deutsches_museum_fetch_discovers_current_ajax_endpoint(self):
         page = '<div data-ajaxUri="/bonn/programm/ems/indices.html?x=1&amp;y=2" data-ajax-indices></div>'
         cards = """
@@ -174,6 +206,18 @@ class BonnMuseumSourceTests(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         self.assertEqual(fetch.call_args_list[1].args[0], "https://www.deutsches-museum.de/bonn/programm/ems/indices.html?x=1&y=2")
+
+    def test_deutsches_museum_fetch_reports_structural_parser_drift(self):
+        page = '<div data-ajaxUri="/bonn/programm/ems/indices.html?x=1" data-ajax-indices></div>'
+        cards = '<article class="events-teaser__content"><h3>Redesigned card</h3></article>'
+        with patch("nrw_events.common.fetch_url", side_effect=[page, cards]), patch(
+            "nrw_events.common.log_source_error"
+        ) as log_error:
+            events = deutsches_museum_bonn.fetch()
+
+        self.assertEqual(events, [])
+        log_error.assert_called_once()
+        self.assertEqual(log_error.call_args.kwargs["source_id"], "deutsches-museum-bonn")
 
     def test_new_primary_sources_are_registered(self):
         self.assertIn("Museum Koenig Bonn", SOURCES)
