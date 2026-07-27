@@ -53,6 +53,7 @@ class ReportTests(unittest.TestCase):
         base = {
             "start_date": "2026-08-09", "end_date": "2026-08-09",
             "date": "2026-08-09", "city": "Bonn", "venue": "Katharinenhof",
+            "venue_id": "katharinenhof-bonn", "category_key": "market",
             "description": "", "price": "", "time": "", "start_at": "", "end_at": "",
         }
         events = [
@@ -75,7 +76,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["price"], "3 €")
         self.assertEqual(deduped[0]["link"], "https://beikircher.de/events/flohmarkt/")
 
-    def test_direct_antique_market_schedule_suppresses_conflicting_civic_date(self):
+    def test_antique_market_dedup_does_not_suppress_unmatched_dates(self):
         def market(date, source, score, link):
             return {
                 "title": (
@@ -85,6 +86,7 @@ class ReportTests(unittest.TestCase):
                 ),
                 "start_date": date, "end_date": date, "date": date,
                 "city": "Bonn", "venue": "Friedensplatz", "score": score,
+                "venue_id": "friedensplatz-bonn", "category_key": "market",
                 "source": source, "description": "", "price": "", "link": link,
                 "time": "11:00–17:00", "start_at": "", "end_at": "",
             }
@@ -100,7 +102,11 @@ class ReportTests(unittest.TestCase):
 
         self.assertEqual(
             [(event["start_date"], event["source"]) for event in deduped],
-            [("2026-08-16", "Cölln Konzept"), ("2026-10-18", "Cölln Konzept")],
+            [
+                ("2026-08-16", "Cölln Konzept"),
+                ("2026-10-11", "Bonn district festivals"),
+                ("2026-10-18", "Cölln Konzept"),
+            ],
         )
 
     def test_every_category_has_one_deterministic_report_section(self):
@@ -563,6 +569,80 @@ class ReportTests(unittest.TestCase):
         ]
 
         self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_deduplicate_folds_transliterated_titles_cities_and_venues(self):
+        base = {
+            "start_date": "2026-08-08", "end_date": "2026-08-08",
+            "date": "2026-08-08", "description": "", "price": "", "time": "",
+            "start_at": "", "end_at": "", "score": 1.0,
+        }
+        events = [
+            {
+                **base, "title": "Kölner Sommerbühne", "city": "Köln",
+                "venue": "Bürgerzentrum Köln", "source": "Köln Kultur",
+                "link": "https://koeln.test/sommerbuehne",
+            },
+            {
+                **base, "title": "Koelner Sommerbuehne", "city": "Koeln",
+                "venue": "Buergerzentrum Koeln", "source": "Regionaler Kalender",
+                "link": "https://regional.test/sommerbuehne",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 1)
+
+    def test_deduplicate_keeps_numbered_series_parts_separate(self):
+        base = {
+            "start_date": "2026-08-08", "end_date": "2026-08-08",
+            "date": "2026-08-08", "city": "Bonn", "venue": "Stadtmuseum",
+            "description": "", "price": "", "time": "", "start_at": "", "end_at": "",
+            "score": 1.0, "category_key": "talk", "venue_id": "stadtmuseum-bonn",
+        }
+        events = [
+            {**base, "title": "Römer am Rhein – Teil 1", "source": "Museum",
+             "link": "https://museum.test/1"},
+            {**base, "title": "Römer am Rhein – Teil 2", "source": "Stadtkalender",
+             "link": "https://stadt.test/2"},
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_deduplicate_does_not_absorb_single_date_into_cross_source_run(self):
+        base = {
+            "city": "Bonn", "venue": "Stadtmuseum", "description": "", "price": "",
+            "time": "", "start_at": "", "end_at": "", "score": 1.0,
+        }
+        events = [
+            {
+                **base, "title": "Römer am Rhein", "start_date": "2026-08-01",
+                "end_date": "2026-08-31", "date": "2026-08-01–2026-08-31",
+                "source": "Museum", "link": "https://museum.test/ausstellung",
+            },
+            {
+                **base, "title": "Römer am Rhein – Kuratorenführung",
+                "start_date": "2026-08-08", "end_date": "2026-08-08", "date": "2026-08-08",
+                "source": "Stadtkalender", "link": "https://stadt.test/fuehrung",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_deduplicate_matches_cross_source_by_venue_date_and_category(self):
+        base = {
+            "start_date": "2026-08-08", "end_date": "2026-08-08",
+            "date": "2026-08-08", "city": "Bonn", "venue": "Haus der Geschichte",
+            "venue_id": "haus-der-geschichte-bonn", "category_key": "exhibition",
+            "description": "", "price": "", "time": "", "start_at": "", "end_at": "",
+            "score": 1.0,
+        }
+        events = [
+            {**base, "title": "Zeitzeugengespräch zur Nachkriegszeit", "source": "Museum",
+             "link": "https://museum.test/zeitzeugen"},
+            {**base, "title": "Gespräch mit Zeitzeugen: Deutschlands Nachkriegszeit",
+             "source": "Stadtkalender", "link": "https://stadt.test/zeitzeugen"},
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 1)
 
 
 if __name__ == "__main__":
