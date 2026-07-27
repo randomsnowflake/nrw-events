@@ -544,6 +544,26 @@ class ReportTests(unittest.TestCase):
 
         self.assertEqual(len(report.deduplicate(events)), 2)
 
+    def test_deduplicate_keeps_same_title_same_day_at_distinct_venues(self):
+        base = {
+            "title": "Tag des offenen Denkmals", "start_date": "2026-09-13",
+            "end_date": "2026-09-13", "date": "2026-09-13", "city": "Bonn",
+            "score": 1.0, "description": "", "price": "", "time": "11:00",
+            "start_at": "2026-09-13T11:00+02:00", "end_at": "",
+        }
+        events = [
+            {
+                **base, "venue": "Holzlarer Mühle", "source": "BV Holzlar",
+                "link": "https://bv-holzlar.test/veranstaltungen",
+            },
+            {
+                **base, "venue": "Burg Lede", "source": "Beuel.net",
+                "link": "https://burglede.test/veranstaltungen",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

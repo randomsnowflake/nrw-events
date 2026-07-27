@@ -72,6 +72,15 @@ def _events_from_listing(html: str) -> list:
         description = _description(row) or common.factual_event_description(
             title, date_value=start, venue=venue, city=city
         )
+        if (
+            re.search(r"\bpützchens markt\b", title, re.I)
+            and re.search(r"\bwiesn-party\b|\boktoberfest\b", description, re.I)
+        ):
+            title = (
+                "AfterJob Wiesn-Party in der Bayernfesthalle"
+                if re.search(r"\bafterjob\b", title, re.I)
+                else "Wiesn-Party in der Bayernfesthalle"
+            )
         event = common.make_event(
             title, start, end, venue, city, description,
             str(item.get("url") or URL), SOURCE,

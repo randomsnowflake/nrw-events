@@ -96,6 +96,33 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "17:45–02:00")
         self.assert_canonical(events[0])
 
+    def test_afterjobparty_names_market_party_as_the_party_not_the_whole_market(self):
+        item = {
+            "@type": "MusicEvent",
+            "name": "AfterJob Wiesn-Party auf Pützchens Markt",
+            "startDate": "2026-09-12T18:00:00+02:00",
+            "endDate": "2026-09-13T02:00:00+02:00",
+            "eventStatus": "EventScheduled",
+            "location": {
+                "name": "Bayernfesthalle",
+                "address": {"addressLocality": "Bonn"},
+            },
+            "url": "https://afterjobparty.ticket.io/party/",
+        }
+        html = (
+            '<tr><td id="event-row-party"><script type="application/ld+json">'
+            f'{json.dumps(item)}</script><li><span><i aria-hidden>info</i>'
+            '<span>Wiesn-Party mit DJ und Oktoberfestband.</span>'
+            '</span></li></td></tr>'
+        )
+
+        events = afterjobparty._events_from_listing(html)
+
+        self.assertEqual(
+            events[0]["title"], "AfterJob Wiesn-Party in der Bayernfesthalle"
+        )
+        self.assert_canonical(events[0])
+
     def test_rheinevents_parses_next_data_and_converts_utc_to_local_time(self):
         payload = {"props": {"pageProps": {"sellerPage": {"events": [{
             "name": "Barfuss am Strand Summer Closing",

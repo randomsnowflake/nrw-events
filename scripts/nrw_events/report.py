@@ -99,10 +99,50 @@ def _normalized_city(value: str) -> str:
 
 
 def _locations_compatible(left: dict, right: dict) -> bool:
-    if _normalized_city(left.get("city", "")) == _normalized_city(right.get("city", "")):
-        return True
     left_venue = normalize_title(left.get("venue", ""))
     right_venue = normalize_title(right.get("venue", ""))
+    left_venue_tokens = set(re.findall(
+        r"[a-zäöüß0-9]+", (left.get("venue", "") or "").casefold()
+    ))
+    right_venue_tokens = set(re.findall(
+        r"[a-zäöüß0-9]+", (right.get("venue", "") or "").casefold()
+    ))
+    cities_match = (
+        _normalized_city(left.get("city", ""))
+        == _normalized_city(right.get("city", ""))
+    )
+    if cities_match:
+        if left.get("source") and left.get("source") == right.get("source"):
+            return True
+        left_title = normalize_title(left.get("title", ""))
+        right_title = normalize_title(right.get("title", ""))
+        if (
+            left_title == right_title
+            and any(
+                marker in left_title
+                for marker in ("flohmarkt", "trödelmarkt", "antikmarkt")
+            )
+        ):
+            return True
+        if not left_venue or not right_venue:
+            return True
+        if (
+            left_venue == right_venue
+            or left_venue in right_venue
+            or right_venue in left_venue
+            or SequenceMatcher(None, left_venue, right_venue).ratio() >= 0.82
+            or (
+                min(len(left_venue_tokens), len(right_venue_tokens)) >= 2
+                and (
+                    left_venue_tokens <= right_venue_tokens
+                    or right_venue_tokens <= left_venue_tokens
+                )
+            )
+        ):
+            return True
+        # A production detail URL can be reused for performances at multiple
+        # venues, so it is not enough to override a concrete venue conflict.
+        return False
     if left_venue and left_venue == right_venue:
         return True
     left_title = normalize_title(left.get("title", ""))
