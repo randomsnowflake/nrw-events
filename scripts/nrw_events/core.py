@@ -35,6 +35,7 @@ from .location import coords_for_city as coords_for_city
 from .location import refine_city_from_text as refine_city_from_text
 from .location import refine_bonn_location as refine_bonn_location
 from .location import guess_city_from_text, haversine, resolve_location
+from .models import AdmissionDefault
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
 from .runtime import RunContext
@@ -1159,6 +1160,50 @@ def _is_destination_market(text: str) -> bool:
     )
 
 
+def infer_admission(
+    title: str,
+    description: str,
+    price: str = "",
+    *,
+    venue: str = "",
+    source: str = "",
+    link: str = "",
+    admission: AdmissionDefault | None = None,
+    admission_basis: str = "",
+) -> tuple[str, str]:
+    """Return normalized free admission and its explicit/implicit evidence basis."""
+    raw = " ".join([title or "", description or "", price or "", venue or "", source or "", link or ""])
+    text = clean_html(raw).lower()
+    text = re.sub(r"\b(kostenfrei|kostenlos)(?=ab\s+\d)", r"\1 ", text)
+    text = re.sub(r"\s+", " ", text)
+    price_text = clean_html(price or "").lower().strip()
+
+    visitor_charge = bool(_VISITOR_ADMISSION_AMOUNT_PATTERN.search(text))
+    if admission_basis == "implicit" and visitor_charge:
+        return "", ""
+    if _FREE_PRICE_PATTERN.fullmatch(price_text):
+        return "kostenlos", admission_basis or "explicit"
+    if price_text:
+        return "", "explicit"
+    if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
+        return "", ""
+    if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
+        return "kostenlos", "explicit"
+    if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
+        return "kostenlos", "explicit"
+    clean_title = clean_html(title or "")
+    if (
+        _IMPLICIT_FREE_TITLE_PATTERN.search(clean_title)
+        and not price_text
+        and not _IMPLICIT_FREE_EXCLUSION_PATTERN.search(text)
+        and not visitor_charge
+    ):
+        return "kostenlos", "implicit"
+    if admission == AdmissionDefault.FREE_BY_NATURE and not visitor_charge:
+        return "kostenlos", "implicit"
+    return "", ""
+
+
 def infer_free_admission_price(
     title: str,
     description: str,
@@ -1167,31 +1212,13 @@ def infer_free_admission_price(
     venue: str = "",
     source: str = "",
     link: str = "",
+    admission: AdmissionDefault | None = None,
 ) -> str:
     """Return a normalized free-admission label from explicit or safe implicit evidence."""
-    raw = " ".join([title or "", description or "", price or "", venue or "", source or "", link or ""])
-    text = clean_html(raw).lower()
-    text = re.sub(r"\b(kostenfrei|kostenlos)(?=ab\s+\d)", r"\1 ", text)
-    text = re.sub(r"\s+", " ", text)
-    price_text = clean_html(price or "").lower().strip()
-
-    if _FREE_PRICE_PATTERN.fullmatch(price_text):
-        return "kostenlos"
-    if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
-        return ""
-    if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
-        return "kostenlos"
-    if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
-        return "kostenlos"
-    clean_title = clean_html(title or "")
-    if (
-        _IMPLICIT_FREE_TITLE_PATTERN.search(clean_title)
-        and not price_text
-        and not _IMPLICIT_FREE_EXCLUSION_PATTERN.search(text)
-        and not _VISITOR_ADMISSION_AMOUNT_PATTERN.search(text)
-    ):
-        return "kostenlos"
-    return ""
+    return infer_admission(
+        title, description, price, venue=venue, source=source, link=link,
+        admission=admission,
+    )[0]
 
 
 def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
@@ -1199,7 +1226,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
                category: str, trust: float = 1.0, time_text: str = "",
                coords: Optional[tuple] = None, all_day: Optional[bool] = None,
                timezone_name: str = "Europe/Berlin", source_id: str = "",
-               description_source: str = "") -> Optional[dict]:
+               description_source: str = "",
+               admission: AdmissionDefault | None = None) -> Optional[dict]:
     """Build a scored event dict and apply radius + junk checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
@@ -1249,6 +1277,10 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     local_zone = ZoneInfo(timezone_name)
     start_at = "" if all_day or not start_dt else start_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     end_at = "" if all_day or not end_dt else end_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
+    price, admission_basis = infer_admission(
+        title, description, venue=venue, source=source, link=event_link,
+        admission=admission,
+    )
     ev = {
         "title": clean_html(title),
         "date": date_text,
@@ -1257,9 +1289,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "city": clean_html(city).title(),
         "description": concise_description(description),
         "description_source": description_source or description_source_for(description),
-        "price": infer_free_admission_price(
-            title, description, venue=venue, source=source, link=event_link,
-        ),
+        "price": price,
+        "admission_basis": admission_basis,
         "link": event_link,
         "distance_km": round(km, 1) if km is not None else None,
         "location_confidence": location_confidence,
@@ -1566,7 +1597,8 @@ def _jsonld_schedule_time_text(schedule: dict) -> str:
 
 
 def events_from_jsonld(html: str, source: str, default_city: str, category: str,
-                       trust: float, default_link: str, source_id: str = "") -> list:
+                       trust: float, default_link: str, source_id: str = "",
+                       admission: AdmissionDefault | None = None) -> list:
     """Build events from every schema.org Event in a page's JSON-LD."""
     events = []
     for item in jsonld_event_items(html):
@@ -1586,7 +1618,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                 ev = make_event(
                     title, sched_start, sched_end, venue, city, desc, link, source,
                     category, trust, time_text=_jsonld_schedule_time_text(schedule),
-                    source_id=source_id,
+                    source_id=source_id, admission=admission,
                 )
                 if ev:
                     events.append(ev)
@@ -1597,7 +1629,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
 
         ev = make_event(
             title, start_dt, end_dt, venue, city, desc, link, source, category, trust,
-            source_id=source_id,
+            source_id=source_id, admission=admission,
         )
         if ev:
             events.append(ev)
@@ -1917,7 +1949,8 @@ def _ical_recurrence_starts(
 
 def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                trust: float = 1.0, source_id: str = "", event_filter=None,
-               city_resolver=None, fetcher=None) -> list:
+               city_resolver=None, fetcher=None,
+               admission: AdmissionDefault | None = None) -> list:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds).
 
     ``fetcher`` optionally replaces the plain HTTP read with a ``(url, **kwargs) ->
@@ -1996,6 +2029,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                 source, cat, trust,
                 all_day=all_day,
                 source_id=source_id,
+                admission=admission,
             )
             if ev:
                 events.append(ev)
