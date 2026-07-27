@@ -43,6 +43,10 @@ class BonnMuseumSourceTests(unittest.TestCase):
         )
         self.assertTrue(all(event["price"] == "kostenlos" for event in sunday))
         self.assertTrue(all("Anmeldung erforderlich" in event["description"] for event in sunday))
+        self.assertTrue(all(
+            event["source_id"] == "haus-der-geschichte-begleitungen"
+            for event in sunday
+        ))
 
     def test_haus_der_geschichte_embedded_family_tours_are_searchable_occurrences(self):
         html = """

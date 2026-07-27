@@ -173,6 +173,7 @@ def guided_tours_from_html(html: str) -> list:
                 1.0,
                 start.strftime("%H:%M"),
                 all_day=False,
+                source_id="haus-der-geschichte-begleitungen",
             )
             if event:
                 events.append(event)
