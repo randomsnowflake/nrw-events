@@ -1171,8 +1171,10 @@ def infer_admission(
     admission: AdmissionDefault | None = None,
     admission_basis: str = "",
 ) -> tuple[str, str]:
-    """Return normalized free admission and its explicit/implicit evidence basis."""
-    raw = " ".join([title or "", description or "", price or "", venue or "", source or "", link or ""])
+    """Infer admission from event copy, price, or a declared source default."""
+    # Transport metadata is not admission evidence. A venue or URL containing
+    # "Eintritt frei" must not silently turn a paid event into a free one.
+    raw = " ".join([title or "", description or "", price or ""])
     text = clean_html(raw).lower()
     text = re.sub(r"\b(kostenfrei|kostenlos)(?=ab\s+\d)", r"\1 ", text)
     text = re.sub(r"\s+", " ", text)
@@ -1596,6 +1598,58 @@ def _jsonld_schedule_time_text(schedule: dict) -> str:
     return start or end
 
 
+def _jsonld_accessible_for_free(value) -> Optional[bool]:
+    """Parse schema.org Boolean values without treating arbitrary strings as true."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().casefold()
+        if normalized in {"true", "1"}:
+            return True
+        if normalized in {"false", "0"}:
+            return False
+    return None
+
+
+def _jsonld_offer_price(offers) -> Optional[str]:
+    """Return the first usable schema.org Offer price as the legacy display string."""
+    if isinstance(offers, dict):
+        candidates = [offers]
+    elif isinstance(offers, list):
+        candidates = [offer for offer in offers if isinstance(offer, dict)]
+    else:
+        candidates = []
+    for offer in candidates:
+        amount = offer.get("price")
+        if amount in (None, "") or isinstance(amount, (dict, list, bool)):
+            continue
+        amount_text = clean_html(str(amount)).strip()
+        if not amount_text:
+            continue
+        currency = offer.get("priceCurrency")
+        currency_text = (
+            "" if isinstance(currency, (dict, list)) else clean_html(str(currency or "")).strip()
+        )
+        if (
+            _FREE_PRICE_PATTERN.fullmatch(amount_text)
+            or re.fullmatch(r"0+(?:[.,]0+)?", amount_text)
+        ):
+            return "kostenlos"
+        return " ".join(part for part in (amount_text, currency_text) if part)
+    return None
+
+
+def _jsonld_admission_price(item: dict) -> Optional[str]:
+    """Resolve structured admission, with the direct free-access flag authoritative."""
+    accessible_for_free = _jsonld_accessible_for_free(item.get("isAccessibleForFree"))
+    offer_price = _jsonld_offer_price(item.get("offers"))
+    if accessible_for_free is True:
+        return "kostenlos"
+    if accessible_for_free is False:
+        return offer_price if offer_price and offer_price != "kostenlos" else "kostenpflichtig"
+    return offer_price
+
+
 def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                        trust: float, default_link: str, source_id: str = "",
                        admission: AdmissionDefault | None = None) -> list:
@@ -1609,6 +1663,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         city = city or default_city
         desc = item.get("description", "")
         link = item.get("url") or default_link
+        admission_price = _jsonld_admission_price(item)
 
         schedules = _jsonld_schedule_items(item.get("eventSchedule"))
         if schedules:
@@ -1621,6 +1676,9 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                     source_id=source_id, admission=admission,
                 )
                 if ev:
+                    if admission_price is not None:
+                        ev["price"] = admission_price
+                        ev["admission_basis"] = "explicit"
                     events.append(ev)
             # Explicit schedule entries are the real appointments. The top-level
             # start/end often describes only a season span, e.g. Rheinauen-Flohmarkt
@@ -1632,6 +1690,9 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             source_id=source_id, admission=admission,
         )
         if ev:
+            if admission_price is not None:
+                ev["price"] = admission_price
+                ev["admission_basis"] = "explicit"
             events.append(ev)
     return events
 
