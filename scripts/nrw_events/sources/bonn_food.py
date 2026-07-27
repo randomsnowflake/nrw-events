@@ -17,6 +17,12 @@ _BIERTASTING_URL = "https://www.biertasting-bonn.de/"
 _LUDWIGS_URL = "https://www.ludwigs-bonn.de/veranstaltungen"
 _REDUETTCHEN_URL = "https://reduettchen.de/events/"
 _STREET_FOOD_URL = "https://www.street-food-bonn.de/"
+# Same organiser (WEvent UG), same Contao layout, same "Nächste Termine" block:
+# one parser reads both landing pages and the shared dedupe collapses the
+# festivals both of them advertise.
+_STREET_FOOD_SIEGBURG_URL = "https://www.streetfood-siegburg.de/"
+_ORIGINAL_STREET_FOOD_URL = "https://street-food-festival.de/bonn"
+_CHOCO_DEALER_URL = "https://choco-dealer.com/EVENTS/"
 _VOMFASS_ALLOWED_HOSTS = ("www.vomfass.de",)
 
 _MONTHS = {
@@ -124,7 +130,28 @@ def fetch_reduettchen() -> list:
 
 
 def fetch_street_food() -> list:
-    return rc.fetch_html_events("Street Food Bonn", _STREET_FOOD_URL, events_from_street_food)
+    return rc.fetch_html_events(
+        "Street Food Bonn", _STREET_FOOD_URL, events_from_street_food,
+        fetcher=_fetch_street_food_pages,
+    )
+
+
+def _fetch_street_food_pages(url: str, timeout: int) -> str:
+    return "\n".join(
+        common.fetch_url(page, timeout=timeout)
+        for page in (url, _STREET_FOOD_SIEGBURG_URL)
+    )
+
+
+def fetch_original_street_food() -> list:
+    return rc.fetch_html_events(
+        "Street Food Festival Original", _ORIGINAL_STREET_FOOD_URL,
+        events_from_original_street_food,
+    )
+
+
+def fetch_choco_dealer() -> list:
+    return rc.fetch_html_events("Choco Dealer", _CHOCO_DEALER_URL, events_from_choco_dealer)
 
 
 def events_from_craftquelle(html: str, detail_fetcher=None) -> list:
@@ -320,14 +347,18 @@ def events_from_reduettchen(html: str, detail_fetcher=None) -> list:
 
 def events_from_street_food(html: str) -> list:
     text = rc.clean(html)
-    section = _between(text, "Nächste Termine", "Veranstalter")
+    # Both landing pages of the organiser are parsed in one pass, so the term
+    # list is bounded by the next date or the imprint block instead of by a
+    # single "Nächste Termine … Veranstalter" section. The Bonn page separates
+    # the location with a dash, the Siegburg page does not.
     pattern = re.compile(
         r"(\d{1,2})\.\s*-\s*(\d{1,2})\.(\d{1,2})\.(20\d{2})\s+"
-        r"Street Food Festival\s*-\s*(.*?)(?=\s+\d{1,2}\.\s*-\s*\d{1,2}\.\d{1,2}\.20\d{2}|$)",
+        r"Street Food Festival\s*-?\s*(.*?)"
+        r"(?=\s+\d{1,2}\.\s*-\s*\d{1,2}\.\d{1,2}\.20\d{2}|\s+Veranstalter\b|$)",
         re.I,
     )
     events = []
-    for start_day, end_day, month, year, location in pattern.findall(section):
+    for start_day, end_day, month, year, location in pattern.findall(text):
         start = datetime(int(year), int(month), int(start_day))
         end = datetime(int(year), int(month), int(end_day))
         location = rc.clean(location)
@@ -344,6 +375,99 @@ def events_from_street_food(html: str) -> list:
         if ev:
             events.append(_force_food(ev))
     return rc.dedupe(events)
+
+
+def events_from_original_street_food(html: str) -> list:
+    """Read the festival dates from the visible page, never from its JSON-LD.
+
+    The page ships a ``schema.org/FoodEvent`` block, but it is unmaintained: its
+    ``startDate`` still points at a past edition and its time component is not
+    valid ISO 8601. Only ``name``, ``description`` and ``location`` are taken
+    from it; without a readable date in the page body nothing is published and
+    the source reports an empty parse.
+    """
+    item = next((entry for entry in _deep_jsonld_events(html)), {})
+    title = rc.clean(str(item.get("name") or ""))
+    if not title:
+        return []
+    location = item.get("location") if isinstance(item.get("location"), dict) else {}
+    address = location.get("address") if isinstance(location.get("address"), dict) else {}
+    city = rc.clean(str(address.get("addressLocality") or "Bonn"))
+    venue = ", ".join(
+        rc.clean(str(part)) for part in
+        (location.get("name"), address.get("streetAddress"), address.get("postalCode"))
+        if part
+    )
+    description = rc.clean(str(item.get("description") or ""))
+    events = []
+    for start, end in _spelled_date_ranges(rc.clean(_without_scripts(html))):
+        ev = common.make_event(
+            title, start, end, venue, city, description,
+            _ORIGINAL_STREET_FOOD_URL, "Street Food Festival Original",
+            "street food markt festival genuss", 0.9, all_day=True,
+        )
+        if ev:
+            events.append(_force_food(ev))
+    return rc.dedupe(events)
+
+
+def events_from_choco_dealer(html: str) -> list:
+    events = []
+    for card in re.split(r"<div[^>]*\bevents-card\b", html or "")[1:]:
+        link = _match(r"href=['\"]([^'\"]*\bslotId=[^'\"]+)['\"]", card)
+        title = rc.clean(_match(r"netzp-events-title[^'\"]*['\"][^>]*>(.*?)</div>", card))
+        stamp = re.search(
+            r"(\d{1,2})\.(\d{1,2})\.(\d{2}),\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})", card,
+        )
+        if not (link and title and stamp):
+            continue
+        day, month, year, start_time, end_time = stamp.groups()
+        try:
+            start = datetime(2000 + int(year), int(month), int(day))
+        except ValueError:
+            continue
+        start = rc.with_time(start, start_time)
+        # ``<b\b`` would also match ``<br>`` and swallow the whole card as a venue.
+        venue_match = re.search(r"<b(?:\s[^>]*)?>(.*?)</b>\s*\|\s*([^<]*)", card, re.S)
+        venue = ", ".join(rc.clean(part) for part in venue_match.groups()) if venue_match else ""
+        description = re.sub(
+            r"\s*\.{3}$", "",
+            rc.clean(_match(r"card-text lead[^'\"]*['\"][^>]*>(.*?)</div>", card)),
+        )
+        ev = common.make_event(
+            title, start, rc.with_time(start, end_time), venue, "Bonn-Bad Godesberg",
+            description, rc.abs_url(_CHOCO_DEALER_URL, link), "Choco Dealer",
+            "schokolade tasting verkostung genuss", 0.97,
+        )
+        if ev:
+            events.append(_force_food(ev))
+    return rc.dedupe(events)
+
+
+def _spelled_date_ranges(text: str) -> list:
+    """Parse ``02. - 05. Oktober 2026`` and ``30. September - 03. Oktober 2026``."""
+    ranges = []
+    pattern = re.compile(
+        r"\b(\d{1,2})\.\s*(?:([A-Za-zäöüÄÖÜ]+)\s+)?[-–—]\s*"
+        r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})\b"
+    )
+    for start_day, start_month_name, end_day, end_month_name, year in pattern.findall(text):
+        end_month = _MONTHS.get(end_month_name.casefold())
+        start_month = _MONTHS.get((start_month_name or end_month_name).casefold())
+        if not (start_month and end_month):
+            continue
+        try:
+            end = datetime(int(year), end_month, int(end_day))
+            # A range that wraps the new year starts in the preceding year.
+            start = datetime(int(year) - (start_month > end_month), start_month, int(start_day))
+        except ValueError:
+            continue
+        ranges.append((start, end))
+    return ranges
+
+
+def _without_scripts(html: str) -> str:
+    return re.sub(r"<script\b.*?</script>", " ", html or "", flags=re.S | re.I)
 
 
 def _events_from_schema_html(html: str, *, source: str, default_url: str,

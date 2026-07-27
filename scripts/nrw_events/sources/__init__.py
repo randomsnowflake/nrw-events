@@ -101,7 +101,9 @@ CUSTOM_SOURCES = {
     "Biertasting Bonn": bonn_food.fetch_biertasting,
     "Ludwig's Bonn": bonn_food.fetch_ludwigs,
     "Redüttchen": bonn_food.fetch_reduettchen,
-    "Street Food Bonn": bonn_food.fetch_street_food,
+    "Street Food Bonn": bonn_food.fetch_street_food,   # WEvent UG: Bonn + Siegburg landing pages
+    "Street Food Festival Original": bonn_food.fetch_original_street_food,
+    "Choco Dealer": bonn_food.fetch_choco_dealer,
     "Bonn.jetzt": bonnjetzt.fetch,
     "Radio Bonn/Rhein-Sieg": radiobonn.fetch,
     "Bürgerverein Vilich-Müldorf": bonn_districts.fetch_vilich_mueldorf,
