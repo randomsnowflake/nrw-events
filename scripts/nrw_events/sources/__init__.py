@@ -17,7 +17,8 @@ from . import (
     meckenheim, much, naturregion_sieg, siegburg,
     ruhrguide, regional_feeds, regional_html, regional_ionas4,
     regional_sitekit, regional_tourism, regional_venues, requested_venues,
-    bonn_venues, bonn_food, radiobonn, bonn_districts, cinema_specials, uni_bonn,
+    bonn_venues, bonn_food, bonn_literature, radiobonn, bonn_districts,
+    cinema_specials, uni_bonn,
     kinderflohmarkt, grote_hiller, hofflohmaerkte, coelln_konzept, lampert,
     rhein_antik, coelln_antik_design, mec_municipal, marktcom,
     hoffloh_bonn, okken, geide, krewelshof, melan,
@@ -109,6 +110,8 @@ CUSTOM_SOURCES = {
     "Bad Godesberg Stadtmarketing": bonn_districts.fetch_bad_godesberg,
     "Hardtberg Kultur": bonn_districts.fetch_hardtberg,
     "BSV Roleber": bonn_districts.fetch_roleber,
+    "Literaturhaus Bonn": bonn_literature.fetch_literaturhaus,
+    "Parkbuchhandlung": bonn_literature.fetch_parkbuchhandlung,
     "Ruhr-Guide": ruhrguide.fetch,
     # Web-search fallbacks (lowest trust)
     "Exa Search": search.fetch_exa,

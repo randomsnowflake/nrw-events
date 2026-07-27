@@ -307,6 +307,12 @@ weiterhin gezielt überschreiben.
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
 - **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
   Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
+- **Literatur in Bonn:** Literaturhaus Bonn (iCal) und Parkbuchhandlung Bad
+  Godesberg liefern Autorenlesungen, Buchpremieren und Literaturgespräche
+  (`bonn_literature.py`). Stehende Lesekreise und Literaturkreise werden
+  bewusst nicht veröffentlicht — sie sind feste Gruppentreffen, keine
+  besuchbaren Termine. Kuratierte Reihen, die das besprochene Werk im Titel
+  nennen, bleiben erhalten.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
 - **Kommunale MEC-Kalender (Marktausläufer):** Hennef und Sankt Augustin fahren
