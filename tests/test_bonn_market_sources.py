@@ -175,6 +175,12 @@ class BonnMarketSourceTests(unittest.TestCase):
                 "date": date if not end_date else f"{date}–{end_date}",
                 "city": city,
                 "venue": venue,
+                "venue_id": {
+                    "2026-08-02": "bad-godesberg-innenstadt",
+                    "2026-08-08": "innenstadt-linz",
+                    "2026-08-16": "friedensplatz-bonn",
+                }[date],
+                "category_key": "market",
                 "score": score,
                 "description": title,
                 "price": "",
@@ -236,12 +242,13 @@ class BonnMarketSourceTests(unittest.TestCase):
             ),
         ])
 
-        self.assertEqual(len(deduped), 3)
+        self.assertEqual(len(deduped), 4)
         self.assertEqual(
             {item["link"] for item in deduped},
             {
                 "https://bad-godesberg.info/antikmarkt",
                 "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
+                "https://www.linz.de/antikmarkt",
                 "https://www.coelln-konzept.de/markt/antik_linz.html",
             },
         )

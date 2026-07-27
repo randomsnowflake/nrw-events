@@ -113,6 +113,9 @@ class RheinAntikSourceTests(unittest.TestCase):
     def test_titles_dedupe_against_the_press_calendar_market_name(self):
         """The organizer record must collapse with the same civic occurrence."""
         organizer = self._by_date("2026-08-16")
+        assert organizer is not None
+        organizer["venue_id"] = "friedensplatz-bonn"
+        organizer["category_key"] = "market"
         civic = {
             **organizer,
             "title": "Antikmarkt Bonn",

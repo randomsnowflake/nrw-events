@@ -8,6 +8,7 @@ from html import unescape
 from typing import Optional
 
 from . import config
+from .normalization import comparison_text
 
 
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
@@ -84,19 +85,16 @@ def refine_city_from_text(city: str, text: str) -> str:
     of event titles.  The longest district name wins, so e.g. Vilich-Müldorf is
     not reduced to Vilich when both tokens occur.
     """
-    def words(value: str) -> str:
-        normalized = (value or "").casefold().translate(str.maketrans({
-            "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
-        }))
-        return re.sub(r"[^a-z0-9]+", " ", normalized).strip()
-
-    coarse = words(city)
+    coarse = comparison_text(city)
     district_keys = [key for key in config.VENUE_COORDS if key.startswith("bonn-")]
-    district_words = {key: words(key.removeprefix("bonn-")) for key in district_keys}
+    district_words = {
+        key: comparison_text(key.removeprefix("bonn-"))
+        for key in district_keys
+    }
     if coarse != "bonn" and not coarse.startswith("bonn ") and coarse not in district_words.values():
         return city
 
-    haystack = f" {words(text)} "
+    haystack = f" {comparison_text(text)} "
     for key, district in sorted(district_words.items(), key=lambda item: -len(item[1])):
         if f" {district} " in haystack:
             suffix = key.removeprefix("bonn-")

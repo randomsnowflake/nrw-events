@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 
 from . import common
 from .models import CanonicalEvent
+from .normalization import comparison_text
 
 
 # Kept separate from ``score``: score includes distance and topical relevance,
@@ -57,7 +58,7 @@ def source_authority(source: str) -> int:
 
 def normalize_title(title: str) -> str:
     """Aggressively normalize a title for near-duplicate comparison."""
-    t = (title or "").lower().strip()
+    t = (title or "").casefold().strip()
     t = re.sub(
         r"^\s*[-–—:()]*\s*(?:abgesagt|entfällt|entfaellt|fällt\s+aus|"
         r"faellt\s+aus)\s*[-–—:()]*\s*",
@@ -70,43 +71,31 @@ def normalize_title(title: str) -> str:
         "flohmarkt ",
         t,
     )
-    normalized = re.sub(r"[^a-zäöüß0-9]", "", t)
-    # Official market calendars use these equivalent names for the same
-    # occurrences. City, date, and venue checks still guard the match.
-    normalized = normalized.replace("antikundtrödelmarkt", "antikmarkt")
-    normalized = normalized.replace("antikkunstdesignmarkt", "antikmarkt")
-    normalized = normalized.replace(
-        "mädelskramundscheunentrödel", "flohmarktimkatharinenhof")
-    return normalized
+    return comparison_text(t, separator="")
 
 
 def _dedup_key(ev: dict) -> str:
     """Occurrence key: recurring appointments on different dates must survive."""
     norm = normalize_title(ev.get("title", ""))
-    city = re.sub(r"\s+", " ", (ev.get("city", "") or "").lower()).strip()
+    city = _normalized_city(ev.get("city", ""))
     start_date = ev.get("start_date") or (ev.get("date", "") or "").split("–", 1)[0]
     return "|".join((norm, city, str(start_date)))
 
 
 def _normalized_city(value: str) -> str:
-    city = re.sub(r"\s+", " ", (value or "").lower()).strip()
-    city = re.sub(r"\s*\([^)]*\)\s*$", "", city)
-    if city.startswith("bonn-") or city in {"bad godesberg", "rheinaue", "poppelsdorf"}:
+    city = comparison_text(re.sub(r"\s*\([^)]*\)\s*$", "", value or ""))
+    if city.startswith("bonn ") or city in {"bad godesberg", "rheinaue", "poppelsdorf"}:
         return "bonn"
-    if city.startswith("köln-"):
-        return "köln"
+    if city.startswith("koeln "):
+        return "koeln"
     return city
 
 
 def _locations_compatible(left: dict, right: dict) -> bool:
     left_venue = normalize_title(left.get("venue", ""))
     right_venue = normalize_title(right.get("venue", ""))
-    left_venue_tokens = set(re.findall(
-        r"[a-zäöüß0-9]+", (left.get("venue", "") or "").casefold()
-    ))
-    right_venue_tokens = set(re.findall(
-        r"[a-zäöüß0-9]+", (right.get("venue", "") or "").casefold()
-    ))
+    left_venue_tokens = set(comparison_text(left.get("venue", "")).split())
+    right_venue_tokens = set(comparison_text(right.get("venue", "")).split())
     cities_match = (
         _normalized_city(left.get("city", ""))
         == _normalized_city(right.get("city", ""))
@@ -168,7 +157,7 @@ def _date_bounds(ev: dict) -> tuple[date, date] | None:
 
 
 def _same_occurrence(left: dict, right: dict) -> bool:
-    """Return whether two records describe overlapping city/date occurrences."""
+    """Return whether two records describe the same city/date occurrence."""
     # A first-party calendar may offer the same programme several times on one
     # day.  Those are separate bookable occurrences, not duplicate metadata.
     if (
@@ -181,8 +170,11 @@ def _same_occurrence(left: dict, right: dict) -> bool:
     left_bounds = _date_bounds(left)
     right_bounds = _date_bounds(right)
     if left_bounds and right_bounds:
-        dates_match = (left_bounds[0] <= right_bounds[1]
-                       and right_bounds[0] <= left_bounds[1])
+        if left.get("source") != right.get("source"):
+            dates_match = left_bounds == right_bounds
+        else:
+            dates_match = (left_bounds[0] <= right_bounds[1]
+                           and right_bounds[0] <= left_bounds[1])
     else:
         dates_match = (_dedup_key(left).rsplit("|", 1)[-1]
                        == _dedup_key(right).rsplit("|", 1)[-1])
@@ -196,20 +188,44 @@ def _duration_days(ev: dict) -> int:
 
 def _titles_match(left: dict, right: dict) -> bool:
     """Match exact titles and very close cross-source title variants."""
+    if _series_tokens(left.get("title", "")) != _series_tokens(right.get("title", "")):
+        return False
     left_title = normalize_title(left.get("title", ""))
     right_title = normalize_title(right.get("title", ""))
     if left_title == right_title:
-        return True
-    if (
-        min(left_title, right_title, key=len) == "antikmarkt"
-        and max(left_title, right_title, key=len).startswith("antikmarkt")
-    ):
         return True
     if min(len(left_title), len(right_title)) >= 12 and (
         left_title in right_title or right_title in left_title
     ):
         return True
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
+
+
+def _series_tokens(title: str) -> tuple[str, ...]:
+    """Return numeric and explicit Roman-numeral episode markers in a title."""
+    words = comparison_text(title)
+    numbers = re.findall(r"\b\d+\b", words)
+    roman_episodes = re.findall(
+        r"\b(?:teil|folge|part|episode|band|kapitel)\s+([ivxlcdm]+)\b",
+        words,
+    )
+    return tuple(numbers + [f"roman:{token}" for token in roman_episodes])
+
+
+def _same_registered_venue_occurrence(left: dict, right: dict) -> bool:
+    """Match cross-source records by canonical venue, exact date, and category."""
+    if not left.get("source") or left.get("source") == right.get("source"):
+        return False
+    left_venue_id = left.get("venue_id")
+    left_category = left.get("category_key")
+    return bool(
+        left_venue_id
+        and left_venue_id == right.get("venue_id")
+        and left_category
+        and left_category == right.get("category_key")
+        and _date_bounds(left) is not None
+        and _date_bounds(left) == _date_bounds(right)
+    )
 
 
 def _has_separate_admission_charge(event) -> bool:
@@ -290,7 +306,12 @@ def _is_radio_aggregation_link(link: str) -> bool:
 
 def events_are_duplicates(left, right) -> bool:
     """Return whether two canonical records represent the same occurrence."""
-    return _same_occurrence(left, right) and _titles_match(left, right)
+    if _series_tokens(left.get("title", "")) != _series_tokens(right.get("title", "")):
+        return False
+    return (
+        _same_registered_venue_occurrence(left, right)
+        or (_same_occurrence(left, right) and _titles_match(left, right))
+    )
 
 
 def deduplicate(
@@ -305,18 +326,6 @@ def deduplicate(
         if event.get("status") == "cancelled"
         and source_authority(event.get("source", "")) >= 2
     ]
-    direct_antique_schedules: dict[tuple[str, str, int], set[date]] = {}
-    for event in events:
-        bounds = _date_bounds(event)
-        normalized_title = normalize_title(event.get("title", ""))
-        if (
-            bounds
-            and normalized_title.startswith("antikmarkt")
-            and source_authority(event.get("source", "")) == 3
-        ):
-            key = (normalized_title, _normalized_city(event.get("city", "")), bounds[0].year)
-            direct_antique_schedules.setdefault(key, set()).add(bounds[0])
-
     result: list = []
     for ev in events:
         if any(
@@ -326,27 +335,11 @@ def deduplicate(
             for cancelled in authoritative_cancellations
         ):
             continue
-        bounds = _date_bounds(ev)
-        title_key = normalize_title(ev.get("title", ""))
-        schedule_key = (
-            title_key,
-            _normalized_city(ev.get("city", "")),
-            bounds[0].year if bounds else 0,
-        )
-        if (
-            bounds
-            and any(marker in " ".join(ev.get("source", "").casefold().split())
-                    for marker in _CIVIC_AGGREGATOR_SOURCE_MARKERS)
-            and title_key.startswith("antikmarkt")
-            and schedule_key in direct_antique_schedules
-            and bounds[0] not in direct_antique_schedules[schedule_key]
-        ):
-            continue
         match_index = next(
             (
                 index
                 for index in range(len(result))
-                if _same_occurrence(result[index], ev) and _titles_match(result[index], ev)
+                if events_are_duplicates(result[index], ev)
             ),
             None,
         )
