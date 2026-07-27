@@ -35,6 +35,7 @@ def _ensure_descriptions(events: list) -> list:
             venue=event.get("venue", ""),
             city=event.get("city", ""),
         )
+        event["description_source"] = "generated"
     return events
 
 

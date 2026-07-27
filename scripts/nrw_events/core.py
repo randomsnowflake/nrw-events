@@ -802,14 +802,33 @@ def normalize_venue_name(value: str) -> str:
     return cleaned
 
 
+class GeneratedDescription(str):
+    """String marker for copy synthesized by the importer rather than a source."""
+
+
+def description_source_for(value: str) -> str:
+    """Return the public provenance label for event description copy."""
+    return "generated" if isinstance(value, GeneratedDescription) else "scraped"
+
+
 def concise_description(value: str, max_chars: int | None = None) -> str:
     """Return cleaned event copy sized for reports and downstream cards."""
+    generated = isinstance(value, GeneratedDescription)
     cleaned = clean_html(value)
+    cleaned = re.sub(r"(?:\\r\\n|\\[rn])+", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
     limit = DESCRIPTION_MAX_CHARS if max_chars is None else max_chars
     if not limit or len(cleaned) <= limit:
-        return cleaned
-    shortened = cleaned[:limit].rsplit(" ", 1)[0].rstrip(" ,;:")
-    return f"{shortened}…"
+        shortened = cleaned
+    else:
+        sentence_ends = list(re.finditer(r'''[.!?](?:["'“”’»\)\]]*)(?=\s|$)''', cleaned[:limit]))
+        if sentence_ends:
+            shortened = cleaned[:sentence_ends[-1].end()].rstrip()
+        else:
+            prefix = cleaned[:max(0, limit - 1)]
+            shortened = prefix.rsplit(" ", 1)[0].rstrip(" ,;:")
+            shortened = f"{shortened}…" if shortened else "…"[:limit]
+    return GeneratedDescription(shortened) if generated else shortened
 
 
 def factual_event_description(
@@ -867,7 +886,7 @@ def factual_event_description(
         description += f" Quelle: Veranstaltungskalender {clean_calendar}."
     if clean_categories:
         description += f" Themen: {', '.join(dict.fromkeys(clean_categories))}."
-    return concise_description(description)
+    return GeneratedDescription(concise_description(description))
 
 
 _CANCELLED_STATUS_WORDS = (
@@ -1155,7 +1174,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
                venue: str, city: str, description: str, link: str, source: str,
                category: str, trust: float = 1.0, time_text: str = "",
                coords: Optional[tuple] = None, all_day: Optional[bool] = None,
-               timezone_name: str = "Europe/Berlin", source_id: str = "") -> Optional[dict]:
+               timezone_name: str = "Europe/Berlin", source_id: str = "",
+               description_source: str = "") -> Optional[dict]:
     """Build a scored event dict and apply radius + junk checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
@@ -1212,6 +1232,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "venue": normalize_venue_name(venue),
         "city": clean_html(city).title(),
         "description": concise_description(description),
+        "description_source": description_source or description_source_for(description),
         "price": infer_free_admission_price(
             title, description, venue=venue, source=source, link=event_link,
         ),

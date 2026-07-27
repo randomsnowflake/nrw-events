@@ -184,6 +184,9 @@ def _events_from_teasers(html: str, base: str, city: str, trust: float,
                     " " if not description or description.endswith((".", "!", "?"))
                     else ". "
                 )
-                ev["description"] = f"{description}{separator}{fallback}".strip()
+                ev["description"] = common.GeneratedDescription(
+                    f"{description}{separator}{fallback}".strip()
+                )
+                ev["description_source"] = "generated"
             events.append(ev)
     return events

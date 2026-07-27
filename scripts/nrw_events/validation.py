@@ -65,9 +65,15 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["source_id"] = normalize_source_id(
         _text(event, "source_id", 200) or event["source"]
     )
+    inferred_description_source = common.description_source_for(event.get("description", ""))
     for field, limit in (("time", 80), ("venue", 300), ("city", 160), ("description", 8000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    event["description_source"] = (
+        _text(event, "description_source", 16) or inferred_description_source
+    )
+    if event["description_source"] not in {"scraped", "generated"}:
+        raise EventValidationError("description_source_invalid")
     inferred_free_price = common.infer_free_admission_price(
         event["title"],
         event["description"],

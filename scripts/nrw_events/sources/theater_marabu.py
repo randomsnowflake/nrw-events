@@ -79,6 +79,7 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
             continue
         link = rc.abs_url(_CALENDAR, href) if href else _CALENDAR
         description = detail_fetcher(link) if href and common.window_contains(start_dt) else ""
+        description_generated = not bool(description)
         venue = "Brotfabrik Bonn" if "brotfabrik" in submeta.casefold() else "Theater Marabu"
         if description:
             description = common.concise_description(
@@ -94,6 +95,7 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
             title, start_dt, None, venue, "Bonn", description, link, _SOURCE,
             _CATEGORY, _TRUST, time_text,
             source_id="theater-marabu",
+            description_source="generated" if description_generated else "scraped",
         )
         if event:
             events.append(event)

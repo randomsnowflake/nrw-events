@@ -135,7 +135,7 @@ def _description_with_context(event: dict) -> str:
         return fallback
     if len(description) < 40:
         separator = " " if description.endswith((".", "!", "?")) else ". "
-        return f"{description}{separator}{fallback}"
+        return common.GeneratedDescription(f"{description}{separator}{fallback}")
     return description
 
 
@@ -203,5 +203,6 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
         )
         if event:
             event["description"] = _description_with_context(event)
+            event["description_source"] = common.description_source_for(event["description"])
             events.append(event)
     return events
