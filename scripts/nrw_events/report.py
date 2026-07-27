@@ -129,6 +129,15 @@ def _date_bounds(ev: dict) -> tuple[date, date] | None:
 
 def _same_occurrence(left: dict, right: dict) -> bool:
     """Return whether two records describe overlapping city/date occurrences."""
+    # A first-party calendar may offer the same programme several times on one
+    # day.  Those are separate bookable occurrences, not duplicate metadata.
+    if (
+        left.get("source") == right.get("source")
+        and left.get("start_at")
+        and right.get("start_at")
+        and left["start_at"] != right["start_at"]
+    ):
+        return False
     left_bounds = _date_bounds(left)
     right_bounds = _date_bounds(right)
     if left_bounds and right_bounds:
@@ -163,10 +172,29 @@ def _titles_match(left: dict, right: dict) -> bool:
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
 
 
+def _has_separate_admission_charge(event) -> bool:
+    text = " ".join((event.get("description", ""), event.get("price", ""))).casefold()
+    return bool(re.search(
+        r"museumseintritt\s+(?:fällt|faellt)\s+zusätzlich\s+an|"
+        r"regulärer\s+museumseintritt\s+ist\s+erforderlich|"
+        r"kostenlos\s+zzgl\.?\s+eintritt|"
+        r"kostenlos[^.]{0,80}(?:zuzüglich|zuzueglich)\s+(?:museum)?eintritt",
+        text,
+    ))
+
+
 def _merge_duplicate_metadata(winner, duplicate):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
+    separate_admission_charge = (
+        _has_separate_admission_charge(winner)
+        or _has_separate_admission_charge(duplicate)
+    )
+    if separate_admission_charge:
+        updates["price"] = ""
     for field in ("price", "venue", "time", "start_at", "end_at"):
+        if field == "price" and separate_admission_charge:
+            continue
         if not winner.get(field) and duplicate.get(field):
             updates[field] = duplicate[field]
 
@@ -179,7 +207,14 @@ def _merge_duplicate_metadata(winner, duplicate):
     ):
         updates["link"] = duplicate_link
 
-    if len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip()):
+    duplicate_has_charge = _has_separate_admission_charge(duplicate)
+    winner_has_charge = _has_separate_admission_charge(winner)
+    if duplicate_has_charge and not winner_has_charge:
+        updates["description"] = duplicate["description"]
+    elif (
+        len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip())
+        and not (winner_has_charge and not duplicate_has_charge)
+    ):
         updates["description"] = duplicate["description"]
 
     # Classification is derived data, but a broad aggregator label must not

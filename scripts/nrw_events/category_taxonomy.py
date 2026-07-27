@@ -257,6 +257,18 @@ def categorize_event(source_category: str, title: str, description: str = "") ->
             "reason": "forced:exhibition-source-content-consensus",
         }
 
+    if (
+        hint_category_keys == {"exhibition"}
+        and re.search(r"\b\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text)
+    ):
+        category = CATEGORY_BY_KEY["exhibition"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:museum-guided-tour",
+        }
+
     title_format = _forced_title_format(title_text)
     if title_format:
         category = CATEGORY_BY_KEY[title_format]

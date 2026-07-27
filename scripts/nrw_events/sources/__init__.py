@@ -11,7 +11,8 @@ like one. Ordering is irrelevant — the runner fans them out in parallel.
 """
 
 from . import (
-    koeln, bonn, harmonie, haus_der_geschichte, meetup, bonnjetzt,
+    koeln, bonn, harmonie, haus_der_geschichte, museum_koenig,
+    deutsches_museum_bonn, meetup, bonnjetzt,
     koenigswinter, siebengebirge, flohmarkt, bundeskunsthalle, search,
     meckenheim, much, naturregion_sieg, siegburg,
     ruhrguide, regional_feeds, regional_html, regional_ionas4,
@@ -43,7 +44,10 @@ CUSTOM_SOURCES = {
     "Bonn.de Sports": bonn.fetch_sports,        # sport/active teaser page, not covered by main calendar filters
     "Universität Bonn": uni_bonn.fetch,          # official iCal plus cached first-party detail pages
     "Harmonie Bonn": harmonie.fetch,
-    "Haus der Geschichte": haus_der_geschichte.fetch,
+    "Haus der Geschichte": haus_der_geschichte.fetch_calendar,
+    "Haus der Geschichte Begleitungen": haus_der_geschichte.fetch_guided_tours,
+    "Museum Koenig Bonn": museum_koenig.fetch,
+    "Deutsches Museum Bonn": deutsches_museum_bonn.fetch,
     "Kleines Theater Bad Godesberg": kleines_theater.fetch,
     "Theater Bonn": theater_bonn.fetch,
     "Junges Theater Bonn": junges_theater_bonn.fetch,
