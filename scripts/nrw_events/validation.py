@@ -81,9 +81,6 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         event["title"],
         event["description"],
         event["price"],
-        venue=event["venue"],
-        source=event["source"],
-        link=event["link"],
         admission_basis=admission_basis,
     )
     if inferred_free_price:
