@@ -299,8 +299,27 @@ weiterhin gezielt überschreiben.
   Preview-, Gesprächs-, Workshop- oder vergleichbaren Event-Markierungen
   übernommen (`cinema_specials.py`); reguläre Vorstellungen bleiben draußen.
 - **Food & Genuss in Bonn:** Craftquelle, BFF Bonner Schifffahrt, vomFASS,
-  Biertasting Bonn, Ludwig's, Redüttchen und Street Food Bonn liefern kuratierte
+  Biertasting Bonn, Ludwig's, Redüttchen, Street Food Bonn, Street Food Festival
+  „Das Original“ und Choco Dealer liefern kuratierte
   Primärtermine mit Detailseiten-Anreicherung (`bonn_food.py`).
+  **Street Food Bonn** liest beide Landingpages desselben Veranstalters
+  (WEvent UG): `street-food-bonn.de` und `streetfood-siegburg.de`. Beide bewerben
+  teils dieselben Festivals in leicht abweichender Datumsschreibweise; ein
+  gemeinsamer Parser plus die bestehende Entdopplung führt sie zusammen.
+  **Street Food Festival „Das Original“** (`street-food-festival.de/bonn`) ist ein
+  anderer Veranstalter. Seine `schema.org/FoodEvent`-Auszeichnung wird gepflegt
+  nicht mehr: `startDate` zeigt auf eine vergangene Ausgabe und ist kein gültiges
+  ISO 8601. Aus dem JSON-LD werden deshalb nur Name, Beschreibung und Ort
+  übernommen; **das Datum stammt ausschließlich aus dem sichtbaren HTML**. Ohne
+  lesbares Datum im Seitentext wird nichts veröffentlicht und die Quelle meldet
+  einen leeren Parse.
+  **Choco Dealer** (Bad Godesberg) betreibt eine eigene Buchungsplattform ohne
+  JSON-LD; die Terminkarten der Events-Kategorie werden direkt aus dem HTML
+  gelesen. Bekannte Grenze: Radio Bonn/Rhein-Sieg führt dieselben Termine unter
+  dem generischen Titel „Schokoladentasting“. Da der Veranstalter seine Events
+  mit eigenen Marketing-Überschriften betitelt, teilen beide Titel keine
+  Wortbestandteile und die Titelähnlichkeitsprüfung greift nicht. Ein Abgleich
+  wäre nur über hart codierte Eventnamen möglich — das ist ausgeschlossen.
 - **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender

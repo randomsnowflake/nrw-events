@@ -31,6 +31,7 @@ class BonnFoodSourceTests(unittest.TestCase):
         expected = {
             "Craftquelle Bonn", "BFF Bonner Schifffahrt", "vomFASS Bonn",
             "Biertasting Bonn", "Ludwig's Bonn", "Redüttchen", "Street Food Bonn",
+            "Street Food Festival Original", "Choco Dealer",
         }
         self.assertTrue(expected.issubset(CUSTOM_SOURCES))
 
@@ -211,6 +212,98 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["city"], "Bonn-Bad Godesberg")
         self.assertEqual(events[1]["city"], "Troisdorf")
         self.assertTrue(all(event["all_day"] for event in events))
+
+    def test_street_food_merges_both_organiser_pages_without_duplicates(self):
+        bonn_page = """
+        <h2>Nächste Termine</h2><p>28. - 30.08.2026 Street Food Festival - Bonn Bad Godesberg</p>
+        <p>16. - 18.10.2026 Street Food Festival - Troisdorf</p>
+        <h2>Veranstalter</h2><p>WEvent UG (haftungsbeschränkt) Rudolf-Diesel-Straße 16c</p>
+        """
+        siegburg_page = """
+        <p>Am Markt, Siegburg</p><h2>Nächste Termine</h2>
+        <p>28.-30.08.2026 Street Food Festival Bad Godesberg</p>
+        <h2>Veranstalter</h2><p>WEvent UG (haftungsbeschränkt)</p>
+        """
+        with patch.object(
+            common, "fetch_url", side_effect=[bonn_page, siegburg_page],
+        ) as fetch:
+            events = bonn_food.fetch_street_food()
+
+        self.assertEqual(
+            [call.args[0] for call in fetch.call_args_list],
+            ["https://www.street-food-bonn.de/", "https://www.streetfood-siegburg.de/"],
+        )
+        self.assert_food_events(events, 2)
+        self.assertEqual(
+            [(event["date"], event["city"]) for event in events],
+            [("2026-08-28–2026-08-30", "Bonn-Bad Godesberg"),
+             ("2026-10-16–2026-10-18", "Troisdorf")],
+        )
+
+    def test_original_street_food_takes_dates_from_html_not_stale_jsonld(self):
+        item = {
+            "@context": "http://schema.org", "@type": "FoodEvent",
+            "name": "Street Food Festival Bonn",
+            "startDate": "2025-10-02T4:00PM", "endDate": "2025-10-05T08:00PM",
+            "description": "Das Original Street Food Festival am Bonn Beueler Rheinufer.",
+            "location": {"@type": "Place", "name": "Rheinufer Bonn-Beuel", "address": {
+                "@type": "PostalAddress", "streetAddress": "Rheinaustraße",
+                "addressLocality": "Bonn", "postalCode": "53225", "addressCountry": "DE"}},
+        }
+        html = (
+            f'<script type="application/ld+json">{json.dumps(item)}</script>'
+            '<h3 style="text-align:center;">01. - 04. Oktober 2026</h3>'
+            '<h3>Do. 01.10. 16:00 – 22:00 Uhr</h3>'
+        )
+        events = bonn_food.events_from_original_street_food(html)
+        self.assert_food_events(events, 1)
+        self.assertEqual(events[0]["date"], "2026-10-01–2026-10-04")
+        self.assertEqual(events[0]["city"], "Bonn")
+        self.assertIn("Rheinaustraße", events[0]["venue"])
+        self.assertEqual(events[0]["link"], "https://street-food-festival.de/bonn")
+
+    def test_original_street_food_publishes_nothing_without_a_readable_html_date(self):
+        item = {
+            "@type": "FoodEvent", "name": "Street Food Festival Bonn",
+            "startDate": "2025-10-02T4:00PM",
+            "location": {"@type": "Place", "name": "Rheinufer Bonn-Beuel"},
+        }
+        html = f'<script type="application/ld+json">{json.dumps(item)}</script><h3>Bald mehr</h3>'
+        self.assertEqual(bonn_food.events_from_original_street_food(html), [])
+
+    def test_choco_dealer_reads_slot_cards_from_the_booking_listing(self):
+        html = """
+        <div class="row events-cards"><div class="col-lg-4"><div class="card h-100 events-card">
+          <a href="https://choco-dealer.com/SCHOKOLADEN-TASTING-FUER-EINSTEIGER/EVENT-BBA?slotId=019eacb7">
+          <div class="h4 netzp-events-title mt-1 mb-1">DIE WELT DER SCHOKOLADE ENTDECKEN - EINSTEIGER</div></a>
+          <span class="ms-1">31.07.26, 19:00 - 20:30 </span><small>(Europe/Berlin)</small><br>
+          <b class="ms-1">CHOCO DEALER SHOP</b> | Elsässer Str.8 / 53175 Bonn<br>
+          <b class="ms-1">19 Plätze verfügbar</b>
+          <div class="card-text lead mt-3 mb-2">Der perfekte Einstieg in die Welt der Schokolade...</div>
+        </div></div>
+        <div class="col-lg-4"><div class="card h-100 events-card">
+          <a href="/WEIN-SCHOKOLADEN-TASTING/EVENTWS?slotId=019ea74e">
+          <div class="h4 netzp-events-title mt-1 mb-1">WEIN &amp; SCHOKOLADEN TASTING</div></a>
+          <span class="ms-1">07.08.26, 19:00 - 22:00 </span>
+          <b class="ms-1">CHOCO DEALER SHOP</b> | Elsässer Str.8, 53175 Bonn
+          <div class="card-text lead mt-3 mb-2">Erlebe Genuss in Perfektion.</div>
+        </div></div>
+        <div class="col-lg-4"><div class="card h-100 events-card">
+          <div class="h4 netzp-events-title mt-1 mb-1">PRIVATES TASTING AUF ANFRAGE</div>
+          <div class="card-text lead mt-3 mb-2">Ohne festen Termin.</div>
+        </div></div></div>
+        """
+        events = bonn_food.events_from_choco_dealer(html)
+        self.assert_food_events(events, 2)
+        self.assertEqual([event["time"] for event in events], ["19:00–20:30", "19:00–22:00"])
+        self.assertEqual([event["start_date"] for event in events], ["2026-07-31", "2026-08-07"])
+        self.assertTrue(all(event["city"] == "Bonn-Bad Godesberg" for event in events))
+        self.assertEqual(events[0]["venue"], "CHOCO DEALER SHOP, Elsässer Str.8 / 53175 Bonn")
+        self.assertEqual(
+            events[1]["link"],
+            "https://choco-dealer.com/WEIN-SCHOKOLADEN-TASTING/EVENTWS?slotId=019ea74e",
+        )
+        self.assertTrue(events[0]["description"].endswith("Schokolade"))
 
 
 if __name__ == "__main__":
