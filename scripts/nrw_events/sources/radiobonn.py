@@ -31,6 +31,7 @@ _CITY_HINTS = {
     "hennef": "Hennef",
     "königswinter": "Königswinter",
     "koenigswinter": "Königswinter",
+    "drachenfels": "Königswinter",
     "bad honnef": "Bad Honnef",
     "meckenheim": "Meckenheim",
     "wachtberg": "Wachtberg",
