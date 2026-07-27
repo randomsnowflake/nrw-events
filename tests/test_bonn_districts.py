@@ -23,6 +23,35 @@ BAD_GODESBERG_HTML = """
 </article>
 """
 
+# Trimmed from https://bv-holzlar.de/veranstaltungen — two Elementor loop items,
+# one single-day and one multi-day range.
+HOLZLAR_HTML = """
+<div class="elementor e-loop-item post-1897 veranstaltung type-veranstaltung status-publish">
+  <div class="elementor-widget-heading"><p class="elementor-heading-title elementor-size-default">14.-15.</p></div>
+  <div class="elementor-widget-icon-list"><ul class="elementor-icon-list-items">
+    <li><span class="elementor-icon-list-text">August</span></li>
+    <li><span class="elementor-icon-list-text">2026</span></li>
+  </ul></div>
+  <div class="elementor-widget-theme-post-title"><h2 class="elementor-heading-title elementor-size-default">BV Kohlkaul: Weinfest</h2></div>
+  <div class="elementor-widget-icon-list"><ul class="elementor-icon-list-items">
+    <li><span class="elementor-icon-list-text">Georg-Fenninger-Platz</span></li>
+  </ul></div>
+  <a href="https://bv-holzlar.de/veranstaltung/bv-kohlkaul-weinfest/">Mehr erfahren</a>
+</div>
+<div class="elementor e-loop-item post-1901 veranstaltung type-veranstaltung status-publish">
+  <div class="elementor-widget-heading"><p class="elementor-heading-title elementor-size-default">04</p></div>
+  <div class="elementor-widget-icon-list"><ul class="elementor-icon-list-items">
+    <li><span class="elementor-icon-list-text">November</span></li>
+    <li><span class="elementor-icon-list-text">2026</span></li>
+  </ul></div>
+  <div class="elementor-widget-theme-post-title"><h2 class="elementor-heading-title elementor-size-default">Martinszug Holzlar</h2></div>
+  <div class="elementor-widget-icon-list"><ul class="elementor-icon-list-items">
+    <li><span class="elementor-icon-list-text">Holzlar / Kirchwiese</span></li>
+  </ul></div>
+  <a href="https://bv-holzlar.de/veranstaltung/martinszug-holzlar/">Mehr erfahren</a>
+</div>
+"""
+
 
 class BonnDistrictSourceTests(unittest.TestCase):
     def setUp(self):
@@ -41,12 +70,13 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertIs(SOURCES["Bad Godesberg Stadtmarketing"], bonn_districts.fetch_bad_godesberg)
         self.assertIs(SOURCES["Hardtberg Kultur"], bonn_districts.fetch_hardtberg)
         self.assertIs(SOURCES["BSV Roleber"], bonn_districts.fetch_roleber)
+        self.assertIs(SOURCES["BV Holzlar"], bonn_districts.fetch_holzlar)
 
     def test_new_districts_have_resolvable_coordinates(self):
         for city in (
             "Bonn-Beuel", "Bonn-Bad Godesberg", "Bonn-Duisdorf",
             "Bonn-Oberkassel", "Bonn-Pützchen", "Bonn-Roleber",
-            "Bonn-Vilich", "Bonn-Vilich-Müldorf",
+            "Bonn-Vilich", "Bonn-Vilich-Müldorf", "Bonn-Holzlar",
         ):
             coordinates, confidence, source = common.resolve_location(city)
             self.assertIsNotNone(coordinates, city)
@@ -146,6 +176,33 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertIn("findet", events[0]["description"])
         self.assertIn("Bonn-Roleber", events[0]["description"])
         self.assertEqual(events[0]["score"], 0.45)
+
+
+    def test_holzlar_parses_single_days_and_ranges_with_german_months(self):
+        events = bonn_districts.events_from_holzlar_html(HOLZLAR_HTML)
+
+        self.assertEqual([event["title"] for event in events],
+                         ["BV Kohlkaul: Weinfest", "Martinszug Holzlar"])
+        self.assertEqual(events[0]["start_date"], "2026-08-14")
+        self.assertEqual(events[0]["end_date"], "2026-08-15")
+        self.assertEqual(events[1]["start_date"], "2026-11-04")
+        self.assertEqual(events[1]["end_date"], "2026-11-04")
+        self.assertEqual(events[0]["venue"], "Georg-Fenninger-Platz")
+        self.assertEqual(events[1]["city"], "Bonn-Holzlar")
+        self.assertEqual(events[1]["link"],
+                         "https://bv-holzlar.de/veranstaltung/martinszug-holzlar/")
+        self.assertTrue(all(event["description"] for event in events))
+
+    def test_holzlar_range_across_a_month_boundary_keeps_start_before_end(self):
+        start, end = bonn_districts._holzlar_dates("30.-02.", "September", "2026")
+
+        self.assertEqual(start, datetime(2026, 8, 30))
+        self.assertEqual(end, datetime(2026, 9, 2))
+
+    def test_holzlar_skips_items_without_a_usable_date(self):
+        html = HOLZLAR_HTML.replace("August", "").replace("2026", "", 1)
+
+        self.assertEqual(len(bonn_districts.events_from_holzlar_html(html)), 1)
 
 
 if __name__ == "__main__":

@@ -307,6 +307,10 @@ weiterhin gezielt überschreiben.
   und explizit angefragte Bonn/Rhein-Sieg-Spielstätten.
 - **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
   Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
+- **Stadtteilfeste und Bonner Großveranstaltungen:** Bürgerverein Vilich-Müldorf,
+  Beuel.net, Bad Godesberg Stadtmarketing, Hardtberg Kultur, BSV Roleber und
+  BV Holzlar (`bonn_districts.py`) decken die Vereins- und Ortsfeste ab; der
+  Bonner Termin von Rhein in Flammen kommt über `bonn_venues.py`.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
 - **Kommunale MEC-Kalender (Marktausläufer):** Hennef und Sankt Augustin fahren

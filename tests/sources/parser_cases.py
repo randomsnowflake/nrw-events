@@ -289,6 +289,37 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["venue"], "KULT41")
         self.assertEqual(events[0]["price"], "")
 
+    def test_rhein_in_flammen_publishes_only_the_bonn_leg(self):
+        patch_window(self, datetime(2026, 4, 1), datetime(2026, 12, 31))
+        # Trimmed from https://www.rhein-in-flammen.com/ — the shared navigation
+        # lists every host town of the festival series.
+        html = """
+<ul>
+  <li><a href="/bonn/bonn.html">Bonn<small> - 2. Mai 2026</small></a></li>
+  <li><a href="/spay-koblenz/spay-koblenz.html">Spay Koblenz<small> - 8. August 2026</small></a></li>
+  <li><a href="/oberwesel/oberwesel.html">Oberwesel<small> - 12. Sept. 2026</small></a></li>
+</ul>
+"""
+
+        events = bonn_venues.events_from_rhein_in_flammen(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Rhein in Flammen Bonn")
+        self.assertEqual(events[0]["city"], "Bonn")
+        self.assertEqual(events[0]["start_date"], "2026-05-02")
+        self.assertEqual(events[0]["end_date"], "2026-05-02")
+        self.assertEqual(events[0]["category_key"], "festival")
+        self.assertEqual(
+            events[0]["link"], "https://www.rhein-in-flammen.com/bonn/bonn.html"
+        )
+        self.assertTrue(events[0]["description"])
+
+    def test_rhein_in_flammen_ignores_navigation_without_a_date(self):
+        patch_window(self, datetime(2026, 4, 1), datetime(2026, 12, 31))
+        html = '<li><a href="/bonn/bonn.html">Bonn<small> - Termin folgt</small></a></li>'
+
+        self.assertEqual(bonn_venues.events_from_rhein_in_flammen(html), [])
+
     def test_repair_cafes_calendar_articles_create_events_with_coords(self):
         patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
         html = """
