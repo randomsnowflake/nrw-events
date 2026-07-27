@@ -6,6 +6,7 @@ Pure presentation + post-processing. No network, no source-specific logic.
 
 import os
 import re
+from collections import Counter
 from dataclasses import replace
 from datetime import date, datetime
 from difflib import SequenceMatcher
@@ -38,6 +39,7 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
     "bonn.de events", "bonn.de sports", "bonn district festivals",
 )
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
+_REUSED_OVERVIEW_LINK_THRESHOLD = 3
 
 
 def source_authority(source: str) -> int:
@@ -239,7 +241,7 @@ def _has_separate_admission_charge(event) -> bool:
     ))
 
 
-def _merge_duplicate_metadata(winner, duplicate):
+def _merge_duplicate_metadata(winner, duplicate, *, link_counts=None):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
     separate_admission_charge = (
@@ -256,10 +258,22 @@ def _merge_duplicate_metadata(winner, duplicate):
 
     winner_link = winner.get("link", "")
     duplicate_link = duplicate.get("link", "")
+    link_counts = link_counts or {}
+    winner_link_is_reused = (
+        winner_link
+        and link_counts.get(winner_link, 0) >= _REUSED_OVERVIEW_LINK_THRESHOLD
+    )
+    duplicate_link_is_not_reused = (
+        duplicate_link
+        and link_counts.get(duplicate_link, 0) < _REUSED_OVERVIEW_LINK_THRESHOLD
+    )
     if (not winner_link and duplicate_link) or (
         _is_radio_aggregation_link(winner_link)
         and duplicate_link
         and not _is_radio_aggregation_link(duplicate_link)
+    ) or (
+        winner_link_is_reused
+        and duplicate_link_is_not_reused
     ):
         updates["link"] = duplicate_link
 
@@ -322,6 +336,11 @@ def deduplicate(
     cancellations: list[dict] | None = None,
 ) -> list[CanonicalEvent]:
     """Collapse duplicates and apply authoritative cancellation tombstones."""
+    link_counts = Counter(
+        event.get("link", "")
+        for event in events
+        if event.get("link")
+    )
     authoritative_cancellations = [
         event
         for event in (cancellations or [])
@@ -354,9 +373,9 @@ def deduplicate(
                         _duration_days(current))
         candidate_rank = (source_authority(ev.get("source", "")), ev["score"],
                           _duration_days(ev))
-        result[match_index] = (_merge_duplicate_metadata(ev, current)
+        result[match_index] = (_merge_duplicate_metadata(ev, current, link_counts=link_counts)
                                if candidate_rank > current_rank
-                               else _merge_duplicate_metadata(current, ev))
+                               else _merge_duplicate_metadata(current, ev, link_counts=link_counts))
     # A recurring series is not a duplicate: each date is a separately usable
     # occurrence. Cross-source authority is therefore resolved only inside the
     # same overlapping date interval by the loop above.

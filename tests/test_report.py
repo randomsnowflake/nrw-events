@@ -49,6 +49,71 @@ class ReportTests(unittest.TestCase):
             },
         )
 
+    def test_repeated_overview_link_loses_to_specific_duplicate_link(self):
+        base = {
+            "date": "2026-08-23",
+            "start_date": "2026-08-23",
+            "end_date": "2026-08-23",
+            "city": "Unkel",
+            "venue": "Vorteil Center Unkel",
+            "category_key": "market",
+            "description": "",
+            "price": "",
+            "time": "",
+            "start_at": "",
+            "end_at": "",
+        }
+        overview = "https://rhein.info/unkel/"
+        events = [
+            {
+                **base,
+                "title": "Floh- und Trödelmarkt am Vorteil Center",
+                "source": "VG Unkel",
+                "score": 1.02,
+                "link": overview,
+            },
+            {
+                **base,
+                "title": "Flohmarkt Unkel, Vorteil Center",
+                "source": "marktcom",
+                "score": 0.71,
+                "link": "https://www.marktcom.de/veranstaltung/flohmarkt-unkel",
+            },
+            {
+                **base,
+                "title": "Sommerfest am Rhein",
+                "date": "2026-08-24",
+                "start_date": "2026-08-24",
+                "end_date": "2026-08-24",
+                "venue": "Rheinpromenade",
+                "category_key": "festival",
+                "source": "VG Unkel",
+                "score": 1.0,
+                "link": overview,
+            },
+            {
+                **base,
+                "title": "Lesung im Rathaus",
+                "date": "2026-08-25",
+                "start_date": "2026-08-25",
+                "end_date": "2026-08-25",
+                "venue": "Rathaus Unkel",
+                "category_key": "talk",
+                "source": "VG Unkel",
+                "score": 1.0,
+                "link": overview,
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        market = next(event for event in deduped if event["start_date"] == "2026-08-23")
+        self.assertEqual(market["source"], "VG Unkel")
+        self.assertEqual(
+            market["link"],
+            "https://www.marktcom.de/veranstaltung/flohmarkt-unkel",
+        )
+
     def test_katharinenhof_primary_record_absorbs_radio_title_variant(self):
         base = {
             "start_date": "2026-08-09", "end_date": "2026-08-09",
