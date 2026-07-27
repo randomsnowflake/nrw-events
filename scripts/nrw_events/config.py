@@ -250,9 +250,10 @@ BONN_POSTCODE_DISTRICTS = {
     "53173": "Bonn-Bad Godesberg", "53175": "Bonn-Bad Godesberg",
     "53177": "Bonn-Bad Godesberg", "53179": "Bonn-Bad Godesberg",
     "53225": "Bonn-Beuel", "53227": "Bonn-Beuel", "53229": "Bonn-Beuel",
-    "53123": "Bonn-Hardtberg", "53125": "Bonn-Hardtberg",
-    # 53111-53129 belong to the central Stadtbezirk, which is itself named
-    # "Bonn". Mapping them would add no information, and a district literally
-    # called "Zentrum" would make the everyday word in venue names such as
-    # "Max7 Zentrum" resolve as a location.
+    "53123": "Bonn-Hardtberg",
+    # 53125 crosses the Stadtbezirke Bonn and Hardtberg, so it deliberately
+    # remains unresolved without an additional address or district signal.
+    # Other central postcodes stay "Bonn", because the central Stadtbezirk is
+    # itself named Bonn. A district literally called "Zentrum" would also make
+    # the everyday word in venue names such as "Max7 Zentrum" look geographic.
 }

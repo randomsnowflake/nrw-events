@@ -220,8 +220,13 @@ class BonnDistrictSourceTests(unittest.TestCase):
 
     def test_central_postcodes_and_generic_venue_words_stay_plain_bonn(self):
         # The central Stadtbezirk is itself named "Bonn", and "Zentrum" is an
-        # everyday word in venue names rather than a district.
-        for venue in ("Frongasse 8a, 53121 Bonn", "Max7 Zentrum, Oxfordstr. 6"):
+        # everyday word in venue names rather than a district. 53125 spans
+        # Stadtbezirke Bonn and Hardtberg and cannot be resolved from PLZ alone.
+        for venue in (
+            "Frongasse 8a, 53121 Bonn",
+            "Unbekannter Veranstaltungsort, 53125 Bonn",
+            "Max7 Zentrum, Oxfordstr. 6",
+        ):
             event = common.make_event(
                 "Testtermin", datetime(2026, 9, 1), None, venue, "Bonn",
                 "Beschreibung", "https://example.test/e", "Testquelle", "kultur", 1.0,
