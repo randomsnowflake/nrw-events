@@ -77,7 +77,8 @@ def events_from_payload(items: list[dict]) -> list[dict]:
         title = rc.clean(item.get("title", ""))
         venue = _venue(item)
         description = common.concise_description(item.get("description", ""))
-        if not description:
+        description_generated = not description
+        if description_generated:
             description = common.factual_event_description(
                 title, date_value=start, time_text=time_text, venue=venue, city="Bonn"
             )
@@ -95,6 +96,7 @@ def events_from_payload(items: list[dict]) -> list[dict]:
             title, start, None, venue, "Bonn", description, _link(item), _SOURCE,
             category_hint, _TRUST, time_text,
             source_id="theater-bonn",
+            description_source="generated" if description_generated else "scraped",
         )
         if event:
             if category_hint.startswith("theater"):

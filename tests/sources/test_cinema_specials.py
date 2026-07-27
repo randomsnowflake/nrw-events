@@ -63,6 +63,8 @@ class CinemaSpecialSourceTests(unittest.TestCase):
             events[0]["link"],
             "https://www.bonnerkinemathek.de/programm/festival-film/",
         )
+        fallback_events = cinema_specials._events_from_bonner_kinemathek(listing, lambda _: "")
+        self.assertEqual(fallback_events[0]["description_source"], "generated")
         self.assert_valid_cinema_events(events)
 
     def test_rex_filmbuehne_keeps_specials_and_expands_series_occurrences(self):

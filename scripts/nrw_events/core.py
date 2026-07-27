@@ -811,6 +811,26 @@ def description_source_for(value: str) -> str:
     return "generated" if isinstance(value, GeneratedDescription) else "scraped"
 
 
+_NON_TERMINAL_ABBREVIATIONS = frozenset({
+    "abb", "bsp", "bzw", "ca", "d.h", "dr", "etc", "ggf", "inkl", "nr",
+    "prof", "sog", "str", "u.a", "usw", "vgl", "z.b", "zzgl",
+})
+
+
+def _is_sentence_boundary(text: str, match: re.Match) -> bool:
+    """Reject periods that belong to common abbreviations, initials, or ordinals."""
+    if match.group(0)[0] != ".":
+        return True
+    token_match = re.search(r"([\wÄÖÜäöüß.]+)$", text[:match.start()])
+    token = token_match.group(1) if token_match else ""
+    normalized = token.casefold().strip(".")
+    return not (
+        token.isdigit()
+        or len(normalized) == 1
+        or normalized in _NON_TERMINAL_ABBREVIATIONS
+    )
+
+
 def concise_description(value: str, max_chars: int | None = None) -> str:
     """Return cleaned event copy sized for reports and downstream cards."""
     generated = isinstance(value, GeneratedDescription)
@@ -821,7 +841,11 @@ def concise_description(value: str, max_chars: int | None = None) -> str:
     if not limit or len(cleaned) <= limit:
         shortened = cleaned
     else:
-        sentence_ends = list(re.finditer(r'''[.!?](?:["'“”’»\)\]]*)(?=\s|$)''', cleaned[:limit]))
+        sentence_ends = [
+            match
+            for match in re.finditer(r'''[.!?](?:["'“”’»\)\]]*)(?=\s|$)''', cleaned[:limit])
+            if _is_sentence_boundary(cleaned, match)
+        ]
         if sentence_ends:
             shortened = cleaned[:sentence_ends[-1].end()].rstrip()
         else:

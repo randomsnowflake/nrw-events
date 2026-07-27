@@ -22,6 +22,17 @@ class DescriptionMetadataTests(unittest.TestCase):
             "Er sagte: „Das ist vollständig!“",
         )
 
+    def test_abbreviations_are_not_treated_as_sentence_boundaries(self):
+        for text in (
+            "Dr. Müller erläutert die Ausstellung ausführlich ohne einen Satzabschluss im Limit",
+            "Die Führung ist z. B. für Familien gedacht und enthält viele weitere Informationen",
+            "Der Termin findet am 12. August im Museum statt und hat noch zusätzliche Hinweise",
+        ):
+            with self.subTest(text=text):
+                shortened = common.concise_description(text, max_chars=55)
+                self.assertTrue(shortened.endswith("…"))
+                self.assertGreater(len(shortened), 40)
+
     def test_concise_description_falls_back_to_a_word_boundary(self):
         text = "Eine Beschreibung ohne passende Satzgrenze innerhalb des gesetzten Limits"
 

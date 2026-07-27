@@ -172,7 +172,8 @@ def _events_from_bonner_kinemathek(html: str, detail_fetcher=None) -> list:
                     source_id=_BONNER_KINEMATHEK_SOURCE_ID,
                 )
 
-        if not description:
+        description_generated = not description
+        if description_generated:
             description = common.factual_event_description(
                 title, date_value=start, time_text=time_m.group(1) if time_m else "",
                 venue=venue, city="Bonn",
@@ -191,6 +192,7 @@ def _events_from_bonner_kinemathek(html: str, detail_fetcher=None) -> list:
             f"cinema-special kino film festival open air filmgespräch {tags}",
             0.95,
             source_id=_BONNER_KINEMATHEK_SOURCE_ID,
+            description_source="generated" if description_generated else "scraped",
         )
         if event:
             events.append(event)
