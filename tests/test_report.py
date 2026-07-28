@@ -49,70 +49,132 @@ class ReportTests(unittest.TestCase):
             },
         )
 
-    def test_repeated_overview_link_loses_to_specific_duplicate_link(self):
+    def test_repeated_overview_link_loses_to_more_specific_duplicate_link(self):
         base = {
-            "date": "2026-08-23",
-            "start_date": "2026-08-23",
-            "end_date": "2026-08-23",
-            "city": "Unkel",
-            "venue": "Vorteil Center Unkel",
-            "category_key": "market",
-            "description": "",
-            "price": "",
-            "time": "",
-            "start_at": "",
-            "end_at": "",
+            "date": "2026-08-23", "start_date": "2026-08-23", "end_date": "2026-08-23",
+            "city": "Unkel", "venue": "Vorteil Center Unkel", "category_key": "market",
+            "description": "", "price": "", "time": "", "start_at": "", "end_at": "",
         }
-        overview = "https://rhein.info/unkel/"
         events = [
             {
-                **base,
-                "title": "Floh- und Trödelmarkt am Vorteil Center",
-                "source": "VG Unkel",
-                "score": 1.02,
-                "link": overview,
+                **base, "title": "Floh- und Trödelmarkt am Vorteil Center",
+                "source": "VG Unkel", "score": 1.02, "link": "https://rhein.info/unkel/",
             },
             {
-                **base,
-                "title": "Flohmarkt Unkel, Vorteil Center",
-                "source": "marktcom",
-                "score": 0.71,
-                "link": "https://www.marktcom.de/veranstaltung/flohmarkt-unkel",
-            },
-            {
-                **base,
-                "title": "Sommerfest am Rhein",
-                "date": "2026-08-24",
-                "start_date": "2026-08-24",
-                "end_date": "2026-08-24",
-                "venue": "Rheinpromenade",
-                "category_key": "festival",
-                "source": "VG Unkel",
-                "score": 1.0,
-                "link": overview,
-            },
-            {
-                **base,
-                "title": "Lesung im Rathaus",
-                "date": "2026-08-25",
-                "start_date": "2026-08-25",
-                "end_date": "2026-08-25",
-                "venue": "Rathaus Unkel",
-                "category_key": "talk",
-                "source": "VG Unkel",
-                "score": 1.0,
-                "link": overview,
+                **base, "title": "Flohmarkt Unkel, Vorteil Center", "source": "marktcom",
+                "score": 0.71, "link": "https://www.marktcom.de/veranstaltung/flohmarkt-unkel",
             },
         ]
+        for index in range(4):
+            event_date = f"2026-08-{24 + index}"
+            events.append({
+                **base, "title": f"Unkel Veranstaltung {index}", "venue": f"Ort {index}",
+                "date": event_date, "start_date": event_date, "end_date": event_date,
+                "category_key": "festival", "source": "VG Unkel", "score": 1.0,
+                # HTTP/HTTPS and a trailing slash identify the same overview page for counting.
+                "link": "http://rhein.info/unkel" if index == 0 else "https://rhein.info/unkel/",
+            })
 
         deduped = report.deduplicate(events)
 
         market = next(event for event in deduped if event["start_date"] == "2026-08-23")
         self.assertEqual(market["source"], "VG Unkel")
-        self.assertEqual(
-            market["link"],
-            "https://www.marktcom.de/veranstaltung/flohmarkt-unkel",
-        )
+        self.assertEqual(market["link"], "https://www.marktcom.de/veranstaltung/flohmarkt-unkel")
+
+    def test_less_frequent_link_does_not_win_without_more_specific_route(self):
+        base = {
+            "date": "2026-08-23", "start_date": "2026-08-23", "end_date": "2026-08-23",
+            "city": "Unkel", "venue": "Rathaus", "category_key": "talk",
+            "description": "", "price": "", "time": "", "start_at": "", "end_at": "",
+        }
+        events = [{
+            **base, "title": "Lesung", "source": "VG Unkel", "score": 1.0,
+            "link": "https://rhein.info/calendar/",
+        }, {
+            **base, "title": "Lesung", "source": "Eventbrite", "score": 0.5,
+            "link": "https://events.test/schedule/",
+        }]
+        for index in range(4):
+            event_date = f"2026-08-{24 + index}"
+            events.append({
+                **base, "title": f"Termin {index}", "venue": f"Ort {index}",
+                "date": event_date, "start_date": event_date, "end_date": event_date,
+                "source": "VG Unkel", "score": 1.0, "link": "https://rhein.info/calendar/",
+            })
+
+        deduped = report.deduplicate(events)
+
+        lesung = next(event for event in deduped if event["title"] == "Lesung")
+        self.assertEqual(lesung["source"], "VG Unkel")
+        self.assertEqual(lesung["link"], "https://rhein.info/calendar/")
+
+    def test_recurring_series_link_is_not_misclassified_as_an_overview(self):
+        recurring_link = "https://theater.test/programm/der-sturm"
+        events = []
+        for index in range(6):
+            event_date = f"2026-09-{10 + index}"
+            events.append({
+                "title": "Der Sturm", "venue": "Stadttheater", "date": event_date,
+                "start_date": event_date, "end_date": event_date, "city": "Bonn",
+                "category_key": "stage", "description": "", "price": "", "time": "20:00",
+                "start_at": "", "end_at": "", "source": "Stadttheater", "score": 1.0,
+                "link": recurring_link,
+            })
+        events.append({
+            **events[0], "source": "Eventbrite", "score": 0.5,
+            "link": "https://eventbrite.test/events/der-sturm/10-september",
+        })
+
+        deduped = report.deduplicate(events)
+
+        first = next(event for event in deduped if event["start_date"] == "2026-09-10")
+        self.assertEqual(first["source"], "Stadttheater")
+        self.assertEqual(first["link"], recurring_link)
+
+    def test_syndicated_copies_do_not_make_a_link_an_overview(self):
+        publisher_link = "https://museum.test/programm/nacht-der-museen"
+        base = {
+            "title": "Nacht der Museen", "venue": "Stadtmuseum", "date": "2026-09-19",
+            "start_date": "2026-09-19", "end_date": "2026-09-19", "city": "Bonn",
+            "category_key": "exhibition", "description": "", "price": "", "time": "18:00",
+            "start_at": "", "end_at": "", "score": 1.0, "link": publisher_link,
+        }
+        events = [
+            {**base, "source": source}
+            for source in ("Stadtmuseum", "Partner A", "Partner B", "Partner C", "Partner D")
+        ]
+        events.append({
+            **base, "source": "Eventbrite", "score": 0.5,
+            "link": "https://eventbrite.test/events/nacht-der-museen/bonn/2026",
+        })
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Stadtmuseum")
+        self.assertEqual(deduped[0]["link"], publisher_link)
+
+    def test_fragment_event_routes_are_counted_as_distinct_links(self):
+        events = []
+        for index in range(5):
+            event_date = f"2026-10-{10 + index}"
+            events.append({
+                "title": f"Konzert {index}", "venue": "Oper Bonn", "date": event_date,
+                "start_date": event_date, "end_date": event_date, "city": "Bonn",
+                "category_key": "concert", "description": "", "price": "", "time": "19:00",
+                "start_at": "", "end_at": "", "source": "Oper Bonn", "score": 1.0,
+                "link": f"https://tickets.bonn.de/#/event/{1000 + index}",
+            })
+        events.append({
+            **events[0], "source": "Eventbrite", "score": 0.5,
+            "link": "https://eventbrite.test/events/konzert-0/bonn/2026",
+        })
+
+        deduped = report.deduplicate(events)
+
+        first = next(event for event in deduped if event["title"] == "Konzert 0")
+        self.assertEqual(first["source"], "Oper Bonn")
+        self.assertEqual(first["link"], "https://tickets.bonn.de/#/event/1000")
 
     def test_katharinenhof_primary_record_absorbs_radio_title_variant(self):
         base = {

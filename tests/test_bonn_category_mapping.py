@@ -1,3 +1,4 @@
+import json
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -12,7 +13,11 @@ class BonnCategoryMappingTests(unittest.TestCase):
         patch_window(self, datetime(2026, 7, 27), datetime(2026, 8, 3))
 
     @staticmethod
-    def _listing(category: str | None, title: str, description: str = "Öffentliche Veranstaltung") -> str:
+    def _listing(
+        category: str | None,
+        title: str,
+        description: str = "Öffentliche Veranstaltung",
+    ) -> str:
         kicker = (
             f'<span class="SP-Kicker__text">{category}</span>'
             if category is not None
@@ -29,6 +34,31 @@ class BonnCategoryMappingTests(unittest.TestCase):
 </article>
 """
 
+    @staticmethod
+    def _json_item(category: list[str] | None, title: str, description: str = "") -> dict:
+        return {
+            "title": title,
+            "description": description,
+            "category": category,
+            "startDate": "2026-07-28 20:00:00",
+            "endDate": "2026-07-28 22:00:00",
+            "locationName": "Testort",
+            "locationAddress": "Teststraße 1, 53111 Bonn",
+            "link": f"https://www.bonn.de/{title.replace(' ', '-')}.php",
+            "hasStartTime": True,
+            "hasEndTime": True,
+        }
+
+    def _fetch_json(self, items: list[dict]) -> list[dict]:
+        with (
+            patch.object(common, "fetch_url", return_value=json.dumps(items)),
+            patch.object(bonn, "_venue_points", return_value={}),
+            patch.object(bonn, "_fetch_rss_events", return_value=[]),
+            patch.object(bonn, "_fetch_free_calendar_events", return_value=[]),
+            patch.object(bonn, "_fetch_calendar_listing_events", return_value=[]),
+        ):
+            return bonn.fetch_events_json()
+
     def test_curated_source_category_maps_directly_with_full_confidence(self):
         events = bonn._calendar_listing_events_from_html(
             self._listing("Musik/Konzert", "Rätselhafter Abend"),
@@ -43,7 +73,7 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "bonn-source-category:Musik/Konzert",
         )
 
-    def test_mapping_covers_every_allowed_bonn_source_category(self):
+    def test_mapping_covers_only_topic_categories(self):
         expected = {
             "Fest/Festival": "festival",
             "Musik/Konzert": "concert",
@@ -51,7 +81,6 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Tanz": "stage",
             "Theater": "stage",
             "Ausstellungen": "exhibition",
-            "Führungen/Rundgänge/Touren": "outdoor",
             "Tour": "outdoor",
             "Lesung": "talk",
             "Vorträge/Lesungen/Diskussionen": "talk",
@@ -63,32 +92,73 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Wissenschaftsnacht-Vorträge": "talk",
         }
         self.assertEqual(bonn._SOURCE_CATEGORY_MAP, expected)
-        self.assertEqual(set(expected), bonn._ALLOW)
+        self.assertIn("Führungen/Rundgänge/Touren", bonn._ALLOW)
+        self.assertNotIn("Führungen/Rundgänge/Touren", bonn._SOURCE_CATEGORY_MAP)
 
-    def test_unknown_source_category_warns_but_keeps_keyword_fallback_event(self):
-        with patch.object(common, "log_source_error") as log_source_error:
-            events = bonn._calendar_listing_events_from_html(
-                self._listing("Neue Stadtkategorie", "Jazzabend am Rhein"),
-                "Bonn.de Events",
+    def test_listing_rejects_blocked_unknown_and_absent_categories(self):
+        html = "".join(
+            (
+                self._listing("Sitzung", "Jazzsitzung"),
+                self._listing("Neue Stadtkategorie", "Jazzabend unbekannt"),
+                self._listing(None, "Jazzabend ohne Kategorie"),
+                self._listing("Musik/Konzert", "Erlaubtes Konzert"),
             )
+        )
+        with patch.object(common, "log_source_error") as log_source_error:
+            events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
 
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["category_key"], "concert")
-        self.assertNotEqual(events[0]["category_confidence"], 1.0)
+        self.assertEqual([event["title"] for event in events], ["Erlaubtes Konzert"])
         log_source_error.assert_called_once()
         source, error = log_source_error.call_args.args
         self.assertEqual(source, "Bonn.de Events category taxonomy")
         self.assertIn("Neue Stadtkategorie", str(error))
 
-    def test_absent_source_category_keeps_keyword_classification_fallback(self):
+    def test_listing_guide_format_remains_classifier_driven(self):
         events = bonn._calendar_listing_events_from_html(
-            self._listing(None, "Jazzabend am Rhein"),
+            self._listing(
+                "Führungen/Rundgänge/Touren",
+                "Jazzkonzert im Museum",
+                "Live-Musik mit einem Jazzquartett",
+            ),
             "Bonn.de Events",
         )
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["category_key"], "concert")
-        self.assertLess(events[0]["category_confidence"], 1.0)
+        self.assertFalse(events[0]["category_reason"].startswith("bonn-source-category:"))
+
+    def test_json_rejects_blocked_unknown_and_absent_categories(self):
+        items = [
+            self._json_item(["Sitzung"], "Jazzsitzung"),
+            self._json_item(["Neue Stadtkategorie"], "Jazzabend unbekannt"),
+            self._json_item(None, "Jazzabend ohne Kategorie"),
+            self._json_item(["Musik/Konzert"], "Erlaubtes Konzert"),
+        ]
+        with patch.object(common, "log_source_error") as log_source_error:
+            events = self._fetch_json(items)
+
+        self.assertEqual([event["title"] for event in events], ["Erlaubtes Konzert"])
+        self.assertEqual(events[0]["category_key"], "concert")
+        self.assertEqual(events[0]["category_confidence"], 1.0)
+        log_source_error.assert_called_once()
+        source, error = log_source_error.call_args.args
+        self.assertEqual(source, "Bonn.de Events category taxonomy")
+        self.assertIn("Neue Stadtkategorie", str(error))
+
+    def test_json_guide_format_remains_classifier_driven(self):
+        events = self._fetch_json(
+            [
+                self._json_item(
+                    ["Führungen/Rundgänge/Touren"],
+                    "Jazzkonzert im Museum",
+                    "Live-Musik mit einem Jazzquartett",
+                )
+            ]
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["category_key"], "concert")
+        self.assertFalse(events[0]["category_reason"].startswith("bonn-source-category:"))
 
 
 if __name__ == "__main__":
