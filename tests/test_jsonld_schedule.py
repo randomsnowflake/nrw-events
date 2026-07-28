@@ -136,6 +136,17 @@ class JsonLdScheduleTests(unittest.TestCase):
                 "kostenlos",
             ),
             (
+                "free tier does not make a mixed offer list free",
+                {
+                    "offers": [
+                        {"@type": "Offer", "price": 0, "priceCurrency": "EUR"},
+                        {"@type": "Offer", "price": 12, "priceCurrency": "EUR"},
+                    ]
+                },
+                "",
+                "12 EUR",
+            ),
+            (
                 "bare zero without currency is not a free claim",
                 {"offers": {"@type": "Offer", "price": 0}},
                 "",
