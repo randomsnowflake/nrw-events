@@ -36,8 +36,9 @@ _VENUE_GEOJSON_URLS = (
     "https://stadtplan.bonn.de/geojson?OD=4489",  # Kleinkunst / Kabarett / Varieté
 )
 
-# Curated Bonn source taxonomy → canonical public category. Unlike keyword
-# hints, these finite source-owned values are authoritative when unambiguous.
+# Curated Bonn topic taxonomy → canonical public category. Unlike keyword
+# hints, these finite source-owned topics are authoritative when unambiguous.
+# Format-only values stay allowlisted but must remain classifier input.
 _SOURCE_CATEGORY_MAP = {
     "Fest/Festival": "festival",
     "Musik/Konzert": "concert",
@@ -45,7 +46,6 @@ _SOURCE_CATEGORY_MAP = {
     "Tanz": "stage",
     "Theater": "stage",
     "Ausstellungen": "exhibition",
-    "Führungen/Rundgänge/Touren": "outdoor",
     "Tour": "outdoor",
     "Lesung": "talk",
     "Vorträge/Lesungen/Diskussionen": "talk",
@@ -56,7 +56,7 @@ _SOURCE_CATEGORY_MAP = {
     "Weihnachtsmarkt": "market",
     "Wissenschaftsnacht-Vorträge": "talk",
 }
-_ALLOW = set(_SOURCE_CATEGORY_MAP)
+_ALLOW = set(_SOURCE_CATEGORY_MAP) | {"Führungen/Rundgänge/Touren"}
 _FREE_ACTIVITY_ALLOW = {
     "Aktion/Workshop", "Bonn-Information", "Familien/Kinder", "Ferienaktion",
     "Kinder (0 bis 5 Jahre)", "Kinder (5 bis 12 Jahre)", "Kultur", "Sport",
@@ -416,7 +416,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             "kostenlos" if "Kostenlos" in tags else "",
         )
         free_allow = (tags & _FREE_ACTIVITY_ALLOW) if price else set()
-        if (tags & _BLOCK) or (tags and not allow and not free_allow and not unknown):
+        if (not allow and not free_allow) or (tags & _BLOCK):
             continue
 
         start_dt = _parse_dt(item.get("startDate", ""))
@@ -446,7 +446,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             if item.get("hasEndTime") and end_dt and (end_dt.hour or end_dt.minute):
                 time_text += f"–{end_dt:%H:%M}"
 
-        category_tags = tags if unknown or not tags else (allow or free_allow)
+        category_tags = allow or free_allow
         ev = common.make_event(
             title, start_dt, end_dt, venue, city, description, link,
             source, ", ".join(sorted(category_tags)), time_text=time_text,
@@ -543,7 +543,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
         free_allow = tags & _FREE_ACTIVITY_ALLOW
         unknown = _unknown_source_categories(tags)
         unknown_categories.update(unknown)
-        if (tags & _BLOCK) or (tags and not allow and not free_allow and not unknown):
+        if (not allow and not free_allow) or (tags & _BLOCK):
             continue
 
         link = common.urllib.parse.urljoin("https://www.bonn.de", href)
