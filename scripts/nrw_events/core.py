@@ -1614,13 +1614,14 @@ def _jsonld_accessible_for_free(value) -> Optional[bool]:
 
 
 def _jsonld_offer_price(offers) -> Optional[str]:
-    """Return the first usable schema.org Offer price as the legacy display string."""
+    """Return a conservative schema.org Offer price as the legacy display string."""
     if isinstance(offers, dict):
         candidates = [offers]
     elif isinstance(offers, list):
         candidates = [offer for offer in offers if isinstance(offer, dict)]
     else:
         candidates = []
+    has_explicitly_free_offer = False
     for offer in candidates:
         amount = offer.get("price")
         if amount in (None, "") or isinstance(amount, (dict, list, bool)):
@@ -1633,16 +1634,17 @@ def _jsonld_offer_price(offers) -> Optional[str]:
             "" if isinstance(currency, (dict, list)) else clean_html(str(currency or "")).strip()
         )
         if _FREE_PRICE_PATTERN.fullmatch(amount_text):
-            return "kostenlos"
+            has_explicitly_free_offer = True
+            continue
         if re.fullmatch(r"0+(?:[.,]0+)?", amount_text):
             # A bare zero without a currency is what many calendar plugins emit for
             # "no price maintained". Only trust it as free when the source states a
             # currency, otherwise leave it to the remaining offers or text inference.
             if currency_text:
-                return "kostenlos"
+                has_explicitly_free_offer = True
             continue
         return " ".join(part for part in (amount_text, currency_text) if part)
-    return None
+    return "kostenlos" if has_explicitly_free_offer else None
 
 
 def _jsonld_admission_price(item: dict) -> Optional[str]:
