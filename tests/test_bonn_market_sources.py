@@ -242,13 +242,12 @@ class BonnMarketSourceTests(unittest.TestCase):
             ),
         ])
 
-        self.assertEqual(len(deduped), 4)
+        self.assertEqual(len(deduped), 3)
         self.assertEqual(
             {item["link"] for item in deduped},
             {
                 "https://bad-godesberg.info/antikmarkt",
                 "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
-                "https://www.linz.de/antikmarkt",
                 "https://www.coelln-konzept.de/markt/antik_linz.html",
             },
         )

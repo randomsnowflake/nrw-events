@@ -258,19 +258,50 @@ def _series_tokens(title: str) -> tuple[str, ...]:
 
 
 def _same_registered_venue_occurrence(left: dict, right: dict) -> bool:
-    """Match cross-source records by canonical venue, exact date, and category."""
+    """Match cross-source records by canonical venue, date, and category."""
     if not left.get("source") or left.get("source") == right.get("source"):
         return False
     left_venue_id = left.get("venue_id")
     left_category = left.get("category_key")
-    return bool(
+    left_bounds = _date_bounds(left)
+    right_bounds = _date_bounds(right)
+    same_identity = bool(
         left_venue_id
         and left_venue_id == right.get("venue_id")
         and left_category
         and left_category == right.get("category_key")
-        and _date_bounds(left) is not None
-        and _date_bounds(left) == _date_bounds(right)
+        and left_bounds is not None
+        and right_bounds is not None
     )
+    if not same_identity:
+        return False
+    if left_category != "market":
+        return left_bounds == right_bounds
+    # A registered market area may host different market formats on one day.
+    # Require the same narrow family before accepting exact or overlapping
+    # source ranges (for example a city listing with only the first day).
+    left_family = _market_title_family(left.get("title", ""))
+    right_family = _market_title_family(right.get("title", ""))
+    return bool(
+        left_family
+        and left_family == right_family
+        and left_bounds[0] <= right_bounds[1]
+        and right_bounds[0] <= left_bounds[1]
+    )
+
+
+def _market_title_family(title: str) -> str:
+    """Return a conservative market format shared across title variants."""
+    words = comparison_text(title)
+    if "antik" in words and "markt" in words:
+        return "antik"
+    if any(marker in words for marker in ("floh", "troedel")):
+        return "secondhand"
+    if "wochenmarkt" in words:
+        return "weekly"
+    if any(marker in words for marker in ("kunsthandwerkermarkt", "kunstmarkt")):
+        return "craft"
+    return ""
 
 
 def _has_separate_admission_charge(event) -> bool:

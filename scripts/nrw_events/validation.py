@@ -9,6 +9,7 @@ from typing import Any
 
 from . import category_taxonomy, common
 from .models import CanonicalEvent, RawEvent, normalize_source_id
+from .normalization import canonical_venue_id
 from .quality import evaluate_event_quality
 
 
@@ -76,6 +77,13 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("description", 8000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    event["venue_id"] = _text(event, "venue_id", 160)
+    if event["venue_id"] and not re.fullmatch(
+        r"[a-z0-9]+(?:-[a-z0-9]+)*",
+        event["venue_id"],
+    ):
+        raise EventValidationError("venue_id_invalid")
+    event["venue_id"] = canonical_venue_id(event)
     canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
     event["time"] = canonical_time
     event["time_note"] = common.combine_time_notes(
