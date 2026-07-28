@@ -743,6 +743,7 @@ def extract_json_array(text: str) -> list:
 def clean_html(text: str) -> str:
     """Strip tags/entities and collapse whitespace."""
     text = unescape(text or "")
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
     text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.S | re.I)
     text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"\s+", " ", text).strip()

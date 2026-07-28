@@ -16,6 +16,13 @@ from nrw_events.sources import regional_common
 
 
 class HardeningRegressionTests(unittest.TestCase):
+    def test_clean_html_removes_complete_comments_with_embedded_angle_brackets(self):
+        self.assertEqual(
+            common.clean_html("Vorher<!-- internal > metadata -->Nachher"),
+            "Vorher Nachher",
+        )
+        self.assertEqual(common.clean_html("&lt;b&gt;fett&lt;/b&gt;"), "fett")
+
     def test_aware_timestamps_are_normalized_to_berlin_before_becoming_naive(self):
         self.assertEqual(
             dates.parse_iso_date("2026-07-18T23:30:00Z"),
