@@ -225,6 +225,59 @@ class CategoryTaxonomyTests(unittest.TestCase):
                     expected,
                 )
 
+    def test_known_indoor_museum_tours_are_exhibitions_without_reclassifying_outdoor_tours(self):
+        indoor_cases = [
+            (
+                "Bundeskunsthalle Kultur Veranstaltung",
+                "Führung: Peter Hujar",
+                "",
+                "Bundeskunsthalle",
+                "Bundeskunsthalle",
+            ),
+            (
+                "Kultur",
+                "Studentische Sonntagsführung im Akademischen Kunstmuseum Bonn",
+                "",
+                "Akademisches Kunstmuseum Bonn",
+                "Universität Bonn",
+            ),
+            (
+                "Kultur",
+                "Kuratorenführung durch die Ausstellung Paolo Porelli",
+                "",
+                "Stadtmuseum im Kulturhaus",
+                "Siegburg",
+            ),
+        ]
+        for source_category, title, description, venue, source in indoor_cases:
+            with self.subTest(title=title):
+                result = categorize_event(
+                    source_category,
+                    title,
+                    description,
+                    venue=venue,
+                    source=source,
+                )
+                self.assertEqual(result["key"], "exhibition")
+                self.assertEqual(result["reason"], "forced:indoor-museum-guided-tour")
+
+        outdoor_cases = [
+            ("Öffentliche Führung Kriminalistischer Stadtrundgang", "Eingang Stadtmuseum Siegburg"),
+            ("Öffentliche Führung Siegburg für Entdecker", "Eingang des Stadtmuseums"),
+            ("Sonntagsführung im Botanischen Garten", "Botanische Gärten Bonn"),
+            ("Führung Rund um Burg Wissem", "Burg Wissem"),
+        ]
+        for title, venue in outdoor_cases:
+            with self.subTest(title=title):
+                result = categorize_event(
+                    "Kultur",
+                    title,
+                    "",
+                    venue=venue,
+                    source="Siegburg",
+                )
+                self.assertEqual(result["key"], "outdoor")
+
     def test_compound_film_formats_are_strong_but_incidental_standalone_film_is_weak(self):
         cases = [
             ("Kultur", "Dokumentarfilm über Bonn", "", "cinema"),

@@ -125,6 +125,8 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         event["category"],
         event["title"],
         event["description"],
+        venue=event["venue"],
+        source=event["source"],
     )
     event.setdefault("category_key", canonical["key"])
     event.setdefault("category_label", canonical["label"])

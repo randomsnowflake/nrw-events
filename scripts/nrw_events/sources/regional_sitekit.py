@@ -119,6 +119,8 @@ def fetch() -> list:
             event.get("category", ""),
             event.get("title", ""),
             event.get("description", ""),
+            venue=event.get("venue", ""),
+            source=event.get("source", ""),
         )
         event.update({
             "category_key": canonical["key"],

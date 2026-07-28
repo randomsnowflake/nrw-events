@@ -295,6 +295,38 @@ def _forced_title_format(title_text: str) -> str:
     return ""
 
 
+_GUIDED_TOUR_TITLE_PATTERN = re.compile(r"\b\w*(?:führung(?:en)?|fuehrung(?:en)?)\b")
+_INDOOR_MUSEUM_CONTEXT_PATTERN = re.compile(
+    r"\b(?:\w*museum\w*|bundeskunsthalle|ausstellungshaus)\b"
+)
+_OUTDOOR_GUIDED_TOUR_PATTERN = re.compile(
+    r"\b(?:stadt(?:rundgang|führung|fuehrung)|für entdecker|fuer entdecker|"
+    r"botanisch\w*|garten\w*|park\w*|rund um|außenbereich|aussenbereich|"
+    r"skulpturenpark|freilicht\w*)\b"
+)
+
+
+def _is_indoor_museum_guided_tour(
+    title_text: str,
+    venue_text: str,
+    source_text: str,
+) -> bool:
+    """Recognize only tours anchored to a known indoor museum context."""
+    if not _GUIDED_TOUR_TITLE_PATTERN.search(title_text):
+        return False
+    if _OUTDOOR_GUIDED_TOUR_PATTERN.search(title_text):
+        return False
+    return bool(
+        _INDOOR_MUSEUM_CONTEXT_PATTERN.search(venue_text)
+        or source_text in {
+            "bundeskunsthalle",
+            "deutsches museum bonn",
+            "lvr-landesmuseum bonn",
+            "museum koenig",
+        }
+    )
+
+
 def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, text) for pattern in patterns)
 
@@ -473,6 +505,9 @@ def categorize_event(
     source_category: str,
     title: str,
     description: str = "",
+    *,
+    venue: str = "",
+    source: str = "",
 ) -> CategoryResult:
     """Return the canonical category for an event.
 
@@ -484,6 +519,8 @@ def categorize_event(
     title_text = normalize_text(title)
     hint_text = normalize_text(source_category)
     description_text = normalize_text(description)
+    venue_text = normalize_text(venue)
+    source_text = normalize_text(source)
 
 
     # Explicit sport and guided-listening formats in the title outrank broader
@@ -533,7 +570,7 @@ def categorize_event(
 
     if (
         hint_category_keys == {"exhibition"}
-        and re.search(r"\b\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text)
+        and _GUIDED_TOUR_TITLE_PATTERN.search(title_text)
     ):
         category = CATEGORY_BY_KEY["exhibition"]
         return {
@@ -541,6 +578,15 @@ def categorize_event(
             "label": category["label"],
             "confidence": 1.0,
             "reason": "forced:museum-guided-tour",
+        }
+
+    if _is_indoor_museum_guided_tour(title_text, venue_text, source_text):
+        category = CATEGORY_BY_KEY["exhibition"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:indoor-museum-guided-tour",
         }
 
     title_format = _forced_title_format(title_text)

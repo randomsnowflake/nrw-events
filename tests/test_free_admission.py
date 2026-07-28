@@ -12,10 +12,14 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
         cases = [
             ("Sommerfestival", "Der Eintritt ist frei.", ""),
             ("Sommerfestival", "Der Eintritt ist nach wie vor frei!", ""),
+            ("Siegburger Sommer Live", "Der Eintritt ist wie immer kostenlos.", ""),
             ("Schützenfest", "Der Eintritt ist zu allen Veranstaltungen frei.", ""),
             ("GA-Sommergarten", "Live-Musik bei freiem Eintritt.", ""),
             ("Fahrradtour", "Eine kostenlose, geführte Fahrradtour durch Troisdorf.", ""),
             ("Auf ein Buch", "Treffen in der Stadtbibliothek. Kostenlos und unverbindlich.", ""),
+            ("Sport im Park", "Kostenlos und draußen – ohne Anmeldung.", ""),
+            ("Ferienspass: Bogenschießen", "Kosten: kostenfrei. Keine Anmeldung erforderlich.", ""),
+            ("Vernissage", "Einlass 16:30 UhrEintritt frei!", ""),
             ("Switch 2 zocken", "Anmeldung erforderlich.kostenfreiab 6 Jahren", ""),
             ("Kostenlos Seepferdchen-Prüfung", "", ""),
             ("Offener Kunstraum", "", "Eintritt: 0 €"),
@@ -37,6 +41,8 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Wanderung", "Kurze Anmeldung (kostenlos) bis zum Vorabend.", ""),
             ("Führung", "Der Eintritt in den Park ist frei. Die Führung kostet 8 Euro.", ""),
             ("Familienmuseum", "Eintritt 12 Euro, Kinder bis 6 Jahre kostenlos.", ""),
+            ("Familientag", "Kosten: kostenfrei für Kinder. Erwachsene zahlen 8 Euro.", ""),
+            ("Sportkurs", "Kostenlos und draußen für Mitglieder; Gäste zahlen 5 Euro.", ""),
             ("Konzert", "Der Eintritt ist nicht frei.", ""),
         ]
 

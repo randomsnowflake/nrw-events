@@ -52,8 +52,15 @@ def _exhibition_cards(html: str) -> list:
             if first_internal:
                 href = first_internal.group(1)
         link = common.urllib.parse.urljoin(_URL, href) if href else _URL
-        cards.append((common.clean_html(h2.group(1)), common.clean_html(h3.group(1)), link))
+        cards.append((_inline_heading_text(h2.group(1)), common.clean_html(h3.group(1)), link))
     return cards
+
+
+def _inline_heading_text(value: str) -> str:
+    """Join inline title spans without inventing word boundaries; keep line breaks."""
+    value = re.sub(r"<br\s*/?>", " ", value or "", flags=re.I)
+    value = re.sub(r"<[^>]+>", "", value)
+    return re.sub(r"\s+", " ", unescape(value)).strip()
 
 
 def _parse_range(text: str):

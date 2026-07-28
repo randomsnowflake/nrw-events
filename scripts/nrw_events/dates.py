@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 
 
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
+_REFERENCE_DATE: Optional[datetime] = None
 
 
 def _local_naive(value: datetime) -> datetime:
@@ -17,6 +18,13 @@ def _local_naive(value: datetime) -> datetime:
     if value.tzinfo is not None:
         value = value.astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
     return value
+
+
+def configure_reference_date(value: datetime) -> None:
+    """Set the report-window date used for yearless source values."""
+    global _REFERENCE_DATE
+    _REFERENCE_DATE = _local_naive(value)
+
 
 MONTH_DE = {
     "januar": 1, "jan": 1, "februar": 2, "feb": 2, "märz": 3, "maerz": 3,
@@ -43,7 +51,20 @@ def parse_iso_date(text: str) -> Optional[datetime]:
             return None
 
 
-def parse_date(text: str) -> Optional[datetime]:
+def _next_yearless_occurrence(day: int, month: int, reference_date: datetime) -> Optional[datetime]:
+    """Return the next calendar occurrence, including today, for a day/month pair."""
+    reference_date = _local_naive(reference_date)
+    for year in range(reference_date.year, reference_date.year + 9):
+        try:
+            candidate = datetime(year, month, day)
+        except ValueError:
+            continue
+        if candidate.date() >= reference_date.date():
+            return candidate
+    return None
+
+
+def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optional[datetime]:
     """Parse common ISO, numeric, English, and German event dates."""
     text = (text or "").strip()
     if not text:
@@ -79,6 +100,16 @@ def parse_date(text: str) -> Optional[datetime]:
         }.get(key)
         if month_number:
             return datetime(int(year), month_number, int(day))
+    match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b", text)
+    if match:
+        day, month = match.groups()
+        key = month.lower().rstrip(".")
+        month_number = MONTH_DE.get(key) or MONTH_EN.get(key) or {
+            "mar": 3, "sept": 9, "oct": 10, "dec": 12,
+        }.get(key)
+        if month_number:
+            reference = reference_date or _REFERENCE_DATE or datetime.now(LOCAL_TIMEZONE)
+            return _next_yearless_occurrence(int(day), month_number, reference)
     try:
         return _local_naive(datetime.fromisoformat(text.replace("Z", "+00:00")))
     except (ValueError, TypeError):

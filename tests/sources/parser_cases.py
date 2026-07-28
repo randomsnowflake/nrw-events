@@ -599,6 +599,21 @@ END:VCALENDAR
         self.assertEqual(events[0]["title"], "Peter Hujar Eyes Open in the Dark")
         self.assertEqual(events[0]["link"], "https://www.bundeskunsthalle.de/en/hujar")
 
+    def test_bundeskunsthalle_preserves_inline_title_spans_without_word_gaps(self):
+        html = """
+<section>
+  <h2>Amazônia<br><span>I</span>ndigenous<span> W</span>orlds</h2>
+  <h3><span>13 March to 9 August 2026</span></h3>
+  <a href="/en/amazonia" aria-label="This button will take you to the exhibition page with further information.">More Information</a>
+</section>
+"""
+
+        with patch("nrw_events.common.fetch_url", return_value=html):
+            events = bundeskunsthalle.fetch()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Amazônia Indigenous Worlds")
+
     def test_bundeskunsthalle_event_api_keeps_next_primary_series_occurrence(self):
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
         search_page = """

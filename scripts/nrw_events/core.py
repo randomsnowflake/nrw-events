@@ -39,9 +39,11 @@ from .models import AdmissionDefault
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
 from .runtime import RunContext
+from .dates import configure_reference_date as _configure_date_reference
 from .dates import MONTH_DE as MONTH_DE
 from .dates import MONTH_EN as MONTH_EN
-from .dates import parse_date, parse_iso_date
+from .dates import parse_date
+from .dates import parse_iso_date
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -50,6 +52,7 @@ TODAY = datetime.now(LOCAL_TIMEZONE).replace(
     hour=0, minute=0, second=0, microsecond=0, tzinfo=None
 )
 END_DATE = TODAY + timedelta(days=max(DAYS_AHEAD - 1, 0))
+_configure_date_reference(TODAY)
 
 
 # Re-export common config values for convenience.
@@ -135,6 +138,7 @@ def configure_context(context: RunContext) -> None:
     DAYS_AHEAD = context.settings.days_ahead
     TODAY = context.window.start
     END_DATE = context.window.end
+    _configure_date_reference(TODAY)
 
 
 def set_source_context(result: Optional[SourceResult]) -> None:
@@ -1082,9 +1086,10 @@ def sanitize_time_text(time_text: str) -> str:
 # ── Event construction + junk filter ────────────────────────────────
 
 _FREE_ADMISSION_PATTERNS = (
+    r"\b(?:kosten|preis|teilnahmegebühr|teilnahmegebuehr)\s*:\s*(?:frei|kostenlos|kostenfrei)\b",
     r"\beintritt\s*:?\s*(?:frei|kostenlos|kostenfrei)\b",
     r"\beintritt\s+(?:ist|bleibt)\s+(?:(?:nach\s+wie\s+vor|weiterhin|auch|"
-    r"(?:für|fuer|zu)\s+alle(?:n)?\s+(?:veranstaltungen|angebote|termine))\s+)*"
+    r"wie\s+immer|(?:für|fuer|zu)\s+alle(?:n)?\s+(?:veranstaltungen|angebote|termine))\s+)*"
     r"(?:frei|kostenlos|kostenfrei)\b",
     r"\beintritt\s+(?:auch\s+)?(?:zu|für|fuer)\s+[^.]{1,60}\s+"
     r"(?:ist|bleibt)\s+(?:frei|kostenlos|kostenfrei)\b",
@@ -1099,12 +1104,15 @@ _FREE_ADMISSION_PATTERNS = (
     r"[^.]{0,80}\b(?:kostenlos|kostenfrei)\b",
     r"\b(?:kostenlos|kostenfrei)\s*(?:[-–]\s*)?(?:und\s+)?"
     r"(?:keine anmeldung|anmeldung erforderlich|ohne anmeldung)\b",
+    r"\b(?:kostenlos|kostenfrei)\s+und\s+(?:draußen|draussen)\s*[-–,]?\s*"
+    r"(?:keine anmeldung|ohne anmeldung)\b",
     r"(?:^|[.!?]\s*)kostenlos\s+und\s+unverbindlich\b",
     r"\b(?:kostenlos|kostenfrei)\s+ab\s+\d+\b",
 )
 _FREE_TITLE_PATTERN = re.compile(r"^\s*(?:kostenlos|kostenfrei)\s+", re.IGNORECASE)
 _FREE_PRICE_PATTERN = re.compile(
-    r"^(?:eintritt\s*:?\s*)?(?:(?:frei|kostenlos|kostenfrei|free)"
+    r"^(?:(?:eintritt|kosten|preis|teilnahmegebühr|teilnahmegebuehr)\s*:?\s*)?"
+    r"(?:(?:frei|kostenlos|kostenfrei|free)"
     r"(?:\s*[,;/(-].*)?|0(?:[,.]00)?\s*(?:€|eur|euro))$",
     re.IGNORECASE,
 )
@@ -1135,10 +1143,11 @@ _IMPLICIT_FREE_EXCLUSION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _VISITOR_ADMISSION_AMOUNT_PATTERN = re.compile(
-    r"\b(?:eintritt|besucher(?:preis|eintritt)|ticket(?:preis)?)\b"
+    r"\b(?:(?:eintritt|besucher(?:preis|eintritt)|ticket(?:preis)?)\b[^.]{0,60}|"
+    r"(?:gäste|gaeste|erwachsene)\s+(?:zahlen|bezahlen|kosten)\s*)"
     # `\b` after `€` would never match at end of string: use a word-char guard so
     # the common German notation ("Eintritt: 4,50 €") is recognised.
-    r"[^.]{0,60}\b\d+[,.]?\d*\s*(?:€|eur|euro)(?!\w)",
+    r"\b\d+[,.]?\d*\s*(?:€|eur|euro)(?!\w)",
     re.IGNORECASE,
 )
 
@@ -1178,6 +1187,10 @@ def infer_admission(
     # "Eintritt frei" must not silently turn a paid event into a free one.
     raw = " ".join([title or "", description or "", price or ""])
     text = clean_html(raw).lower()
+    # Some upstream WordPress copy glues adjacent logistics labels together
+    # ("16:30 UhrEintritt frei"). Repair only this explicit boundary rather
+    # than inserting spaces inside arbitrary camel-cased words.
+    text = re.sub(r"\buhr(?=eintritt\b)", "uhr ", text, flags=re.IGNORECASE)
     text = re.sub(r"\b(kostenfrei|kostenlos)(?=ab\s+\d)", r"\1 ", text)
     text = re.sub(r"\s+", " ", text)
     price_text = clean_html(price or "").lower().strip()
@@ -1189,6 +1202,8 @@ def infer_admission(
         return "kostenlos", admission_basis or "explicit"
     if price_text:
         return "", "explicit"
+    if visitor_charge:
+        return "", ""
     if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
         return "", ""
     if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
@@ -1271,7 +1286,13 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     # URLs encode venue slugs and other implementation detail (for example
     # ``alte-vhs`` in an aggregator concert URL). They are not event content and
     # must not affect the display category.
-    canonical_category = category_taxonomy.categorize_event(category, title, description)
+    canonical_category = category_taxonomy.categorize_event(
+        category,
+        title,
+        description,
+        venue=venue,
+        source=source,
+    )
     event_link = normalize_url(link)
     if is_raw_api_url(event_link):
         event_link = ""

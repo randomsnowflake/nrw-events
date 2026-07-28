@@ -26,6 +26,26 @@ class HardeningRegressionTests(unittest.TestCase):
             datetime(2026, 7, 19, 1, 30),
         )
 
+    def test_yearless_dates_resolve_to_the_next_plausible_occurrence(self):
+        self.assertEqual(
+            dates.parse_date("So., 3. August", reference_date=datetime(2026, 7, 28)),
+            datetime(2026, 8, 3),
+        )
+        self.assertEqual(
+            dates.parse_date("3. Januar", reference_date=datetime(2026, 12, 30)),
+            datetime(2027, 1, 3),
+        )
+        self.assertEqual(
+            dates.parse_date("29. Februar", reference_date=datetime(2026, 3, 1)),
+            datetime(2028, 2, 29),
+        )
+
+    def test_common_date_parser_uses_the_configured_report_window_start(self):
+        previous = dates._REFERENCE_DATE
+        self.addCleanup(setattr, dates, "_REFERENCE_DATE", previous)
+        dates.configure_reference_date(datetime(2026, 12, 30))
+        self.assertEqual(common.parse_date("3. Januar"), datetime(2027, 1, 3))
+
     def test_runtime_window_uses_the_berlin_calendar_day(self):
         window = EventWindow.from_days(
             2, datetime(2026, 7, 18, 23, 30, tzinfo=timezone.utc)
