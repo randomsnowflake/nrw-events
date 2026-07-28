@@ -208,15 +208,34 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertEqual(category.get("confidence"), 1.0)
         self.assertEqual(category.get("reason"), "forced:talk")
 
-    def test_single_ambiguous_signals_do_not_invent_categories(self):
+    def test_plain_keywords_do_not_match_inside_unrelated_words(self):
         cases = [
-            ("", "Schadstoff und Elektro-Kleinteile-Mobil", "", "other"),
-            ("", "GA-Sommergarten – Albie Donnelly's Supercharge", "", "other"),
+            ("Sonstige Veranstaltung", "Ablauf der Mitgliederversammlung", "", "other"),
+            ("Vorträge/Lesungen/Diskussionen", "Diskurs über Demokratie", "", "talk"),
+            ("Sonstige Veranstaltung", "Kunststoffe im Alltag", "", "other"),
+            ("Musik/Konzert", "Tournee-Auftakt", "", "concert"),
+            ("Sonstige Veranstaltung", "Familientag im Kloster", "", "other"),
+            ("Umwelt", "Schadstoff und Elektro-Kleinteile-Mobil", "", "other"),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"],
+                    expected,
+                )
+
+    def test_compound_film_formats_are_strong_but_incidental_standalone_film_is_weak(self):
+        cases = [
+            ("Kultur", "Dokumentarfilm über Bonn", "", "cinema"),
+            ("Kultur", "Filmvorstellung: Riefenstahl (2024)", "", "cinema"),
+            ("Fest/Festival", "Kurzfilmfestival", "", "cinema"),
+            ("Kino & Film", "Filmnächte in Andernach", "", "cinema"),
             (
-                "",
+                "Theater/Bühne",
                 "Die Göttliche Komödie nach Dante",
                 "Die Inszenierung wurde später auch als Film veröffentlicht.",
-                "other",
+                "stage",
             ),
         ]
 
@@ -227,11 +246,37 @@ class CategoryTaxonomyTests(unittest.TestCase):
                     expected,
                 )
 
+    def test_weak_hint_does_not_expand_a_focused_source_category_bag(self):
+        category = categorize_event(
+            "Elektro Konzert Ausstellung",
+            "Unbekannte Abendveranstaltung",
+            "",
+        )
+
+        self.assertEqual(category["key"], "concert")
+
     def test_ambiguous_signals_still_work_when_corroborated(self):
         cases = [
-            ("", "Elektro Party", "", "nightlife"),
-            ("", "Sommergarten Konzert", "Live-Musik unter freiem Himmel", "concert"),
-            ("", "Filmabend", "Öffentliche Vorführung im Kino", "cinema"),
+            ("Nachtleben", "Elektro Party", "", "nightlife"),
+            (
+                "Musik/Konzert",
+                "GA-Sommergarten – Albie Donnelly's Supercharge",
+                "Heute gibt es wieder ein GA-Sommergarten-Konzert mit Live-Musik.",
+                "concert",
+            ),
+            (
+                "Allgemein Sinzig",
+                "Energie tanken im Kräutergarten",
+                "Entspannungsübungen inmitten der Natur zwischen Kräutern und Wiesen.",
+                "outdoor",
+            ),
+            (
+                "Natur und Umwelt",
+                "Tag der offenen Gemüsegartenpforte",
+                "Besucher können den ökologischen Garten besichtigen.",
+                "outdoor",
+            ),
+            ("Kino & Film", "Filmabend", "Öffentliche Vorführung im Kino", "cinema"),
         ]
 
         for source_category, title, description, expected in cases:
