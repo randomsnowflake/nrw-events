@@ -216,7 +216,18 @@ def _same_occurrence(left: dict, right: dict) -> bool:
     right_bounds = _date_bounds(right)
     if left_bounds and right_bounds:
         if left.get("source") != right.get("source"):
-            dates_match = left_bounds == right_bounds
+            # Independent calendars frequently disagree by one day about when
+            # a multi-day festival ends (for example Sunday versus Monday).
+            # Matching the same start date with only that narrow discrepancy is
+            # conservative enough to fold the duplicate without absorbing a
+            # separately scheduled occurrence later inside a longer run.
+            dates_match = (
+                left_bounds == right_bounds
+                or (
+                    left_bounds[0] == right_bounds[0]
+                    and abs((left_bounds[1] - right_bounds[1]).days) <= 1
+                )
+            )
         else:
             dates_match = (left_bounds[0] <= right_bounds[1]
                            and right_bounds[0] <= left_bounds[1])

@@ -616,6 +616,56 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["start_date"], "2026-07-10")
         self.assertEqual(deduped[0]["end_date"], "2026-07-12")
 
+    def test_deduplicate_collapses_cross_source_festival_with_one_day_end_disagreement(self):
+        events = [
+            {
+                "title": "Kirmes in Lengsdorf", "start_date": "2026-07-31",
+                "end_date": "2026-08-03", "date": "2026-07-31–2026-08-03",
+                "city": "Bonn-Hardtberg", "venue": "Dorfplatz", "score": 1.0,
+                "source": "Radio Bonn/Rhein-Sieg",
+                "description": "Von Freitag bis Montag auf dem Dorfplatz in Lengsdorf.",
+                "price": "",
+                "link": "https://www.radiobonn.de/artikel/was-geht-unsere-veranstaltungstipps-2674962",
+                "time": "", "start_at": "", "end_at": "", "category_key": "festival",
+            },
+            {
+                "title": "Kirmes Lengsdorf", "start_date": "2026-07-31",
+                "end_date": "2026-08-02", "date": "2026-07-31–2026-08-02",
+                "city": "Bonn-Hardtberg", "venue": "Dorfplatz/Uhlgasse", "score": 0.9,
+                "source": "Bonn district festivals",
+                "description": "Kirmes Lengsdorf, Dorfplatz/Uhlgasse.",
+                "price": "",
+                "link": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+                "time": "", "start_at": "", "end_at": "", "category_key": "festival",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Bonn district festivals")
+        self.assertEqual(deduped[0]["end_date"], "2026-08-02")
+
+    def test_deduplicate_keeps_cross_source_events_with_materially_different_end_dates(self):
+        base = {
+            "title": "Sommerfestival", "start_date": "2026-08-01",
+            "date": "2026-08-01", "city": "Bonn", "venue": "Dorfplatz",
+            "score": 1.0, "description": "", "price": "", "time": "",
+            "start_at": "", "end_at": "", "category_key": "festival",
+        }
+        events = [
+            {
+                **base, "end_date": "2026-08-02", "source": "Veranstalter",
+                "link": "https://veranstalter.test/sommerfestival",
+            },
+            {
+                **base, "end_date": "2026-08-09", "source": "Stadtkalender",
+                "link": "https://stadt.test/sommerfestival",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
     def test_deduplicate_keeps_same_link_on_distinct_dates(self):
         events = [
             {
