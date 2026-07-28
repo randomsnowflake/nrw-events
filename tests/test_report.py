@@ -666,6 +666,37 @@ class ReportTests(unittest.TestCase):
 
         self.assertEqual(len(report.deduplicate(events)), 2)
 
+    def test_deduplicate_rechecks_prior_results_after_metadata_merge(self):
+        base = {
+            "start_date": "2026-07-28", "end_date": "2026-07-28",
+            "date": "2026-07-28", "city": "Bonn", "score": 1.0,
+            "description": "", "price": "", "time": "", "start_at": "",
+            "end_at": "", "category_key": "sports",
+        }
+        events = [
+            {
+                **base, "title": "Sportangebot im Reuterpark",
+                "venue": "Reuterpark", "source": "Stadtsportbund",
+                "link": "https://sport.test/reuterpark",
+            },
+            {
+                **base, "title": "Draußen Aktiv Reuterpark",
+                "venue": "Reuterpark", "source": "Bonn.de Events",
+                "link": "https://bonn.test/reuterpark",
+            },
+            {
+                **base,
+                "title": "Draußen Aktiv Reuterpark – Sportangebot im Reuterpark",
+                "venue": "", "source": "Veranstalter", "score": 1.1,
+                "link": "https://veranstalter.test/reuterpark",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Veranstalter")
+
     def test_deduplicate_keeps_same_link_on_distinct_dates(self):
         events = [
             {

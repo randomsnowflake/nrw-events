@@ -446,6 +446,32 @@ def deduplicate(
 ) -> list[CanonicalEvent]:
     """Collapse duplicates and apply authoritative cancellation tombstones."""
     link_identity_counts = _link_identity_counts(events)
+
+    def merge_preferred(current, candidate):
+        current_rank = (
+            source_authority(current.get("source", "")),
+            current["score"],
+            _duration_days(current),
+        )
+        candidate_rank = (
+            source_authority(candidate.get("source", "")),
+            candidate["score"],
+            _duration_days(candidate),
+        )
+        return (
+            _merge_duplicate_metadata(
+                candidate,
+                current,
+                link_identity_counts=link_identity_counts,
+            )
+            if candidate_rank > current_rank
+            else _merge_duplicate_metadata(
+                current,
+                candidate,
+                link_identity_counts=link_identity_counts,
+            )
+        )
+
     authoritative_cancellations = [
         event
         for event in (cancellations or [])
@@ -474,15 +500,30 @@ def deduplicate(
             continue
 
         current = result[match_index]
-        current_rank = (source_authority(current.get("source", "")), current["score"],
-                        _duration_days(current))
-        candidate_rank = (source_authority(ev.get("source", "")), ev["score"],
-                          _duration_days(ev))
-        result[match_index] = (_merge_duplicate_metadata(
-                                   ev, current, link_identity_counts=link_identity_counts)
-                               if candidate_rank > current_rank
-                               else _merge_duplicate_metadata(
-                                   current, ev, link_identity_counts=link_identity_counts))
+        result[match_index] = merge_preferred(current, ev)
+
+    # Metadata enrichment can make a winner comparable to an earlier result
+    # that neither of its inputs matched on its own. Collapse those transitive
+    # pairs until the exported set is closed under ``events_are_duplicates``.
+    while True:
+        duplicate_pair = next(
+            (
+                (left_index, right_index)
+                for right_index in range(1, len(result))
+                for left_index in range(right_index)
+                if events_are_duplicates(result[left_index], result[right_index])
+            ),
+            None,
+        )
+        if duplicate_pair is None:
+            break
+        left_index, right_index = duplicate_pair
+        result[left_index] = merge_preferred(
+            result[left_index],
+            result[right_index],
+        )
+        del result[right_index]
+
     # A recurring series is not a duplicate: each date is a separately usable
     # occurrence. Cross-source authority is therefore resolved only inside the
     # same overlapping date interval by the loop above.
