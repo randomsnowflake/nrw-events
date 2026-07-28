@@ -6,10 +6,11 @@ Pure presentation + post-processing. No network, no source-specific logic.
 
 import os
 import re
-from collections import Counter
+from collections import defaultdict
 from dataclasses import replace
 from datetime import date, datetime
 from difflib import SequenceMatcher
+from urllib import parse as urlparse
 
 from . import common
 from .models import CanonicalEvent
@@ -39,7 +40,7 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
     "bonn.de events", "bonn.de sports", "bonn district festivals",
 )
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
-_REUSED_OVERVIEW_LINK_THRESHOLD = 3
+_REUSED_OVERVIEW_LINK_THRESHOLD = 5
 
 
 def source_authority(source: str) -> int:
@@ -74,6 +75,48 @@ def normalize_title(title: str) -> str:
         t,
     )
     return comparison_text(t, separator="")
+
+
+def _normalized_link_key(link: str) -> str:
+    """Normalize equivalent web URLs for reuse counting, preserving app routes."""
+    parsed = urlparse.urlsplit(link or "")
+    if parsed.scheme.casefold() not in {"http", "https"} or not parsed.hostname:
+        return link
+    netloc = parsed.netloc.casefold()
+    default_port = ":80" if parsed.scheme.casefold() == "http" else ":443"
+    if netloc.endswith(default_port):
+        netloc = netloc.rsplit(":", 1)[0]
+    path = parsed.path.rstrip("/") or "/"
+    # Fragments are significant: ticket shops commonly put event routes after '#'.
+    return urlparse.urlunsplit(("https", netloc, path, parsed.query, parsed.fragment))
+
+
+def _link_route_depth(link: str) -> int:
+    """Count concrete path/query components without guessing from URL length."""
+    parsed = urlparse.urlsplit(link or "")
+    path_parts = [part for part in parsed.path.split("/") if part]
+    query_parts = urlparse.parse_qsl(parsed.query, keep_blank_values=True)
+    fragment = urlparse.urlsplit(parsed.fragment)
+    fragment_parts = [part for part in fragment.path.split("/") if part]
+    fragment_query_parts = urlparse.parse_qsl(
+        fragment.query, keep_blank_values=True,
+    )
+    return len(path_parts) + len(query_parts) + len(fragment_parts) + len(fragment_query_parts)
+
+
+def _link_identity_counts(events: list) -> dict[str, int]:
+    """Count distinct event identities per URL, not dates or syndicated records."""
+    identities_by_link = defaultdict(set)
+    for event in events:
+        link = event.get("link", "")
+        if not link:
+            continue
+        identity = (
+            normalize_title(event.get("title", "")),
+            normalize_title(event.get("venue", "")),
+        )
+        identities_by_link[_normalized_link_key(link)].add(identity)
+    return {link: len(identities) for link, identities in identities_by_link.items()}
 
 
 def _dedup_key(ev: dict) -> str:
@@ -241,7 +284,7 @@ def _has_separate_admission_charge(event) -> bool:
     ))
 
 
-def _merge_duplicate_metadata(winner, duplicate, *, link_counts=None):
+def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
     separate_admission_charge = (
@@ -269,14 +312,16 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_counts=None):
 
     winner_link = winner.get("link", "")
     duplicate_link = duplicate.get("link", "")
-    link_counts = link_counts or {}
+    link_identity_counts = link_identity_counts or {}
     winner_link_is_reused = (
         winner_link
-        and link_counts.get(winner_link, 0) >= _REUSED_OVERVIEW_LINK_THRESHOLD
+        and link_identity_counts.get(_normalized_link_key(winner_link), 0)
+        >= _REUSED_OVERVIEW_LINK_THRESHOLD
     )
     duplicate_link_is_not_reused = (
         duplicate_link
-        and link_counts.get(duplicate_link, 0) < _REUSED_OVERVIEW_LINK_THRESHOLD
+        and link_identity_counts.get(_normalized_link_key(duplicate_link), 0)
+        < _REUSED_OVERVIEW_LINK_THRESHOLD
     )
     if (not winner_link and duplicate_link) or (
         _is_radio_aggregation_link(winner_link)
@@ -285,6 +330,7 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_counts=None):
     ) or (
         winner_link_is_reused
         and duplicate_link_is_not_reused
+        and _link_route_depth(duplicate_link) > _link_route_depth(winner_link)
     ):
         updates["link"] = duplicate_link
 
@@ -322,7 +368,7 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_counts=None):
 
 
 def _is_radio_aggregation_link(link: str) -> bool:
-    parsed = common.urllib.parse.urlsplit(link or "")
+    parsed = urlparse.urlsplit(link or "")
     hostname = (parsed.hostname or "").casefold().removeprefix("www.")
     return (
         hostname == "radiobonn.de"
@@ -347,11 +393,7 @@ def deduplicate(
     cancellations: list[dict] | None = None,
 ) -> list[CanonicalEvent]:
     """Collapse duplicates and apply authoritative cancellation tombstones."""
-    link_counts = Counter(
-        event.get("link", "")
-        for event in events
-        if event.get("link")
-    )
+    link_identity_counts = _link_identity_counts(events)
     authoritative_cancellations = [
         event
         for event in (cancellations or [])
@@ -384,9 +426,11 @@ def deduplicate(
                         _duration_days(current))
         candidate_rank = (source_authority(ev.get("source", "")), ev["score"],
                           _duration_days(ev))
-        result[match_index] = (_merge_duplicate_metadata(ev, current, link_counts=link_counts)
+        result[match_index] = (_merge_duplicate_metadata(
+                                   ev, current, link_identity_counts=link_identity_counts)
                                if candidate_rank > current_rank
-                               else _merge_duplicate_metadata(current, ev, link_counts=link_counts))
+                               else _merge_duplicate_metadata(
+                                   current, ev, link_identity_counts=link_identity_counts))
     # A recurring series is not a duplicate: each date is a separately usable
     # occurrence. Cross-source authority is therefore resolved only inside the
     # same overlapping date interval by the loop above.
