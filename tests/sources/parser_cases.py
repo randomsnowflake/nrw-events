@@ -554,7 +554,7 @@ END:VCALENDAR
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Open Air am Rhein")
         self.assertEqual(events[0]["date"], "2026-06-17")
-        self.assertEqual(events[0]["time"], "19:00-22:30")
+        self.assertEqual(events[0]["time"], "19:00–22:30")
         self.assertEqual(events[0]["city"], "Düsseldorf")
 
     def test_ical_prefers_ionas_event_page_from_attachment_over_homepage_url(self):
@@ -897,7 +897,8 @@ END:VCALENDAR
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["date"], "2026-06-12")
-        self.assertEqual(events[0]["time"], "11:00-16:00")
+        self.assertEqual(events[0]["time"], "11:00–16:00")
+        self.assertIn("Freitag, 12. Juni", events[0]["time_note"])
 
     def test_make_event_skips_regular_wochenmarkt_entries(self):
         event = common.make_event(
@@ -1044,7 +1045,7 @@ END:VCALENDAR
             (datetime(2026, 6, 12, 19, 31), datetime(2026, 6, 12, 22, 30), "", "19:31–22:30"),
             (datetime(2026, 6, 12, 20, 0), datetime(2026, 6, 12, 22, 30), "", "20:00–22:30"),
             (None, None, "16:18 bis 16:30", "16:15"),
-            (None, None, "19:31 bis 22:30", "19:31 bis 22:30"),
+            (None, None, "19:31 bis 22:30", "19:31–22:30"),
             (None, None, "19:00 bis 23:59", "19:00"),
         ]
 

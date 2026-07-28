@@ -128,7 +128,7 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
                 [organizer],
                 cancellations=[directory_cancellation],
             ),
-            [organizer],
+            [{**organizer, "link_kind": "detail"}],
         )
 
     def test_sibling_directories_collapse_to_a_single_record(self):

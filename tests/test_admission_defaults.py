@@ -98,6 +98,30 @@ END:VCALENDAR"""
         self.assertEqual(events[0]["price"], "kostenlos")
         self.assertEqual(events[0]["admission_basis"], "implicit")
 
+    def test_source_spec_passes_opt_in_locked_category_to_standard_adapter(self):
+        spec = SourceSpec(
+            "single-purpose-cinema",
+            "Single Purpose Cinema",
+            ("https://example.test/events.ics",),
+            AdapterType.ICAL,
+            "Bonn",
+            default_category_key="cinema",
+            category_locked=True,
+        )
+        payload = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Rahmenprogramm: Führung und Filmvorführung
+DTSTART:20260704T200000
+DTEND:20260704T220000
+END:VEVENT
+END:VCALENDAR"""
+
+        with mock.patch.object(common, "fetch_url", return_value=payload):
+            events = adapter_for(spec)()
+
+        self.assertEqual(events[0]["category_key"], "cinema")
+        self.assertEqual(events[0]["category_reason"], "source:locked-default:cinema")
+
     def test_deduplication_carries_admission_basis_with_enriched_price(self):
         winner = canonicalize_event({
             "title": "Offene Werkstatt",

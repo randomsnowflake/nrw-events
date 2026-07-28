@@ -96,6 +96,8 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
             _CATEGORY, _TRUST, time_text,
             source_id="theater-marabu",
             description_source="generated" if description_generated else "scraped",
+            default_category_key="stage",
+            category_locked=True,
         )
         if event:
             events.append(event)

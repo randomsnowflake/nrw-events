@@ -508,6 +508,8 @@ def categorize_event(
     *,
     venue: str = "",
     source: str = "",
+    default_category_key: str = "",
+    category_locked: bool = False,
 ) -> CategoryResult:
     """Return the canonical category for an event.
 
@@ -515,6 +517,19 @@ def categorize_event(
     category bags are intentionally weak because many municipal sources attach a
     generic all-purpose bag to every record.
     """
+
+    if default_category_key and default_category_key not in CATEGORY_BY_KEY:
+        raise ValueError(f"unknown default category: {default_category_key}")
+    if category_locked:
+        if not default_category_key:
+            raise ValueError("category_locked requires default_category_key")
+        category = CATEGORY_BY_KEY[default_category_key]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": f"source:locked-default:{default_category_key}",
+        }
 
     title_text = normalize_text(title)
     hint_text = normalize_text(source_category)
@@ -688,6 +703,15 @@ def categorize_event(
                 "confidence": confidence,
                 "reason": reason,
             }
+
+    if best_key == "other" and default_category_key:
+        category = CATEGORY_BY_KEY[default_category_key]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 0.6,
+            "reason": f"source:default:{default_category_key}",
+        }
 
     category = CATEGORY_BY_KEY[best_key]
     return {

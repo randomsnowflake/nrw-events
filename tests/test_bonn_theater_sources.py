@@ -202,6 +202,7 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["time"], "20:00")
         self.assertEqual(events[0]["category_key"], "stage")
+        self.assertEqual(events[0]["category_reason"], "source:locked-default:stage")
         self.assertIn("schwarze Komödie", events[0]["description"])
         self.assert_canonical(events[0], "tik-theater-im-keller")
 

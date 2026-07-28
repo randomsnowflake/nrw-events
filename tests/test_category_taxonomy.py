@@ -4,6 +4,41 @@ from nrw_events.category_taxonomy import CATEGORIES, categorize_event
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
+    def test_locked_source_default_overrides_conflicting_title_format(self):
+        result = categorize_event(
+            "festival open air",
+            "Rahmenprogramm: Führung und Filmvorführung",
+            "Begleitprogramm der Internationalen Stummfilmtage.",
+            default_category_key="cinema",
+            category_locked=True,
+        )
+
+        self.assertEqual(result["key"], "cinema")
+        self.assertEqual(result["confidence"], 1.0)
+        self.assertEqual(result["reason"], "source:locked-default:cinema")
+
+    def test_unlocked_default_is_only_a_fallback(self):
+        concert = categorize_event(
+            "",
+            "Jazzkonzert im Foyer",
+            default_category_key="stage",
+        )
+        unknown = categorize_event(
+            "",
+            "Sondertermin",
+            default_category_key="stage",
+        )
+
+        self.assertEqual(concert["key"], "concert")
+        self.assertEqual(unknown["key"], "stage")
+        self.assertEqual(unknown["reason"], "source:default:stage")
+
+    def test_category_lock_requires_a_valid_explicit_default(self):
+        with self.assertRaises(ValueError):
+            categorize_event("", "Termin", category_locked=True)
+        with self.assertRaises(ValueError):
+            categorize_event("", "Termin", default_category_key="not-real")
+
     def test_general_intent_terms_reduce_unclassified_events(self):
         cases = {
             "Feriencamp des VfB": "kids",

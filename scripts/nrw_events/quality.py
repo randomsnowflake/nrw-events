@@ -32,7 +32,7 @@ REQUIRED_PUBLICATION_FIELDS = (
     "score", "status", "timezone", "category_key", "category_label",
     "category_confidence", "category_reason", "all_day", "location_confidence",
 )
-OPTIONAL_CONTENT_FIELDS = ("time", "venue", "description", "price")
+OPTIONAL_CONTENT_FIELDS = ("time", "time_note", "venue", "description", "price")
 
 
 def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
@@ -44,9 +44,38 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
         return value is not None and (not isinstance(value, str) or bool(value.strip()))
 
     category_counts: dict[str, int] = {}
+    sources: dict[str, list[Mapping[str, Any]]] = {}
     for event in rows:
         key = str(event.get("category_key") or "other")
         category_counts[key] = category_counts.get(key, 0) + 1
+        source = str(event.get("source") or "unknown")
+        sources.setdefault(source, []).append(event)
+
+    def source_metrics(source_rows: list[Mapping[str, Any]]) -> dict[str, Any]:
+        count = len(source_rows)
+        low_confidence = sum(
+            float(event.get("category_confidence") or 0) < 0.6
+            for event in source_rows
+        )
+        unresolved = sum(
+            event.get("location_confidence") == "unresolved"
+            for event in source_rows
+        )
+        missing_venue = sum(not present(event, "venue") for event in source_rows)
+        return {
+            "event_count": count,
+            "low_confidence_count": low_confidence,
+            "low_confidence_rate": round(low_confidence / count, 4) if count else 0.0,
+            "unresolved_location_count": unresolved,
+            "unresolved_location_rate": round(unresolved / count, 4) if count else 0.0,
+            "missing_venue_count": missing_venue,
+            "missing_venue_rate": round(missing_venue / count, 4) if count else 0.0,
+        }
+
+    by_source = {
+        source: source_metrics(source_rows)
+        for source, source_rows in sorted(sources.items())
+    }
     return {
         "event_count": len(rows),
         "missing_required_fields": {
@@ -59,6 +88,7 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
         },
         "category_counts": dict(sorted(category_counts.items())),
         "uncategorized_count": category_counts.get("other", 0),
+        "by_source": by_source,
     }
 
 

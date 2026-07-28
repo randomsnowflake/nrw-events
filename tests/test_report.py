@@ -80,6 +80,9 @@ class ReportTests(unittest.TestCase):
         market = next(event for event in deduped if event["start_date"] == "2026-08-23")
         self.assertEqual(market["source"], "VG Unkel")
         self.assertEqual(market["link"], "https://www.marktcom.de/veranstaltung/flohmarkt-unkel")
+        self.assertEqual(market["link_kind"], "detail")
+        overview = next(event for event in deduped if event["title"] == "Unkel Veranstaltung 0")
+        self.assertEqual(overview["link_kind"], "overview")
 
     def test_less_frequent_link_does_not_win_without_more_specific_route(self):
         base = {
@@ -130,6 +133,7 @@ class ReportTests(unittest.TestCase):
         first = next(event for event in deduped if event["start_date"] == "2026-09-10")
         self.assertEqual(first["source"], "Stadttheater")
         self.assertEqual(first["link"], recurring_link)
+        self.assertEqual(first["link_kind"], "detail")
 
     def test_syndicated_copies_do_not_make_a_link_an_overview(self):
         publisher_link = "https://museum.test/programm/nacht-der-museen"

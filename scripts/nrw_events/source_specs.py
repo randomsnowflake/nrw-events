@@ -27,6 +27,8 @@ class SourceSpec:
     timeout: int = 25
     headers: tuple[tuple[str, str], ...] = ()
     admission: AdmissionDefault | None = None
+    default_category_key: str = ""
+    category_locked: bool = False
 
 
 def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
@@ -34,6 +36,8 @@ def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
         return lambda: common.fetch_ical(
             spec.urls[0], spec.display_name, spec.city,
             spec.category_hint, spec.trust, spec.id, admission=spec.admission,
+            default_category_key=spec.default_category_key,
+            category_locked=spec.category_locked,
         )
     if spec.adapter is AdapterType.JSON_LD:
         def fetch_json_ld() -> list[RawEvent]:
@@ -43,6 +47,8 @@ def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
                 document, spec.display_name, spec.city,
                 spec.category_hint, spec.trust, spec.urls[0], spec.id,
                 admission=spec.admission,
+                default_category_key=spec.default_category_key,
+                category_locked=spec.category_locked,
             )
         return fetch_json_ld
     raise ValueError(f"unsupported source adapter: {spec.adapter}")

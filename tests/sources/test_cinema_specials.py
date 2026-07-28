@@ -180,6 +180,11 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         self.assertEqual([event["title"] for event in events], ["Restaurierter Stummfilm"])
         self.assertEqual(events[0]["date"], "2026-08-13")
         self.assertEqual(events[0]["price"], "kostenlos")
+        self.assertEqual(events[0]["category_key"], "cinema")
+        self.assertEqual(
+            events[0]["category_reason"],
+            "source:locked-default:cinema",
+        )
         self.assertNotIn("Rahmenprogramm", events[0]["description"])
         self.assert_valid_cinema_events(events)
 

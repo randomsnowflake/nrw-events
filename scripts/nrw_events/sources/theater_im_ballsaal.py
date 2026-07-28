@@ -82,6 +82,8 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
             title, start_dt, None, "Theater im Ballsaal", "Bonn", description,
             link, _SOURCE, _category(genre), _TRUST, time_text,
             source_id="theater-im-ballsaal",
+            default_category_key="stage",
+            category_locked=True,
         )
         if event:
             events.append(event)

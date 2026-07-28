@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 import urllib.parse
 from typing import Any
 
@@ -51,7 +52,10 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         raise EventValidationError("end_date_invalid")
     event["start_date"] = start_date
     event["end_date"] = end_date or start_date
-    event["all_day"] = bool(event.get("all_day", not event.get("start_at")))
+    event["all_day"] = bool(event.get(
+        "all_day",
+        not event.get("start_at") and not event.get("time") and not event.get("time_note"),
+    ))
     event["timezone"] = _text(event, "timezone", 64) or "Europe/Berlin"
 
 
@@ -66,9 +70,18 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         _text(event, "source_id", 200) or event["source"]
     )
     inferred_description_source = common.description_source_for(event.get("description", ""))
-    for field, limit in (("time", 80), ("venue", 300), ("city", 160), ("description", 8000),
+    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("description", 8000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
+    event["time"] = canonical_time
+    event["time_note"] = common.combine_time_notes(
+        event["time_note"], inferred_time_note,
+    )
+    if len(event["time_note"]) > 500:
+        raise EventValidationError("time_note_too_long")
+    if event["time"] and not re.fullmatch(r"\d{2}:\d{2}(?:–\d{2}:\d{2})?", event["time"]):
+        raise EventValidationError("time_invalid")
     admission_basis = _text(event, "admission_basis", 16)
     if admission_basis not in {"", "explicit", "implicit"}:
         raise EventValidationError("admission_basis_invalid")
@@ -92,6 +105,10 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         parsed = urllib.parse.urlsplit(event["link"])
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise EventValidationError("link_invalid")
+    link_kind = _text(event, "link_kind", 16)
+    if link_kind not in {"", "detail", "overview"}:
+        raise EventValidationError("link_kind_invalid")
+    event["link_kind"] = link_kind
     _canonical_temporal_fields(event)
     for field in ("score", "distance_km"):
         value = event.get(field)

@@ -1028,7 +1028,13 @@ def event_in_window_and_radius(
     return haversine(BONN_LAT, BONN_LON, *resolved_coords) <= MAX_RADIUS_KM
 
 
-_TIME_PATTERN = re.compile(r"\b(\d{1,2}):(\d{2})\b")
+_SIMPLE_TIME_PATTERN = re.compile(
+    r"^\s*(?P<prefix>ab\s+)?"
+    r"(?P<start_hour>\d{1,2})(?:[.:](?P<start_minute>\d{2}))?\s*(?:Uhr)?"
+    r"(?:\s*(?:bis|[-–—])\s*"
+    r"(?P<end_hour>\d{1,2})(?:[.:](?P<end_minute>\d{2}))?\s*(?:Uhr)?)?\s*$",
+    re.IGNORECASE,
+)
 
 
 def _round_time_to_quarter(hour: int, minute: int) -> tuple[int, int]:
@@ -1041,27 +1047,27 @@ def _format_hhmm(hour: int, minute: int) -> str:
     return f"{hour:02d}:{minute:02d}"
 
 
-def sanitize_time_text(time_text: str) -> str:
-    """Suppress common scraper time artifacts while preserving useful ranges."""
+def normalize_time_fields(time_text: str) -> tuple[str, str]:
+    """Split a source time into a strict clock value and lossless display note."""
     text = (time_text or "").strip()
     if not text:
-        return text
+        return "", ""
+    match = _SIMPLE_TIME_PATTERN.fullmatch(text)
+    if not match:
+        return "", text
 
-    matches = list(_TIME_PATTERN.finditer(text))
-    if not matches:
-        return text
-
-    parsed = [(int(match.group(1)), int(match.group(2))) for match in matches[:2]]
-    start_hour, start_minute = parsed[0]
+    start_hour = int(match.group("start_hour"))
+    start_minute = int(match.group("start_minute") or 0)
     if start_hour > 23 or start_minute > 59:
-        return text
+        return "", text
 
     rounded_start = (start_hour, start_minute)
-
-    if len(parsed) >= 2:
-        end_hour, end_minute = parsed[1]
+    end_hour_text = match.group("end_hour")
+    if end_hour_text is not None:
+        end_hour = int(end_hour_text)
+        end_minute = int(match.group("end_minute") or 0)
         if end_hour > 23 or end_minute > 59:
-            return _format_hhmm(*rounded_start)
+            return "", text
         start_total = start_hour * 60 + start_minute
         end_total = end_hour * 60 + end_minute
         if end_total < start_total:
@@ -1071,16 +1077,30 @@ def sanitize_time_text(time_text: str) -> str:
         if artifact_range:
             if start_minute % 5 != 0:
                 rounded_start = _round_time_to_quarter(start_hour, start_minute)
-            return _format_hhmm(*rounded_start)
-        if " bis " in text:
-            separator = " bis "
-        elif "-" in text:
-            separator = "-"
-        else:
-            separator = "–"
-        return f"{_format_hhmm(*rounded_start)}{separator}{_format_hhmm(end_hour, end_minute)}"
+            return _format_hhmm(*rounded_start), ""
+        return (
+            f"{_format_hhmm(*rounded_start)}–{_format_hhmm(end_hour, end_minute)}",
+            text if match.group("prefix") else "",
+        )
 
-    return _format_hhmm(*rounded_start)
+    return _format_hhmm(*rounded_start), text if match.group("prefix") else ""
+
+
+def sanitize_time_text(time_text: str) -> str:
+    """Return a canonical simple time, retaining complex legacy input unchanged."""
+    canonical, note = normalize_time_fields(time_text)
+    return canonical or note
+
+
+def combine_time_notes(existing: str, inferred: str) -> str:
+    """Preserve distinct source qualifiers without duplicating identical copy."""
+    existing = (existing or "").strip()
+    inferred = (inferred or "").strip()
+    if not existing:
+        return inferred
+    if not inferred or inferred in existing:
+        return existing
+    return f"{existing}; {inferred}"
 
 
 # ── Event construction + junk filter ────────────────────────────────
@@ -1246,7 +1266,10 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
                coords: Optional[tuple] = None, all_day: Optional[bool] = None,
                timezone_name: str = "Europe/Berlin", source_id: str = "",
                description_source: str = "",
-               admission: AdmissionDefault | None = None) -> Optional[dict]:
+               admission: AdmissionDefault | None = None,
+               time_note: str = "",
+               default_category_key: str = "",
+               category_locked: bool = False) -> Optional[dict]:
     """Build a scored event dict and apply radius + junk checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
@@ -1266,8 +1289,6 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
     if km is not None and km > MAX_RADIUS_KM:
         return None
-    if all_day is None:
-        all_day = not time_text and not (start_dt and (start_dt.hour or start_dt.minute))
     if start_dt and end_dt and start_dt.date() != end_dt.date():
         if start_dt < TODAY <= end_dt:
             date_text = f"ongoing until {end_dt.strftime('%Y-%m-%d')}"
@@ -1281,7 +1302,18 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         time_text = start_dt.strftime("%H:%M")
         if end_dt and (end_dt.hour or end_dt.minute):
             time_text += "–" + end_dt.strftime("%H:%M")
-    time_text = sanitize_time_text(time_text)
+    canonical_time, inferred_time_note = normalize_time_fields(time_text)
+    if not canonical_time and start_dt and (start_dt.hour or start_dt.minute):
+        derived_time = start_dt.strftime("%H:%M")
+        if end_dt and (end_dt.hour or end_dt.minute):
+            derived_time += "–" + end_dt.strftime("%H:%M")
+        canonical_time, _ = normalize_time_fields(derived_time)
+    time_text = canonical_time
+    time_note = combine_time_notes(time_note, inferred_time_note)
+    if all_day is None:
+        all_day = not time_text and not time_note and not (
+            start_dt and (start_dt.hour or start_dt.minute)
+        )
     full_text = f"{title} {venue} {city} {description} {category}"
     # URLs encode venue slugs and other implementation detail (for example
     # ``alte-vhs`` in an aggregator concert URL). They are not event content and
@@ -1292,6 +1324,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         description,
         venue=venue,
         source=source,
+        default_category_key=default_category_key,
+        category_locked=category_locked,
     )
     event_link = normalize_url(link)
     if is_raw_api_url(event_link):
@@ -1310,6 +1344,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "title": clean_html(title),
         "date": date_text,
         "time": time_text,
+        "time_note": time_note,
         "venue": normalize_venue_name(venue),
         "city": clean_html(city).title(),
         "description": concise_description(description),
@@ -1681,7 +1716,9 @@ def _jsonld_admission_price(item: dict) -> Optional[str]:
 
 def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                        trust: float, default_link: str, source_id: str = "",
-                       admission: AdmissionDefault | None = None) -> list:
+                       admission: AdmissionDefault | None = None,
+                       default_category_key: str = "",
+                       category_locked: bool = False) -> list:
     """Build events from every schema.org Event in a page's JSON-LD."""
     events = []
     for item in jsonld_event_items(html):
@@ -1703,6 +1740,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                     title, sched_start, sched_end, venue, city, desc, link, source,
                     category, trust, time_text=_jsonld_schedule_time_text(schedule),
                     source_id=source_id, admission=admission,
+                    default_category_key=default_category_key,
+                    category_locked=category_locked,
                 )
                 if ev:
                     if admission_price is not None:
@@ -1717,6 +1756,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         ev = make_event(
             title, start_dt, end_dt, venue, city, desc, link, source, category, trust,
             source_id=source_id, admission=admission,
+            default_category_key=default_category_key,
+            category_locked=category_locked,
         )
         if ev:
             if admission_price is not None:
@@ -2040,7 +2081,9 @@ def _ical_recurrence_starts(
 def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                trust: float = 1.0, source_id: str = "", event_filter=None,
                city_resolver=None, fetcher=None,
-               admission: AdmissionDefault | None = None) -> list:
+               admission: AdmissionDefault | None = None,
+               default_category_key: str = "",
+               category_locked: bool = False) -> list:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds).
 
     ``fetcher`` optionally replaces the plain HTTP read with a ``(url, **kwargs) ->
@@ -2120,6 +2163,8 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                 all_day=all_day,
                 source_id=source_id,
                 admission=admission,
+                default_category_key=default_category_key,
+                category_locked=category_locked,
             )
             if ev:
                 events.append(ev)

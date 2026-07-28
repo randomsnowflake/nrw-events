@@ -39,6 +39,40 @@ class JunkFilterTests(unittest.TestCase):
         self.assertEqual(sum(metrics["missing_required_fields"].values()), 0)
         self.assertEqual(metrics["uncategorized_count"], 1)
         self.assertEqual(metrics["optional_field_coverage"]["venue"], 1)
+        self.assertEqual(metrics["by_source"]["Test"]["event_count"], 1)
+        self.assertEqual(metrics["by_source"]["Test"]["low_confidence_count"], 1)
+        self.assertEqual(metrics["by_source"]["Test"]["missing_venue_count"], 0)
+        self.assertEqual(metrics["by_source"]["Test"]["unresolved_location_count"], 0)
+
+    def test_quality_summary_separates_source_problem_rates_without_gating(self):
+        rows = [
+            {
+                "source": "Sparse Feed", "category_confidence": 0.4,
+                "location_confidence": "unresolved", "venue": "",
+            },
+            {
+                "source": "Sparse Feed", "category_confidence": 0.8,
+                "location_confidence": "known_city", "venue": "Rathaus",
+            },
+            {
+                "source": "Healthy Feed", "category_confidence": 1.0,
+                "location_confidence": "exact", "venue": "Theater",
+            },
+        ]
+
+        metrics = summarize_event_quality(rows)
+
+        self.assertEqual(metrics["event_count"], 3)
+        self.assertEqual(metrics["by_source"]["Sparse Feed"], {
+            "event_count": 2,
+            "low_confidence_count": 1,
+            "low_confidence_rate": 0.5,
+            "unresolved_location_count": 1,
+            "unresolved_location_rate": 0.5,
+            "missing_venue_count": 1,
+            "missing_venue_rate": 0.5,
+        })
+        self.assertEqual(metrics["by_source"]["Healthy Feed"]["low_confidence_rate"], 0.0)
 
     def test_quality_decisions_are_machine_readable(self):
         decision = evaluate_event_quality({"title": "Privacy Policy"})

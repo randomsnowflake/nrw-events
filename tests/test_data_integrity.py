@@ -8,6 +8,49 @@ from tests.helpers import patch_window
 
 
 class DataIntegrityTests(unittest.TestCase):
+    def test_validation_moves_complex_time_copy_to_note(self):
+        event = validate_event({
+            "title": "Ausstellung mit Öffnungszeiten",
+            "source": "Test",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "time": "Dienstag bis Freitag, 13 bis 19 Uhr; Samstag 11 bis 18 Uhr",
+        })
+
+        self.assertEqual(event.time, "")
+        self.assertEqual(
+            event.time_note,
+            "Dienstag bis Freitag, 13 bis 19 Uhr; Samstag 11 bis 18 Uhr",
+        )
+        self.assertFalse(event.all_day)
+
+    def test_validation_canonicalizes_hour_only_ranges(self):
+        event = validate_event({
+            "title": "Führung",
+            "source": "Test",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "time": "15 bis 16 Uhr",
+        })
+
+        self.assertEqual(event.time, "15:00–16:00")
+        self.assertEqual(event.time_note, "")
+
+    def test_validation_preserves_invalid_clock_as_note(self):
+        event = validate_event({
+            "title": "Spätprogramm",
+            "source": "Test",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "time": "ab 25 Uhr",
+        })
+
+        self.assertEqual(event.time, "")
+        self.assertEqual(event.time_note, "ab 25 Uhr")
+
     def test_validation_does_not_classify_from_url_implementation_details(self):
         event = validate_event({
             "title": "Unklare Veranstaltung",

@@ -44,6 +44,8 @@ def events_from_rss(raw: str) -> list[dict]:
             title, start_dt, None, "TiK – Theater im Keller", "Bonn", description,
             link, _SOURCE, _CATEGORY, _TRUST, time_text,
             source_id="tik-theater-im-keller",
+            default_category_key="stage",
+            category_locked=True,
         )
         if event:
             events.append(event)

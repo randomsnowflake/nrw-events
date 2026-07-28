@@ -20,6 +20,7 @@ class RawEvent(TypedDict, total=False):
     source_id: str
     date: str
     time: str
+    time_note: str
     start_date: str
     end_date: str
     start_at: str
@@ -30,6 +31,7 @@ class RawEvent(TypedDict, total=False):
     venue: str
     city: str
     link: str
+    link_kind: str
     description: str
     description_source: str
     price: str
@@ -56,6 +58,7 @@ class CanonicalEvent(Mapping[str, Any]):
     source_id: str = ""
     date: str = ""
     time: str = ""
+    time_note: str = ""
     end_date: str = ""
     start_at: str = ""
     end_at: str = ""
@@ -65,6 +68,7 @@ class CanonicalEvent(Mapping[str, Any]):
     venue: str = ""
     city: str = ""
     link: str = ""
+    link_kind: str = ""
     description: str = ""
     description_source: str = "scraped"
     price: str = ""

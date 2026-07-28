@@ -56,7 +56,7 @@ class MeckenheimDetailTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["description"], "Wir fahren gemütlich rund um Meckenheim. Nach der Tour wird gemeinsam eingekehrt.")
         self.assertEqual(events[0]["venue"], "Rathaus Meckenheim")
-        self.assertEqual(events[0]["time"], "18:00 bis 21:00")
+        self.assertEqual(events[0]["time"], "18:00–21:00")
         self.assertEqual(events[0]["end_at"], "2026-07-13T21:00+02:00")
         self.assertEqual(events[0]["price"], "kostenlos")
 

@@ -294,7 +294,7 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     if separate_admission_charge:
         updates["price"] = ""
         updates["admission_basis"] = ""
-    for field in ("price", "venue", "time", "start_at", "end_at"):
+    for field in ("price", "venue", "time", "time_note", "start_at", "end_at"):
         if field == "price" and separate_admission_charge:
             continue
         if not winner.get(field) and duplicate.get(field):
@@ -434,7 +434,22 @@ def deduplicate(
     # A recurring series is not a duplicate: each date is a separately usable
     # occurrence. Cross-source authority is therefore resolved only inside the
     # same overlapping date interval by the loop above.
-    return result
+    classified = []
+    for event in result:
+        link = event.get("link", "")
+        link_kind = ""
+        if link:
+            identity_count = link_identity_counts.get(_normalized_link_key(link), 0)
+            link_kind = (
+                "overview"
+                if identity_count >= _REUSED_OVERVIEW_LINK_THRESHOLD
+                else "detail"
+            )
+        if isinstance(event, CanonicalEvent):
+            classified.append(replace(event, link_kind=link_kind))
+        else:
+            classified.append({**event, "link_kind": link_kind})
+    return classified
 
 
 # ── Report rendering ────────────────────────────────────────────────

@@ -52,7 +52,7 @@ class KoenigswinterParserTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         event = events[0]
         self.assertEqual(event["title"], "Radfernfahrt Königswinter – Cognac 2026")
-        self.assertEqual(event["time"], "08:00 bis 13:00")
+        self.assertEqual(event["time"], "08:00–13:00")
         self.assertEqual(event["venue"], "Rheinfähre Königswinter/Bonn-Mehlem")
         self.assertEqual(event["category_key"], "sports")
         self.assertIn("Fahrradfernfahrt von Königswinter nach Cognac", event["description"])
@@ -107,7 +107,7 @@ class KoenigswinterParserTests(unittest.TestCase):
         self.assertEqual(kubb["time"], "12:00")
         self.assertEqual(kubb["venue"], "Rheinwiese Niederdollendorf / Rheinufer")
         self.assertEqual(weinfest["start_date"], "2026-07-24")
-        self.assertEqual(weinfest["time"], "17:00 bis 18:00")
+        self.assertEqual(weinfest["time"], "17:00–18:00")
         self.assertEqual(weinfest["venue"], "Rathausvorplatz Oberpleiser")
 
 

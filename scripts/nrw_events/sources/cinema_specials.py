@@ -404,6 +404,8 @@ def _events_from_stummfilmtage(html: str) -> list:
                 "cinema-special stummfilm festival open air kino livemusik",
                 0.98,
                 source_id=_STUMMFILMTAGE_SOURCE_ID,
+                default_category_key="cinema",
+                category_locked=True,
             )
             if event:
                 events.append(event)
