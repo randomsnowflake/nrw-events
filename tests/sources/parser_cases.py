@@ -1271,7 +1271,8 @@ END:VCALENDAR
         events = regional_tourism._events_from_bad_muenstereifel(html)
 
         self.assertEqual([event["title"] for event in events], ["Historisches Stadtfest"])
-        self.assertEqual(events[0]["date"], "2026-06-13–2026-06-14")
+        self.assertEqual(events[0]["date"], "2026-06-13")
+        self.assertEqual(events[0]["end_date"], "2026-06-14")
 
     def test_kunstmuseum_bonn_calendar_teasers_create_events(self):
         html = """

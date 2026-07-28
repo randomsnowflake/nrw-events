@@ -96,6 +96,37 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(runner.build_snapshot(result, context),
                          runner.build_snapshot(result, context))
 
+    def test_schema_v3_snapshot_has_strict_dates_and_structured_admission(self):
+        canonical = runner.validate_event({
+            "title": "Ongoing exhibition",
+            "source": "Museum",
+            "date": "ongoing until 2026-06-10",
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-10",
+            "description": "Der Eintritt ist frei.",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        result = runner.ImportResult((canonical,), {}, 1, "healthy")
+        context = RunContext(
+            config.RuntimeConfig(),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "fixed",
+            configure_logging("fixed", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+
+        snapshot = runner.build_snapshot(result, context)
+        event = snapshot.events[0]
+
+        self.assertEqual(snapshot.metadata["snapshot_schema_version"], 3)
+        self.assertEqual(event["date"], "2026-06-01")
+        self.assertEqual(event["start_date"], "2026-06-01")
+        self.assertEqual(event["end_date"], "2026-06-10")
+        self.assertTrue(event["ongoing"])
+        self.assertEqual(event["admission"]["isFree"], True)
+        self.assertEqual(event["admission"]["basis"], "inferred")
+
     def test_typed_source_result_distinguishes_adapter_states(self):
         self.assertEqual(SourceFetchResult.success([]).status, SourceStatus.HEALTHY_EMPTY)
         self.assertEqual(SourceFetchResult.disabled("missing key").status, SourceStatus.DISABLED)

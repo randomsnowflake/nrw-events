@@ -47,7 +47,7 @@ class BonnPressFestivalTests(unittest.TestCase):
         self.assertEqual(events[0]["title"], "Nikolausmarkt Beuel")
         self.assertEqual(events[0]["start_date"], "2026-11-27")
         self.assertEqual(events[0]["end_date"], "2026-11-29")
-        self.assertEqual(events[0]["date"], "2026-11-27–2026-11-29")
+        self.assertEqual(events[0]["date"], "2026-11-27")
         self.assertEqual(events[0]["venue"], "Hermannstraße")
         self.assertEqual(events[0]["category_key"], "market")
 

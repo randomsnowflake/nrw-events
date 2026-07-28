@@ -142,11 +142,13 @@ class MarketSourceTests(unittest.TestCase):
         events = coelln_konzept._events_from_listing(listing, detail_fetcher)
 
         self.assertEqual(len(events), 2)
-        self.assertEqual(events[0]["date"], "2026-07-25–2026-07-26")
+        self.assertEqual(events[0]["date"], "2026-07-25")
+        self.assertEqual(events[0]["end_date"], "2026-07-26")
         self.assertEqual(events[0]["city"], "Köln")
         self.assertEqual(events[0]["time"], "11:00–17:00")
         self.assertIn("mehr als 150 Ständen", events[0]["description"])
-        self.assertEqual(events[1]["date"], "2027-08-07–2027-08-08")
+        self.assertEqual(events[1]["date"], "2027-08-07")
+        self.assertEqual(events[1]["end_date"], "2027-08-08")
         self.assertEqual(events[1]["city"], "Linz Am Rhein")
 
 

@@ -26,8 +26,9 @@ class JsonLdScheduleTests(unittest.TestCase):
 
         self.assertIsNotNone(ev)
         assert ev is not None
-        self.assertEqual(ev["date"], "ongoing until 2026-08-01")
-        self.assertNotIn("2026-04-01", ev["date"])
+        self.assertEqual(ev["date"], "2026-04-01")
+        self.assertEqual(ev["end_date"], "2026-08-01")
+        self.assertTrue(ev["ongoing"])
 
     def test_event_links_decode_html_entities(self):
         ev = common.make_event(

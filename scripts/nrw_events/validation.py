@@ -34,6 +34,7 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
     start_date = _text(event, "start_date", 10)
     end_date = _text(event, "end_date", 10)
     legacy_date = _text(event, "date", 80)
+    legacy_ongoing = legacy_date.casefold().startswith("ongoing until ")
     if not start_date:
         if "–" in legacy_date:
             start_text, end_text = legacy_date.split("–", 1)
@@ -52,6 +53,8 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         raise EventValidationError("end_date_invalid")
     event["start_date"] = start_date
     event["end_date"] = end_date or start_date
+    event["date"] = start_date
+    event["ongoing"] = bool(event.get("ongoing", legacy_ongoing))
     event["all_day"] = bool(event.get(
         "all_day",
         not event.get("start_at") and not event.get("time") and not event.get("time_note"),
@@ -83,7 +86,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if event["time"] and not re.fullmatch(r"\d{2}:\d{2}(?:–\d{2}:\d{2})?", event["time"]):
         raise EventValidationError("time_invalid")
     admission_basis = _text(event, "admission_basis", 16)
-    if admission_basis not in {"", "explicit", "implicit"}:
+    if admission_basis not in {"", "explicit", "inferred", "implicit"}:
         raise EventValidationError("admission_basis_invalid")
     event["description_source"] = (
         _text(event, "description_source", 16) or inferred_description_source
@@ -101,6 +104,39 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     elif admission_basis == "implicit":
         event["price"] = ""
     event["admission_basis"] = inferred_admission_basis
+    admission_text = " ".join((
+        event["title"], event["description"], event["price"],
+    )).casefold()
+    amount_match = re.search(
+        r"(?<!\d)(\d+(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b)",
+        event["price"].casefold(),
+    )
+    amount = (
+        float(amount_match.group(1).replace(",", "."))
+        if amount_match else None
+    )
+    normalized_price = event["price"].strip().casefold()
+    donation_suggested = bool(re.search(
+        r"\b(?:spendenbasis|spende(?:n)?\s+erbeten|hut(?:kasse|spende|spenden))\b",
+        admission_text,
+    ))
+    is_free = (
+        True
+        if normalized_price in {"frei", "kostenfrei", "kostenlos", "free"}
+        or amount == 0 or donation_suggested
+        else False if normalized_price or amount is not None else None
+    )
+    event["admission"] = {
+        "isFree": is_free,
+        "amount": amount,
+        "currency": "EUR",
+        "basis": (
+            "structured" if inferred_admission_basis == "explicit"
+            else inferred_admission_basis
+        ),
+        "note": event["price"],
+        "donationSuggested": donation_suggested,
+    }
     if event["link"]:
         parsed = urllib.parse.urlsplit(event["link"])
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:

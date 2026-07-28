@@ -33,6 +33,8 @@ class AdmissionDefaultTests(unittest.TestCase):
         self.assertEqual(canonical.price, "kostenlos")
         self.assertEqual(canonical.admission_basis, "implicit")
         self.assertEqual(canonical.to_dict()["admission_basis"], "implicit")
+        self.assertEqual(canonical.admission["isFree"], True)
+        self.assertEqual(canonical.admission["basis"], "implicit")
 
     def test_explicit_visitor_price_prevents_free_by_nature_default(self):
         event = common.make_event(
@@ -50,6 +52,39 @@ class AdmissionDefaultTests(unittest.TestCase):
 
         self.assertEqual(event["price"], "")
         self.assertEqual(event["admission_basis"], "")
+
+    def test_canonical_admission_distinguishes_paid_donation_and_inferred_free(self):
+        cases = (
+            (
+                {"price": "12 Euro", "admission_basis": "explicit"},
+                {"isFree": False, "amount": 12.0, "basis": "structured",
+                 "donationSuggested": False},
+            ),
+            (
+                {"price": "Hutspende erbeten", "admission_basis": "explicit"},
+                {"isFree": True, "amount": None, "basis": "structured",
+                 "donationSuggested": True},
+            ),
+            (
+                {"description": "Der Eintritt ist frei."},
+                {"isFree": True, "amount": None, "basis": "inferred",
+                 "donationSuggested": False},
+            ),
+        )
+        for overrides, expected in cases:
+            with self.subTest(overrides=overrides):
+                canonical = canonicalize_event({
+                    "title": "Kulturabend",
+                    "source": "Official",
+                    "date": "2026-07-04",
+                    "score": 2.0,
+                    "city": "Bonn",
+                    **overrides,
+                })
+                self.assertEqual(
+                    {key: canonical.admission[key] for key in expected},
+                    expected,
+                )
 
     def test_euro_sign_visitor_price_prevents_free_by_nature_default(self):
         for description in (
@@ -144,6 +179,7 @@ END:VCALENDAR"""
 
         self.assertEqual(merged.price, "kostenlos")
         self.assertEqual(merged.admission_basis, "implicit")
+        self.assertEqual(merged.admission["isFree"], True)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ class RawEvent(TypedDict, total=False):
     start_at: str
     end_at: str
     all_day: bool
+    ongoing: bool
     timezone: str
     status: str
     venue: str
@@ -36,6 +37,7 @@ class RawEvent(TypedDict, total=False):
     description_source: str
     price: str
     admission_basis: str
+    admission: dict[str, Any]
     category: str
     category_key: str
     category_label: str
@@ -63,6 +65,7 @@ class CanonicalEvent(Mapping[str, Any]):
     start_at: str = ""
     end_at: str = ""
     all_day: bool = True
+    ongoing: bool = False
     timezone: str = "Europe/Berlin"
     status: str = "scheduled"
     venue: str = ""
@@ -73,6 +76,7 @@ class CanonicalEvent(Mapping[str, Any]):
     description_source: str = "scraped"
     price: str = ""
     admission_basis: str = ""
+    admission: Optional[dict[str, Any]] = None
     category: str = ""
     category_key: str = "other"
     category_label: str = "Other"

@@ -623,7 +623,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
                       for offset in range((end - start).days + 1))
     metadata = {
-        "snapshot_schema_version": 2,
+        "snapshot_schema_version": 3,
         "run_id": context.run_id, "run_status": import_result.run_status,
         "generated_at": context.clock().isoformat(timespec="seconds"),
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),

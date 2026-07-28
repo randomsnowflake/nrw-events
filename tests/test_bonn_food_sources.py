@@ -208,7 +208,8 @@ class BonnFoodSourceTests(unittest.TestCase):
         """
         events = bonn_food.events_from_street_food(html)
         self.assert_food_events(events, 2)
-        self.assertEqual(events[0]["date"], "2026-08-28–2026-08-30")
+        self.assertEqual(events[0]["date"], "2026-08-28")
+        self.assertEqual(events[0]["end_date"], "2026-08-30")
         self.assertEqual(events[0]["city"], "Bonn-Bad Godesberg")
         self.assertEqual(events[1]["city"], "Troisdorf")
         self.assertTrue(all(event["all_day"] for event in events))
@@ -236,8 +237,12 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assert_food_events(events, 2)
         self.assertEqual(
             [(event["date"], event["city"]) for event in events],
-            [("2026-08-28–2026-08-30", "Bonn-Bad Godesberg"),
-             ("2026-10-16–2026-10-18", "Troisdorf")],
+            [("2026-08-28", "Bonn-Bad Godesberg"),
+             ("2026-10-16", "Troisdorf")],
+        )
+        self.assertEqual(
+            [event["end_date"] for event in events],
+            ["2026-08-30", "2026-10-18"],
         )
         self.assertTrue(all(
             event["link"] == "https://www.street-food-bonn.de/"
@@ -294,7 +299,8 @@ class BonnFoodSourceTests(unittest.TestCase):
         )
         events = bonn_food.events_from_original_street_food(html)
         self.assert_food_events(events, 1)
-        self.assertEqual(events[0]["date"], "2026-10-01–2026-10-04")
+        self.assertEqual(events[0]["date"], "2026-10-01")
+        self.assertEqual(events[0]["end_date"], "2026-10-04")
         # Postcode 53225 in the venue resolves the Beueler Rheinufer.
         self.assertEqual(events[0]["city"], "Bonn-Beuel")
         self.assertIn("Rheinaustraße", events[0]["venue"])

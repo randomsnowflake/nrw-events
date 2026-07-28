@@ -1227,9 +1227,9 @@ def infer_admission(
     if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
         return "", ""
     if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
-        return "kostenlos", "explicit"
+        return "kostenlos", "inferred"
     if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
-        return "kostenlos", "explicit"
+        return "kostenlos", "inferred"
     clean_title = clean_html(title or "")
     if (
         _IMPLICIT_FREE_TITLE_PATTERN.search(clean_title)
@@ -1289,15 +1289,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
     if km is not None and km > MAX_RADIUS_KM:
         return None
-    if start_dt and end_dt and start_dt.date() != end_dt.date():
-        if start_dt < TODAY <= end_dt:
-            date_text = f"ongoing until {end_dt.strftime('%Y-%m-%d')}"
-        else:
-            date_text = f"{start_dt.strftime('%Y-%m-%d')}–{end_dt.strftime('%Y-%m-%d')}"
-    elif start_dt:
-        date_text = start_dt.strftime("%Y-%m-%d")
-    else:
-        date_text = ""
+    date_text = start_dt.strftime("%Y-%m-%d") if start_dt else ""
+    ongoing = bool(start_dt and end_dt and start_dt < TODAY <= end_dt)
     if not time_text and start_dt and (start_dt.hour or start_dt.minute):
         time_text = start_dt.strftime("%H:%M")
         if end_dt and (end_dt.hour or end_dt.minute):
@@ -1365,6 +1358,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "start_date": start_date,
         "end_date": end_date,
         "all_day": all_day,
+        "ongoing": ongoing,
         "timezone": timezone_name,
         "category": category,
         "category_key": canonical_category["key"],
