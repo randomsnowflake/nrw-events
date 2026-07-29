@@ -59,7 +59,6 @@ _SOURCE_CATEGORY_MAP = {
     "Film/Medien": "cinema",
     "Aktion/Workshop": "workshop",
     "Kurs": "workshop",
-    "Fortbildung": "workshop",
     "Treffen/Austausch": "activities",
     "Karneval": "festival",
     "Gedenkveranstaltung": "other",
@@ -77,7 +76,10 @@ _FREE_ACTIVITY_ALLOW = {
 _FREE_EVENT_SCORE_FLOOR = 0.45
 _BLOCK = {
     "Sprechstunde", "Sitzung", "Sitzungstermine Ausschüsse", "Sitzungstermine Bezirksvertretung",
-    "Informations-Veranstaltung", "Tagungen/Kongresse", "Stadtverwaltung", "Fortbildungen",
+    "Informations-Veranstaltung", "Tagungen/Kongresse", "Stadtverwaltung",
+    # Bonn singularised its labels; keep both spellings blocked so the rename
+    # cannot quietly turn professional training into importable events.
+    "Fortbildungen", "Fortbildung",
     "Beratung", "Spendenaktion", "Online-Veranstaltung", "Bürger*innenbeteiligung",
     "Next Stop Job", "Bürger*innensprechstunde OB Déus",
 }

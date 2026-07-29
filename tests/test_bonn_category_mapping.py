@@ -94,7 +94,6 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Film/Medien": "cinema",
             "Aktion/Workshop": "workshop",
             "Kurs": "workshop",
-            "Fortbildung": "workshop",
             "Treffen/Austausch": "activities",
             "Karneval": "festival",
             "Gedenkveranstaltung": "other",
@@ -121,7 +120,6 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Treffen/Austausch": "activities",
             "Vortrag/Diskussion": "talk",
             "Kabarett/Comedy": "stage",
-            "Fortbildung": "workshop",
             "Theater/Oper": "stage",
             "Markt/Messe": "market",
             "Gedenkveranstaltung": "other",
@@ -143,6 +141,10 @@ class BonnCategoryMappingTests(unittest.TestCase):
         html = "".join(
             (
                 self._listing("Sitzung", "Jazzsitzung"),
+                # Both spellings of the training category stay blocked, and
+                # neither counts as unknown taxonomy.
+                self._listing("Fortbildungen", "Jazz für Fachpublikum"),
+                self._listing("Fortbildung", "Jazz für Fachpublikum, neu benannt"),
                 self._listing("Neue Stadtkategorie", "Jazzabend unbekannt"),
                 self._listing(None, "Jazzabend ohne Kategorie"),
                 self._listing("Musik/Konzert", "Erlaubtes Konzert"),
