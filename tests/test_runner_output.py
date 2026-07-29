@@ -600,6 +600,30 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(runner._import_issues({"Filtered": result}), [])
 
+    def test_unavailable_events_are_filtered_at_the_canonical_boundary(self):
+        result, events = runner._run_source("Availability", lambda: [
+            {
+                "title": "Belcanto", "source": "Availability",
+                "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+                "city": "Bonn", "description": "Konzert – Ausverkauft",
+            },
+            {
+                "title": "Nachtwache", "source": "Availability",
+                "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+                "city": "Bonn",
+                "description": "Wenn die Türen geschlossen sind, beginnt das Escape Game.",
+            },
+        ])
+
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.rejected_event_count, 1)
+        self.assertEqual(
+            result.rejection_reasons,
+            {"quality:availability.unavailable": 1},
+        )
+        self.assertEqual([event.title for event in events], ["Nachtwache"])
+        self.assertEqual(runner._import_issues({"Availability": result}), [])
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 10))
 

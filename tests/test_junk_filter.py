@@ -102,6 +102,64 @@ class JunkFilterTests(unittest.TestCase):
 
         self.assertNotEqual(decision.rule_id, "editorial.advertising-marker")
 
+    def test_explicit_unavailable_status_markers_are_dropped_by_named_rule(self):
+        cases = (
+            {"title": "AUSGEBUCHT - Naturfreunde Ferienwochen", "description": ""},
+            {"title": "Ferienprogramm", "description": "- AUSGEBUCHT - Noch nichts vor?"},
+            {"title": "Belcanto", "description": "Konzert – Ausverkauft"},
+            {
+                "title": "Summerclosing auf dem Rhein",
+                "description": "Die Party ist im Vorverkauf ausverkauft! Es gibt nur noch Standby-Tickets.",
+            },
+            {
+                "title": "Platz & Prost",
+                "description": "08. August 2026 Platz & Prost Summer Edition 2026 abgesagt",
+            },
+            {"title": "GESCHLOSSEN – Workshop im Museum", "description": ""},
+            {"title": "Familienführung", "description": "Die Anmeldung ist geschlossen."},
+            {"title": "Lesung", "description": "Keine Tickets mehr verfügbar."},
+        )
+
+        for candidate in cases:
+            with self.subTest(candidate=candidate):
+                decision = evaluate_event_quality(candidate)
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "availability.unavailable")
+                self.assertTrue(decision.matched_terms)
+
+    def test_contextual_status_words_do_not_hide_available_events(self):
+        cases = (
+            {
+                "title": "Nachtwache",
+                "description": "Was passiert, wenn die Türen geschlossen sind? Dann beginnt das Escape Game.",
+            },
+            {
+                "title": "Rokoko under Construction",
+                "description": "Augustusburg 14.-18.07. geschlossen. Die Ausstellung läuft anschließend weiter.",
+            },
+            {
+                "title": 'Eitorf "live" mit DOSENMILCH',
+                "description": "Das Benefizkonzert im April war bereits ausverkauft. Nun folgt das neue Konzert.",
+            },
+            {
+                "title": "Südstadt",
+                "description": "Die Südstadt ist ein in sich geschlossenes Areal gründerzeitlichen Bauens.",
+            },
+            {
+                "title": "Flohmarkt",
+                "description": "Neuwaren und Lebensmittel sind ausgeschlossen.",
+            },
+            {
+                "title": "Ausstellung: Abgesagte Pläne der Stadtgeschichte",
+                "description": "Historische Ausstellung.",
+            },
+        )
+
+        for candidate in cases:
+            with self.subTest(candidate=candidate):
+                decision = evaluate_event_quality(candidate)
+                self.assertFalse(decision.should_drop)
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 12), datetime(2026, 6, 25))
 

@@ -97,6 +97,36 @@ _ADVERTISING_MARKER = re.compile(
     r"^\s*(anzeige|advertorial|sponsored)\b",
     re.IGNORECASE,
 )
+_UNAVAILABLE_STATUS = (
+    r"ausgebucht|ausverkauft|sold\s*out|abgesagt|abgesetzt|entfällt|entfaellt|"
+    r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|"
+    r"findet\s+(?:leider\s+)?nicht\s+statt|verschoben|verlegt"
+)
+_UNAVAILABLE_TITLE_MARKER = re.compile(
+    rf"^\s*[-+–—:()]*\s*(?P<marker>{_UNAVAILABLE_STATUS}|geschlossen)\b"
+    rf"|\b(?P<suffix>{_UNAVAILABLE_STATUS}|geschlossen)\s*[-+–—:()!.?]*\s*$",
+    re.IGNORECASE,
+)
+_UNAVAILABLE_DESCRIPTION_EDGE = re.compile(
+    rf"^\s*[-+–—:()]*\s*(?P<prefix>{_UNAVAILABLE_STATUS}|geschlossen)\b"
+    rf"|\b(?P<suffix>{_UNAVAILABLE_STATUS})\s*[-+–—:()!.?]*\s*$",
+    re.IGNORECASE,
+)
+_UNAVAILABLE_CURRENT_STATE = re.compile(
+    rf"\b(?:die|der|das)?\s*"
+    rf"(?:veranstaltung|termin|event|konzert|lesung|show|party|kurs|workshop|"
+    rf"führung|fuehrung|vorstellung|tickets?|karten?|plätze?|plaetze?|"
+    rf"anmeldung|buchung|ticketverkauf)\b"
+    rf"[^.\n!?]{{0,80}}\b(?:ist|sind|bleibt|bleiben|wurde|wurden)\b"
+    rf"[^.\n!?]{{0,40}}\b(?P<marker>{_UNAVAILABLE_STATUS}|geschlossen|"
+    rf"nicht\s+mehr\s+(?:verfügbar|verfuegbar|buchbar))\b",
+    re.IGNORECASE,
+)
+_NO_AVAILABILITY = re.compile(
+    r"\b(?P<marker>keine|0)\s+(?:tickets?|karten?|plätze|plaetze)"
+    r"\s+(?:mehr\s+)?(?:verfügbar|verfuegbar|vorhanden|buchbar)\b",
+    re.IGNORECASE,
+)
 _ONLINE_ONLY_VENUE = re.compile(
     r"^(zoom|webex|jitsi|bigbluebutton|(?:ms|microsoft)\s+teams|online|digital)$",
     re.IGNORECASE,
@@ -120,6 +150,19 @@ def _online_only_platform(venue: str) -> str:
     return match.group(0) if match else ""
 
 
+def _unavailable_status_marker(title: str, description: str) -> str:
+    """Return an explicit current unavailability marker without matching narrative copy."""
+    for pattern, content in (
+        (_UNAVAILABLE_TITLE_MARKER, title),
+        (_UNAVAILABLE_DESCRIPTION_EDGE, description),
+        (_UNAVAILABLE_CURRENT_STATE, description),
+        (_NO_AVAILABILITY, description),
+    ):
+        if match := pattern.search(content):
+            return match.group(0).strip()
+    return ""
+
+
 def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     """Evaluate the ordered compatibility policy and explain its outcome.
 
@@ -141,6 +184,15 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
             "editorial.advertising-marker",
             "publisher marked the event content as advertising",
             (advertising_marker.group(1).lower(),),
+        )
+
+    unavailable_marker = _unavailable_status_marker(title, description)
+    if unavailable_marker:
+        return QualityDecision(
+            QualityAction.DROP,
+            "availability.unavailable",
+            "publisher marked the event as unavailable to visitors",
+            (unavailable_marker,),
         )
 
     # Public participation records are valuable civic information, but they are
