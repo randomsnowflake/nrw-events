@@ -17,6 +17,9 @@ def fetch() -> list:
             group_events = common.fetch_ical(
                 f"https://www.meetup.com/{slug}/events/ical/",
                 "Meetup", city, category, trust,
+                # Meetup returns a complete VCALENDAR with no VEVENT entries
+                # while an otherwise valid group simply has nothing scheduled.
+                empty_calendar_is_valid=True,
             )
             for event in group_events:
                 event["source_id"] = source_id

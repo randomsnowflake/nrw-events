@@ -2078,7 +2078,8 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                city_resolver=None, fetcher=None,
                admission: AdmissionDefault | None = None,
                default_category_key: str = "",
-               category_locked: bool = False) -> list:
+               category_locked: bool = False,
+               empty_calendar_is_valid: bool = False) -> list:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds).
 
     ``fetcher`` optionally replaces the plain HTTP read with a ``(url, **kwargs) ->
@@ -2163,12 +2164,20 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
             )
             if ev:
                 events.append(ev)
+    valid_empty_calendar = bool(
+        empty_calendar_is_valid
+        and re.search(r"(?mi)^BEGIN:VCALENDAR\s*$", raw)
+        and re.search(r"(?mi)^END:VCALENDAR\s*$", raw)
+        # A VEVENT marker that produced no block means the component is
+        # truncated or unbalanced — that is drift, not an inactive group.
+        and not re.search(r"(?mi)^BEGIN:VEVENT", raw)
+    )
     _record_endpoint(
         url,
         parser_type="ical",
         candidate_count=len(blocks),
         parsed_event_count=len(events),
-        parser_empty=not bool(blocks),
+        parser_empty=not bool(blocks) and not valid_empty_calendar,
     )
     return events
 

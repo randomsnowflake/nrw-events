@@ -43,14 +43,26 @@ _SOURCE_CATEGORY_MAP = {
     "Fest/Festival": "festival",
     "Musik/Konzert": "concert",
     "Kabarett": "stage",
+    "Kabarett/Comedy": "stage",
     "Tanz": "stage",
     "Theater": "stage",
+    "Theater/Oper": "stage",
     "Ausstellungen": "exhibition",
+    "Ausstellung": "exhibition",
     "Tour": "outdoor",
+    "Führung/Rundgang": "outdoor",
     "Lesung": "talk",
     "Vorträge/Lesungen/Diskussionen": "talk",
+    "Vortrag/Diskussion": "talk",
     "Märkte/Messen": "market",
+    "Markt/Messe": "market",
     "Film/Medien": "cinema",
+    "Aktion/Workshop": "workshop",
+    "Kurs": "workshop",
+    "Fortbildung": "workshop",
+    "Treffen/Austausch": "activities",
+    "Karneval": "festival",
+    "Gedenkveranstaltung": "other",
     "Tag des offenen Denkmals": "festival",
     "Beethovenfest": "concert",
     "Weihnachtsmarkt": "market",
@@ -70,7 +82,12 @@ _BLOCK = {
     "Next Stop Job", "Bürger*innensprechstunde OB Déus",
 }
 _KNOWN_SOURCE_CATEGORIES = (
-    _ALLOW | _FREE_ACTIVITY_ALLOW | _BLOCK | {"Ausstellung", "Bonn", "Kostenlos"}
+    _ALLOW | _FREE_ACTIVITY_ALLOW | _BLOCK | {
+        "Bonn", "Kostenlos",
+        # Section/navigation labels can appear in teaser markup, but are not
+        # event topics and must not make those cards importable.
+        "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt.",
+    }
 )
 
 _venue_points_cache = None
