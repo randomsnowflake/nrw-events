@@ -129,6 +129,37 @@ END:VCALENDAR"""
         self.assertEqual(events[0]["end_date"], "2026-06-14")
         self.assertTrue(events[0]["all_day"])
 
+    def test_valid_empty_ical_can_be_healthy_for_inactive_calendars(self):
+        ical = """BEGIN:VCALENDAR
+VERSION:2.0
+NAME:Inactive Meetup group
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical), mock.patch(
+            "nrw_events.common._record_endpoint"
+        ) as record_endpoint:
+            events = common.fetch_ical(
+                "https://example.test/events.ics",
+                "Test",
+                "Bonn",
+                empty_calendar_is_valid=True,
+            )
+
+        self.assertEqual(events, [])
+        self.assertFalse(record_endpoint.call_args.kwargs["parser_empty"])
+
+    def test_empty_calendar_opt_out_does_not_hide_non_ical_parser_drift(self):
+        with mock.patch("nrw_events.common.fetch_url", return_value="<html>changed layout</html>"), mock.patch(
+            "nrw_events.common._record_endpoint"
+        ) as record_endpoint:
+            common.fetch_ical(
+                "https://example.test/events.ics",
+                "Test",
+                "Bonn",
+                empty_calendar_is_valid=True,
+            )
+
+        self.assertTrue(record_endpoint.call_args.kwargs["parser_empty"])
+
     def test_deduplication_keeps_same_title_on_different_dates(self):
         events = [
             {"title": "Weekly concert", "city": "Bonn", "date": "2026-06-12", "score": 1.0},

@@ -315,6 +315,22 @@ class BonnFoodSourceTests(unittest.TestCase):
         html = f'<script type="application/ld+json">{json.dumps(item)}</script><h3>Bald mehr</h3>'
         self.assertEqual(bonn_food.events_from_original_street_food(html), [])
 
+    def test_original_street_food_recognizes_visible_stale_listing_without_jsonld(self):
+        html = """
+        <h1>Bonn</h1>
+        <h2>Das Original Street Food Festival</h2>
+        <h2>Street Food Festival in Bonn</h2>
+        <h3>02. - 05. Oktober 2025</h3>
+        <h2>LOCATION: Rheinufer Bonn Beuel</h2>
+        """
+
+        events = bonn_food.events_from_original_street_food(html)
+
+        self.assert_food_events(events, 1)
+        self.assertEqual(events[0]["title"], "Street Food Festival in Bonn")
+        self.assertEqual(events[0]["start_date"], "2025-10-02")
+        self.assertEqual(events[0]["end_date"], "2025-10-05")
+
     def test_choco_dealer_reads_slot_cards_from_the_booking_listing(self):
         html = """
         <div class="row events-cards"><div class="col-lg-4"><div class="card h-100 events-card">

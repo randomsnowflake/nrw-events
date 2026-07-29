@@ -386,7 +386,11 @@ def events_from_original_street_food(html: str) -> list:
     the source reports an empty parse.
     """
     item = next((entry for entry in _deep_jsonld_events(html)), {})
-    title = rc.clean(str(item.get("name") or ""))
+    visible_html = _without_scripts(html)
+    title = rc.clean(str(item.get("name") or "")) or rc.first_group_clean(
+        r"<h[1-3][^>]*>\s*([^<]*Street Food Festival in Bonn[^<]*)</h[1-3]>",
+        visible_html,
+    )
     if not title:
         return []
     location = item.get("location") if isinstance(item.get("location"), dict) else {}
@@ -397,9 +401,15 @@ def events_from_original_street_food(html: str) -> list:
         (location.get("name"), address.get("streetAddress"), address.get("postalCode"))
         if part
     )
-    description = rc.clean(str(item.get("description") or ""))
+    if not venue:
+        venue = rc.first_group_clean(
+            r"<h[1-3][^>]*>\s*LOCATION:\s*(.*?)</h[1-3]>", visible_html,
+        )
+    description = rc.clean(str(item.get("description") or "")) or (
+        "Das Original Street Food Festival in Bonn."
+    )
     events = []
-    for start, end in _spelled_date_ranges(rc.clean(_without_scripts(html))):
+    for start, end in _spelled_date_ranges(rc.clean(visible_html)):
         ev = common.make_event(
             title, start, end, venue, city, description,
             _ORIGINAL_STREET_FOOD_URL, "Street Food Festival Original",
