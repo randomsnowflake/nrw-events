@@ -160,6 +160,24 @@ END:VCALENDAR"""
 
         self.assertTrue(record_endpoint.call_args.kwargs["parser_empty"])
 
+    def test_empty_calendar_opt_out_does_not_hide_a_truncated_vevent(self):
+        ical = """BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:Truncated by the feed
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical), mock.patch(
+            "nrw_events.common._record_endpoint"
+        ) as record_endpoint:
+            common.fetch_ical(
+                "https://example.test/events.ics",
+                "Test",
+                "Bonn",
+                empty_calendar_is_valid=True,
+            )
+
+        self.assertTrue(record_endpoint.call_args.kwargs["parser_empty"])
+
     def test_deduplication_keeps_same_title_on_different_dates(self):
         events = [
             {"title": "Weekly concert", "city": "Bonn", "date": "2026-06-12", "score": 1.0},

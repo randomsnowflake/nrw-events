@@ -2168,6 +2168,9 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         empty_calendar_is_valid
         and re.search(r"(?mi)^BEGIN:VCALENDAR\s*$", raw)
         and re.search(r"(?mi)^END:VCALENDAR\s*$", raw)
+        # A VEVENT marker that produced no block means the component is
+        # truncated or unbalanced — that is drift, not an inactive group.
+        and not re.search(r"(?mi)^BEGIN:VEVENT", raw)
     )
     _record_endpoint(
         url,
