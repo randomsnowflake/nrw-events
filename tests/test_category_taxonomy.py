@@ -4,6 +4,34 @@ from nrw_events.category_taxonomy import CATEGORIES, categorize_event
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
+    def test_compound_event_formats_classify_without_source_bags(self):
+        cases = (
+            ("b’future-Journalismusfestival", "festival"),
+            ("Herbstkirmes Duisdorf", "festival"),
+            ("Repaircafe im Selbstwerk Bonn", "workshop"),
+            ("AfterJobParty Museumsmeile", "nightlife"),
+            ("Hennefer Radsporttag", "sports"),
+            ('ADFC-Feierabendtour "Über Berg und Tal"', "outdoor"),
+        )
+
+        for title, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event("", title, "")["key"], expected)
+
+    def test_compound_rules_do_not_turn_topic_words_into_event_formats(self):
+        cases = (
+            "Vortrag zur Sportwissenschaft",
+            "Debatte über den Arbeitsmarkt 2030",
+            "Forschung zur Festivalkultur",
+        )
+
+        for title in cases:
+            with self.subTest(title=title):
+                self.assertNotIn(
+                    categorize_event("", title, "")["key"],
+                    {"sports", "market", "festival"},
+                )
+
     def test_locked_source_default_overrides_conflicting_title_format(self):
         result = categorize_event(
             "festival open air",

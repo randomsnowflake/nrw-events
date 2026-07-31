@@ -77,6 +77,15 @@ Event kanonische Zeitfelder: `start_date`, `end_date`, `start_at`, `end_at`,
 Events werden nicht veröffentlicht; unvollständige oder ungültige Quellrecords
 werden mit einem Grund pro Quelle in `source_results` gezählt.
 
+Redaktionelle Ausschlüsse erscheinen dort als stabile, maschinenlesbare
+`quality:<rule_id>`-Gründe, zum Beispiel `quality:civic.course`. Der
+Metadaten-Export enthält außerdem `quality_metrics` und warnende, aber nicht
+löschende `quality_warnings`. Ab mindestens zehn Events warnt der Lauf bei mehr
+als 6 % `other` insgesamt sowie je Quelle bei mehr als 50 % niedriger
+Kategorie-Konfidenz, 25 % ungeklärten Orten, 25 % fehlenden Ortsnamen oder 50 %
+redaktionell verworfenen Kandidaten. Dieselben Einträge stehen aus
+Kompatibilitätsgründen auch in `source_warnings`.
+
 Jeder Lauf veröffentlicht außerdem atomisch eine Manifest-Datei neben den
 beiden JSON-Dateien. Sie enthält die gemeinsame
 `run_id`, den Laufstatus und die zugehörigen Artefaktpfade; Hintergrund-Consumer

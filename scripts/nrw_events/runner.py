@@ -21,7 +21,7 @@ from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .models import CanonicalEvent, normalize_source_id
 from .observability import configure_logging, log, redact
-from .quality import summarize_event_quality
+from .quality import quality_gate_warnings, summarize_event_quality
 from .runtime import EventWindow, RunContext
 from .sources import SOURCES, SOURCE_IDS
 from .validation import EventValidationError, validate_event
@@ -619,6 +619,11 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     events = sorted((event.to_dict() for event in import_result.events),
                     key=lambda event: -event["score"])
     issues = _import_issues(source_results)
+    quality_metrics = summarize_event_quality(events)
+    source_result_payloads = {
+        name: result.as_dict() for name, result in source_results.items()
+    }
+    quality_warnings = quality_gate_warnings(quality_metrics, source_result_payloads)
     start, end = context.window.start, context.window.end
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
                       for offset in range((end - start).days + 1))
@@ -633,15 +638,19 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "source_counts_raw": {name: result.raw_event_count for name, result in source_results.items()},
         "source_ids": SOURCE_IDS,
         "source_errors": {name: result.error["error"] for name, result in source_results.items() if result.error},
-        "source_warnings": [warning for result in source_results.values() for warning in result.warnings],
+        "source_warnings": [
+            *[warning for result in source_results.values() for warning in result.warnings],
+            *quality_warnings,
+        ],
+        "quality_warnings": quality_warnings,
         "import_issues": issues,
-        "source_results": {name: result.as_dict() for name, result in source_results.items()},
+        "source_results": source_result_payloads,
         "categories": CATEGORIES, "pre_dedup_count": import_result.pre_dedup_count,
         "fresh_event_count": import_result.retention.get("fresh_event_count", len(events)),
         "retained_event_count": import_result.retention.get("retained_event_count", 0),
         "expired_retained_event_count": import_result.retention.get("expired_retained_event_count", 0),
         "retained_sources": import_result.retention.get("retained_sources", []),
-        "event_count": len(events), "quality_metrics": summarize_event_quality(events),
+        "event_count": len(events), "quality_metrics": quality_metrics,
         "events_path": context.settings.json_out,
     }
     return SnapshotPayload(events, metadata)

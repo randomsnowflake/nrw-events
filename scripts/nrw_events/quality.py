@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterable, Mapping
 
-from .core import _legacy_is_junk_event
+from .core import _legacy_junk_decision
 
 
 class QualityAction(str, Enum):
@@ -33,6 +33,18 @@ REQUIRED_PUBLICATION_FIELDS = (
     "category_confidence", "category_reason", "all_day", "location_confidence",
 )
 OPTIONAL_CONTENT_FIELDS = ("time", "time_note", "venue", "description", "price")
+
+# Warning-only gates. They deliberately require a meaningful sample so a single
+# sparse record cannot turn a healthy import into alert noise. These thresholds
+# describe suspicious distributions; they do not decide whether an event is true.
+QUALITY_GATE_MIN_EVENTS = 10
+QUALITY_GATE_THRESHOLDS = {
+    "uncategorized_rate": 0.06,
+    "low_confidence_rate": 0.5,
+    "unresolved_location_rate": 0.25,
+    "missing_venue_rate": 0.25,
+    "drop_rate": 0.5,
+}
 
 
 def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
@@ -88,8 +100,108 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
         },
         "category_counts": dict(sorted(category_counts.items())),
         "uncategorized_count": category_counts.get("other", 0),
+        "uncategorized_rate": (
+            round(category_counts.get("other", 0) / len(rows), 4) if rows else 0.0
+        ),
         "by_source": by_source,
     }
+
+
+def quality_gate_warnings(
+    metrics: Mapping[str, Any],
+    source_results: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return warning-only source distribution gates for monitoring metadata."""
+    warnings: list[dict[str, Any]] = []
+    event_count = int(metrics.get("event_count") or 0)
+    uncategorized = int(metrics.get("uncategorized_count") or 0)
+    uncategorized_rate = float(metrics.get("uncategorized_rate") or 0)
+    uncategorized_threshold = QUALITY_GATE_THRESHOLDS["uncategorized_rate"]
+    if (event_count >= QUALITY_GATE_MIN_EVENTS
+            and uncategorized_rate > uncategorized_threshold):
+        warnings.append({
+            "source": "all",
+            "error_type": "QualityGateWarning",
+            "error": (
+                "published events remain uncategorized: "
+                f"{uncategorized}/{event_count} ({uncategorized_rate:.1%})"
+            ),
+            "rule_id": "quality.uncategorized-rate",
+            "count": uncategorized,
+            "event_count": event_count,
+            "rate": round(uncategorized_rate, 4),
+            "threshold": uncategorized_threshold,
+        })
+    rate_rules = (
+        (
+            "low_confidence_rate",
+            "low_confidence_count",
+            "quality.low-confidence-rate",
+            "published events have low category confidence",
+        ),
+        (
+            "unresolved_location_rate",
+            "unresolved_location_count",
+            "quality.unresolved-location-rate",
+            "published events have unresolved locations",
+        ),
+        (
+            "missing_venue_rate",
+            "missing_venue_count",
+            "quality.missing-venue-rate",
+            "published events are missing venue names",
+        ),
+    )
+    for source, source_metrics in sorted((metrics.get("by_source") or {}).items()):
+        count = int(source_metrics.get("event_count") or 0)
+        if count < QUALITY_GATE_MIN_EVENTS:
+            continue
+        for rate_key, count_key, rule_id, description in rate_rules:
+            rate = float(source_metrics.get(rate_key) or 0)
+            threshold = QUALITY_GATE_THRESHOLDS[rate_key]
+            if rate <= threshold:
+                continue
+            affected = int(source_metrics.get(count_key) or 0)
+            warnings.append({
+                "source": source,
+                "error_type": "QualityGateWarning",
+                "error": f"{description}: {affected}/{count} ({rate:.1%})",
+                "rule_id": rule_id,
+                "count": affected,
+                "event_count": count,
+                "rate": rate,
+                "threshold": threshold,
+            })
+
+    for source, result in sorted(source_results.items()):
+        reasons = result.get("rejection_reasons") or {}
+        quality_drops = sum(
+            int(count)
+            for reason, count in reasons.items()
+            if str(reason).startswith("quality:")
+        )
+        accepted = int(result.get("accepted_event_count") or 0)
+        candidates = accepted + quality_drops
+        if candidates < QUALITY_GATE_MIN_EVENTS:
+            continue
+        rate = quality_drops / candidates
+        threshold = QUALITY_GATE_THRESHOLDS["drop_rate"]
+        if rate <= threshold:
+            continue
+        warnings.append({
+            "source": source,
+            "error_type": "QualityGateWarning",
+            "error": (
+                "editorial quality rules dropped "
+                f"{quality_drops}/{candidates} in-window candidates ({rate:.1%})"
+            ),
+            "rule_id": "quality.drop-rate",
+            "count": quality_drops,
+            "event_count": candidates,
+            "rate": round(rate, 4),
+            "threshold": threshold,
+        })
+    return warnings
 
 
 _WORK_TITLE = re.compile(r"[»«„““”\"']\s*\S")
@@ -257,8 +369,8 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
             (recurring.group(0), "verkauf"),
         )
 
-    if _legacy_is_junk_event(event):
-        return QualityDecision(QualityAction.DROP, "legacy.editorial-policy",
-                               "event matched the established editorial exclusion policy")
+    if legacy := _legacy_junk_decision(dict(event)):
+        rule_id, reason, matched_terms = legacy
+        return QualityDecision(QualityAction.DROP, rule_id, reason, matched_terms)
     return QualityDecision(QualityAction.KEEP, "quality.accepted",
                            "event passed all editorial quality rules")

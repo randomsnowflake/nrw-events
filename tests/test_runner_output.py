@@ -595,7 +595,7 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.rejected_event_count, 1)
         self.assertEqual(
             result.rejection_reasons,
-            {"quality:legacy.editorial-policy": 1},
+            {"quality:civic.course": 1},
         )
         self.assertEqual(len(events), 1)
         self.assertEqual(runner._import_issues({"Filtered": result}), [])
@@ -623,6 +623,27 @@ class RunnerOutputTests(unittest.TestCase):
         )
         self.assertEqual([event.title for event in events], ["Nachtwache"])
         self.assertEqual(runner._import_issues({"Availability": result}), [])
+
+    def test_make_event_quality_drops_are_counted_by_named_rule(self):
+        def fetch_events():
+            kept = common.make_event(
+                "Sommerkonzert", common.TODAY, common.TODAY, "Club", "Bonn",
+                "Live-Musik", "https://example.test/concert", "Measured Source",
+                "konzert",
+            )
+            dropped = common.make_event(
+                "Deutschkurs für Männer", common.TODAY, common.TODAY,
+                "Bürgerzentrum", "Bonn", "Sprachkurs",
+                "https://example.test/course", "Measured Source", "kurs",
+            )
+            return [event for event in (kept, dropped) if event]
+
+        result, events = runner._run_source("Measured Source", fetch_events)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.rejected_event_count, 1)
+        self.assertEqual(result.rejection_reasons, {"quality:civic.course": 1})
 
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 10))
@@ -911,6 +932,7 @@ class RunnerOutputTests(unittest.TestCase):
         )
 
         self.assertIsNotNone(event)
+        self.assertEqual(event["category_key"], "workshop")
         rendered = report.format_report([event])
         self.assertIn("Talks, Community & Culture (1)", rendered)
         self.assertNotIn("Nightlife & Electronic (1)", rendered)

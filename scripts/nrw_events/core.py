@@ -1376,11 +1376,16 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         if result is not None:
             result.cancelled_events.append(ev)
         return None
-    return None if is_junk_event(ev) else ev
+    decision = evaluate_event_quality(ev)
+    if decision.should_drop:
+        if not outside_window:
+            log_source_quality_skip(source, decision.rule_id)
+        return None
+    return ev
 
 
-def _legacy_is_junk_event(ev: dict) -> bool:
-    """Suppress legal pages, stale entries, classes, and low-signal sludge."""
+def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]]:
+    """Return the named decision for the remaining compatibility policy."""
     title = (ev.get("title") or "").lower()
     desc = (ev.get("description") or "").lower()
     venue = (ev.get("venue") or "").lower()
@@ -1403,28 +1408,48 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         # feeds are not destination events.
         "straßenreinigung", "strassenreinigung", "venen aktionstag",
     }
-    if any(bit in title for bit in junk_title_bits):
-        return True
+    if matched := next((bit for bit in junk_title_bits if bit in title), ""):
+        return (
+            "metadata.navigation-page",
+            "navigation or legal page is not an event",
+            (matched,),
+        )
 
     junk_link_bits = {
         "/privacy", "/faq", "/contact", "/imprint", "/jobs", "/search", "/sitemap",
         "eventim.de/city", "livegigs.de", "news.de/lokales", "/metro-areas/",
     }
-    if any(bit in link for bit in junk_link_bits):
-        return True
+    if matched := next((bit for bit in junk_link_bits if bit in link), ""):
+        return (
+            "metadata.directory-link",
+            "link points to navigation, a directory, or a generic listing",
+            (matched,),
+        )
 
     if "grüne jugend" in text or "gruene jugend" in text:
-        return True
+        return (
+            "civic.partisan-organization",
+            "partisan organizational activity is outside the editorial scope",
+            ("grüne jugend" if "grüne jugend" in text else "gruene jugend",),
+        )
 
     narrow_private_event_bits = {
         "abiball", "abi-ball", "abi ball", "abschlussball", "abschluss-ball",
         "abiturball", "abitur-ball",
     }
-    if any(bit in text for bit in narrow_private_event_bits):
-        return True
+    if matched := next((bit for bit in narrow_private_event_bits if bit in text), ""):
+        return (
+            "editorial.private-graduation",
+            "private graduation celebration is not a public destination event",
+            (matched,),
+        )
 
     if has_cancelled_status(ev.get("title") or "", ev.get("description") or ""):
-        return True
+        return (
+            "schedule.cancelled",
+            "cancelled occurrence must not be published as scheduled",
+            (),
+        )
 
     hard_block_bits = {
         # Static attraction pages and routine social meetups kept leaking from
@@ -1434,8 +1459,12 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         "phantasia land",
         "phantasia-land",
     }
-    if any(bit in text for bit in hard_block_bits):
-        return True
+    if matched := next((bit for bit in hard_block_bits if bit in text), ""):
+        return (
+            "editorial.static-attraction",
+            "static attraction page is not a dated destination event",
+            (matched,),
+        )
 
     routine_or_political_bits = {
         "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
@@ -1464,12 +1493,22 @@ def _legacy_is_junk_event(ev: dict) -> bool:
             and any(bit in text for bit in routine_or_political_bits)
             and not destination_market
             and not any(bit in title_desc_text for bit in cultural_event_bits)):
-        return True
+        matched = next(bit for bit in routine_or_political_bits if bit in text)
+        return (
+            "civic.governance",
+            "routine political or administrative meeting is outside the editorial scope",
+            (matched,),
+        )
     if ("cinema-special" not in category
             and any(bit in text for bit in routine_phrase_bits)
             and not destination_market
             and not any(bit in title_desc_text for bit in cultural_event_bits)):
-        return True
+        matched = next(bit for bit in routine_phrase_bits if bit in text)
+        return (
+            "civic.routine-meetup",
+            "recurring low-signal meetup is not a destination event",
+            (matched,),
+        )
 
     regular_low_value_bits = {
         # Recurring basic markets are useful civic infrastructure, not a
@@ -1491,7 +1530,12 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     }
     if (any(bit in text for bit in regular_low_value_bits)
             and not destination_market):
-        return True
+        matched = next(bit for bit in regular_low_value_bits if bit in text)
+        return (
+            "civic.routine-market",
+            "routine produce market is civic infrastructure, not a special market event",
+            (matched,),
+        )
 
     generic_low_value_bits = {
         "fortgeschrittene", "sprachkurs", "englischkurs",
@@ -1506,8 +1550,12 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         "singangebot mit", "eltern-kind-spielgruppe", "strick- und häkelkurs",
         "clubabend",
     }
-    if any(bit in text for bit in generic_low_value_bits):
-        return True
+    if matched := next((bit for bit in generic_low_value_bits if bit in text), ""):
+        return (
+            "civic.course",
+            "routine course or support offer is not a destination event",
+            (matched,),
+        )
 
     language_name = re.search(r"\b(?:italienisch|französisch)\b", text)
     language_course_context = re.search(
@@ -1515,7 +1563,11 @@ def _legacy_is_junk_event(ev: dict) -> bool:
         text,
     )
     if language_name and language_course_context:
-        return True
+        return (
+            "civic.language-course",
+            "recurring language instruction is not a destination event",
+            (language_name.group(0), language_course_context.group(0)),
+        )
 
     recurring_course_bits = {
         "der kurs findet immer", "der kurs kostet", "kurseinheiten",
@@ -1528,7 +1580,13 @@ def _legacy_is_junk_event(ev: dict) -> bool:
     if (any(bit in text for bit in recurring_course_bits)
             and any(bit in text for bit in course_context_bits)
             and not any(bit in content_text for bit in cultural_event_bits)):
-        return True
+        recurring_match = next(bit for bit in recurring_course_bits if bit in text)
+        context_match = next(bit for bit in course_context_bits if bit in text)
+        return (
+            "civic.recurring-course",
+            "recurring course series is not a destination event",
+            (recurring_match, context_match),
+        )
 
     # Web-search results are noisy: require topical + date/event signal, since they
     # also return static venue/shop/route pages.
@@ -1559,11 +1617,25 @@ def _legacy_is_junk_event(ev: dict) -> bool:
             "die besten", "wiki", "website", "hotels", "immobilien",
         ]
         if any(bit in text for bit in static_page_bits) and not explicit_local_event:
-            return True
+            matched = next(bit for bit in static_page_bits if bit in text)
+            return (
+                "search.static-page",
+                "search result describes a static page rather than a dated event",
+                (matched,),
+            )
         if not strong_signal or (not date_signal and not explicit_local_event):
-            return True
+            return (
+                "search.insufficient-event-evidence",
+                "search result lacks enough topical and dated event evidence",
+                (),
+            )
 
-    return False
+    return None
+
+
+def _legacy_is_junk_event(ev: dict) -> bool:
+    """Compatibility boolean for callers that have not migrated to decisions."""
+    return _legacy_junk_decision(ev) is not None
 
 
 def evaluate_event_quality(ev: dict):

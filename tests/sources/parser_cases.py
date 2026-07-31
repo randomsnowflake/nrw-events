@@ -395,6 +395,23 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["date"], "2026-07-04")
         self.assertEqual(events[0]["link"], "https://www.brotfabrik-theater.de/sin-cepillo-de-dientes/")
 
+    def test_brotfabrik_api_uses_explicit_marabu_department_as_stage_evidence(self):
+        patch_window(self, datetime(2026, 9, 4), datetime(2026, 9, 4))
+        events = bonn_venues.events_from_brotfabrik_items([{
+            "Titel": "J.E.M. Neues Stück",
+            "Beschreibung": "",
+            "Ort": "Brotfabrik Bonn",
+            "Datum": "2026-09-04",
+            "Uhrzeit": "19:00:00",
+            "Url": "https://www.theater-marabu.de/stueck/j-e-m-escape-at/",
+            "Gewerk": "Marabu",
+            "Datumbis": "0000-00-00",
+        }])
+
+        self.assertEqual(events[0]["category_key"], "stage")
+        self.assertEqual(events[0]["category_confidence"], 1.0)
+        self.assertEqual(events[0]["category_reason"], "source:locked-default:stage")
+
     def test_botanical_garden_event_links_create_events(self):
         patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
         html = """

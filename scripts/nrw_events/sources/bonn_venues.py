@@ -175,6 +175,13 @@ def events_from_brotfabrik_items(items: list) -> list:
             end = common.parse_iso_date(item.get("Datumbis"))
         end = rc.with_time(end, item.get("Uhrzeit") or "") if end else start
         gewerk = (item.get("Gewerk") or "Programm").strip()
+        explicit_category = {
+            "marabu": "stage",
+            "theater": "stage",
+            "kino": "cinema",
+            "tanz": "stage",
+            "musik": "concert",
+        }.get(gewerk.casefold(), "")
         ev = common.make_event(
             title,
             start,
@@ -186,6 +193,8 @@ def events_from_brotfabrik_items(items: list) -> list:
             "Brotfabrik Bonn",
             f"brotfabrik {gewerk}",
             0.86,
+            default_category_key=explicit_category,
+            category_locked=bool(explicit_category),
         )
         if ev:
             events.append(ev)

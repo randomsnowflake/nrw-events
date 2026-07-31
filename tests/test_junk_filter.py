@@ -5,6 +5,7 @@ from nrw_events import common
 from nrw_events.quality import (
     QualityAction,
     evaluate_event_quality,
+    quality_gate_warnings,
     summarize_event_quality,
 )
 from tests.helpers import patch_window
@@ -77,8 +78,80 @@ class JunkFilterTests(unittest.TestCase):
     def test_quality_decisions_are_machine_readable(self):
         decision = evaluate_event_quality({"title": "Privacy Policy"})
         self.assertEqual(decision.action, QualityAction.DROP)
-        self.assertTrue(decision.rule_id)
+        self.assertEqual(decision.rule_id, "metadata.navigation-page")
         self.assertTrue(decision.reason)
+
+    def test_legacy_policy_groups_have_stable_named_decisions(self):
+        cases = (
+            (event("Fraktionssitzung der Ratsfraktion"), "civic.governance"),
+            (event("Interkultureller Frauentreff"), "civic.routine-meetup"),
+            (event("Wochenmarkt Bonn"), "civic.routine-market"),
+            (event("Deutschkurs für Männer"), "civic.course"),
+            ({**event("Static listing"), "link": "https://eventim.de/city/bonn"},
+             "metadata.directory-link"),
+        )
+
+        for candidate, expected_rule in cases:
+            with self.subTest(candidate=candidate):
+                decision = evaluate_event_quality(candidate)
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, expected_rule)
+
+    def test_quality_gates_warn_only_for_material_source_rates(self):
+        metrics = summarize_event_quality([
+            {"source": "Weak Source", "category_key": "workshop",
+             "category_confidence": 0.2,
+             "location_confidence": "unresolved", "venue": ""}
+            for _ in range(10)
+        ] + [
+            {"source": "Healthy Source", "category_key": "stage",
+             "category_confidence": 1.0,
+             "location_confidence": "exact", "venue": "Theater"}
+            for _ in range(10)
+        ])
+        source_results = {
+            "Weak Runner": {
+                "accepted_event_count": 4,
+                "rejection_reasons": {"quality:civic.course": 6},
+            },
+            "Healthy Runner": {
+                "accepted_event_count": 10,
+                "rejection_reasons": {},
+            },
+        }
+
+        warnings = quality_gate_warnings(metrics, source_results)
+
+        self.assertEqual(
+            {warning["rule_id"] for warning in warnings},
+            {
+                "quality.low-confidence-rate",
+                "quality.unresolved-location-rate",
+                "quality.missing-venue-rate",
+                "quality.drop-rate",
+            },
+        )
+        self.assertEqual({warning["source"] for warning in warnings},
+                         {"Weak Source", "Weak Runner"})
+
+    def test_uncategorized_gate_uses_documented_global_threshold(self):
+        metrics = summarize_event_quality([
+            {"source": "Mixed", "category_key": "other"}
+            for _ in range(7)
+        ] + [
+            {"source": "Mixed", "category_key": "stage"}
+            for _ in range(93)
+        ])
+
+        warnings = quality_gate_warnings(metrics, {})
+
+        warning = next(
+            item for item in warnings
+            if item["rule_id"] == "quality.uncategorized-rate"
+        )
+        self.assertEqual(warning["source"], "all")
+        self.assertEqual(warning["rate"], 0.07)
+        self.assertEqual(warning["threshold"], 0.06)
 
     def test_advertising_markers_at_content_start_are_dropped_by_named_rule(self):
         cases = (

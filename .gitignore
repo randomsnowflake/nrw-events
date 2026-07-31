@@ -17,6 +17,7 @@ nrw-events-latest-meta.json
 nrw-events-latest-meta.json.manifest.json
 
 # Editor / OS cruft
+.claude/
 .DS_Store
 .idea/
 .vscode/
