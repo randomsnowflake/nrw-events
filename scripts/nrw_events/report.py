@@ -137,10 +137,12 @@ def _normalized_city(value: str) -> str:
 
 
 def _locations_compatible(left: dict, right: dict) -> bool:
-    left_venue = normalize_title(left.get("venue", ""))
-    right_venue = normalize_title(right.get("venue", ""))
-    left_venue_tokens = set(comparison_text(left.get("venue", "")).split())
-    right_venue_tokens = set(comparison_text(right.get("venue", "")).split())
+    left_venue_text = _venue_comparison_text(left)
+    right_venue_text = _venue_comparison_text(right)
+    left_venue = comparison_text(left_venue_text, separator="")
+    right_venue = comparison_text(right_venue_text, separator="")
+    left_venue_tokens = set(left_venue_text.split())
+    right_venue_tokens = set(right_venue_text.split())
     cities_match = (
         _normalized_city(left.get("city", ""))
         == _normalized_city(right.get("city", ""))
@@ -187,6 +189,15 @@ def _locations_compatible(left: dict, right: dict) -> bool:
         and min(len(left_title), len(right_title)) >= 24
         and SequenceMatcher(None, left_title, right_title).ratio() >= 0.92
     )
+
+
+def _venue_comparison_text(event: dict) -> str:
+    """Normalize a venue while ignoring a redundant leading city label."""
+    venue = comparison_text(event.get("venue", ""))
+    city = _normalized_city(event.get("city", ""))
+    if city and venue.startswith(f"{city} "):
+        return venue[len(city) + 1:]
+    return venue
 
 
 def _date_bounds(ev: dict) -> tuple[date, date] | None:
@@ -255,6 +266,24 @@ def _titles_match(left: dict, right: dict) -> bool:
     ):
         return True
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
+
+
+def _aggregator_title_variant_matches(left: dict, right: dict) -> bool:
+    """Match a concise aggregator title to a fuller authoritative title."""
+    left_authority = source_authority(left.get("source", ""))
+    right_authority = source_authority(right.get("source", ""))
+    if min(left_authority, right_authority) > 1 or max(left_authority, right_authority) < 2:
+        return False
+    left_start = left.get("start_at")
+    right_start = right.get("start_at")
+    if not left_start or left_start != right_start:
+        return False
+    left_words = set(comparison_text(left.get("title", "")).split())
+    right_words = set(comparison_text(right.get("title", "")).split())
+    return (
+        min(len(left_words), len(right_words)) >= 3
+        and (left_words <= right_words or right_words <= left_words)
+    )
 
 
 def _series_tokens(title: str) -> tuple[str, ...]:
@@ -329,6 +358,20 @@ def _has_separate_admission_charge(event) -> bool:
 def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
+    winner_start = winner.get("start_at")
+    winner_end = winner.get("end_at")
+    duplicate_start = duplicate.get("start_at")
+    duplicate_end = duplicate.get("end_at")
+    if (
+        winner_start
+        and winner_end == winner_start
+        and duplicate_start == winner_start
+        and duplicate_end
+        and duplicate_end > winner_end
+    ):
+        updates["end_at"] = duplicate_end
+        if duplicate.get("time"):
+            updates["time"] = duplicate["time"]
     separate_admission_charge = (
         _has_separate_admission_charge(winner)
         or _has_separate_admission_charge(duplicate)
@@ -435,7 +478,13 @@ def events_are_duplicates(left, right) -> bool:
         return False
     return (
         _same_registered_venue_occurrence(left, right)
-        or (_same_occurrence(left, right) and _titles_match(left, right))
+        or (
+            _same_occurrence(left, right)
+            and (
+                _titles_match(left, right)
+                or _aggregator_title_variant_matches(left, right)
+            )
+        )
     )
 
 

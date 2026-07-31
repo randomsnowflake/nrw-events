@@ -433,6 +433,62 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["source"], "Eventbrite Party")
         self.assertEqual(deduped[0]["time"], "17:00")
 
+    def test_deduplicate_collapses_short_aggregator_title_into_authoritative_listing(self):
+        events = [
+            {
+                "title": "Critical Mass Bonn", "start_date": "2026-07-31",
+                "end_date": "2026-07-31", "date": "2026-07-31",
+                "city": "Bonn", "venue": "Bonn, Hofgarten", "score": 1.3,
+                "source": "Bonn.jetzt", "description": "Demonstration Sport Stadt Bonn",
+                "price": "", "link": "https://bonn.jetzt/event/critical-mass-bonn-24",
+                "time": "18:00–20:00", "start_at": "2026-07-31T18:00+02:00",
+                "end_at": "2026-07-31T20:00+02:00",
+            },
+            {
+                "title": "Critical Mass - Radeln in großer Runde durch Bonn",
+                "start_date": "2026-07-31", "end_date": "2026-07-31",
+                "date": "2026-07-31", "city": "Bonn",
+                "venue": "Hofgartenwiese vor dem akademischen Kunstmuseum",
+                "score": 1.12, "source": "Bonn.de Events",
+                "description": "Ausführliche Informationen zur gemeinsamen Fahrradtour.",
+                "price": "", "link": "https://www.bonn.de/critical-mass.php",
+                "time": "18:00", "start_at": "2026-07-31T18:00+02:00",
+                "end_at": "2026-07-31T18:00+02:00",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Bonn.de Events")
+        self.assertEqual(deduped[0]["link"], "https://www.bonn.de/critical-mass.php")
+        self.assertIn("Ausführliche Informationen", deduped[0]["description"])
+        self.assertEqual(deduped[0]["time"], "18:00–20:00")
+        self.assertEqual(deduped[0]["end_at"], "2026-07-31T20:00+02:00")
+
+    def test_relaxed_aggregator_title_match_requires_same_start_time(self):
+        shared = {
+            "start_date": "2026-07-31", "end_date": "2026-07-31",
+            "date": "2026-07-31", "city": "Bonn", "venue": "Hofgarten",
+            "description": "", "price": "", "end_at": "",
+        }
+        events = [
+            {
+                **shared, "title": "Critical Mass Bonn", "score": 1.3,
+                "source": "Bonn.jetzt", "link": "https://bonn.jetzt/early",
+                "time": "16:00", "start_at": "2026-07-31T16:00+02:00",
+            },
+            {
+                **shared,
+                "title": "Critical Mass - Radeln in großer Runde durch Bonn",
+                "score": 1.12, "source": "Bonn.de Events",
+                "link": "https://www.bonn.de/evening", "time": "18:00",
+                "start_at": "2026-07-31T18:00+02:00",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
     def test_deduplicate_prefers_primary_source_and_keeps_richer_description(self):
         events = [
             {
