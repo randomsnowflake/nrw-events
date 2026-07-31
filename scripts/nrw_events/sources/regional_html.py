@@ -245,23 +245,38 @@ def _events_from_eitorf_cards(html: str, base: str) -> list:
         subtitle = re.search(r'<p class="subtitle">\s*(.*?)\s*</p>', block, re.S | re.I)
         if not (date and title):
             continue
+        block_text = rc.clean(block)
         start = rc.with_time(common.parse_iso_date(date.group(1)), rc.clean(subtitle.group(1) if subtitle else ""))
         ev = common.make_event(
             rc.clean(title.group(1)),
             start,
             start,
-            rc.clean(place.group(1) if place else ""),
+            _eitorf_venue(rc.clean(place.group(1) if place else ""), block_text),
             "Eitorf",
-            rc.clean(block),
+            block_text,
             rc.abs_url(base, href.group(1) if href else ""),
             "Eitorf",
             "lokal markt kultur outdoor fest",
             0.88,
-            rc.time_text(rc.clean(block)),
+            rc.time_text(block_text),
         )
         if ev:
             events.append(ev)
     return events
+
+
+def _eitorf_venue(place: str, text: str) -> str:
+    """Recover an explicit place when the card's place starts with the city."""
+    place = rc.clean(place)
+    detail = re.sub(r"^Eitorf\s*,\s*", "", place, flags=re.I).strip()
+    if detail and detail.casefold() != "eitorf":
+        return detail
+    meeting_point = re.search(
+        r"\bTreffpunkt\s+ist\s+(?:(?:der|die|das|am|im)\s+)?([^,.;]+)",
+        text or "",
+        re.I,
+    )
+    return rc.clean(meeting_point.group(1)) if meeting_point else place
 
 
 def _events_from_broeltal(html: str, base: str) -> list:

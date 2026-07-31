@@ -266,7 +266,11 @@ def _clickaround_events_for_date(chunk: str, current_date, base: str) -> list:
     events = []
     for item in re.findall(r'<div class="item">(.*?)</div>\s*</div>', chunk, re.S | re.I):
         link = re.search(r'href="([^"]+)"[^>]+aria-label="Mehr Infos - ([^"]+)"', item, re.S | re.I)
-        venue = re.search(r'<b>Veranstaltungsort:</b>\s*([^<]+)', item, re.S | re.I)
+        venue = re.search(
+            r'<b>(?:Veranstaltungsort|Adresse):</b>\s*([^<]+)',
+            item,
+            re.S | re.I,
+        )
         if not link:
             continue
         ev = common.make_event(

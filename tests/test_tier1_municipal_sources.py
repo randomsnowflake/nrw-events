@@ -216,7 +216,9 @@ class SitekitPaginationTests(unittest.TestCase):
             regional_sitekit,
             "_CALENDARS",
             [("Teststadt", "sitekit-test", "https://example.test/events", 0.9)],
-        ), mock.patch.object(common, "fetch_url", side_effect=fake_fetch):
+        ), mock.patch.object(common, "fetch_url", side_effect=fake_fetch), mock.patch.object(
+            common, "fetch_detail_url", return_value=""
+        ):
             events = regional_sitekit.fetch()
 
         self.assertEqual(

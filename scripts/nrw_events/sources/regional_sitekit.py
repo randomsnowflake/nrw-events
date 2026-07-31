@@ -106,11 +106,11 @@ def fetch() -> list:
         events,
         source=_SOURCE,
         cache_namespace="regional-sitekit-detail",
-        extract_context=lambda html, _event: {
-            "description": _detail_description(html),
-        },
+        extract_context=lambda html, _event: _detail_context(html),
         fallback=lambda event: event.get("description", ""),
-        needs_enrichment=lambda event: event.get("category_key") == "other",
+        needs_enrichment=lambda event: (
+            not event.get("venue") or event.get("category_key") == "other"
+        ),
     )
     for event in events:
         if event.get("category_key") != "other":
@@ -143,6 +143,35 @@ def _detail_description(html: str) -> str:
     ]
     paragraphs = [paragraph for paragraph in paragraphs if paragraph]
     return common.concise_description(" ".join(paragraphs))
+
+
+def _detail_context(html: str) -> dict[str, str]:
+    """Return the SiteKit detail copy and its schema.org place fields."""
+    context = {"description": _detail_description(html)}
+    items = common.jsonld_event_items(html)
+    location = items[0].get("location") if items else None
+    if isinstance(location, list):
+        location = location[0] if location else None
+    if not isinstance(location, dict):
+        return context
+
+    venue = rc.clean(str(location.get("name") or ""))
+    address = location.get("address")
+    address_parts = []
+    if isinstance(address, dict):
+        street = rc.clean(str(address.get("streetAddress") or ""))
+        postcode = rc.clean(str(address.get("postalCode") or ""))
+        city = rc.clean(str(address.get("addressLocality") or ""))
+        locality = " ".join(part for part in (postcode, city) if part)
+        address_parts = [part for part in (street, locality) if part]
+    elif isinstance(address, str):
+        address_parts = [rc.clean(address)]
+
+    if venue:
+        context["venue"] = venue
+    if address_parts:
+        context["venue_address"] = ", ".join(address_parts)
+    return context
 
 
 def _events_from_teasers(html: str, base: str, city: str, trust: float,
