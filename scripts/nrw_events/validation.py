@@ -111,6 +111,12 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         event["price"] = inferred_free_price
     elif admission_basis == "implicit":
         event["price"] = ""
+    # Last resort before the event ships without any admission signal: the copy
+    # often states the price the price field left out.
+    if not event["price"]:
+        event["price"] = common.admission_price_from_description(event["description"])
+        if event["price"]:
+            inferred_admission_basis = "inferred"
     event["admission_basis"] = inferred_admission_basis
     admission_text = " ".join((
         event["title"], event["description"], event["price"],

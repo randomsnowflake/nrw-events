@@ -106,7 +106,7 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
         )
         self.assertEqual(
             context["venue"],
-            "Amb. Hospizdienst Much, Dr. Wirtz Str. 6, 53804 Much",
+            "Amb. Hospizdienst Much, Dr. Wirtz Str. 6",
         )
 
     def test_fetch_enriches_repeated_empty_events_with_one_detail_request(self):

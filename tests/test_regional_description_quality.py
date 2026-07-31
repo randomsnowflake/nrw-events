@@ -52,7 +52,8 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         self.assertIn("Geschichte, Gegenwart und Zukunft", events[0]["description"])
-        self.assertEqual(events[0]["venue"], "Zehnthof, Zehnthofstr. 2, 53489 Sinzig")
+        # Postcode and town are dropped; the street stays as the venue locator.
+        self.assertEqual(events[0]["venue"], "Zehnthof, Zehnthofstr. 2")
         self.assertEqual(events[0]["time"], "18:00")
         self.assertEqual(events[0]["end_at"], events[0]["start_at"])
         self.assertEqual(

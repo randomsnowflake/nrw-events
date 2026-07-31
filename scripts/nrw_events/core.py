@@ -44,6 +44,7 @@ from .dates import MONTH_DE as MONTH_DE
 from .dates import MONTH_EN as MONTH_EN
 from .dates import parse_date
 from .dates import parse_iso_date
+from .normalization import comparison_text
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -795,11 +796,49 @@ def is_raw_api_url(url: str) -> bool:
     return False
 
 
+# Sources hand the venue field a full postal address, a room booking detail, or
+# just the town. None of that is a venue name, and all of it leaks into venue
+# pages, grouping, and the geocoding key. The street stays: several sources tell
+# two branches of the same chain apart by nothing else ("HIT-Markt, Alte
+# Heerstraße 53" vs "HIT-Markt, Drachenburgstraße 14").
+_VENUE_ADDRESS_SEGMENT = re.compile(
+    r"^(?:"
+    r"\d{4,5}(?:\s+\S.*)?"  # postcode, alone or followed by the town
+    r"|(?:d|de|deutschland|germany|nrw|rlp)\.?"
+    r")$",
+    re.IGNORECASE,
+)
+_VENUE_ROOM_SEGMENT = re.compile(
+    r"^(?:raum|raumnummer|zimmer|saal|etage|stock(?:werk)?|geb(?:äude|aeude)|eingang|treffpunkt|ebene)\b",
+    re.IGNORECASE,
+)
+_KNOWN_PLACE_KEYS = frozenset(comparison_text(name) for name in config.VENUE_COORDS)
+
+
 def normalize_venue_name(value: str) -> str:
-    """Clean venue text and fix obvious casing/known town typos."""
+    """Clean venue text and fix obvious casing/known town typos.
+
+    Everything after the first comma is treated as optional detail: address
+    fragments, postcodes, countries, and room bookings are dropped, the rest is
+    kept. A venue that only repeats a known town carries no venue information at
+    all and becomes empty, so downstream grouping does not invent a place.
+    """
     cleaned = clean_html(value)[:120]
-    if cleaned and cleaned == cleaned.lower():
-        cleaned = cleaned.title()
+    segments = [segment.strip(" ,;·-–—") for segment in cleaned.split(",")]
+    segments = [segment for segment in segments if segment]
+    if segments:
+        kept = [segments[0]] + [
+            segment
+            for segment in segments[1:]
+            if not _VENUE_ADDRESS_SEGMENT.match(segment)
+            and not _VENUE_ROOM_SEGMENT.match(segment)
+            and comparison_text(segment) not in _KNOWN_PLACE_KEYS
+        ]
+        # Casing is fixed per segment: an all-lowercase name next to a properly
+        # cased street would otherwise keep its shouting-free-newsletter look.
+        cleaned = ", ".join(segment.title() if segment == segment.lower() else segment for segment in kept)
+    if comparison_text(cleaned) in _KNOWN_PLACE_KEYS:
+        return ""
     replacements = {
         "remagen": "Remagen",
     }
@@ -1242,6 +1281,28 @@ def infer_admission(
     if admission == AdmissionDefault.FREE_BY_NATURE and not visitor_charge:
         return "kostenlos", "implicit"
     return "", ""
+
+
+# Most feeds leave the price field empty even when the description states the
+# admission. Only amounts tied to an admission word are trusted; a bare "5 €"
+# somewhere in the copy is just as likely to be a drink or a parking fee.
+_DESCRIPTION_PRICE_PATTERN = re.compile(
+    r"\b(?:eintritt(?:spreis|sgeld)?|ticket(?:preis|s)?|karten|kosten|preis|"
+    r"teilnahmegebühr|teilnahmegebuehr|vvk|vorverkauf|abendkasse)\b"
+    r"[^.;\n]{0,40}?"
+    r"(?P<from>\bab\s+)?"
+    r"(?P<amount>\d{1,3}(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b)",
+    re.IGNORECASE,
+)
+
+
+def admission_price_from_description(description: str) -> str:
+    """Return a display price stated in event copy, or "" when none is stated."""
+    match = _DESCRIPTION_PRICE_PATTERN.search(clean_html(description or ""))
+    if not match:
+        return ""
+    amount = match.group("amount").replace(".", ",")
+    return f"ab {amount} €" if match.group("from") else f"{amount} €"
 
 
 def infer_free_admission_price(

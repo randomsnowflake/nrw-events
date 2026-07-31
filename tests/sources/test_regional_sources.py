@@ -68,7 +68,7 @@ class RheinbachParserTests(unittest.TestCase):
         event = events[0]
         self.assertEqual(event["title"], "Wald und Kaffee")
         self.assertEqual(event["time"], "14:00")
-        self.assertEqual(event["venue"], "Eifelhaus, Neukirchener Weg 11, Rheinbach")
+        self.assertEqual(event["venue"], "Eifelhaus, Neukirchener Weg 11")
         self.assertEqual(event["category_key"], "outdoor")
         self.assertIn("Kleine Wanderung im Rheinbacher Wald", event["description"])
         self.assertTrue(event["description"].endswith("."))
