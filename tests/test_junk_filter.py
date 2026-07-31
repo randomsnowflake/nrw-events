@@ -285,6 +285,43 @@ class JunkFilterTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertFalse(common.is_junk_event(event(title)))
 
+    def test_recurring_wording_does_not_hide_named_destination_activities(self):
+        cases = [
+            (
+                "Wachtberger Repair Café",
+                "Wiederkehrender Termin: Ehrenamtliche helfen beim Reparieren.",
+            ),
+            (
+                "ADFC-Feierabendtour",
+                "Die wöchentlichen Radtouren führen rund 40 km durch die Region.",
+            ),
+            (
+                "Kleine Auszeit für Frauen mit Kristallklangschalenreise",
+                "Nicht Teil unserer regelmäßigen Gruppe; ein einmaliger Abend am 21. August.",
+            ),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                self.assertFalse(common.is_junk_event({
+                    **event(title, description=description),
+                    "link": "https://example.test/wiederkehrende-termine/activity/",
+                }))
+
+    def test_routine_meetups_stay_blocked_beside_destination_exceptions(self):
+        cases = [
+            ("Treffen des ZWAR-Netzwerkes", "Wir treffen uns regelmäßig alle 14 Tage."),
+            ("Selbsthilfegruppe Tag Eins", "Regelmäßige Gesprächsrunden."),
+            ("Offener Näh- und Handarbeitstreff", "Wiederkehrender Termin jeden Montag."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                self.assertTrue(common.is_junk_event({
+                    **event(title, description=description),
+                    "link": "https://example.test/wiederkehrende-termine/meeting/",
+                }))
+
     def test_recurring_destination_markets_survive_routine_filter(self):
         cases = [
             ("Flohmarkt Bonn Siemensstraße", "Wöchentlich jeden Samstag"),
