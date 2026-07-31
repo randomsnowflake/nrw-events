@@ -1,9 +1,20 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from nrw_events.category_taxonomy import CATEGORIES, categorize_event
+from nrw_events.category_taxonomy import (
+    CATEGORIES,
+    category_cache_key,
+    categorize_event,
+    configure_fallback_cache,
+)
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
+    def tearDown(self):
+        configure_fallback_cache()
+
     def test_compound_event_formats_classify_without_source_bags(self):
         cases = (
             ("b’future-Journalismusfestival", "festival"),
@@ -59,7 +70,46 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
         self.assertEqual(concert["key"], "concert")
         self.assertEqual(unknown["key"], "stage")
+        self.assertEqual(unknown["confidence"], 1.0)
         self.assertEqual(unknown["reason"], "source:default:stage")
+
+    def test_focused_source_bag_clears_confidence_threshold(self):
+        result = categorize_event("Musik", "Sondertermin", "")
+
+        self.assertEqual(result["key"], "concert")
+        self.assertEqual(result["confidence"], 0.6)
+
+    def test_einfuehrung_does_not_trigger_guided_tour_rule(self):
+        result = categorize_event(
+            "",
+            'Martin Booms – Philosophie im Kino – "Einführung, Film & Diskussion"',
+            "",
+        )
+
+        self.assertEqual(result["key"], "cinema")
+        self.assertNotEqual(result["reason"], "forced:outdoor-title-format")
+
+    def test_reviewed_cache_resolves_unknown_series_without_an_external_classifier(self):
+        cache_key = category_cache_key("example-source", "Jeden Dienstag: Sondertermin")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "categories.json"
+            path.write_text(json.dumps({
+                "version": 1,
+                "entries": {
+                    cache_key: {"key": "talk", "confidence": 0.9, "reason": "editorial-review"},
+                },
+            }), encoding="utf-8")
+            configure_fallback_cache(str(path))
+
+            result = categorize_event(
+                "",
+                "Jeden Dienstag: Sondertermin",
+                source_id="example-source",
+            )
+
+        self.assertEqual(result["key"], "talk")
+        self.assertEqual(result["confidence"], 0.9)
+        self.assertEqual(result["reason"], "fallback:cache:editorial-review")
 
     def test_category_lock_requires_a_valid_explicit_default(self):
         with self.assertRaises(ValueError):

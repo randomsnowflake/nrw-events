@@ -40,6 +40,7 @@ from .normalization import resolve_venue
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
 from .runtime import RunContext
+from .title_normalization import normalize_event_title
 from .dates import configure_reference_date as _configure_date_reference
 from .dates import MONTH_DE as MONTH_DE
 from .dates import MONTH_EN as MONTH_EN
@@ -122,7 +123,7 @@ _HOST_LAST_FETCH_AT: dict[str, float] = {}
 
 def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger) -> None:
     """Apply validated settings after the optional env file has been loaded."""
-    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _HTTP_RETRY_MAX_DELAY_SECONDS, _HTTP_MAX_RESPONSE_BYTES, _RUN_ID, _LOGGER
+    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _HTTP_RETRY_MAX_DELAY_SECONDS, _HTTP_MAX_RESPONSE_BYTES, _RUN_ID, _LOGGER, MAX_RADIUS_KM
     _HTTP_RETRY_ATTEMPTS = settings.http_retry_attempts
     _HTTP_RETRY_BASE_SECONDS = settings.http_retry_base_seconds
     _HTTP_RETRY_MAX_DELAY_SECONDS = settings.http_retry_max_delay_seconds
@@ -130,6 +131,9 @@ def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: loggi
     _HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"] = settings.bonn_de_delay_seconds
     _RUN_ID = run_id
     _LOGGER = logger
+    MAX_RADIUS_KM = settings.radius_km
+    config.MAX_RADIUS_KM = settings.radius_km
+    category_taxonomy.configure_fallback_cache(settings.category_fallback_cache)
 
 
 def configure_context(context: RunContext) -> None:
@@ -1271,6 +1275,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     """
     if not title or (start_dt is None and end_dt is not None):
         return None
+    title = normalize_event_title(title, start=start_dt, end=end_dt, source=source)
     # Most sources only ever report "Bonn". Resolve the district centrally from
     # the venue so every source benefits instead of each repeating the lookup.
     city = refine_bonn_location(city, f"{venue} {city}")
@@ -1323,6 +1328,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         description,
         venue=venue,
         source=source,
+        source_id=source_id,
         default_category_key=default_category_key,
         category_locked=category_locked,
     )

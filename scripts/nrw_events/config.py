@@ -25,6 +25,11 @@ def default_state_dir() -> Path:
 class RuntimeConfig:
     days_ahead: int = 3
     score_floor: float = 0.4
+    radius_km: float = 75.0
+    categories: tuple[str, ...] = ()
+    free_only: bool = False
+    json_stdout: bool = False
+    category_fallback_cache: str = ""
     http_retry_attempts: int = 5
     http_retry_base_seconds: float = 1.0
     bonn_de_delay_seconds: float = 2.0
@@ -85,6 +90,22 @@ def _float(name: str, default: float, minimum: float, maximum: float) -> float:
     return value
 
 
+def _bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().casefold()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off", ""}:
+        return False
+    raise ValueError(f"{name} must be a boolean (0/1, false/true), got {raw!r}")
+
+
+def _categories(name: str) -> tuple[str, ...]:
+    return tuple(bit.strip().casefold() for bit in os.environ.get(name, "").split(",") if bit.strip())
+
+
 def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
     """Return validated settings after :func:`load_env_file` has run."""
     configured_days = _int("NRW_EVENTS_DAYS_AHEAD", 3, 1, 90)
@@ -98,6 +119,11 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
     return RuntimeConfig(
         days_ahead=configured_days,
         score_floor=_float("NRW_EVENTS_SCORE_FLOOR", 0.4, 0.0, 10.0),
+        radius_km=_float("NRW_EVENTS_RADIUS_KM", 75.0, 0.1, 500.0),
+        categories=_categories("NRW_EVENTS_CATEGORIES"),
+        free_only=_bool("NRW_EVENTS_FREE_ONLY"),
+        json_stdout=_bool("NRW_EVENTS_JSON_STDOUT"),
+        category_fallback_cache=os.environ.get("NRW_EVENTS_CATEGORY_FALLBACK_CACHE", ""),
         http_retry_attempts=_int("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", 5, 1, 10),
         http_retry_base_seconds=_float("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", 1.0, 0.0, 60.0),
         bonn_de_delay_seconds=_float("NRW_EVENTS_BONN_DE_DELAY_SECONDS", 2.0, 0.0, 60.0),

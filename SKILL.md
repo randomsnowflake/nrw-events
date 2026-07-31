@@ -149,6 +149,11 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_MAX_PER_SECTION=N` — cap events shown per category (0/unset = all).
 - `NRW_EVENTS_DAYS_AHEAD=3` — default time window when the CLI has no day argument (1–90).
 - `NRW_EVENTS_SCORE_FLOOR=0.4` — minimum score to keep. Lower = more/noisier.
+- `NRW_EVENTS_RADIUS_KM=75` — maximum distance from Bonn (`--umkreis 15km`).
+- `NRW_EVENTS_CATEGORIES=market,festival` — canonical category filter (`--kategorie`).
+- `NRW_EVENTS_FREE_ONLY=1` — keep only explicitly free events (`--kostenlos`).
+- `NRW_EVENTS_JSON_STDOUT=1` — emit only JSON to stdout and do not publish snapshots (`--json`).
+- `NRW_EVENTS_CATEGORY_FALLBACK_CACHE=/path/cache.json` — optional reviewed category cache; the importer itself never invokes an LLM.
 - `NRW_EVENTS_EXA_QUERIES=10` — how many `search_queries()` to send to Exa (~5 results each).
 - `NRW_EVENTS_ENABLE_GROK=1` — enable the slow/costly agentic Grok sweep (off by default).
 - `NRW_EVENTS_USER_AGENT` — override the default browser-like user agent.

@@ -226,11 +226,31 @@ Begrenzung werden alle gefundenen, deduplizierten und relevanten Events gezeigt.
 Die zuletzt beobachtete Zahl `99` war nur das Ergebnis eines konkreten Testlaufs,
 kein Limit.
 
+Die CLI kann den bestehenden Tageswert weiterhin positional lesen und bietet
+zusätzlich maschinenlesbare, eng gefilterte Abfragen:
+
+```bash
+bash scripts/nrw-events.sh 7
+bash scripts/nrw-events.sh heute --json
+bash scripts/nrw-events.sh wochenende --umkreis 15km --kostenlos
+bash scripts/nrw-events.sh heute-abend --kategorie markt,festival
+bash scripts/nrw-events.sh --days 7 --json
+```
+
+`--json` schreibt ausschließlich die gefilterte Eventliste nach stdout und
+verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
+überschreiben die entsprechenden Umgebungsvariablen.
+
 | Variable                      | Standard | Wirkung |
 |-------------------------------|----------|---------|
 | `NRW_EVENTS_MAX_PER_SECTION`  | `0`      | Optionale Begrenzung pro Kategorie. `0`/nicht gesetzt = alle Events anzeigen. |
 | `NRW_EVENTS_DAYS_AHEAD`       | `3`      | Standard-Zeitfenster, wenn kein CLI-Argument gesetzt ist (1–90). |
 | `NRW_EVENTS_SCORE_FLOOR`      | `0.4`    | Mindestscore. Niedriger = mehr Treffer und mehr Rauschen. |
+| `NRW_EVENTS_RADIUS_KM`        | `75`     | Maximaler Umkreis ab Bonn; entspricht `--umkreis`. |
+| `NRW_EVENTS_CATEGORIES`       | nicht gesetzt | Kommagetrennte Kategorie-Keys; entspricht `--kategorie`. |
+| `NRW_EVENTS_FREE_ONLY`        | `0`      | Nur explizit kostenlose Events; entspricht `--kostenlos`. |
+| `NRW_EVENTS_JSON_STDOUT`      | `0`      | Eventliste als reines JSON auf stdout, ohne Snapshot-Publikation; entspricht `--json`. |
+| `NRW_EVENTS_CATEGORY_FALLBACK_CACHE` | nicht gesetzt | Optionaler geprüfter Cache für unklare Serien (`source_id` + normalisierter Titel). Es erfolgt kein LLM- oder Netzwerkaufruf. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
 | `NRW_EVENTS_USER_AGENT`       | moderner Chrome UA | Optionaler Override für HTTP-Requests an öffentliche Quellen. |

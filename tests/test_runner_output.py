@@ -645,6 +645,34 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.rejected_event_count, 1)
         self.assertEqual(result.rejection_reasons, {"quality:civic.course": 1})
 
+    def test_truncated_marketcom_title_is_published_with_a_validation_warning(self):
+        title = "Film-, Comic- & Figurenbörse in der STADTHALLE KÖ..."
+
+        def fetch_events():
+            return [{
+                "title": title,
+                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "venue": "Stadthalle",
+                "city": "Köln",
+                "description": "Comic- und Manga-Convention",
+                "link": "https://example.test/market",
+                "distance_km": 25,
+                "score": 1.0,
+                "source": "marktcom",
+                "category": "markt",
+            }]
+
+        result, events = runner._run_source("marktcom", fetch_events)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.warnings, [{
+            "source": "marktcom",
+            "source_id": "marktcom",
+            "error_type": "TitleTruncationWarning",
+            "error": f"title may be truncated: {title}",
+        }])
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 10))
 

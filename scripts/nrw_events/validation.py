@@ -11,6 +11,7 @@ from . import category_taxonomy, common
 from .models import CanonicalEvent, RawEvent, normalize_source_id
 from .normalization import canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
+from .title_normalization import normalize_event_title
 
 
 class EventValidationError(ValueError):
@@ -173,6 +174,12 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         raise EventValidationError("link_kind_invalid")
     event["link_kind"] = link_kind
     _canonical_temporal_fields(event)
+    event["title"] = normalize_event_title(
+        event["title"],
+        start=common.parse_iso_date(event["start_date"]),
+        end=common.parse_iso_date(event["end_date"]),
+        source=event["source"],
+    )
     if (event["venue_latitude"] is None) != (event["venue_longitude"] is None):
         raise EventValidationError("venue_coordinates_incomplete")
     if event["venue_latitude"] is not None:
@@ -222,6 +229,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         event["description"],
         venue=event["venue"],
         source=event["source"],
+        source_id=event["source_id"],
     )
     event.setdefault("category_key", canonical["key"])
     event.setdefault("category_label", canonical["label"])

@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+import argparse
 import fcntl
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
-from datetime import timedelta
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -24,6 +26,7 @@ from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
 from .runtime import EventWindow, RunContext
 from .sources import SOURCES, SOURCE_IDS
+from .title_normalization import title_looks_truncated
 from .validation import EventValidationError, validate_event
 
 
@@ -33,6 +36,16 @@ EXIT_SUCCESS = 0
 EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
 SNAPSHOT_GENERATIONS_KEPT = 3
+
+VERBS = ("heute", "heute-abend", "wochenende")
+_CATEGORY_ALIASES = {
+    "aktivitaeten": "activities", "aktivitäten": "activities", "ausstellung": "exhibition",
+    "familie": "kids", "festival": "festival", "food": "food", "fuehrung": "outdoor",
+    "führung": "outdoor", "kino": "cinema", "konzert": "concert", "kurs": "workshop",
+    "markt": "market", "nachtleben": "nightlife", "party": "nightlife", "sonstiges": "other",
+    "sport": "sports", "theater": "stage", "treffen": "activities", "vortrag": "talk",
+    "workshop": "workshop",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +111,16 @@ def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, lis
                 in_window = True
             if not in_window:
                 continue
+            if title_looks_truncated(
+                str(event.get("title") or ""),
+                source=str(event.get("source") or name),
+            ):
+                result.warning(
+                    str(event.get("source") or name),
+                    "TitleTruncationWarning",
+                    f"title may be truncated: {event.get('title', '')}",
+                    source_id=normalize_source_id(event.get("source_id") or event.get("source") or name),
+                )
             try:
                 canonical_event = validate_event(event)
                 if not common.event_in_window(canonical_event):
@@ -531,15 +554,130 @@ def _publish_snapshots(settings: config.RuntimeConfig, events: list, metadata: d
         }
 
 
-def _parse_days(argv: list[str]) -> Optional[int]:
-    if len(argv) <= 1:
-        return None
-    if len(argv) > 2:
-        raise ValueError("usage: nrw-events.py [days_ahead]")
+class _ArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ValueError(message)
+
+
+@dataclass(frozen=True, slots=True)
+class CliQuery:
+    verb: str = ""
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = _ArgumentParser(
+        prog="nrw-events",
+        description="Import and query public NRW events.",
+    )
+    parser.add_argument("target", nargs="?", help="days_ahead or one of: " + ", ".join(VERBS))
+    parser.add_argument("--days", type=int, help="number of days to import (1-90)")
+    parser.add_argument("--json", action="store_true", help="write only the filtered event list as JSON to stdout")
+    parser.add_argument("--umkreis", metavar="KM", help="maximum distance from Bonn, e.g. 15km")
+    parser.add_argument("--kostenlos", action="store_true", help="return only events with explicit free admission")
+    parser.add_argument("--kategorie", metavar="KEYS", help="comma-separated category keys or German names")
+    return parser
+
+
+def _parse_radius(value: str) -> float:
+    normalized = value.strip().casefold().removesuffix("km").strip()
     try:
-        return int(argv[1])
+        radius = float(normalized.replace(",", "."))
     except ValueError as exc:
-        raise ValueError("days_ahead must be an integer between 1 and 90") from exc
+        raise ValueError("--umkreis must be a distance such as 15km") from exc
+    if not 0.1 <= radius <= 500:
+        raise ValueError("--umkreis must be between 0.1km and 500km")
+    return radius
+
+
+def _category_keys(value: str | None) -> tuple[str, ...]:
+    if not value:
+        return ()
+    known = {category["key"] for category in CATEGORIES}
+    keys = []
+    for raw in value.split(","):
+        normalized = raw.strip().casefold()
+        key = _CATEGORY_ALIASES.get(normalized, normalized)
+        if key not in known:
+            raise ValueError(f"unknown category {raw.strip()!r}; use one of: {', '.join(sorted(known))}")
+        if key not in keys:
+            keys.append(key)
+    return tuple(keys)
+
+
+def _weekend_bounds(today: datetime) -> tuple[datetime, datetime]:
+    weekday = today.weekday()
+    days_to_friday = 4 - weekday if weekday <= 4 else 0
+    start = today + timedelta(days=days_to_friday)
+    end = today + timedelta(days=(6 - weekday) % 7)
+    return start, end
+
+
+def _parse_cli(argv: list[str], now: datetime | None = None) -> tuple[Optional[int], CliQuery, dict[str, object]]:
+    args = _parser().parse_args(argv[1:])
+    target = args.target or ""
+    verb = target if target in VERBS else ""
+    positional_days: Optional[int] = None
+    if target and not verb:
+        try:
+            positional_days = int(target)
+        except ValueError as exc:
+            raise ValueError(f"unknown verb {target!r}; use one of: {', '.join(VERBS)}") from exc
+    if positional_days is not None and args.days is not None:
+        raise ValueError("days_ahead may be given either positionally or with --days, not both")
+    explicit_days = args.days if args.days is not None else positional_days
+    current = (now or datetime.now(common.LOCAL_TIMEZONE)).replace(tzinfo=None)
+    if verb in {"heute", "heute-abend"}:
+        explicit_days = 1
+    elif verb == "wochenende":
+        _, weekend_end = _weekend_bounds(current.replace(hour=0, minute=0, second=0, microsecond=0))
+        explicit_days = (weekend_end.date() - current.date()).days + 1
+    overrides: dict[str, object] = {}
+    if args.json:
+        overrides["json_stdout"] = True
+    if args.umkreis:
+        overrides["radius_km"] = _parse_radius(args.umkreis)
+    if args.kostenlos:
+        overrides["free_only"] = True
+    if args.kategorie:
+        overrides["categories"] = _category_keys(args.kategorie)
+    return explicit_days, CliQuery(verb), overrides
+
+
+def _event_overlaps(event: CanonicalEvent, start: datetime, end: datetime) -> bool:
+    event_start = common.parse_iso_date(event.start_date)
+    event_end = common.parse_iso_date(event.end_date) or event_start
+    return bool(event_start and event_end and event_start.date() <= end.date() and event_end.date() >= start.date())
+
+
+def _matches_query(event: CanonicalEvent, settings: config.RuntimeConfig, query: CliQuery, today: datetime) -> bool:
+    if settings.categories and event.category_key not in settings.categories:
+        return False
+    if settings.free_only and (event.admission or {}).get("isFree") is not True:
+        return False
+    if event.distance_km is None or event.distance_km > settings.radius_km:
+        return False
+    day = today.replace(hour=0, minute=0, second=0, microsecond=0)
+    if query.verb == "wochenende":
+        start, end = _weekend_bounds(day)
+        if not _event_overlaps(event, start, end):
+            return False
+    elif query.verb in {"heute", "heute-abend"} and not _event_overlaps(event, day, day):
+        return False
+    if query.verb == "heute-abend":
+        times = [int(hour) * 60 + int(minute) for hour, minute in re.findall(r"(\d{2}):(\d{2})", event.time)]
+        if not times or max(times) < 17 * 60:
+            return False
+    return True
+
+
+def filter_import_result(
+    result: ImportResult,
+    settings: config.RuntimeConfig,
+    query: CliQuery,
+    today: datetime,
+) -> ImportResult:
+    events = tuple(event for event in result.events if _matches_query(event, settings, query, today))
+    return replace(result, events=events)
 
 
 def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
@@ -664,14 +802,13 @@ def publish_snapshot(snapshot: SnapshotPayload, settings: config.RuntimeConfig) 
 
 def cli(argv: list[str]) -> int:
     """Translate argv/environment and service results into CLI effects."""
-    if len(argv) == 2 and argv[1] in {"-h", "--help"}:
-        print("Usage: nrw-events [days_ahead]")
-        print("Import public NRW events for 1-90 days ahead (default: 3).")
-        return EXIT_SUCCESS
     try:
         config.load_env_file()
-        settings = config.runtime_config(_parse_days(argv))
-        _validate_output_paths(settings)
+        days_ahead, query, overrides = _parse_cli(argv)
+        settings = replace(config.runtime_config(days_ahead), **overrides)
+        settings = replace(settings, categories=_category_keys(",".join(settings.categories)))
+        if not settings.json_stdout:
+            _validate_output_paths(settings)
     except ValueError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return EXIT_FAILED
@@ -679,10 +816,18 @@ def cli(argv: list[str]) -> int:
     run_id = uuid.uuid4().hex
     logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
     context = RunContext(settings, EventWindow.from_days(settings.days_ahead), run_id, logger)
-    common.configure_context(context)
+    try:
+        common.configure_context(context)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Configuration error: {exc}", file=sys.stderr)
+        return EXIT_FAILED
     import_result = run_import(context, SOURCES)
-    print(report.format_report(list(import_result.events)))
+    import_result = filter_import_result(import_result, settings, query, context.window.start)
     snapshot = build_snapshot(import_result, context)
+    if settings.json_stdout:
+        print(json.dumps(snapshot.events, ensure_ascii=False, indent=2))
+    else:
+        print(report.format_report(list(import_result.events)))
     for issue in snapshot.metadata["import_issues"]:
         log(logger, 30 if issue["severity"] == "warning" else 40,
             f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))
@@ -690,7 +835,7 @@ def cli(argv: list[str]) -> int:
     if run_status == "failed":
         log(logger, 40, "import health gate failed; preserving last-known-good snapshot",
             run_id=run_id, source="runner")
-    else:
+    elif not settings.json_stdout:
         try:
             paths = publish_snapshot(snapshot, settings)
             log(logger, 20, f"published snapshot manifest at {paths['manifest']}", run_id=run_id, source="runner")

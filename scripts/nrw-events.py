@@ -10,7 +10,7 @@ Thin launcher. All logic lives in the ``nrw_events`` package next to this file:
   nrw_events/runner.py    — orchestration (fan-out, filter, dedup, output)
 
 Usage:
-  python3 scripts/nrw-events.py [days_ahead]   # default 3 (a Fri–Sun weekend)
+  python3 scripts/nrw-events.py [days_ahead|verb] [flags]
 """
 
 from nrw_events.runner import main

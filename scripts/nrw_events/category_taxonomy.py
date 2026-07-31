@@ -8,8 +8,12 @@ not have to duplicate category rules in TypeScript.
 from __future__ import annotations
 
 import re
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, TypedDict
+
+from .models import normalize_source_id
 
 
 class Category(TypedDict):
@@ -60,6 +64,47 @@ CATEGORIES: list[Category] = [
 ]
 
 CATEGORY_BY_KEY = {category["key"]: category for category in CATEGORIES}
+HEURISTIC_CONFIDENCE_THRESHOLD = 0.5
+_FALLBACK_CACHE: dict[str, CategoryResult] = {}
+
+
+def category_cache_key(source_id: str, title: str) -> str:
+    """Return the stable series key used by an optional reviewed fallback cache."""
+    return f"{normalize_source_id(source_id)}|{normalize_text(title)}"
+
+
+def configure_fallback_cache(path: str = "") -> None:
+    """Load reviewed fallback classifications without invoking any external service."""
+    global _FALLBACK_CACHE
+    if not path:
+        _FALLBACK_CACHE = {}
+        return
+    payload = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+    entries = payload.get("entries") if isinstance(payload, dict) else None
+    if not isinstance(payload, dict) or payload.get("version") != 1 or not isinstance(entries, dict):
+        raise ValueError("category fallback cache must use schema version 1 with an entries object")
+    loaded: dict[str, CategoryResult] = {}
+    for cache_key, raw in entries.items():
+        if not isinstance(cache_key, str) or not isinstance(raw, dict):
+            raise ValueError("category fallback cache entries must be keyed objects")
+        key = raw.get("key")
+        confidence = raw.get("confidence", 0.9)
+        if key not in CATEGORY_BY_KEY or key == "other":
+            raise ValueError(f"category fallback cache contains invalid category {key!r}")
+        if not isinstance(confidence, (int, float)) or not HEURISTIC_CONFIDENCE_THRESHOLD <= confidence <= 1:
+            raise ValueError("category fallback cache confidence must be between 0.5 and 1.0")
+        category = CATEGORY_BY_KEY[key]
+        loaded[cache_key] = {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": float(confidence),
+            "reason": f"fallback:cache:{raw.get('reason', 'reviewed')}",
+        }
+    _FALLBACK_CACHE = loaded
+
+
+def _fallback_category(source_id: str, title: str) -> CategoryResult | None:
+    return _FALLBACK_CACHE.get(category_cache_key(source_id, title))
 
 
 def word(value: str, *, weak: bool = False) -> Keyword:
@@ -290,14 +335,16 @@ def _forced_title_format(title_text: str) -> str:
         return "cinema"
     if re.search(r"\b(?:sport|\w*tennis\w*|\w*sport(?:tag|fest|turnier|woche))\b", title_text):
         return "sports"
-    if re.search(r"\b\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text):
+    if re.search(r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text):
         return "outdoor"
     if _contains_word(title_text, "bildungsurlaub"):
         return "workshop"
     return ""
 
 
-_GUIDED_TOUR_TITLE_PATTERN = re.compile(r"\b\w*(?:führung(?:en)?|fuehrung(?:en)?)\b")
+_GUIDED_TOUR_TITLE_PATTERN = re.compile(
+    r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b"
+)
 _INDOOR_MUSEUM_CONTEXT_PATTERN = re.compile(
     r"\b(?:\w*museum\w*|bundeskunsthalle|ausstellungshaus)\b"
 )
@@ -503,6 +550,29 @@ def _contextual_event_format(
     return None
 
 
+def _heuristic_confidence(
+    title_matches: list[str],
+    description_matches: list[str],
+    hint_matches: list[str],
+) -> float:
+    """Estimate confidence from independent evidence, not an arbitrary score divisor."""
+    if title_matches:
+        confidence = 0.72 + min(max(len(title_matches) - 1, 0), 2) * 0.08
+    elif description_matches:
+        confidence = 0.58
+    elif hint_matches:
+        # A single focused source tag survives the broad-bag guard above and is
+        # useful evidence, but remains weaker than visitor-facing title copy.
+        confidence = 0.6
+    else:
+        return 0.0
+    if title_matches and description_matches:
+        confidence += 0.12
+    if (title_matches or description_matches) and hint_matches:
+        confidence += 0.05
+    return round(min(confidence, 0.95), 2)
+
+
 def categorize_event(
     source_category: str,
     title: str,
@@ -510,6 +580,7 @@ def categorize_event(
     *,
     venue: str = "",
     source: str = "",
+    source_id: str = "",
     default_category_key: str = "",
     category_locked: bool = False,
 ) -> CategoryResult:
@@ -653,6 +724,9 @@ def categorize_event(
     best_score = 0
     best_priority = -1
     best_reason = "other:no-match"
+    best_title_matches: list[str] = []
+    best_description_matches: list[str] = []
+    best_hint_matches: list[str] = []
     for rule in RULES:
         title_keywords = _matched_keywords(title_text, rule.keywords, is_title=True)
         description_keywords = _matched_keywords(description_text, rule.keywords, is_title=False)
@@ -685,6 +759,9 @@ def categorize_event(
             best_key = rule.key
             best_score = score
             best_priority = rule.priority
+            best_title_matches = title_matches
+            best_description_matches = description_matches
+            best_hint_matches = hint_matches
             bits = []
             if title_matches:
                 bits.append("title=" + ",".join(title_matches[:3]))
@@ -711,14 +788,44 @@ def categorize_event(
         return {
             "key": category["key"],
             "label": category["label"],
-            "confidence": 0.6,
+            "confidence": 1.0,
             "reason": f"source:default:{default_category_key}",
+        }
+
+    fallback = _fallback_category(source_id or source, title_text)
+    if best_key == "other" and fallback:
+        return dict(fallback)
+
+    confidence = _heuristic_confidence(
+        best_title_matches,
+        best_description_matches,
+        best_hint_matches,
+    )
+    if best_key != "other" and confidence < HEURISTIC_CONFIDENCE_THRESHOLD:
+        if fallback:
+            return dict(fallback)
+        contextual_format = _contextual_event_format(title_text, description_text)
+        if contextual_format:
+            key, reason, contextual_confidence = contextual_format
+            category = CATEGORY_BY_KEY[key]
+            return {
+                "key": category["key"],
+                "label": category["label"],
+                "confidence": contextual_confidence,
+                "reason": reason,
+            }
+        other = CATEGORY_BY_KEY["other"]
+        return {
+            "key": other["key"],
+            "label": other["label"],
+            "confidence": 0.0,
+            "reason": f"other:below-threshold:{best_key}:{confidence:.2f}",
         }
 
     category = CATEGORY_BY_KEY[best_key]
     return {
         "key": category["key"],
         "label": category["label"],
-        "confidence": round(min(1.0, best_score / 6), 2),
+        "confidence": confidence,
         "reason": best_reason,
     }
