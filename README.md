@@ -89,6 +89,26 @@ Open-Data-Layern OD=4490 und OD=4489. Registry-Treffer und Adressabdeckung sind
 in `quality_metrics` als `registered_venue_count` und `venue_address_count`
 messbar.
 
+Jedes veröffentlichte Event trägt eine stabile `event_id`. Sie identifiziert
+genau eine Veranstaltungs-Occurrence und ist damit als dauerhafte URL
+verwendbar. Die ID wird nach der Deduplizierung und vor der Sortierung vergeben
+und leitet sich ausschließlich aus normalisiertem Titel, `start_date`,
+Startzeit, Venue-Identität (`venue_id`, sonst Venue-Name) und Ort ab. Feed-
+Reihenfolge, Score, Quelle, Preis, Beschreibung und Link fließen bewusst nicht
+ein — Anreicherung darf keine bereits veröffentlichte URL bewegen. `source_id`
+benennt eine Quelle, kein Event, und ist nie Teil der Identität. Verschiedene
+Termine und Uhrzeiten einer Serie bleiben verschieden. Kollisionen werden
+erkannt und in inhaltsbasierter, reihenfolgeunabhängiger Ordnung mit einem
+Suffix aufgelöst; siehe `scripts/nrw_events/identity.py`.
+
+Die Website implementiert dieselbe Regel in TypeScript für Events, die nie
+durch diesen Importer laufen (Formular-Einreichungen). Beide Implementierungen
+sind auf die Golden Vectors in `tests/data/event_id_vectors.json` festgenagelt.
+Ändert sich `identity.py`, müssen Vektoren und Website-Implementierung im
+selben Review nachgezogen werden. `tests/test_public_event_contract.py` hält
+zusätzlich die Feldliste und die Menge der `venue_id`-Werte fest, auf die die
+Website ihre kanonischen Veranstaltungsorte abbildet.
+
 Redaktionelle Ausschlüsse erscheinen dort als stabile, maschinenlesbare
 `quality:<rule_id>`-Gründe, zum Beispiel `quality:civic.course`. Der
 Metadaten-Export enthält außerdem `quality_metrics` und warnende, aber nicht
