@@ -77,7 +77,8 @@ class MarketSourceTests(unittest.TestCase):
         self.assertEqual(event["date"], "2026-09-13")
         self.assertEqual(event["time"], "11:00–15:00")
         self.assertEqual(event["city"], "Hennef")
-        self.assertIn("Meiersheide 20", event["venue"])
+        self.assertEqual(event["venue"], "")
+        self.assertEqual(event["venue_address"], "53773 Hennef, Meiersheide 20")
         self.assertIn("13.09.2026", event["description"])
         self.assertEqual(
             event["link"],
@@ -99,7 +100,8 @@ class MarketSourceTests(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["city"], "Reichshof")
-        self.assertIn("Reichshof-Denklingen", events[0]["venue"])
+        self.assertEqual(events[0]["venue"], "")
+        self.assertEqual(events[0]["venue_address"], "51580 Reichshof-Denklingen, Hauptstr. 12")
 
     def test_hofflohmaerkte_parses_neighborhood_date_and_hours(self):
         html = """

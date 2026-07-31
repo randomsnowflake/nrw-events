@@ -79,9 +79,11 @@ def _structured_detail_context(html: str, title: str) -> dict[str, str]:
             end_date_value=end if start and end and end.date() != start.date() else None,
             time_text=time_text, end_time_text=end_time, venue=venue, city="Much",
         )
+    resolved_venue = common.resolve_venue(venue, "Much")
     return {
         "description": common.concise_description(description),
-        "venue": common.normalize_venue_name(venue),
+        "venue": resolved_venue.venue,
+        "venue_address": resolved_venue.venue_address,
     }
 
 

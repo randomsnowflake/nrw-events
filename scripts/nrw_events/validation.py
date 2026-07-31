@@ -9,7 +9,7 @@ from typing import Any
 
 from . import category_taxonomy, common
 from .models import CanonicalEvent, RawEvent, normalize_source_id
-from .normalization import canonical_venue_id
+from .normalization import canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
 
 
@@ -77,12 +77,31 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("description", 8000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
-    event["venue_id"] = _text(event, "venue_id", 160)
-    if event["venue_id"] and not re.fullmatch(
+    explicit_venue_id = _text(event, "venue_id", 160)
+    if explicit_venue_id and not re.fullmatch(
         r"[a-z0-9]+(?:-[a-z0-9]+)*",
-        event["venue_id"],
+        explicit_venue_id,
     ):
         raise EventValidationError("venue_id_invalid")
+    explicit_venue_address = _text(event, "venue_address", 500)
+    explicit_venue_district = _text(event, "venue_district", 160)
+    explicit_venue_type = _text(event, "venue_type", 80)
+    explicit_venue_latitude = event.get("venue_latitude")
+    explicit_venue_longitude = event.get("venue_longitude")
+    venue = resolve_venue(event["venue"], event["city"], explicit_id=explicit_venue_id)
+    event["venue"] = venue.venue
+    event["venue_id"] = venue.venue_id or explicit_venue_id
+    event["venue_address"] = venue.venue_address or explicit_venue_address
+    event["venue_district"] = venue.venue_district or explicit_venue_district
+    event["venue_type"] = venue.venue_type or explicit_venue_type
+    event["venue_latitude"] = (
+        venue.venue_latitude
+        if venue.venue_latitude is not None else explicit_venue_latitude
+    )
+    event["venue_longitude"] = (
+        venue.venue_longitude
+        if venue.venue_longitude is not None else explicit_venue_longitude
+    )
     event["venue_id"] = canonical_venue_id(event)
     canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
     event["time"] = canonical_time
@@ -154,6 +173,21 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         raise EventValidationError("link_kind_invalid")
     event["link_kind"] = link_kind
     _canonical_temporal_fields(event)
+    if (event["venue_latitude"] is None) != (event["venue_longitude"] is None):
+        raise EventValidationError("venue_coordinates_incomplete")
+    if event["venue_latitude"] is not None:
+        latitude = float(event["venue_latitude"])
+        longitude = float(event["venue_longitude"])
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+            raise EventValidationError("venue_coordinates_invalid")
+        event["venue_latitude"] = latitude
+        event["venue_longitude"] = longitude
+        event["distance_km"] = round(
+            common.haversine(common.BONN_LAT, common.BONN_LON, latitude, longitude),
+            2,
+        )
+        event["location_confidence"] = "exact"
+        event["location_source"] = "venue_registry"
     for field in ("score", "distance_km"):
         value = event.get(field)
         if value is None and field == "distance_km":

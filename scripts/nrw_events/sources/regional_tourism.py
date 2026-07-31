@@ -117,7 +117,8 @@ def _linz_detail_context(html: str) -> dict:
     return {
         "description": common.concise_description(
             rc.clean(description.group(1) if description else "")),
-        "venue": common.normalize_venue_name(venue.group(1) if venue else ""),
+        # Let ``make_event`` split name and address at the canonical boundary.
+        "venue": rc.clean(venue.group(1) if venue else ""),
         "time": event_time.group(1) if event_time else "",
     }
 

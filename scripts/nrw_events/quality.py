@@ -32,7 +32,10 @@ REQUIRED_PUBLICATION_FIELDS = (
     "score", "status", "timezone", "category_key", "category_label",
     "category_confidence", "category_reason", "all_day", "location_confidence",
 )
-OPTIONAL_CONTENT_FIELDS = ("time", "time_note", "venue", "description", "price")
+OPTIONAL_CONTENT_FIELDS = (
+    "time", "time_note", "venue", "venue_id", "venue_address",
+    "venue_district", "venue_type", "description", "price",
+)
 
 # Warning-only gates. They deliberately require a meaningful sample so a single
 # sparse record cannot turn a healthy import into alert noise. These thresholds
@@ -74,6 +77,8 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
             for event in source_rows
         )
         missing_venue = sum(not present(event, "venue") for event in source_rows)
+        registered_venue = sum(present(event, "venue_id") for event in source_rows)
+        venue_address = sum(present(event, "venue_address") for event in source_rows)
         return {
             "event_count": count,
             "low_confidence_count": low_confidence,
@@ -82,6 +87,10 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
             "unresolved_location_rate": round(unresolved / count, 4) if count else 0.0,
             "missing_venue_count": missing_venue,
             "missing_venue_rate": round(missing_venue / count, 4) if count else 0.0,
+            "registered_venue_count": registered_venue,
+            "registered_venue_rate": round(registered_venue / count, 4) if count else 0.0,
+            "venue_address_count": venue_address,
+            "venue_address_rate": round(venue_address / count, 4) if count else 0.0,
         }
 
     by_source = {
@@ -98,6 +107,8 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
             field: sum(present(event, field) for event in rows)
             for field in OPTIONAL_CONTENT_FIELDS
         },
+        "registered_venue_count": sum(present(event, "venue_id") for event in rows),
+        "venue_address_count": sum(present(event, "venue_address") for event in rows),
         "category_counts": dict(sorted(category_counts.items())),
         "uncategorized_count": category_counts.get("other", 0),
         "uncategorized_rate": (

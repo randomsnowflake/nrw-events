@@ -31,6 +31,11 @@ class RawEvent(TypedDict, total=False):
     status: str
     venue: str
     venue_id: str
+    venue_address: str
+    venue_district: str
+    venue_type: str
+    venue_latitude: Optional[float]
+    venue_longitude: Optional[float]
     city: str
     link: str
     link_kind: str
@@ -71,6 +76,11 @@ class CanonicalEvent(Mapping[str, Any]):
     status: str = "scheduled"
     venue: str = ""
     venue_id: str = ""
+    venue_address: str = ""
+    venue_district: str = ""
+    venue_type: str = ""
+    venue_latitude: Optional[float] = None
+    venue_longitude: Optional[float] = None
     city: str = ""
     link: str = ""
     link_kind: str = ""

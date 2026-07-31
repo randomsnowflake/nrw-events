@@ -126,7 +126,8 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertEqual(event["title"], "Der MSD-Flohmarkt in Bonn-Beuel")
         self.assertEqual(event["date"], "2026-08-09")
         self.assertEqual(event["time"], "11:00–16:00")
-        self.assertEqual(event["venue"], "REWE Center Bonn-Beuel, Am Weidenbach 31")
+        self.assertEqual(event["venue"], "REWE Center Bonn-Beuel")
+        self.assertEqual(event["venue_address"], "Am Weidenbach 31")
         self.assertEqual(event["link"], "https://okkengmbh.de/flohmarkt-bonn/")
         self.assertEqual(event["price"], "kostenlos")
 
@@ -316,7 +317,8 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertEqual(event["title"], "Trödelmarkt Bonn-Nord")
         self.assertEqual(event["date"], "2026-11-08")
         self.assertEqual(event["time"], "11:00–18:00")
-        self.assertEqual(event["venue"], "OBI/EDEKA, Bornheimer Straße 166")
+        self.assertEqual(event["venue"], "OBI/EDEKA")
+        self.assertEqual(event["venue_address"], "Bornheimer Straße 166")
         self.assertEqual(
             event["link"],
             "https://www.geide-maerkte.de/bonn-nord/bonn-nord-68.html",
@@ -352,7 +354,8 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["title"], "Trödelmarkt Bad Godesberg am HIT-Markt")
         self.assertEqual(events[0]["date"], "2026-09-13")
         self.assertEqual(events[0]["time"], "11:00–18:00")
-        self.assertEqual(events[0]["venue"], "HIT-Markt, Drachenburgstraße 14")
+        self.assertEqual(events[0]["venue"], "HIT-Markt")
+        self.assertEqual(events[0]["venue_address"], "Drachenburgstraße 14")
         self.assertEqual(events[0]["source_id"], "geide-bonn-bad-godesberg")
 
 

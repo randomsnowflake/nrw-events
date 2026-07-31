@@ -33,13 +33,15 @@ class JunkFilterTests(unittest.TestCase):
             "category_label": "Sonstiges", "category_confidence": 0.0,
             "category_reason": "other:no-match", "all_day": True,
             "location_confidence": "known_city", "time": "", "venue": "Bonn",
-            "description": "", "price": "",
+            "venue_id": "", "venue_address": "", "description": "", "price": "",
         }])
 
         self.assertEqual(metrics["event_count"], 1)
         self.assertEqual(sum(metrics["missing_required_fields"].values()), 0)
         self.assertEqual(metrics["uncategorized_count"], 1)
         self.assertEqual(metrics["optional_field_coverage"]["venue"], 1)
+        self.assertEqual(metrics["registered_venue_count"], 0)
+        self.assertEqual(metrics["venue_address_count"], 0)
         self.assertEqual(metrics["by_source"]["Test"]["event_count"], 1)
         self.assertEqual(metrics["by_source"]["Test"]["low_confidence_count"], 1)
         self.assertEqual(metrics["by_source"]["Test"]["missing_venue_count"], 0)
@@ -72,6 +74,10 @@ class JunkFilterTests(unittest.TestCase):
             "unresolved_location_rate": 0.5,
             "missing_venue_count": 1,
             "missing_venue_rate": 0.5,
+            "registered_venue_count": 0,
+            "registered_venue_rate": 0.0,
+            "venue_address_count": 0,
+            "venue_address_rate": 0.0,
         })
         self.assertEqual(metrics["by_source"]["Healthy Feed"]["low_confidence_rate"], 0.0)
 

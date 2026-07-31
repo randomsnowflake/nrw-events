@@ -77,6 +77,18 @@ Event kanonische Zeitfelder: `start_date`, `end_date`, `start_at`, `end_at`,
 Events werden nicht veröffentlicht; unvollständige oder ungültige Quellrecords
 werden mit einem Grund pro Quelle in `source_results` gezählt.
 
+Stabile Veranstaltungsorte werden deterministisch über das statische
+`VENUE_REGISTRY` aufgelöst. Es ordnet geprüfte Aliasse einer `venue_id` sowie,
+falls belegt, Anzeigename, Adresse, Stadtteil, Ortstyp und Koordinaten zu. Die
+zugehörigen Ausgabefelder heißen `venue`, `venue_id`, `venue_address`,
+`venue_district`, `venue_type`, `venue_latitude` und `venue_longitude`.
+Unbekannte Orte bleiben unverändert und erhalten keine erfundene ID; eine im
+Quelltext enthaltene Adresse wird lediglich vom Namen getrennt. Die ersten
+Bonner Einträge stammen aus den bereits verwendeten städtischen
+Open-Data-Layern OD=4490 und OD=4489. Registry-Treffer und Adressabdeckung sind
+in `quality_metrics` als `registered_venue_count` und `venue_address_count`
+messbar.
+
 Redaktionelle Ausschlüsse erscheinen dort als stabile, maschinenlesbare
 `quality:<rule_id>`-Gründe, zum Beispiel `quality:civic.course`. Der
 Metadaten-Export enthält außerdem `quality_metrics` und warnende, aber nicht

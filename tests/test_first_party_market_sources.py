@@ -48,8 +48,10 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
             [(event["date"], event["city"]) for event in events],
             [("2026-08-09", "Bornheim"), ("2026-08-16", "Sankt Augustin")],
         )
-        self.assertEqual(events[0]["venue"], "PORTA, Alexander-Bell-Straße 2")
-        self.assertEqual(events[1]["venue"], "METRO, Einsteinstraße 28")
+        self.assertEqual(events[0]["venue"], "PORTA")
+        self.assertEqual(events[0]["venue_address"], "Alexander-Bell-Straße 2")
+        self.assertEqual(events[1]["venue"], "METRO")
+        self.assertEqual(events[1]["venue_address"], "Einsteinstraße 28")
         self.assertTrue(all(event["time"] == "11:00–18:00" for event in events))
         self.assertEqual(
             events[0]["link"],
@@ -98,7 +100,8 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         self.assertEqual(event["date"], "2026-08-02")
         self.assertEqual(event["time"], "11:00–18:00")
         self.assertEqual(event["city"], "Alfter")
-        self.assertEqual(event["venue"], "OBI, Alfterer Straße 35–37")
+        self.assertEqual(event["venue"], "OBI")
+        self.assertEqual(event["venue_address"], "Alfterer Straße 35–37")
         self.assertEqual(event["source_id"], "geide-alfter-obi")
         self.assertEqual(
             event["link"],
@@ -160,7 +163,9 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
             with self.subTest(url=url):
                 [event] = geide._events_from_page(f"{card}<p>{address}</p>", url)
                 self.assertEqual(event["city"], city)
-                self.assertEqual(event["venue"], venue)
+                expected_name, _, expected_address = venue.partition(", ")
+                self.assertEqual(event["venue"], expected_name)
+                self.assertEqual(event["venue_address"], expected_address)
                 self.assertEqual(event["source_id"], source_id)
 
     def test_geide_configured_hours_fail_closed_after_schedule_year(self):
@@ -237,7 +242,8 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         )
         self.assertTrue(all(event["title"] == "Flohmarkt im Freizeitpark Rheinbach" for event in events))
         self.assertTrue(all(event["time"] == "09:00–16:00" for event in events))
-        self.assertTrue(all(event["venue"] == "Freizeitpark Rheinbach, Münstereifeler Straße 69" for event in events))
+        self.assertTrue(all(event["venue"] == "Freizeitpark Rheinbach" for event in events))
+        self.assertTrue(all(event["venue_address"] == "Münstereifeler Straße 69" for event in events))
         self.assertTrue(all(event["source_id"] == "rheinbach-freizeitpark-flohmarkt" for event in events))
 
     def test_rheinbach_refuses_page_without_private_flea_market_contract(self):

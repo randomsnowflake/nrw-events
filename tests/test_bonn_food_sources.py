@@ -51,7 +51,8 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assert_food_events(events, 1)
         self.assertEqual(events[0]["time"], "20:00–23:00")
         self.assertEqual(events[0]["price"], "44,90 Euro")
-        self.assertIn("Hermannstraße 104", events[0]["venue"])
+        self.assertEqual(events[0]["venue"], "Brauwerkstatt Bonn")
+        self.assertEqual(events[0]["venue_address"], "Hermannstraße 104, 53225 Bonn")
         self.assertTrue(events[0]["link"].endswith("wild-beers-tasting-07-08-26/"))
 
     def test_bff_finds_events_nested_inside_jsonld(self):
@@ -94,7 +95,8 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assert_food_events(events, 1)
         self.assertEqual(events[0]["time"], "19:30–21:30")
         self.assertEqual(events[0]["price"], "99,95 EUR")
-        self.assertIn("Friedrichstraße 49", events[0]["venue"])
+        self.assertEqual(events[0]["venue"], "vomFASS Bonn")
+        self.assertEqual(events[0]["venue_address"], "Friedrichstraße 49, 53111 Bonn")
 
     def test_vomfass_fetches_remaining_shopify_section_pages_and_details(self):
         first_page = """
@@ -303,7 +305,8 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["end_date"], "2026-10-04")
         # Postcode 53225 in the venue resolves the Beueler Rheinufer.
         self.assertEqual(events[0]["city"], "Bonn-Beuel")
-        self.assertIn("Rheinaustraße", events[0]["venue"])
+        self.assertEqual(events[0]["venue"], "Rheinufer Bonn-Beuel")
+        self.assertEqual(events[0]["venue_address"], "Rheinaustraße, 53225 Bonn")
         self.assertEqual(events[0]["link"], "https://street-food-festival.de/bonn")
 
     def test_original_street_food_publishes_nothing_without_a_readable_html_date(self):
@@ -362,7 +365,8 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual([event["time"] for event in events], ["19:00–20:30", "19:00–22:00"])
         self.assertEqual([event["start_date"] for event in events], ["2026-07-31", "2026-08-07"])
         self.assertTrue(all(event["city"] == "Bonn-Bad Godesberg" for event in events))
-        self.assertEqual(events[0]["venue"], "CHOCO DEALER SHOP, Elsässer Str.8 / 53175 Bonn")
+        self.assertEqual(events[0]["venue"], "CHOCO DEALER SHOP")
+        self.assertEqual(events[0]["venue_address"], "Elsässer Str.8 / 53175 Bonn")
         self.assertEqual(
             events[1]["link"],
             "https://choco-dealer.com/WEIN-SCHOKOLADEN-TASTING/EVENTWS?slotId=019ea74e",

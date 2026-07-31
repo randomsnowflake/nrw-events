@@ -125,6 +125,8 @@ def enrich_descriptions(
             event["description_source"] = common.description_source_for(replacement)
         if not event.get("venue") and context.get("venue"):
             event["venue"] = context["venue"]
+        if not event.get("venue_address") and context.get("venue_address"):
+            event["venue_address"] = context["venue_address"]
     return events
 
 

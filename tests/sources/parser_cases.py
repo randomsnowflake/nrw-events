@@ -542,7 +542,7 @@ END:VCALENDAR
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Street Food Festival Eitorf")
         self.assertEqual(events[0]["date"], "2026-06-13")
-        self.assertEqual(events[0]["venue"], "Sekundarschule Eitorf, Eitorf")
+        self.assertEqual(events[0]["venue"], "Sekundarschule Eitorf")
         self.assertEqual(events[0]["city"], "Eitorf")
         self.assertEqual(events[0]["link"], "https://naturregion-sieg.de/event/street-food-festival-eitorf")
 
@@ -803,7 +803,7 @@ END:VCALENDAR
         )
 
         self.assertEqual(events[0]["city"], "Sinzig")
-        self.assertEqual(events[0]["venue"], "Sinzig")
+        self.assertEqual(events[0]["venue"], "")
 
     def test_ahrtal_shapehub_uses_listing_for_same_day_cards(self):
         html = """

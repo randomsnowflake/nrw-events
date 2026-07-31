@@ -47,7 +47,8 @@ class LohmarParserTests(unittest.TestCase):
         self.assertIn("eigene Ideen umsetzen", event["description"])
         self.assertNotIn("mehr", event["description"])
         self.assertEqual(event["time"], "18:00")
-        self.assertEqual(event["venue"], "Netz.Werk.Stadt., Hauptstr. 71")
+        self.assertEqual(event["venue"], "Netz.Werk.Stadt.")
+        self.assertEqual(event["venue_address"], "Hauptstr. 71")
         self.assertTrue(event["link"].startswith("https://www.lohmar.de/"))
 
     def test_empty_listing_teaser_uses_detail_body(self):

@@ -101,7 +101,9 @@ def _detail_context(html: str) -> dict:
     return {
         "description": common.concise_description(
             parser.text("description"), max_chars=360),
-        "venue": common.normalize_venue_name(parser.text("location")),
+        # Preserve the source string until the canonical event boundary so its
+        # street address can be separated into ``venue_address`` there.
+        "venue": parser.text("location"),
         "link": common.normalize_url(link.group(1)) if link else "",
     }
 

@@ -36,6 +36,7 @@ from .location import refine_city_from_text as refine_city_from_text
 from .location import refine_bonn_location as refine_bonn_location
 from .location import guess_city_from_text, haversine, resolve_location
 from .models import AdmissionDefault
+from .normalization import resolve_venue
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
 from .runtime import RunContext
@@ -795,17 +796,9 @@ def is_raw_api_url(url: str) -> bool:
     return False
 
 
-def normalize_venue_name(value: str) -> str:
-    """Clean venue text and fix obvious casing/known town typos."""
-    cleaned = clean_html(value)[:120]
-    if cleaned and cleaned == cleaned.lower():
-        cleaned = cleaned.title()
-    replacements = {
-        "remagen": "Remagen",
-    }
-    for wrong, right in replacements.items():
-        cleaned = re.sub(rf"\b{re.escape(wrong)}\b", right, cleaned, flags=re.IGNORECASE)
-    return cleaned
+def normalize_venue_name(value: str, city: str = "") -> str:
+    """Return a registry display name or a conservatively cleaned source name."""
+    return resolve_venue(clean_html(value)[:300], city).venue
 
 
 class GeneratedDescription(str):
@@ -1281,12 +1274,24 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     # Most sources only ever report "Bonn". Resolve the district centrally from
     # the venue so every source benefits instead of each repeating the lookup.
     city = refine_bonn_location(city, f"{venue} {city}")
+    canonical_venue = resolve_venue(venue, city)
     outside_window = bool(
         (end_dt is not None and start_dt is None)
         or (start_dt is not None and not window_contains(start_dt, end_dt))
     )
     _record_parser_candidate(out_of_window=outside_window)
-    resolved_coords, location_confidence, location_source = resolve_location(city, coords)
+    registry_coords = (
+        (canonical_venue.venue_latitude, canonical_venue.venue_longitude)
+        if canonical_venue.venue_latitude is not None
+        and canonical_venue.venue_longitude is not None
+        else None
+    )
+    resolved_coords, location_confidence, location_source = resolve_location(
+        city,
+        coords if coords is not None else registry_coords,
+    )
+    if coords is None and registry_coords is not None:
+        location_source = "venue_registry"
     km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
     if km is not None and km > MAX_RADIUS_KM:
         return None
@@ -1339,7 +1344,13 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "date": date_text,
         "time": time_text,
         "time_note": time_note,
-        "venue": normalize_venue_name(venue),
+        "venue": canonical_venue.venue,
+        "venue_id": canonical_venue.venue_id,
+        "venue_address": canonical_venue.venue_address,
+        "venue_district": canonical_venue.venue_district,
+        "venue_type": canonical_venue.venue_type,
+        "venue_latitude": canonical_venue.venue_latitude,
+        "venue_longitude": canonical_venue.venue_longitude,
         "city": clean_html(city).title(),
         "description": concise_description(description),
         "description_source": description_source or description_source_for(description),
