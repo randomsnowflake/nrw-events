@@ -10,10 +10,16 @@ from . import regional_common as rc
 URL = "https://www.max7.de/tanzkurse-bonn?view=kurse&tab=2&task=display&day=0"
 SOURCE = "Tanzschule Max7"
 
-_GROUP_RE = re.compile(
-    r"<div[^>]+class=['\"]workshop-group-header[^'\"]*['\"][^>]*>(?P<date>.*?)</div>\s*"
-    r"<div[^>]+class=['\"]workshop-group-header-2[^'\"]*['\"][^>]*>(?P<venue>.*?)</div>\s*"
-    r"(?P<body>.*?)(?=<div[^>]+class=['\"]workshop-group-header[^'\"]*['\"]|\Z)",
+_DATE_GROUP_RE = re.compile(
+    r"<div[^>]+class=['\"][^'\"]*\bworkshop-group-header\b(?!-2)[^'\"]*['\"][^>]*>"
+    r"(?P<date>.*?)</div>(?P<body>.*?)"
+    r"(?=<div[^>]+class=['\"][^'\"]*\bworkshop-group-header\b(?!-2)[^'\"]*['\"]|\Z)",
+    re.S | re.I,
+)
+_VENUE_GROUP_RE = re.compile(
+    r"<div[^>]+class=['\"][^'\"]*\bworkshop-group-header-2\b[^'\"]*['\"][^>]*>"
+    r"(?P<venue>.*?)</div>(?P<body>.*?)"
+    r"(?=<div[^>]+class=['\"][^'\"]*\bworkshop-group-header-2\b[^'\"]*['\"]|\Z)",
     re.S | re.I,
 )
 _ITEM_RE = re.compile(
@@ -66,42 +72,44 @@ def _browser_safe_url(url: str) -> str:
 def _events_from_listing(html: str, detail_loader=None) -> list:
     events = []
     details: dict[str, tuple[str, str]] = {}
-    for group in _GROUP_RE.finditer(html or ""):
-        for match in _ITEM_RE.finditer(group.group("body")):
-            if "party" not in match.group("classes").casefold().split():
-                continue
-            body = match.group("body")
-            href_match = re.search(r"<a[^>]+href=['\"]([^'\"]+)['\"]", body, re.I)
-            title_match = re.search(r"class=['\"][^'\"]*\bline3\b[^'\"]*['\"][^>]*>(.*?)</div>", body, re.S | re.I)
-            if not (href_match and title_match):
-                continue
+    for date_group in _DATE_GROUP_RE.finditer(html or ""):
+        start = common.parse_date(rc.clean(date_group.group("date")))
+        for venue_group in _VENUE_GROUP_RE.finditer(date_group.group("body")):
+            for match in _ITEM_RE.finditer(venue_group.group("body")):
+                if "party" not in match.group("classes").casefold().split():
+                    continue
+                body = match.group("body")
+                href_match = re.search(r"<a[^>]+href=['\"]([^'\"]+)['\"]", body, re.I)
+                title_match = re.search(r"class=['\"][^'\"]*\bline3\b[^'\"]*['\"][^>]*>(.*?)</div>", body, re.S | re.I)
+                if not (href_match and title_match):
+                    continue
 
-            start = common.parse_date(rc.clean(group.group("date")))
-            party_line = rc.clean(title_match.group(1))
-            time_match = re.search(r"\b(\d{1,2}:\d{2})\b", party_line)
-            time_text = time_match.group(1) if time_match else ""
-            if start and time_match:
-                hour, minute = (int(value) for value in time_text.split(":"))
-                start = start.replace(hour=hour, minute=minute)
-            title = re.sub(r"^\s*(?:ab\s*)?\d{1,2}:\d{2}\s*", "", party_line, flags=re.I).strip()
-            venue = rc.clean(group.group("venue"))
-            link = _browser_safe_url(rc.abs_url(URL, href_match.group(1)))
-            detail_url = urllib.parse.urlunsplit((*urllib.parse.urlsplit(link)[:3], "", ""))
-            if detail_loader and common.window_contains(start) and detail_url not in details:
-                details[detail_url] = _detail_fields(detail_loader(detail_url))
-            description, price = details.get(detail_url, ("", ""))
-            description = description or common.factual_event_description(
-                title, date_value=start, time_text=time_text, venue=venue, city="Bonn"
-            )
-            event = common.make_event(
-                title, start, None, venue, "Bonn", description, link, SOURCE,
-                "party nightlife salsa bachata discofox", 0.98, time_text,
-                source_id="max7",
-            )
-            if event:
-                if price:
-                    event["price"] = price
-                events.append(_nightlife(event))
+                party_line = rc.clean(title_match.group(1))
+                time_match = re.search(r"\b(\d{1,2}:\d{2})\b", party_line)
+                time_text = time_match.group(1) if time_match else ""
+                event_start = start
+                if event_start and time_match:
+                    hour, minute = (int(value) for value in time_text.split(":"))
+                    event_start = event_start.replace(hour=hour, minute=minute)
+                title = re.sub(r"^\s*(?:ab\s*)?\d{1,2}:\d{2}\s*", "", party_line, flags=re.I).strip()
+                venue = rc.clean(venue_group.group("venue"))
+                link = _browser_safe_url(rc.abs_url(URL, href_match.group(1)))
+                detail_url = urllib.parse.urlunsplit((*urllib.parse.urlsplit(link)[:3], "", ""))
+                if detail_loader and common.window_contains(event_start) and detail_url not in details:
+                    details[detail_url] = _detail_fields(detail_loader(detail_url))
+                description, price = details.get(detail_url, ("", ""))
+                description = description or common.factual_event_description(
+                    title, date_value=event_start, time_text=time_text, venue=venue, city="Bonn"
+                )
+                event = common.make_event(
+                    title, event_start, None, venue, "Bonn", description, link, SOURCE,
+                    "party nightlife salsa bachata discofox", 0.98, time_text,
+                    source_id="max7",
+                )
+                if event:
+                    if price:
+                        event["price"] = price
+                    events.append(_nightlife(event))
     return rc.dedupe(events)
 
 

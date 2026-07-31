@@ -123,7 +123,12 @@ def _market_title(event_name: str, category_label: str, city: str) -> str:
     return name.strip()
 
 
-def events_from_listing(html: str, category_id: int) -> list:
+def _detail_title(html: str) -> str:
+    match = re.search(r"<h1[^>]*>(.*?)</h1>", html or "", re.S | re.I)
+    return rc.clean(match.group(1)) if match else ""
+
+
+def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> list:
     """Parse one listing page. Ad blocks and integrated organizers are skipped."""
     query_category_label = WANTED_CATEGORIES.get(category_id, "Markt")
     events = []
@@ -163,7 +168,15 @@ def events_from_listing(html: str, category_id: int) -> list:
         if not resolved_coords:
             continue
 
+        link = rc.abs_url(_BASE_URL, name_match.group(1))
         venue = rc.clean(name_match.group(2))
+        if detail_fetcher and re.search(r"(?:\.\.\.|…)$", venue):
+            try:
+                complete_title = _detail_title(detail_fetcher(link))
+                if complete_title:
+                    venue = complete_title
+            except Exception as exc:
+                common.log_source_error(f"{_SOURCE} detail", exc, source_id=_SOURCE_ID)
         description_match = _DESCRIPTION.search(block)
         raw_description = rc.clean(description_match.group(1)) if description_match else ""
         raw_description = re.sub(r"\s*\[mehr\]\s*$", "", raw_description).strip()
@@ -177,7 +190,7 @@ def events_from_listing(html: str, category_id: int) -> list:
             venue,
             city,
             description,
-            rc.abs_url(_BASE_URL, name_match.group(1)),
+            link,
             _SOURCE,
             f"{category_label} markt trödelmarkt flohmarkt",
             0.75,
@@ -209,7 +222,15 @@ def _fetch_category(category_id: int) -> list:
     for page in range(1, _MAX_PAGES + 1):
         url = listing_url(category_id, page)
         html = common.fetch_url(url, timeout=25)
-        parsed = events_from_listing(html, category_id)
+        parsed = events_from_listing(
+            html,
+            category_id,
+            detail_fetcher=lambda detail_url: common.fetch_detail_url(
+                detail_url,
+                cache_namespace="marktcom-title",
+                timeout=20,
+            ),
+        )
         common._record_endpoint(
             url,
             parser_type="html",
