@@ -19,7 +19,7 @@ def detail_html(description: str = "Ein Konzert mit berührenden Klängen.") -> 
     return f"""
 <div class="SP-ArticleHeader__intro SP-Intro"><p>{description}</p></div>
 <script type="application/ld+json">
-{{"@type":"Event","location":{{"@type":"Place","name":"Collegium Leoninum","address":{{"@type":"PostalAddress","addressLocality":"Bonn"}}}}}}
+{{"@type":"Event","location":{{"@type":"Place","name":"Collegium Leoninum","address":{{"@type":"PostalAddress","streetAddress":"Noeggerathstraße 34","postalCode":"53111","addressLocality":"Bonn"}}}}}}
 </script>
 """
 
@@ -46,6 +46,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         context = {
             "description": "Ein Konzert mit berührenden Klängen.",
             "venue": "Collegium Leoninum",
+            "venue_address": "Noeggerathstraße 34, 53111 Bonn",
             "city": "Bonn",
         }
 
@@ -55,9 +56,10 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["description"], context["description"])
         self.assertEqual(events[0]["venue"], context["venue"])
+        self.assertEqual(events[0]["venue_address"], context["venue_address"])
         fetch_detail.assert_called_once_with(DETAIL_LINK)
 
-    def test_meaningful_listing_abstract_does_not_fetch_detail(self):
+    def test_meaningful_listing_abstract_still_fetches_missing_location(self):
         html = """
 <article class="SP-Teaser">
   <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/seelenklaenge.php">
@@ -69,12 +71,20 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
 </article>
 """
 
-        with patch.object(bonn, "_fetch_detail_context") as fetch_detail:
+        context = {
+            "description": "Dieser längere Detailtext soll den Teaser nicht ersetzen.",
+            "venue": "Collegium Leoninum",
+            "venue_address": "Noeggerathstraße 34, 53111 Bonn",
+            "city": "Bonn",
+        }
+        with patch.object(bonn, "_fetch_detail_context", return_value=context) as fetch_detail:
             events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["description"], "Ein Konzert mit berührenden Klängen.")
-        fetch_detail.assert_not_called()
+        self.assertEqual(events[0]["venue"], context["venue"])
+        self.assertEqual(events[0]["venue_address"], context["venue_address"])
+        fetch_detail.assert_called_once_with(DETAIL_LINK)
 
     def test_out_of_window_sparse_listing_is_parsed_without_detail_request(self):
         html = """
@@ -110,6 +120,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
                 "Die Ausstellungsstücke erwachen nachts zu einem verborgenen Leben."
             ),
             "venue": "LVR-Landesmuseum Bonn",
+            "venue_address": "Colmantstraße 14–16, 53115 Bonn",
             "city": "Bonn",
         }
 
@@ -120,6 +131,13 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(events[0]["description"], context["description"])
         self.assertEqual(events[0]["category_key"], "workshop")
         self.assertGreaterEqual(events[0]["score"], 0.4)
+
+    def test_detail_context_extracts_complete_structured_location(self):
+        context = bonn._parse_detail_context(detail_html())
+
+        self.assertEqual(context["venue"], "Collegium Leoninum")
+        self.assertEqual(context["venue_address"], "Noeggerathstraße 34, 53111 Bonn")
+        self.assertEqual(context["city"], "Bonn")
 
     def test_detail_description_is_trimmed_before_it_is_cached_or_exported(self):
         long_description = " ".join(
@@ -218,7 +236,17 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
             with patch.object(common, "fetch_url", return_value="<main>No event metadata</main>") as fetch_url:
                 first = bonn._fetch_detail_context(DETAIL_LINK)
             self.assertEqual(fetch_url.call_count, 1)
-            self.assertEqual(first, {"description": "", "venue": "", "city": ""})
+            self.assertEqual(
+                first,
+                {
+                    "description": "",
+                    "venue": "",
+                    "venue_address": "",
+                    "venue_latitude": None,
+                    "venue_longitude": None,
+                    "city": "",
+                },
+            )
 
             bonn._reset_detail_context_cache()
             with patch.object(common, "fetch_url", side_effect=AssertionError("cache miss")) as fetch_url:

@@ -30,6 +30,7 @@ class RawEvent(TypedDict, total=False):
     timezone: str
     status: str
     venue: str
+    identity_venue: str
     venue_id: str
     venue_address: str
     venue_district: str
@@ -75,6 +76,7 @@ class CanonicalEvent(Mapping[str, Any]):
     timezone: str = "Europe/Berlin"
     status: str = "scheduled"
     venue: str = ""
+    identity_venue: str = ""
     venue_id: str = ""
     venue_address: str = ""
     venue_district: str = ""

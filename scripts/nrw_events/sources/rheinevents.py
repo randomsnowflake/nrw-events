@@ -44,6 +44,14 @@ def _price(item: dict) -> str:
     return label
 
 
+def _address(item: dict) -> str:
+    street = common.clean_html(str(item.get("locationStreet") or ""))
+    postal = common.clean_html(str(item.get("locationPostal") or ""))
+    city = common.clean_html(str(item.get("locationCity") or ""))
+    locality = " ".join(part for part in (postal, city) if part)
+    return ", ".join(part for part in (street, locality) if part)
+
+
 def _events_from_listing(html: str) -> list:
     match = re.search(
         r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
@@ -82,6 +90,15 @@ def _events_from_listing(html: str) -> list:
             description_source="generated",
         )
         if event:
+            # Bikini Beach was added to the venue registry after these dates
+            # had already been published. Keep the source venue name as the
+            # occurrence identity so enriching the address and coordinates
+            # does not move the existing public event URLs.
+            if event.get("venue_id") == "bikini-beach-bonn":
+                event["identity_venue"] = venue
+            address = _address(item)
+            if address:
+                event["venue_address"] = address
             price = _price(item)
             if price:
                 event["price"] = price

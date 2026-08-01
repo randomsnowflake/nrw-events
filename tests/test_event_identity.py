@@ -95,10 +95,37 @@ class EventIdStabilityTests(unittest.TestCase):
         labelled = occurrence(venue="Bundeskunsthalle, Helmut-Kohl-Allee 4")
         self.assertEqual(event_id(occurrence()), event_id(labelled))
 
+    def test_published_venue_name_can_preserve_an_id_during_registry_enrichment(self):
+        published = occurrence(venue="Bikini Beach", venue_id="")
+        enriched = occurrence(
+            venue="Bikini Beach",
+            venue_id="bikini-beach-bonn",
+            identity_venue="Bikini Beach",
+        )
+        self.assertEqual(event_id(published), event_id(enriched))
+
     def test_venue_label_identifies_events_without_a_registry_venue(self):
         left = occurrence(venue_id="", venue="Marktplatz")
         right = occurrence(venue_id="", venue="Stadthalle")
         self.assertNotEqual(event_id(left), event_id(right))
+
+    def test_map_only_location_enrichment_preserves_lantershofen_url(self):
+        event = occurrence(
+            title="100-Jahre Löschgruppe Lantershofen",
+            start_date="2026-08-01",
+            date="2026-08-01",
+            time="",
+            start_at="",
+            all_day=True,
+            venue="Mehrzweckhalle Lantershofen",
+            venue_id="",
+            city="Grafschaft",
+        )
+
+        self.assertEqual(
+            event_id(event),
+            "100-jahre-loeschgruppe-lantershofen-2026-08-01-8e18306c73",
+        )
 
 
 class AssignEventIdsTests(unittest.TestCase):
@@ -129,6 +156,10 @@ class AssignEventIdsTests(unittest.TestCase):
         source = occurrence()
         assign_event_ids([source])
         self.assertNotIn("event_id", source)
+
+    def test_internal_identity_venue_is_not_published(self):
+        assigned = assign_event_ids([occurrence(identity_venue="Bundeskunsthalle")])
+        self.assertNotIn("identity_venue", assigned[0])
 
 
 class EventIdVectorTests(unittest.TestCase):

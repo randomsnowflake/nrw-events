@@ -67,7 +67,9 @@ class MarketGapSourceTests(unittest.TestCase):
         self.assertEqual(event["venue"], "Katharinenhof")
         self.assertEqual(event["venue_address"], "Venner Straße 51")
         self.assertEqual(event["city"], "Bonn-Bad Godesberg")
-        self.assertEqual(event["location_confidence"], "known_city")
+        self.assertEqual(event["location_confidence"], "exact")
+        self.assertIsNotNone(event["venue_latitude"])
+        self.assertIsNotNone(event["venue_longitude"])
         self.assertGreaterEqual(event["score"], 0.4)
         self.assertEqual(event["source_id"], "katharinenhof-flohmarkt")
 

@@ -1,6 +1,10 @@
 import unittest
 
-from nrw_events.normalization import VENUE_REGISTRY, resolve_venue
+from nrw_events.normalization import (
+    VENUE_REGISTRY,
+    VERIFIED_VENUE_LOCATIONS,
+    resolve_venue,
+)
 from nrw_events.validation import canonicalize_event
 
 
@@ -33,6 +37,14 @@ class VenueRegistryTests(unittest.TestCase):
 
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(len(aliases), len(set(aliases)))
+
+    def test_verified_map_locations_are_unique_per_city_and_name(self):
+        keys = [
+            (record.city.casefold(), record.venue.casefold())
+            for record in VERIFIED_VENUE_LOCATIONS
+        ]
+
+        self.assertEqual(len(keys), len(set(keys)))
 
     def test_official_alias_replaces_address_blob_with_structured_fields(self):
         canonical = canonicalize_event(event(
@@ -88,6 +100,38 @@ class VenueRegistryTests(unittest.TestCase):
         rheinaue = resolve_venue("Rheinaue", "Rheinaue")
         self.assertEqual(rheinaue.venue, "Rheinaue")
         self.assertEqual(rheinaue.venue_id, "rheinaue-bonn")
+
+    def test_bikini_beach_has_primary_source_address_and_coordinates(self):
+        venue = resolve_venue("Bikini Beach", "Bonn")
+
+        self.assertEqual(venue.venue_id, "bikini-beach-bonn")
+        self.assertEqual(venue.venue_address, "Karl-Duwe-Straße 1, 53227 Bonn")
+        self.assertAlmostEqual(venue.venue_latitude or 0, 50.7155999)
+        self.assertAlmostEqual(venue.venue_longitude or 0, 7.1566788)
+
+    def test_verified_location_adds_map_point_without_public_venue_id(self):
+        venue = resolve_venue("Mehrzweckhalle Lantershofen", "Grafschaft")
+
+        self.assertEqual(venue.venue, "Mehrzweckhalle Lantershofen")
+        self.assertEqual(venue.venue_id, "")
+        self.assertEqual(
+            venue.venue_address,
+            "Graf-Blankard-Str. 25, 53501 Grafschaft-Lantershofen",
+        )
+        self.assertAlmostEqual(venue.venue_latitude or 0, 50.55506)
+        self.assertAlmostEqual(venue.venue_longitude or 0, 7.1031)
+
+    def test_verified_location_is_scoped_to_its_municipality(self):
+        venue = resolve_venue("Mehrzweckhalle Lantershofen", "Köln")
+
+        self.assertIsNone(venue.venue_latitude)
+
+    def test_verified_location_can_complete_a_canonical_venue(self):
+        venue = resolve_venue("Museum Koenig Bonn", "Bonn")
+
+        self.assertEqual(venue.venue_id, "museum-koenig-bonn")
+        self.assertAlmostEqual(venue.venue_latitude or 0, 50.7221437)
+        self.assertAlmostEqual(venue.venue_longitude or 0, 7.1134825)
 
     def test_unknown_casing_is_preserved_instead_of_title_cased(self):
         resolution = resolve_venue("brauhaus im stiefel", "Bonn")
