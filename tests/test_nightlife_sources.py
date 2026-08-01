@@ -50,6 +50,12 @@ class NightlifeSourceTests(unittest.TestCase):
             <div class='line3'>ab 22:00 Salsa Bachata Discofox Party</div>
           </a>
         </div>
+        <div class='workshop-group-header-2 '>Max7 Altstadt, Maxstr. 7</div>
+        <div class="workshop_or_party Workshop Party">
+          <a href='/tanzkurse-bonn/workshop∔party/6929/zouk-party'>
+            <div class='line3'>ab 23:00 Zouk Party</div>
+          </a>
+        </div>
         """
         detail = """
         <h2>Beschreibung</h2><div>Ab 22:00 Party in drei Räumen: Salsa,
@@ -63,11 +69,14 @@ class NightlifeSourceTests(unittest.TestCase):
             return detail
 
         events = max7._events_from_listing(html, load)
-        self.assertEqual(len(events), 2)
-        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(events), 3)
+        self.assertEqual(len(calls), 2)
         self.assertEqual(events[0]["time"], "22:00")
         self.assertEqual(events[0]["price"], "5 € + 5 € Verzehr")
         self.assertNotIn("Workshop", events[0]["title"])
+        self.assertEqual(events[2]["start_date"], "2026-07-31")
+        self.assertEqual(events[2]["venue"], "Max7 Altstadt")
+        self.assertEqual(events[2]["venue_address"], "Maxstr. 7")
         self.assert_canonical(events[0])
 
     def test_afterjobparty_uses_row_description_and_filters_vouchers(self):

@@ -176,6 +176,24 @@ class MarktcomSourceTests(unittest.TestCase):
             with self.subTest(title=event["title"]):
                 self.assertNotIn("Beschreibung des Marktes", event["title"])
 
+    def test_truncated_listing_title_is_completed_from_the_detail_heading(self):
+        html = _listing(_event_block(
+            "neuss-kaufland-parkplatz-in-41462-neuss",
+            "Neuss, Kaufland Parkplatz, Bataverstr. 93 / überdachte Flächen mit ...",
+            "41462", "Neuss", "Veranstaltungsbüro Stefan", "23.08.2026", 1,
+        ))
+        detail = (
+            "<h1>Neuss, Kaufland Parkplatz, Bataverstr. 93 / überdachte Flächen "
+            "mit Pkw am Stand vorhanden!</h1>"
+        )
+
+        [event] = marktcom.events_from_listing(
+            html, 1, detail_fetcher=lambda _url: detail,
+        )
+
+        self.assertNotIn("...", event["title"])
+        self.assertIn("Pkw am Stand vorhanden!", event["title"])
+
     def test_directory_record_loses_to_the_district_publisher(self):
         """The Bad Godesberg antique market already arrives first hand."""
         directory = next(e for e in self._events() if e["start_date"] == "2026-08-02")
