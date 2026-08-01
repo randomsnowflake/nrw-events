@@ -32,9 +32,12 @@ class RuntimeConfig:
     category_fallback_cache: str = ""
     http_retry_attempts: int = 5
     http_retry_base_seconds: float = 1.0
+    http_request_budget_seconds: float = 45.0
     bonn_de_delay_seconds: float = 2.0
     http_max_response_bytes: int = 5_000_000
     http_retry_max_delay_seconds: float = 60.0
+    source_workers: int = 12
+    source_timeout_seconds: float = 180.0
     source_baseline_min_count: int = 10
     json_out: str = str(default_state_dir() / "nrw-events-latest.json")
     meta_json_out: str = str(default_state_dir() / "nrw-events-latest-meta.json")
@@ -126,9 +129,12 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         category_fallback_cache=os.environ.get("NRW_EVENTS_CATEGORY_FALLBACK_CACHE", ""),
         http_retry_attempts=_int("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", 5, 1, 10),
         http_retry_base_seconds=_float("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", 1.0, 0.0, 60.0),
+        http_request_budget_seconds=_float("NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS", 45.0, 1.0, 300.0),
         bonn_de_delay_seconds=_float("NRW_EVENTS_BONN_DE_DELAY_SECONDS", 2.0, 0.0, 60.0),
         http_max_response_bytes=_int("NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES", 5_000_000, 1_024, 50_000_000),
         http_retry_max_delay_seconds=_float("NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS", 60.0, 0.0, 300.0),
+        source_workers=_int("NRW_EVENTS_SOURCE_WORKERS", 12, 1, 64),
+        source_timeout_seconds=_float("NRW_EVENTS_SOURCE_TIMEOUT_SECONDS", 180.0, 5.0, 1800.0),
         source_baseline_min_count=_int("NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT", 10, 1, 10_000),
         json_out=os.environ.get(
             "NRW_EVENTS_JSON_OUT", str(default_state_dir() / "nrw-events-latest.json")

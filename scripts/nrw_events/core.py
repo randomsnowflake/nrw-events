@@ -108,6 +108,7 @@ _BROWSER_PROFILE = random.SystemRandom().choice(_BROWSER_PROFILES)
 _TRANSIENT_HTTP_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 _HTTP_RETRY_ATTEMPTS = 5
 _HTTP_RETRY_BASE_SECONDS = 1.0
+_HTTP_REQUEST_BUDGET_SECONDS = 45.0
 _HTTP_RETRY_MAX_DELAY_SECONDS = 60.0
 _HTTP_MAX_RESPONSE_BYTES = 5_000_000
 _BRIGHT_DATA_API_URL = "https://api.brightdata.com/request"
@@ -119,13 +120,16 @@ _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
 }
 _HOST_FETCH_LOCK = threading.Lock()
 _HOST_LAST_FETCH_AT: dict[str, float] = {}
+_HOST_SLOT_LOCK = threading.Lock()
+_HOST_SLOTS: dict[str, threading.Lock] = {}
 
 
 def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger) -> None:
     """Apply validated settings after the optional env file has been loaded."""
-    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _HTTP_RETRY_MAX_DELAY_SECONDS, _HTTP_MAX_RESPONSE_BYTES, _RUN_ID, _LOGGER, MAX_RADIUS_KM
+    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _HTTP_REQUEST_BUDGET_SECONDS, _HTTP_RETRY_MAX_DELAY_SECONDS, _HTTP_MAX_RESPONSE_BYTES, _RUN_ID, _LOGGER, MAX_RADIUS_KM
     _HTTP_RETRY_ATTEMPTS = settings.http_retry_attempts
     _HTTP_RETRY_BASE_SECONDS = settings.http_retry_base_seconds
+    _HTTP_REQUEST_BUDGET_SECONDS = settings.http_request_budget_seconds
     _HTTP_RETRY_MAX_DELAY_SECONDS = settings.http_retry_max_delay_seconds
     _HTTP_MAX_RESPONSE_BYTES = settings.http_max_response_bytes
     _HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"] = settings.bonn_de_delay_seconds
@@ -146,9 +150,13 @@ def configure_context(context: RunContext) -> None:
     _configure_date_reference(TODAY)
 
 
-def set_source_context(result: Optional[SourceResult]) -> None:
+def set_source_context(result: Optional[SourceResult], timeout_seconds: float | None = None) -> None:
     """Attach warnings emitted by a legacy fetcher to its runner-owned result."""
     _SOURCE_CONTEXT.result = result
+    if result is not None and timeout_seconds is not None:
+        _SOURCE_CONTEXT.deadline = time.perf_counter() + timeout_seconds
+    elif hasattr(_SOURCE_CONTEXT, "deadline"):
+        delattr(_SOURCE_CONTEXT, "deadline")
 
 
 @contextmanager
@@ -216,6 +224,42 @@ def _throttle_before_request(url: str) -> None:
         _HOST_LAST_FETCH_AT[bucket] = scheduled_at
     if wait > 0:
         time.sleep(wait)
+
+
+def _request_deadline() -> float:
+    deadline = time.perf_counter() + _HTTP_REQUEST_BUDGET_SECONDS
+    source_deadline = getattr(_SOURCE_CONTEXT, "deadline", None)
+    return min(deadline, source_deadline) if source_deadline is not None else deadline
+
+
+def _remaining_timeout(deadline: float, requested_timeout: float) -> float:
+    remaining = deadline - time.perf_counter()
+    if remaining <= 0:
+        raise TimeoutError("request or source time budget exhausted")
+    return max(min(float(requested_timeout), remaining), 0.1)
+
+
+@contextmanager
+def _host_request_slot(url: str, deadline: float):
+    """Serialize one host without preventing requests to other hosts."""
+    hostname = (urllib.parse.urlsplit(url).hostname or "<missing>").lower()
+    with _HOST_SLOT_LOCK:
+        slot = _HOST_SLOTS.setdefault(hostname, threading.Lock())
+    wait = _remaining_timeout(deadline, deadline - time.perf_counter())
+    if not slot.acquire(timeout=wait):
+        raise TimeoutError(f"timed out waiting for request slot on {hostname}")
+    try:
+        _throttle_before_request(url)
+        yield
+    finally:
+        slot.release()
+
+
+def _sleep_for_retry(delay: float, deadline: float) -> None:
+    remaining = deadline - time.perf_counter()
+    if delay >= remaining:
+        raise TimeoutError("request or source time budget exhausted before retry")
+    time.sleep(delay)
 
 
 def _retry_delay(exc: Exception, attempt_index: int) -> float:
@@ -297,26 +341,27 @@ def fetch_url(
         sec_fetch_dest=sec_fetch_dest,
         extra=headers,
     )
+    deadline = _request_deadline()
     for attempt in range(_HTTP_RETRY_ATTEMPTS):
         try:
             started = time.perf_counter()
-            _throttle_before_request(url)
             req = urllib.request.Request(url, headers=hdrs)
-            with closing(urllib.request.urlopen(req, timeout=timeout)) as resp:
-                headers_obj = getattr(resp, "headers", None)
-                content_type = headers_obj.get_content_type() if hasattr(headers_obj, "get_content_type") else ""
-                if not isinstance(content_type, str):
-                    content_type = ""
-                if expected_content_types and content_type and not any(content_type.startswith(item) for item in expected_content_types):
-                    raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
-                body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-                charset = headers_obj.get_content_charset() if hasattr(headers_obj, "get_content_charset") else None
-                if not isinstance(charset, str):
-                    charset = None
-                _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
-                                 bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            with _host_request_slot(url, deadline):
+                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
+                    headers_obj = getattr(resp, "headers", None)
+                    content_type = headers_obj.get_content_type() if hasattr(headers_obj, "get_content_type") else ""
+                    if not isinstance(content_type, str):
+                        content_type = ""
+                    if expected_content_types and content_type and not any(content_type.startswith(item) for item in expected_content_types):
+                        raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
+                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                    charset = headers_obj.get_content_charset() if hasattr(headers_obj, "get_content_charset") else None
+                    if not isinstance(charset, str):
+                        charset = None
+                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
+                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             try:
                 return body.decode(charset or "utf-8")
             except UnicodeDecodeError:
@@ -337,7 +382,7 @@ def fetch_url(
             _close_http_error(exc)
             if not retry:
                 raise
-            time.sleep(delay)
+            _sleep_for_retry(delay, deadline)
     raise RuntimeError("fetch_url retry loop exhausted unexpectedly")  # pragma: no cover
 
 
@@ -387,12 +432,17 @@ def fetch_url_with_brightdata(
         method="POST",
     )
     started = time.perf_counter()
+    deadline = _request_deadline()
     try:
-        with closing(urllib.request.urlopen(request, timeout=max(timeout, 120))) as response:
-            raw = response.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-            if len(raw) > _HTTP_MAX_RESPONSE_BYTES:
-                raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-            api_status = getattr(response, "status", 200)
+        with _host_request_slot(_BRIGHT_DATA_API_URL, deadline):
+            with closing(urllib.request.urlopen(
+                request,
+                timeout=_remaining_timeout(deadline, max(timeout, 120)),
+            )) as response:
+                raw = response.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+                if len(raw) > _HTTP_MAX_RESPONSE_BYTES:
+                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                api_status = getattr(response, "status", 200)
     except Exception as exc:
         _raise_brightdata_failure(url, started, exc)
 
@@ -679,16 +729,17 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
     attempts = _HTTP_RETRY_ATTEMPTS if retry_safe else 1
+    deadline = _request_deadline()
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
-            _throttle_before_request(url)
-            with closing(urllib.request.urlopen(req, timeout=timeout)) as resp:
-                body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-                _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
-                                 bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            with _host_request_slot(url, deadline):
+                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
+                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
+                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
@@ -697,7 +748,7 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
             _close_http_error(exc)
             if not retry:
                 raise
-            time.sleep(delay)
+            _sleep_for_retry(delay, deadline)
     raise RuntimeError("post_json retry loop exhausted unexpectedly")  # pragma: no cover
 
 
@@ -713,16 +764,17 @@ def post_form(url: str, fields, timeout: int = 45, headers: Optional[dict] = Non
     data = urllib.parse.urlencode(fields, doseq=True).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
     attempts = _HTTP_RETRY_ATTEMPTS if retry_safe else 1
+    deadline = _request_deadline()
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
-            _throttle_before_request(url)
-            with closing(urllib.request.urlopen(req, timeout=timeout)) as resp:
-                body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-                _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
-                                 bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            with _host_request_slot(url, deadline):
+                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
+                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
+                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
@@ -731,7 +783,7 @@ def post_form(url: str, fields, timeout: int = 45, headers: Optional[dict] = Non
             _close_http_error(exc)
             if not retry:
                 raise
-            time.sleep(delay)
+            _sleep_for_retry(delay, deadline)
     raise RuntimeError("post_form retry loop exhausted unexpectedly")  # pragma: no cover
 
 

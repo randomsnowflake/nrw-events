@@ -3,7 +3,9 @@ import logging
 import os
 import socket
 import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from email.message import Message
 from pathlib import Path
@@ -116,6 +118,64 @@ class HardeningRegressionTests(unittest.TestCase):
             common._throttle_before_request("https://a.test/two")
             common._throttle_before_request("https://b.test/one")
         sleep.assert_called_once_with(2.0)
+
+    def test_request_slots_allow_different_hosts_to_run_in_parallel(self):
+        rendezvous = threading.Barrier(2, timeout=1)
+
+        def occupy(url):
+            with common._host_request_slot(url, common.time.perf_counter() + 2):
+                rendezvous.wait()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(occupy, "https://one.test/events"),
+                pool.submit(occupy, "https://two.test/events"),
+            ]
+            for future in futures:
+                future.result()
+
+    def test_request_slots_serialize_the_same_host(self):
+        first_entered = threading.Event()
+        release_first = threading.Event()
+        second_entered = threading.Event()
+
+        def first_request():
+            with common._host_request_slot("https://same.test/one", common.time.perf_counter() + 2):
+                first_entered.set()
+                release_first.wait(1)
+
+        def second_request():
+            first_entered.wait(1)
+            with common._host_request_slot("https://same.test/two", common.time.perf_counter() + 2):
+                second_entered.set()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(first_request)
+            second = pool.submit(second_request)
+            self.assertFalse(second_entered.wait(0.05))
+            release_first.set()
+            first.result()
+            second.result()
+        self.assertTrue(second_entered.is_set())
+
+    def test_retry_sleep_never_runs_past_the_request_budget(self):
+        with mock.patch.object(common.time, "perf_counter", return_value=100.0), \
+                mock.patch.object(common.time, "sleep") as sleep:
+            with self.assertRaisesRegex(TimeoutError, "budget exhausted"):
+                common._sleep_for_retry(3.0, 102.0)
+        sleep.assert_not_called()
+
+    def test_socket_timeout_shrinks_to_the_remaining_budget(self):
+        with mock.patch.object(common.time, "perf_counter", return_value=100.0):
+            self.assertEqual(common._remaining_timeout(106.0, 15.0), 6.0)
+
+    def test_source_deadline_caps_each_request_budget(self):
+        with mock.patch.object(common.time, "perf_counter", side_effect=[100.0, 101.0]):
+            common.set_source_context(object(), timeout_seconds=5.0)
+            try:
+                self.assertEqual(common._request_deadline(), 105.0)
+            finally:
+                common.set_source_context(None)
 
     def test_live_memory_cache_rechecks_ttl_and_flushes_once(self):
         with tempfile.TemporaryDirectory() as cache_dir, mock.patch.dict(

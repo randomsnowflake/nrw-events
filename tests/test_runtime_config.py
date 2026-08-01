@@ -31,6 +31,18 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(common._HTTP_RETRY_ATTEMPTS, 3)
         self.assertEqual(common._HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"], 4.5)
 
+    def test_parallelism_and_timeout_budgets_are_configurable(self):
+        with mock.patch.dict(os.environ, {
+            "NRW_EVENTS_SOURCE_WORKERS": "20",
+            "NRW_EVENTS_SOURCE_TIMEOUT_SECONDS": "90",
+            "NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS": "30",
+        }, clear=True):
+            settings = config.runtime_config()
+
+        self.assertEqual(settings.source_workers, 20)
+        self.assertEqual(settings.source_timeout_seconds, 90)
+        self.assertEqual(settings.http_request_budget_seconds, 30)
+
     def test_invalid_runtime_setting_is_actionable(self):
         with mock.patch.dict(os.environ, {"NRW_EVENTS_SCORE_FLOOR": "not-a-number"}, clear=True):
             with self.assertRaisesRegex(ValueError, "NRW_EVENTS_SCORE_FLOOR"):

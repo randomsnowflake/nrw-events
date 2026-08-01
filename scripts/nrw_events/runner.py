@@ -64,10 +64,10 @@ class SnapshotPayload:
     metadata: dict
 
 
-def _run_source(name: str, fetch: Callable[[], list]) -> tuple[SourceResult, list[CanonicalEvent]]:
+def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | None = None) -> tuple[SourceResult, list[CanonicalEvent]]:
     result = SourceResult(source=name)
     started = time.monotonic()
-    common.set_source_context(result)
+    common.set_source_context(result, timeout_seconds)
     try:
         fetched = fetch()
         if isinstance(fetched, SourceFetchResult):
@@ -694,8 +694,12 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     log(logger, 20, f"fetching {len(sources)} sources", run_id=run_id, source="runner")
     all_events: list[CanonicalEvent] = []
     source_results: dict[str, SourceResult] = {}
-    with executor_factory(max_workers=6) as pool:
-        futures = {pool.submit(_run_source, name, fetch): name for name, fetch in sources.items()}
+    worker_count = min(settings.source_workers, max(len(sources), 1))
+    with executor_factory(max_workers=worker_count) as pool:
+        futures = {
+            pool.submit(_run_source, name, fetch, settings.source_timeout_seconds): name
+            for name, fetch in sources.items()
+        }
         for future in as_completed(futures):
             name = futures[future]
             result, events = future.result()
