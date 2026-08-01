@@ -1506,6 +1506,14 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         "lesung", "lesekreis", "lesezirkel", "live-musik", "museum", "theater", "vernissage", "wanderung",
         "tag der offenen tür", "tag der offenen tuer",
     }
+    recurring_destination_bits = {
+        # These remain useful public activities even when an official calendar
+        # describes their cadence or stores them below a recurring-event URL.
+        "feierabendtour", "repair café", "repair cafe", "repaircafé", "repaircafe",
+        # A named one-off programme; do not let incidental prose about the
+        # organizer's regular group turn it into a routine meetup.
+        "kristallklangschalenreise",
+    }
     if ("cinema-special" not in category
             and any(bit in text for bit in routine_or_political_bits)
             and not destination_market
@@ -1519,6 +1527,7 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
     if ("cinema-special" not in category
             and any(bit in text for bit in routine_phrase_bits)
             and not destination_market
+            and not any(bit in title for bit in recurring_destination_bits)
             and not any(bit in title_desc_text for bit in cultural_event_bits)):
         matched = next(bit for bit in routine_phrase_bits if bit in text)
         return (
