@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common, report
+from nrw_events import common, http, report
 from nrw_events.sources import (
     SOURCES,
     coelln_konzept,
@@ -116,6 +116,28 @@ class MarketSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "10:00–16:00")
         self.assertEqual(events[1]["title"], "Hofflohmarkt Agnesviertel")
         self.assertTrue(all(event["description"] for event in events))
+
+    def test_hofflohmaerkte_recovers_rate_limits_through_web_unlocker(self):
+        html = (
+            "<h1>Hofflohmärkte Köln</h1>"
+            "<p>Sa. 22. August 2026 · 10 - 16 Uhr · "
+            "<strong>Königsdorf (Frechen)<br/></strong></p>"
+        )
+
+        with patch.object(
+            http,
+            "fetch_url_with_brightdata_fallback",
+            return_value=html,
+        ) as fetcher:
+            events = hofflohmaerkte.fetch()
+
+        fetcher.assert_called_once_with(
+            hofflohmaerkte._URL,
+            timeout=20,
+            allowed_hosts=("www.hofflohmaerkte.de",),
+            required_body_markers=("Hofflohmärkte Köln",),
+        )
+        self.assertEqual([event["title"] for event in events], ["Hofflohmarkt Königsdorf (Frechen)"])
 
     def test_coelln_konzept_uses_each_table_year_and_detail_quality(self):
         listing = """
