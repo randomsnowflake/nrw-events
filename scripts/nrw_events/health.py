@@ -76,6 +76,7 @@ class SourceResult:
     event_sources: list[str] = field(default_factory=list)
     event_source_ids: list[str] = field(default_factory=list)
     cancelled_events: list[dict[str, Any]] = field(default_factory=list)
+    announced_events: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[dict[str, str]] = field(default_factory=list)
     error: Optional[dict[str, str]] = None
     status_reason: str = ""
@@ -140,6 +141,11 @@ class SourceResult:
             "event_sources": self.event_sources,
             "event_source_ids": self.event_source_ids,
             "cancelled_event_count": len(self.cancelled_events),
+            "announced_event_count": len(self.announced_events),
+            "cancelled_rate": (
+                round(len(self.cancelled_events) / self.raw_event_count, 4)
+                if self.raw_event_count else 0.0
+            ),
             "warnings": self.warnings,
             "error": self.error,
             "status_reason": self.status_reason,

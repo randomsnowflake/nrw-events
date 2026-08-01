@@ -55,6 +55,16 @@ class RawEvent(TypedDict, total=False):
     location_confidence: str
     location_source: str
     score: float
+    ranking_features: dict[str, float]
+    priority_bonus: float
+    cancelled_at: str
+    cancellation_source: str
+    replacement_start_date: str
+    first_seen_at: str
+    content_hash: str
+    series_id: str
+    series_title: str
+    run_id: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +111,16 @@ class CanonicalEvent(Mapping[str, Any]):
     distance_km: Optional[float] = None
     location_confidence: str = "unresolved"
     location_source: str = ""
+    ranking_features: Optional[dict[str, float]] = None
+    priority_bonus: float = 0.0
+    cancelled_at: str = ""
+    cancellation_source: str = ""
+    replacement_start_date: str = ""
+    first_seen_at: str = ""
+    content_hash: str = ""
+    series_id: str = ""
+    series_title: str = ""
+    run_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

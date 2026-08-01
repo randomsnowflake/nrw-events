@@ -77,8 +77,8 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
         self.assertEqual(deduped[0]["price"], "Eintritt frei")
         self.assertEqual(deduped[0]["time"], "11:00–17:00")
 
-    def test_organizer_cancellation_suppresses_stale_directory_copy(self):
-        """Cancelled organizers stay unpublished but act as tombstones."""
+    def test_organizer_cancellation_replaces_stale_directory_copy(self):
+        """Cancelled organizers publish the authoritative status, not stale copy."""
         source_result = SourceResult("Grote & Hiller")
         core.set_source_context(source_result)
         try:
@@ -96,20 +96,21 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
         finally:
             core.set_source_context(None)
 
-        self.assertIsNone(cancelled)
+        self.assertIsNotNone(cancelled)
+        self.assertEqual(cancelled and cancelled["status"], "cancelled")
         self.assertEqual(len(source_result.cancelled_events), 1)
         directory = _market(
             "marktcom",
             1.0,
             "https://www.marktcom.de/veranstaltung/12345",
         )
-        self.assertEqual(
-            report.deduplicate(
-                [directory],
-                cancellations=source_result.cancelled_events,
-            ),
-            [],
+        [result] = report.deduplicate(
+            [directory],
+            cancellations=source_result.cancelled_events,
         )
+        self.assertEqual(result["status"], "cancelled")
+        self.assertEqual(result["score"], 0.0)
+        self.assertEqual(result["cancellation_source"], "Grote & Hiller")
 
     def test_directory_cancellation_cannot_suppress_direct_organizer(self):
         organizer = _market(

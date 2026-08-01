@@ -95,12 +95,13 @@ class DataIntegrityTests(unittest.TestCase):
         self.assertIsNone(event["distance_km"])
         self.assertEqual(event["location_confidence"], "unresolved")
 
-    def test_cancelled_phrase_is_not_published(self):
+    def test_cancelled_phrase_is_published_with_status(self):
         event = common.make_event(
             "Kabarettprogramm muss leider kurzfristig abgesagt werden!", datetime(2026, 6, 12), None,
             "Venue", "Bonn", "", "https://example.test", "Test", "stage",
         )
-        self.assertIsNone(event)
+        self.assertIsNotNone(event)
+        self.assertEqual(event and event["status"], "cancelled")
 
     def test_ical_utc_time_converts_to_berlin_time(self):
         ical = """BEGIN:VCALENDAR

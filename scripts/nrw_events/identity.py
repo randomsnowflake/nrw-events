@@ -92,12 +92,21 @@ def content_fingerprint(event: Mapping[str, Any]) -> str:
     never feed the id itself: it changes whenever any field is enriched.
     """
     payload = json.dumps(
-        {key: event[key] for key in sorted(event) if key != "event_id"},
+        {
+            key: event[key]
+            for key in sorted(event)
+            if key not in {"event_id", "content_hash", "first_seen_at"}
+        },
         ensure_ascii=False,
         sort_keys=True,
         default=str,
     )
     return sha256(payload.encode("utf-8")).hexdigest()
+
+
+def content_hash(event: Mapping[str, Any]) -> str:
+    """Return the public change-detection hash for an occurrence."""
+    return content_fingerprint(event)
 
 
 def event_id(event: Mapping[str, Any]) -> str:

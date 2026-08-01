@@ -35,7 +35,7 @@ class TitleNormalizationTests(unittest.TestCase):
         )
         self.assertEqual(
             normalize_event_title("ERÖFFNUNG – HUMAN AI ART AWARD 2026", source="Kunstmuseum Bonn"),
-            "ERÖFFNUNG – HUMAN AI ART AWARD 2026",
+            "Eröffnung – Human AI Art Award 2026",
         )
 
     def test_truncation_is_warning_only_and_avoids_short_stylistic_ellipsis(self):

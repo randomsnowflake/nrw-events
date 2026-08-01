@@ -74,8 +74,18 @@ Zusätzlich zu den kompatiblen Anzeige-Feldern `date` und `time` enthält jedes
 Event kanonische Zeitfelder: `start_date`, `end_date`, `start_at`, `end_at`,
 `all_day` und `timezone`. Ort und Datenqualität sind als
 `location_confidence`, `location_source` und `status` verfügbar. Abgesagte
-Events werden nicht veröffentlicht; unvollständige oder ungültige Quellrecords
+Events bleiben bis zu ihrem ursprünglichen Termin mit `status: "cancelled"`,
+`cancelled_at` und `cancellation_source` veröffentlicht; Verschiebungen können
+zusätzlich `replacement_start_date` tragen. Sie erhalten Score 0 und werden
+damit nie als normaler Tipp gerankt. Unvollständige oder ungültige Quellrecords
 werden mit einem Grund pro Quelle in `source_results` gezählt.
+
+Events mit nicht auflösbarem Ort bleiben mit `distance_km: null` und
+`location_confidence: "unresolved"` erhalten. Nur belegte Distanzen außerhalb
+des konfigurierten Radius werden verworfen; diese Entscheidung erscheint als
+`filter:radius` pro Quelle in `source_results.rejection_reasons`. Dadurch misst
+das Quality-Gate die ungeklärten Orte vor einer möglichen Consumer-Entscheidung
+und nicht erst nach einem stillen Verlust.
 
 Stabile Veranstaltungsorte werden deterministisch über das statische
 `VENUE_REGISTRY` aufgelöst. Es ordnet geprüfte Aliasse einer `venue_id` sowie,
@@ -111,6 +121,37 @@ sind auf die Golden Vectors in `tests/data/event_id_vectors.json` festgenagelt.
 selben Review nachgezogen werden. `tests/test_public_event_contract.py` hält
 zusätzlich die Feldliste und die Menge der `venue_id`-Werte fest, auf die die
 Website ihre kanonischen Veranstaltungsorte abbildet.
+
+Snapshot-Schema 4 ergänzt `first_seen_at` und `content_hash`. Die erste Angabe
+bleibt über Läufe stabil; der Hash ändert sich bei einer inhaltlichen Änderung,
+nicht aber durch Feed-Reihenfolge oder das Hashfeld selbst. Retention vergleicht
+zuerst `event_id` und nutzt den bisherigen Fuzzy-Vergleich nur für alte
+Snapshots ohne kompatible ID.
+
+Die redaktionellen Signale `flea_market`, `ahr_wine`, `local_festival`,
+`antique_market` und `bonn_local` werden pro Event als `ranking_features`
+exportiert. `priority_bonus` ist deren Summe. Der erklärbare Basisscore
+(`distance × category × trust`) bleibt davon unverändert.
+
+## Serien und Highlights
+
+Wiederkehrende Veranstaltungen erhalten bei mindestens zwei belegten
+Occurrences eine stabile `series_id`, `series_title` und eine `run_id`. Die
+Metadaten enthalten die dreistufige Struktur Serie → Run → Occurrence,
+Kadenzen (`weekly`, `biweekly`, `monthly`, sonst konservativ `irregular`) sowie
+die Zustände `active`, `dormant_seasonal`, `dormant_unknown` und `concluded`.
+Ein persistentes `series-ledger.json` sammelt bestätigte und außerhalb des
+Publikationsfensters angekündigte Termine. Saisonvertrauen braucht mindestens
+zwei beobachtete Jahre; davor bleibt der ehrliche Cold-Start-Zustand
+`dormant_unknown`. Geschätzte Folgetermine stehen ausschließlich in
+`next_occurrence_estimated`, nie in `next_occurrence` oder `events.json`.
+
+Neben Events und Metadaten wird atomar ein `highlights.json` mit derselben
+`run_id` veröffentlicht. Die Auswahl ist offline reproduzierbar und kombiniert
+`score`, `ranking_features` und generische Diversitätsgrenzen pro
+`venue_id`/Kategorie. Ein LLM kann dieses gültige Basisergebnis später
+verfeinern, ist aber keine Voraussetzung. Das Manifest verweist auf alle drei
+Artefakte; ein inkonsistentes Highlight-Dokument degradiert den Lauf sichtbar.
 
 Redaktionelle Ausschlüsse erscheinen dort als stabile, maschinenlesbare
 `quality:<rule_id>`-Gründe, zum Beispiel `quality:civic.course`. Der
@@ -181,11 +222,14 @@ scripts/
     location.py            # Ortsauflösung und Distanzberechnung
     scoring.py             # Entkoppelte Ranking-Funktionen
     source_types.py        # Schnittstellen für Fetcher und Text-Parser
+    series.py              # Serien/Run/Occurrence-Modell und persistentes Ledger
+    highlights.py          # deterministische, diversifizierte Highlight-Auswahl
     common.py              # Rückwärtskompatible Fassade für HTTP, Parsing und Qualitätsregeln
     report.py              # Entdoppelung + Markdown-Ausgabe
     runner.py              # Orchestrierung: Quellen parallel abfragen, filtern, schreiben
     sources/
-      __init__.py          # SOURCES-Registry: Anzeigename -> fetch-Funktion
+      __init__.py          # lädt die validierte Registry
+      registry.json        # SourceSpec, Region, Endpoints und Python-Adapter
       bonn.py  koeln.py  harmonie.py  meetup.py
       flohmarkt.py  kinderflohmarkt.py  grote_hiller.py
       hofflohmaerkte.py  hoffloh_bonn.py  lampert.py  okken.py  geide.py
@@ -208,10 +252,13 @@ Events ohne eigene Kategorien. Die Signale werden bewusst nicht zusammengeklebt:
 Das könnte eine künstlich breite Kategorie-Tüte erzeugen, die die Taxonomie als
 unzuverlässig verwirft.
 
-Standard-iCal- und JSON-LD-Quellen werden deklarativ als `SourceSpec` in
-`sources/__init__.py` registriert; eine neue Standardquelle benötigt nur einen
-Spec plus Fixture-/Vertragstest. Proprietäre HTML-Parser bleiben als eigenes
-Quellenmodul explizit. Jedes Quellenmodul stellt eine Funktion `fetch() -> list[dict]`
+Alle 81 Registry-Einträge liegen schema-validiert in
+`sources/registry.json` und tragen ein `region`-Feld. Standard-iCal-, JSON-LD-
+und einfache selektorbasierte HTML-Quellen benötigen normalerweise nur einen
+neuen Registry-Eintrag plus Fixture-/Vertragstest. `SourceSpec` unterstützt
+mehrere Endpoints/Paginierungs-URLs und gecachte Detailseiten. Proprietäre
+Parser bleiben als explizit referenzierter Python-Adapter erhalten. Jedes
+Quellenmodul stellt eine Funktion `fetch() -> list[dict]`
 bereit. Fehler in
 einer Quelle brechen den Gesamtlauf nicht ab; die Quelle liefert dann einfach
 keine Treffer.
@@ -273,6 +320,8 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_CATEGORIES`       | nicht gesetzt | Kommagetrennte Kategorie-Keys; entspricht `--kategorie`. |
 | `NRW_EVENTS_FREE_ONLY`        | `0`      | Nur explizit kostenlose Events; entspricht `--kostenlos`. |
 | `NRW_EVENTS_JSON_STDOUT`      | `0`      | Eventliste als reines JSON auf stdout, ohne Snapshot-Publikation; entspricht `--json`. |
+| `NRW_EVENTS_HIGHLIGHTS_JSON_OUT` | State-Verzeichnis/`highlights.json` | Deterministisches Highlight-Artefakt derselben Snapshot-Generation. |
+| `NRW_EVENTS_SERIES_LEDGER_JSON` | State-Verzeichnis/`series-ledger.json` | Dauerhafte Occurrence-Historie für Serien, Runs und Saisonalität. |
 | `NRW_EVENTS_CATEGORY_FALLBACK_CACHE` | nicht gesetzt | Optionaler geprüfter Cache für unklare Serien (`source_id` + normalisierter Titel). Es erfolgt kein LLM- oder Netzwerkaufruf. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |

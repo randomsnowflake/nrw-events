@@ -141,7 +141,7 @@ class BonnTheaterSourceTests(unittest.TestCase):
         )
         self.assertEqual(
             [event["title"] for event in events],
-            ["Das NEINhorn", "Das NEINhorn", "PETTERSSON UND FINDUS"],
+            ["Das NEINhorn", "Das NEINhorn", "Pettersson und Findus"],
         )
         self.assertEqual([event["time"] for event in events[:2]], ["15:00", "17:00"])
         self.assertEqual(events[2]["venue"], "JTB im Kulturgarten am PostTower")

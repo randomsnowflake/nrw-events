@@ -1,0 +1,612 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "troisdorf",
+      "display_name": "Troisdorf",
+      "region": "bonn-region",
+      "adapter": "ical",
+      "urls": [
+        "https://www.troisdorf.de/de/kalender/startseite/event.ics?weekends=false&tagMode=ANY"
+      ],
+      "city": "Troisdorf",
+      "category_hint": "troisdorf lokal kultur markt",
+      "trust": 0.95,
+      "timeout": 25,
+      "headers": [],
+      "admission": null,
+      "default_category_key": "",
+      "category_locked": false
+    },
+    {
+      "id": "wachtberg",
+      "display_name": "Wachtberg",
+      "region": "bonn-region",
+      "adapter": "ical",
+      "urls": [
+        "https://www.wachtberg.de/kalender/veranstaltungen/event.ics?weekends=false&tagMode=ALL"
+      ],
+      "city": "Wachtberg",
+      "category_hint": "",
+      "trust": 1.0,
+      "timeout": 25,
+      "headers": [],
+      "admission": null,
+      "default_category_key": "",
+      "category_locked": false
+    },
+    {
+      "id": "hennef",
+      "display_name": "Hennef",
+      "region": "bonn-region",
+      "adapter": "json_ld",
+      "urls": [
+        "https://www.hennef.de/veranstaltungen/"
+      ],
+      "city": "Hennef",
+      "category_hint": "lokal veranstaltung markt kultur outdoor",
+      "trust": 0.95,
+      "timeout": 20,
+      "headers": [],
+      "admission": null,
+      "default_category_key": "",
+      "category_locked": false
+    },
+    {
+      "id": "waldbroel",
+      "display_name": "Waldbröl",
+      "region": "bonn-region",
+      "adapter": "ical",
+      "urls": [
+        "https://www.waldbroel.de/veranstaltungen/?ical=1"
+      ],
+      "city": "Waldbröl",
+      "category_hint": "oberberg lokal markt kultur konzert",
+      "trust": 0.92,
+      "timeout": 25,
+      "headers": [],
+      "admission": null,
+      "default_category_key": "",
+      "category_locked": false
+    },
+    {
+      "id": "k-ln-open-data",
+      "display_name": "Köln Open Data",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.koeln:fetch"
+    },
+    {
+      "id": "bonn-de-events",
+      "display_name": "Bonn.de Events",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn:fetch_events"
+    },
+    {
+      "id": "bonn-de-sports",
+      "display_name": "Bonn.de Sports",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn:fetch_sports"
+    },
+    {
+      "id": "uni-bonn",
+      "display_name": "Universität Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.uni_bonn:fetch"
+    },
+    {
+      "id": "harmonie-bonn",
+      "display_name": "Harmonie Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.harmonie:fetch"
+    },
+    {
+      "id": "haus-der-geschichte",
+      "display_name": "Haus der Geschichte",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.haus_der_geschichte:fetch_calendar"
+    },
+    {
+      "id": "haus-der-geschichte-begleitungen",
+      "display_name": "Haus der Geschichte Begleitungen",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.haus_der_geschichte:fetch_guided_tours"
+    },
+    {
+      "id": "museum-koenig-bonn",
+      "display_name": "Museum Koenig Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.museum_koenig:fetch"
+    },
+    {
+      "id": "deutsches-museum-bonn",
+      "display_name": "Deutsches Museum Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.deutsches_museum_bonn:fetch"
+    },
+    {
+      "id": "kleines-theater-bad-godesberg",
+      "display_name": "Kleines Theater Bad Godesberg",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.kleines_theater:fetch"
+    },
+    {
+      "id": "theater-bonn",
+      "display_name": "Theater Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.theater_bonn:fetch"
+    },
+    {
+      "id": "junges-theater-bonn",
+      "display_name": "Junges Theater Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.junges_theater_bonn:fetch"
+    },
+    {
+      "id": "theater-marabu",
+      "display_name": "Theater Marabu",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.theater_marabu:fetch"
+    },
+    {
+      "id": "theater-im-ballsaal",
+      "display_name": "Theater im Ballsaal",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.theater_im_ballsaal:fetch"
+    },
+    {
+      "id": "tik-theater-im-keller",
+      "display_name": "TiK Theater im Keller",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.tik_bonn:fetch"
+    },
+    {
+      "id": "meetup",
+      "display_name": "Meetup",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.meetup:fetch"
+    },
+    {
+      "id": "rheinauen-flohmarkt",
+      "display_name": "Rheinauen-Flohmarkt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.flohmarkt:fetch"
+    },
+    {
+      "id": "kinderflohmarkt-com",
+      "display_name": "Kinderflohmarkt.com",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.kinderflohmarkt:fetch"
+    },
+    {
+      "id": "grote-hiller",
+      "display_name": "Grote & Hiller",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.grote_hiller:fetch"
+    },
+    {
+      "id": "hofflohm-rkte-k-ln",
+      "display_name": "Hofflohmärkte Köln",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.hofflohmaerkte:fetch"
+    },
+    {
+      "id": "c-lln-konzept",
+      "display_name": "Cölln Konzept",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.coelln_konzept:fetch"
+    },
+    {
+      "id": "lampert-m-rkte",
+      "display_name": "Lampert Märkte",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.lampert:fetch"
+    },
+    {
+      "id": "hoffloh-bonn",
+      "display_name": "HofFloh Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.hoffloh_bonn:fetch"
+    },
+    {
+      "id": "okken-m-rkte",
+      "display_name": "Okken Märkte",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.okken:fetch"
+    },
+    {
+      "id": "geide-m-rkte",
+      "display_name": "Geide Märkte",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.geide:fetch"
+    },
+    {
+      "id": "krewelshof-kindersachen-flohmarkt",
+      "display_name": "Krewelshof Kindersachen-Flohmarkt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.krewelshof:fetch"
+    },
+    {
+      "id": "melan-m-rkte",
+      "display_name": "Melan Märkte",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.melan:fetch"
+    },
+    {
+      "id": "rheinbach-flohmarkt",
+      "display_name": "Rheinbach Flohmarkt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.rheinbach_flohmarkt:fetch"
+    },
+    {
+      "id": "rhein-antik",
+      "display_name": "Rhein Antik",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.rhein_antik:fetch"
+    },
+    {
+      "id": "c-lln-antik-design",
+      "display_name": "Cölln Antik&Design",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.coelln_antik_design:fetch"
+    },
+    {
+      "id": "municipal-mec-markets",
+      "display_name": "Municipal MEC markets",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.mec_municipal:fetch"
+    },
+    {
+      "id": "marktcom",
+      "display_name": "marktcom",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.marktcom:fetch"
+    },
+    {
+      "id": "bonner-weihnachtsmarkt",
+      "display_name": "Bonner Weihnachtsmarkt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonner_weihnachtsmarkt:fetch"
+    },
+    {
+      "id": "katharinenhof-flohmarkt",
+      "display_name": "Katharinenhof Flohmarkt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.katharinenhof:fetch"
+    },
+    {
+      "id": "tanzschule-max7",
+      "display_name": "Tanzschule Max7",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.max7:fetch"
+    },
+    {
+      "id": "afterjobparty-bonn",
+      "display_name": "AfterJobParty Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.afterjobparty:fetch"
+    },
+    {
+      "id": "rheinevents",
+      "display_name": "RheinEvents",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.rheinevents:fetch"
+    },
+    {
+      "id": "salsa-in-bonn",
+      "display_name": "Salsa in Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.salsainbonn:fetch"
+    },
+    {
+      "id": "bonn-district-festivals",
+      "display_name": "Bonn district festivals",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn:fetch_press_festivals"
+    },
+    {
+      "id": "bundeskunsthalle",
+      "display_name": "Bundeskunsthalle",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bundeskunsthalle:fetch"
+    },
+    {
+      "id": "k-nigswinter",
+      "display_name": "Königswinter",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.koenigswinter:fetch"
+    },
+    {
+      "id": "vvs-siebengebirge",
+      "display_name": "VVS Siebengebirge",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.siebengebirge:fetch_vvs"
+    },
+    {
+      "id": "naturregion-sieg",
+      "display_name": "Naturregion Sieg",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.naturregion_sieg:fetch"
+    },
+    {
+      "id": "meckenheim",
+      "display_name": "Meckenheim",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.meckenheim:fetch"
+    },
+    {
+      "id": "much",
+      "display_name": "Much",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.much:fetch"
+    },
+    {
+      "id": "siegburg",
+      "display_name": "Siegburg",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.siegburg:fetch"
+    },
+    {
+      "id": "ionas4-regional",
+      "display_name": "ionas4 regional",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.regional_ionas4:fetch"
+    },
+    {
+      "id": "sitekit-regional",
+      "display_name": "SiteKit regional",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.regional_sitekit:fetch"
+    },
+    {
+      "id": "standard-regional-feeds",
+      "display_name": "Standard regional feeds",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.regional_feeds:fetch"
+    },
+    {
+      "id": "regional-html-calendars",
+      "display_name": "Regional HTML calendars",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.regional_html:fetch"
+    },
+    {
+      "id": "deskline-regional",
+      "display_name": "Deskline regional",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.regional_tourism:fetch"
+    },
+    {
+      "id": "regional-venues",
+      "display_name": "Regional venues",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.regional_venues:fetch"
+    },
+    {
+      "id": "requested-venue-calendars",
+      "display_name": "Requested venue calendars",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.requested_venues:fetch"
+    },
+    {
+      "id": "bonn-venue-calendars",
+      "display_name": "Bonn venue calendars",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_venues:fetch"
+    },
+    {
+      "id": "curated-cinema-specials",
+      "display_name": "Curated cinema specials",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.cinema_specials:fetch"
+    },
+    {
+      "id": "craftquelle-bonn",
+      "display_name": "Craftquelle Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_craftquelle"
+    },
+    {
+      "id": "bff-bonner-schifffahrt",
+      "display_name": "BFF Bonner Schifffahrt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_bff"
+    },
+    {
+      "id": "vomfass-bonn",
+      "display_name": "vomFASS Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_vomfass"
+    },
+    {
+      "id": "biertasting-bonn",
+      "display_name": "Biertasting Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_biertasting"
+    },
+    {
+      "id": "ludwig-s-bonn",
+      "display_name": "Ludwig's Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_ludwigs"
+    },
+    {
+      "id": "red-ttchen",
+      "display_name": "Redüttchen",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_reduettchen"
+    },
+    {
+      "id": "street-food-bonn",
+      "display_name": "Street Food Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_street_food"
+    },
+    {
+      "id": "street-food-festival-original",
+      "display_name": "Street Food Festival Original",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_original_street_food"
+    },
+    {
+      "id": "choco-dealer",
+      "display_name": "Choco Dealer",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_food:fetch_choco_dealer"
+    },
+    {
+      "id": "bonn-jetzt",
+      "display_name": "Bonn.jetzt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonnjetzt:fetch"
+    },
+    {
+      "id": "radio-bonn-rhein-sieg",
+      "display_name": "Radio Bonn/Rhein-Sieg",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.radiobonn:fetch"
+    },
+    {
+      "id": "b-rgerverein-vilich-m-ldorf",
+      "display_name": "Bürgerverein Vilich-Müldorf",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_districts:fetch_vilich_mueldorf"
+    },
+    {
+      "id": "beuel-net",
+      "display_name": "Beuel.net",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_districts:fetch_beuel"
+    },
+    {
+      "id": "bad-godesberg-stadtmarketing",
+      "display_name": "Bad Godesberg Stadtmarketing",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_districts:fetch_bad_godesberg"
+    },
+    {
+      "id": "hardtberg-kultur",
+      "display_name": "Hardtberg Kultur",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_districts:fetch_hardtberg"
+    },
+    {
+      "id": "bsv-roleber",
+      "display_name": "BSV Roleber",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_districts:fetch_roleber"
+    },
+    {
+      "id": "bv-holzlar",
+      "display_name": "BV Holzlar",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_districts:fetch_holzlar"
+    },
+    {
+      "id": "literaturhaus-bonn",
+      "display_name": "Literaturhaus Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_literature:fetch_literaturhaus"
+    },
+    {
+      "id": "parkbuchhandlung",
+      "display_name": "Parkbuchhandlung",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_literature:fetch_parkbuchhandlung"
+    },
+    {
+      "id": "ruhr-guide",
+      "display_name": "Ruhr-Guide",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.ruhrguide:fetch"
+    },
+    {
+      "id": "exa-search",
+      "display_name": "Exa Search",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.search:fetch_exa"
+    },
+    {
+      "id": "grok-search",
+      "display_name": "Grok Search",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.search:fetch_grok"
+    }
+  ]
+}

@@ -21,8 +21,7 @@ _SMALL_GERMAN_WORDS = frozenset({
     "eine", "einer", "eines", "für", "fuer", "im", "in", "mit", "nach", "oder",
     "ohne", "und", "vom", "von", "vor", "zu", "zum", "zur",
 })
-_KNOWN_ACRONYMS = frozenset({"ARD", "DJ", "KI", "LVR", "NRW", "VHS", "WDR", "ZDF"})
-_ALL_CAPS_NORMALIZATION_SOURCES = frozenset({"choco dealer"})
+_KNOWN_ACRONYMS = frozenset({"AI", "ARD", "DJ", "KI", "LVR", "NRW", "VHS", "WDR", "ZDF"})
 
 
 def _date_value(match: re.Match[str]) -> str:
@@ -80,8 +79,7 @@ def normalize_event_title(
         # a word. Keep the repair source-bound so ordinary phrases stay intact.
         normalized = re.sub(r"\b([A-ZÄÖÜ])\s+([a-zäöüß]{2,})\b", r"\1\2", normalized)
     normalized = _strip_redundant_date_suffix(normalized, start, end)
-    if source.casefold() in _ALL_CAPS_NORMALIZATION_SOURCES:
-        normalized = _normalize_all_caps(normalized)
+    normalized = _normalize_all_caps(normalized)
     return normalized
 
 

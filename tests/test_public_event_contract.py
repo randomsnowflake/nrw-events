@@ -26,6 +26,10 @@ PUBLIC_EVENT_FIELDS = frozenset({
     "city", "distance_km", "location_confidence", "location_source",
     "price", "admission", "category", "category_key", "category_label",
     "source", "source_id", "score",
+    "ranking_features", "priority_bonus",
+    "cancelled_at", "cancellation_source", "replacement_start_date",
+    "first_seen_at", "content_hash",
+    "series_id", "series_title", "run_id",
 })
 
 #: The venue identities the website crosswalk maps onto its own canonical

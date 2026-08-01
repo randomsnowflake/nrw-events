@@ -96,7 +96,7 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(runner.build_snapshot(result, context),
                          runner.build_snapshot(result, context))
 
-    def test_schema_v3_snapshot_has_strict_dates_and_structured_admission(self):
+    def test_schema_v4_snapshot_has_strict_dates_and_structured_admission(self):
         canonical = runner.validate_event({
             "title": "Ongoing exhibition",
             "source": "Museum",
@@ -119,7 +119,7 @@ class RunnerOutputTests(unittest.TestCase):
         snapshot = runner.build_snapshot(result, context)
         event = snapshot.events[0]
 
-        self.assertEqual(snapshot.metadata["snapshot_schema_version"], 3)
+        self.assertEqual(snapshot.metadata["snapshot_schema_version"], 4)
         self.assertEqual(event["date"], "2026-06-01")
         self.assertEqual(event["start_date"], "2026-06-01")
         self.assertEqual(event["end_date"], "2026-06-10")
@@ -845,13 +845,18 @@ class RunnerOutputTests(unittest.TestCase):
             settings = runner.config.RuntimeConfig(
                 json_out=os.path.join(tmpdir, "events.json"),
                 meta_json_out=os.path.join(tmpdir, "meta.json"),
+                highlights_json_out=os.path.join(tmpdir, "site", "highlights.json"),
+                series_ledger_json=os.path.join(tmpdir, "state", "series.json"),
             )
             metadata = {"run_id": "run-1", "generated_at": "2026-07-09T20:00:00", "run_status": "healthy"}
+            highlights = {"schemaVersion": "1.0", "run_id": "run-1", "categories": []}
+            ledger = {"schema_version": 1, "series": {}}
             with mock.patch.object(
                 runner.fcntl, "flock", wraps=runner.fcntl.flock
             ) as flock:
                 paths = runner._publish_snapshots(
-                    settings, [{"title": "Event"}], metadata, "run-1"
+                    settings, [{"title": "Event"}], metadata, "run-1",
+                    highlights=highlights, series_ledger=ledger,
                 )
             with open(paths["manifest"]) as handle:
                 manifest = json.load(handle)
@@ -859,6 +864,10 @@ class RunnerOutputTests(unittest.TestCase):
                 immutable_events = json.load(handle)
             with open(manifest["metadata_path"]) as handle:
                 immutable_metadata = json.load(handle)
+            with open(manifest["highlights_path"]) as handle:
+                immutable_highlights = json.load(handle)
+            with open(paths["series_ledger"]) as handle:
+                published_ledger = json.load(handle)
             flock.assert_called_once()
             self.assertEqual(flock.call_args.args[1], runner.fcntl.LOCK_EX)
             self.assertTrue(os.path.isfile(paths["manifest"] + ".lock"))
@@ -867,8 +876,11 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(manifest["event_count"], 1)
         self.assertEqual(immutable_events, [{"title": "Event"}])
         self.assertEqual(immutable_metadata["run_id"], "run-1")
+        self.assertEqual(immutable_highlights["run_id"], "run-1")
+        self.assertEqual(published_ledger, ledger)
         self.assertNotEqual(manifest["events_path"], paths["events"])
         self.assertNotEqual(manifest["metadata_path"], paths["metadata"])
+        self.assertNotEqual(manifest["highlights_path"], paths["highlights"])
 
     def test_disabled_source_is_not_a_degraded_run(self):
         def fetch_event():

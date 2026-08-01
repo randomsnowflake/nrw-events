@@ -18,10 +18,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import common, config, report
+from . import common, config, highlights as highlight_selection, report, series as series_entities
 from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
-from .identity import assign_event_ids
+from .identity import assign_event_ids, content_hash, event_id
 from .models import CanonicalEvent, normalize_source_id
 from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
@@ -56,12 +56,16 @@ class ImportResult:
     pre_dedup_count: int
     run_status: str
     retention: dict[str, object] = field(default_factory=dict)
+    series: tuple[dict, ...] = ()
+    series_ledger: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
 class SnapshotPayload:
     events: list[dict]
     metadata: dict
+    highlights: dict[str, object] = field(default_factory=dict)
+    series_ledger: dict[str, object] = field(default_factory=dict)
 
 
 def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | None = None) -> tuple[SourceResult, list[CanonicalEvent]]:
@@ -111,6 +115,7 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
                 # failures. Let canonical validation reject just this record.
                 in_window = True
             if not in_window:
+                result.announced_events.append(event)
                 continue
             if title_looks_truncated(
                 str(event.get("title") or ""),
@@ -126,6 +131,24 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
                 canonical_event = validate_event(event)
                 if not common.event_in_window(canonical_event):
                     continue
+                if canonical_event.status in {"cancelled", "postponed"}:
+                    cancellation_key = (
+                        canonical_event.source_id,
+                        canonical_event.title,
+                        canonical_event.start_date,
+                        canonical_event.status,
+                    )
+                    known_cancellation_keys = {
+                        (
+                            normalize_source_id(item.get("source_id") or item.get("source")),
+                            str(item.get("title") or ""),
+                            str(item.get("start_date") or item.get("date") or ""),
+                            str(item.get("status") or ""),
+                        )
+                        for item in result.cancelled_events
+                    }
+                    if cancellation_key not in known_cancellation_keys:
+                        result.cancelled_events.append(canonical_event.to_dict())
                 accepted.append(canonical_event)
             except EventValidationError as exc:
                 result.reject(str(exc))
@@ -135,7 +158,10 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
         # Editorial quality drops are expected filtering decisions, not source
         # health failures. Keep their counts for diagnostics, but only degrade
         # the source when a record fails structural validation.
-        if any(not reason.startswith("quality:") for reason in result.rejection_reasons):
+        if any(
+            not reason.startswith(("quality:", "filter:"))
+            for reason in result.rejection_reasons
+        ):
             result.status = SourceStatus.DEGRADED
         return result, accepted
     except Exception as exc:
@@ -246,7 +272,10 @@ def _import_issues(results: dict[str, SourceResult]) -> list[dict[str, object]]:
 
 
 def _validate_output_paths(settings: config.RuntimeConfig) -> None:
-    for raw_path in (settings.json_out, settings.meta_json_out, settings.log_file, settings.json_log_file):
+    for raw_path in (
+        settings.json_out, settings.meta_json_out, settings.highlights_json_out,
+        settings.series_ledger_json, settings.log_file, settings.json_log_file,
+    ):
         if not raw_path:
             continue
         Path(raw_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
@@ -487,6 +516,51 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
             result.anomalies.append("zero_after_recent_nonempty")
 
 
+def _source_result_for_event(
+    event: CanonicalEvent, results: dict[str, SourceResult],
+) -> SourceResult | None:
+    """Resolve a canonical child source back to its runner result."""
+    for result in results.values():
+        if event.source_id in result.event_source_ids or event.source in result.event_sources:
+            return result
+    return results.get(event.source)
+
+
+def _attach_cross_run_fields(
+    events: list[CanonicalEvent], previous: dict, generated_at: str,
+) -> list[CanonicalEvent]:
+    """Carry first-seen timestamps and expose a content-change fingerprint."""
+    previous_by_id = {
+        str(record.get("event_id") or event_id(record)): record
+        for record in previous.get("events") or []
+        if isinstance(record, dict)
+    }
+    enriched: list[CanonicalEvent] = []
+    for event in events:
+        identifier = event_id(event)
+        prior = previous_by_id.get(identifier, {})
+        first_seen = str(
+            prior.get("first_seen_at")
+            or prior.get("generated_at")
+            or previous.get("generated_at")
+            or generated_at
+        )
+        cancelled_at = event.cancelled_at
+        if event.status == "cancelled":
+            cancelled_at = str(prior.get("cancelled_at") or cancelled_at or generated_at)
+        candidate = replace(
+            event,
+            first_seen_at=first_seen,
+            cancelled_at=cancelled_at,
+            cancellation_source=(
+                event.cancellation_source
+                or (event.source if event.status in {"cancelled", "postponed"} else "")
+            ),
+        )
+        enriched.append(replace(candidate, content_hash=content_hash(candidate)))
+    return enriched
+
+
 def _atomic_json(path: Path, payload: object) -> None:
     """Write a complete JSON document before atomically replacing its target."""
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent,
@@ -503,15 +577,27 @@ def _atomic_json(path: Path, payload: object) -> None:
         raise
 
 
-def _publish_snapshots(settings: config.RuntimeConfig, events: list, metadata: dict, run_id: str) -> dict[str, str]:
+def _publish_snapshots(
+    settings: config.RuntimeConfig,
+    events: list,
+    metadata: dict,
+    run_id: str,
+    *,
+    highlights: dict[str, object] | None = None,
+    series_ledger: dict[str, object] | None = None,
+) -> dict[str, str]:
     """Publish immutable run artifacts and atomically commit their manifest."""
     event_path = Path(settings.json_out).expanduser()
     meta_path = Path(settings.meta_json_out).expanduser()
+    highlights_path = Path(settings.highlights_json_out).expanduser()
+    series_ledger_path = Path(settings.series_ledger_json).expanduser()
     manifest_path = meta_path.with_suffix(meta_path.suffix + ".manifest.json")
     generations_dir = meta_path.parent / f".{meta_path.name}.generations"
     lock_path = manifest_path.with_suffix(manifest_path.suffix + ".lock")
     meta_path.parent.mkdir(parents=True, exist_ok=True)
     event_path.parent.mkdir(parents=True, exist_ok=True)
+    highlights_path.parent.mkdir(parents=True, exist_ok=True)
+    series_ledger_path.parent.mkdir(parents=True, exist_ok=True)
 
     # The website serializes refreshes, but nrw-events is also a standalone
     # package. Lock its complete publication transaction so overlapping CLI
@@ -522,19 +608,25 @@ def _publish_snapshots(settings: config.RuntimeConfig, events: list, metadata: d
         generation_dir.mkdir(parents=True, exist_ok=False)
         immutable_events = generation_dir / "events.json"
         immutable_metadata = generation_dir / "metadata.json"
+        immutable_highlights = generation_dir / "highlights.json"
 
         _atomic_json(immutable_events, events)
         _atomic_json(immutable_metadata, metadata)
+        _atomic_json(immutable_highlights, highlights or {})
 
         # Preserve the historical fixed outputs for existing callers. The manifest
         # is the commit record and always points at the immutable matching pair.
         _atomic_json(event_path, events)
         _atomic_json(meta_path, metadata)
+        _atomic_json(highlights_path, highlights or {})
+        if series_ledger:
+            _atomic_json(series_ledger_path, series_ledger)
         _atomic_json(manifest_path, {
             "run_id": run_id,
             "generated_at": metadata["generated_at"],
             "events_path": str(immutable_events),
             "metadata_path": str(immutable_metadata),
+            "highlights_path": str(immutable_highlights),
             "event_count": len(events),
             "run_status": metadata["run_status"],
         })
@@ -552,6 +644,9 @@ def _publish_snapshots(settings: config.RuntimeConfig, events: list, metadata: d
             "manifest": str(manifest_path),
             "immutable_events": str(immutable_events),
             "immutable_metadata": str(immutable_metadata),
+            "highlights": str(highlights_path),
+            "immutable_highlights": str(immutable_highlights),
+            "series_ledger": str(series_ledger_path),
         }
 
 
@@ -655,7 +750,7 @@ def _matches_query(event: CanonicalEvent, settings: config.RuntimeConfig, query:
         return False
     if settings.free_only and (event.admission or {}).get("isFree") is not True:
         return False
-    if event.distance_km is None or event.distance_km > settings.radius_km:
+    if event.distance_km is not None and event.distance_km > settings.radius_km:
         return False
     day = today.replace(hour=0, minute=0, second=0, microsecond=0)
     if query.verb == "wochenende":
@@ -716,26 +811,80 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
                 run_id=run_id, source=name)
             all_events.extend(events)
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
-    filtered = [event for event in all_events if event["score"] >= settings.score_floor]
+    filtered: list[CanonicalEvent] = []
+    for event in all_events:
+        if event.distance_km is not None and event.distance_km > settings.radius_km:
+            result = _source_result_for_event(event, source_results)
+            if result is not None:
+                result.reject("filter:radius")
+            continue
+        if event.score < settings.score_floor and event.status == "scheduled":
+            result = _source_result_for_event(event, source_results)
+            if result is not None:
+                result.reject("filter:score_floor")
+            continue
+        filtered.append(event)
     cancellations = [
         event
         for result in source_results.values()
         for event in result.cancelled_events
     ]
-    fresh_deduped = report.deduplicate(filtered, cancellations=cancellations)
+    previous_cancellations: list[CanonicalEvent] = []
+    window_start = context.window.start.strftime("%Y-%m-%d")
+    window_end = context.window.end.strftime("%Y-%m-%d")
+    for raw_event in previous.get("events") or []:
+        if not isinstance(raw_event, dict) or raw_event.get("status") not in {"cancelled", "postponed"}:
+            continue
+        try:
+            cancellation = validate_event(raw_event)
+        except EventValidationError:
+            continue
+        if cancellation.end_date >= window_start and cancellation.start_date <= window_end:
+            previous_cancellations.append(cancellation)
+    all_cancellations = [*cancellations, *(event.to_dict() for event in previous_cancellations)]
+    fresh_deduped = report.deduplicate(
+        [*filtered, *previous_cancellations], cancellations=all_cancellations,
+    )
     retained, retention = _retain_previous_events(source_results, previous, context)
-    retained_deduped = report.deduplicate(retained, cancellations=cancellations)
+    retained_deduped = report.deduplicate(retained, cancellations=all_cancellations)
     retained_only = [
         candidate
         for candidate in retained_deduped
         if not any(
-            report.events_are_duplicates(fresh, candidate)
+            event_id(fresh) == event_id(candidate)
+            or report.events_are_duplicates(fresh, candidate)
             for fresh in fresh_deduped
         )
     ]
     # The fresh canonical record wins wholesale. Retained records are only
     # appended when no fresh record represents that occurrence.
     deduped = [*fresh_deduped, *retained_only]
+    generated_at = context.clock().isoformat(timespec="seconds")
+    deduped = _attach_cross_run_fields(deduped, previous, generated_at)
+    series_rows, series_metadata, series_ledger = series_entities.enrich_events(
+        (event.to_dict() for event in deduped),
+        series_entities.load_ledger(settings.series_ledger_json),
+        today=context.window.start.date(),
+        generated_at=generated_at,
+        announced_events=(
+            event
+            for result in source_results.values()
+            for event in result.announced_events
+        ),
+    )
+    deduped = [
+        replace(
+            event,
+            series_id=row.get("series_id", ""),
+            series_title=row.get("series_title", ""),
+            run_id=row.get("run_id", ""),
+        )
+        for event, row in zip(deduped, series_rows)
+    ]
+    deduped = [
+        replace(event, content_hash=content_hash(replace(event, content_hash="")))
+        for event in deduped
+    ]
 
     actual_by_source: dict[str, int] = {}
     for event in retained_only:
@@ -753,6 +902,7 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     return ImportResult(
         tuple(deduped), source_results, len(filtered) + len(retained),
         _run_status(source_results, len(deduped)), retention,
+        tuple(series_metadata), series_ledger,
     )
 
 
@@ -761,8 +911,12 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     source_results = import_result.source_results
     # Ids are assigned after deduplication and before sorting: they identify the
     # occurrence, so no consumer may see them move when the ranking moves.
-    events = sorted(assign_event_ids(event.to_dict() for event in import_result.events),
-                    key=lambda event: -event["score"])
+    events = assign_event_ids(event.to_dict() for event in import_result.events)
+    for event in events:
+        features = report.ranking_features(event)
+        event["ranking_features"] = features
+        event["priority_bonus"] = round(sum(features.values()), 2)
+    events.sort(key=lambda event: -(event["score"] + event["priority_bonus"]))
     issues = _import_issues(source_results)
     quality_metrics = summarize_event_quality(events)
     source_result_payloads = {
@@ -772,10 +926,11 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     start, end = context.window.start, context.window.end
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
                       for offset in range((end - start).days + 1))
+    generated_at = context.clock().isoformat(timespec="seconds")
     metadata = {
-        "snapshot_schema_version": 3,
+        "snapshot_schema_version": 4,
         "run_id": context.run_id, "run_status": import_result.run_status,
-        "generated_at": context.clock().isoformat(timespec="seconds"),
+        "generated_at": generated_at,
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),
                    "label": "this weekend" if has_weekend else "short term"},
         "radius_km_from_bonn": common.MAX_RADIUS_KM,
@@ -796,15 +951,32 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "expired_retained_event_count": import_result.retention.get("expired_retained_event_count", 0),
         "retained_sources": import_result.retention.get("retained_sources", []),
         "event_count": len(events), "quality_metrics": quality_metrics,
+        "series": list(import_result.series),
         "events_path": context.settings.json_out,
     }
-    return SnapshotPayload(events, metadata)
+    highlights = highlight_selection.build_highlights(
+        events, run_id=context.run_id, generated_at=generated_at,
+    )
+    if not highlight_selection.is_consistent(highlights, context.run_id):
+        metadata["run_status"] = "degraded"
+        metadata["source_warnings"].append({
+            "source": "highlights",
+            "error_type": "HighlightArtifactError",
+            "error": "highlight artifact is missing or does not match the snapshot run_id",
+        })
+    return SnapshotPayload(events, metadata, highlights, import_result.series_ledger)
 
 
 def publish_snapshot(snapshot: SnapshotPayload, settings: config.RuntimeConfig) -> dict[str, str]:
     """Durably publish a prepared snapshot and its commit manifest."""
-    return _publish_snapshots(settings, snapshot.events, snapshot.metadata,
-                              snapshot.metadata["run_id"])
+    return _publish_snapshots(
+        settings,
+        snapshot.events,
+        snapshot.metadata,
+        snapshot.metadata["run_id"],
+        highlights=snapshot.highlights,
+        series_ledger=snapshot.series_ledger,
+    )
 
 
 def cli(argv: list[str]) -> int:
@@ -838,7 +1010,7 @@ def cli(argv: list[str]) -> int:
     for issue in snapshot.metadata["import_issues"]:
         log(logger, 30 if issue["severity"] == "warning" else 40,
             f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))
-    run_status = import_result.run_status
+    run_status = str(snapshot.metadata["run_status"])
     if run_status == "failed":
         log(logger, 40, "import health gate failed; preserving last-known-good snapshot",
             run_id=run_id, source="runner")

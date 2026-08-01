@@ -24,7 +24,7 @@ where = ["scripts"]
 include = ["nrw_events*"]
 
 [tool.setuptools.package-data]
-nrw_events = ["verified_venue_locations.json"]
+nrw_events = ["verified_venue_locations.json", "sources/registry.json"]
 
 [dependency-groups]
 dev = ["ruff"]

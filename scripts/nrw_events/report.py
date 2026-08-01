@@ -524,17 +524,12 @@ def deduplicate(
     authoritative_cancellations = [
         event
         for event in (cancellations or [])
-        if event.get("status") == "cancelled"
+        if event.get("status") in {"cancelled", "postponed"}
         and source_authority(event.get("source", "")) >= 2
     ]
     result: list = []
     for ev in events:
-        if any(
-            source_authority(cancelled.get("source", ""))
-            >= source_authority(ev.get("source", ""))
-            and events_are_duplicates(cancelled, ev)
-            for cancelled in authoritative_cancellations
-        ):
+        if ev.get("status") in {"cancelled", "postponed"}:
             continue
         match_index = next(
             (
@@ -550,6 +545,35 @@ def deduplicate(
 
         current = result[match_index]
         result[match_index] = merge_preferred(current, ev)
+
+    # Replace the scheduled record with its authoritative schedule change. By
+    # keeping the scheduled record's identity fields, the public event ID stays
+    # stable when an occurrence changes from scheduled to cancelled.
+    for cancellation in authoritative_cancellations:
+        match_index = next(
+            (
+                index for index, scheduled in enumerate(result)
+                if source_authority(cancellation.get("source", ""))
+                >= source_authority(scheduled.get("source", ""))
+                and events_are_duplicates(cancellation, scheduled)
+            ),
+            None,
+        )
+        updates = {
+            "status": cancellation.get("status", "cancelled"),
+            "cancellation_source": cancellation.get("source", ""),
+            "replacement_start_date": cancellation.get("replacement_start_date", ""),
+            "score": 0.0,
+        }
+        if match_index is None:
+            if isinstance(cancellation, CanonicalEvent):
+                result.append(replace(cancellation, **updates))
+            else:
+                result.append({**cancellation, **updates})
+        elif isinstance(result[match_index], CanonicalEvent):
+            result[match_index] = replace(result[match_index], **updates)
+        else:
+            result[match_index] = {**result[match_index], **updates}
 
     # Metadata enrichment can make a winner comparable to an earlier result
     # that neither of its inputs matched on its own. Collapse those transitive

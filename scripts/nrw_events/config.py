@@ -41,6 +41,8 @@ class RuntimeConfig:
     source_baseline_min_count: int = 10
     json_out: str = str(default_state_dir() / "nrw-events-latest.json")
     meta_json_out: str = str(default_state_dir() / "nrw-events-latest-meta.json")
+    highlights_json_out: str = str(default_state_dir() / "highlights.json")
+    series_ledger_json: str = str(default_state_dir() / "series-ledger.json")
     previous_meta_json: str = ""
     log_level: str = "INFO"
     log_file: str = ""
@@ -141,6 +143,12 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         ),
         meta_json_out=os.environ.get(
             "NRW_EVENTS_META_JSON_OUT", str(default_state_dir() / "nrw-events-latest-meta.json")
+        ),
+        highlights_json_out=os.environ.get(
+            "NRW_EVENTS_HIGHLIGHTS_JSON_OUT", str(default_state_dir() / "highlights.json")
+        ),
+        series_ledger_json=os.environ.get(
+            "NRW_EVENTS_SERIES_LEDGER_JSON", str(default_state_dir() / "series-ledger.json")
         ),
         previous_meta_json=os.environ.get("NRW_EVENTS_PREVIOUS_META_JSON", ""),
         log_level=level,

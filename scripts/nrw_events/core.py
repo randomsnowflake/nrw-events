@@ -1370,8 +1370,6 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     if coords is None and registry_coords is not None:
         location_source = "venue_registry"
     km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
-    if km is not None and km > MAX_RADIUS_KM:
-        return None
     date_text = start_dt.strftime("%Y-%m-%d") if start_dt else ""
     ongoing = bool(start_dt and end_dt and start_dt < TODAY <= end_dt)
     if not time_text and start_dt and (start_dt.hour or start_dt.minute):
@@ -1456,15 +1454,19 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "category_confidence": canonical_category.get("confidence", 0),
         "category_reason": canonical_category.get("reason", ""),
     }
-    if status == "cancelled":
-        # Keep cancellations out of every adapter's public event list while
-        # preserving them as per-run tombstones. The runner passes these to the
-        # canonical deduplicator so an authoritative organizer cancellation can
-        # suppress a stale directory copy of the same occurrence.
+    if status == "postponed":
+        replacement_dates = [
+            candidate for candidate in extract_dates(f"{title} {description}")
+            if not start_dt or candidate.date() != start_dt.date()
+        ]
+        if replacement_dates:
+            ev["replacement_start_date"] = replacement_dates[0].strftime("%Y-%m-%d")
+    if status in {"cancelled", "postponed"}:
+        # Preserve schedule changes as first-class candidates. The runner binds
+        # them to the scheduled occurrence after source-authority deduplication.
         result = getattr(_SOURCE_CONTEXT, "result", None)
         if result is not None:
             result.cancelled_events.append(ev)
-        return None
     decision = evaluate_event_quality(ev)
     if decision.should_drop:
         if not outside_window:
@@ -1533,7 +1535,10 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
             (matched,),
         )
 
-    if has_cancelled_status(ev.get("title") or "", ev.get("description") or ""):
+    if (
+        has_cancelled_status(ev.get("title") or "", ev.get("description") or "")
+        and ev.get("status") not in {"cancelled", "postponed"}
+    ):
         return (
             "schedule.cancelled",
             "cancelled occurrence must not be published as scheduled",

@@ -363,7 +363,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual([event["title"] for event in events], ["LaClinicA: Sin cepillo de dientes"])
         self.assertEqual(events[0]["time"], "20:00")
 
-    def test_brotfabrik_api_items_create_events_and_skip_cancelled(self):
+    def test_brotfabrik_api_items_create_events_and_preserve_cancelled(self):
         patch_window(self, datetime(2026, 7, 4), datetime(2026, 7, 6))
         items = [
             {
@@ -390,10 +390,11 @@ class SourceParserTests(unittest.TestCase):
 
         events = bonn_venues.events_from_brotfabrik_items(items)
 
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["title"], "LaClinicA: Sin cepillo de dientes")
-        self.assertEqual(events[0]["date"], "2026-07-04")
-        self.assertEqual(events[0]["link"], "https://www.brotfabrik-theater.de/sin-cepillo-de-dientes/")
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["status"], "cancelled")
+        self.assertEqual(events[1]["title"], "LaClinicA: Sin cepillo de dientes")
+        self.assertEqual(events[1]["date"], "2026-07-04")
+        self.assertEqual(events[1]["link"], "https://www.brotfabrik-theater.de/sin-cepillo-de-dientes/")
 
     def test_brotfabrik_api_uses_explicit_marabu_department_as_stage_evidence(self):
         patch_window(self, datetime(2026, 9, 4), datetime(2026, 9, 4))
@@ -1206,7 +1207,7 @@ END:VCALENDAR
         self.assertIsNotNone(event)
         self.assertLessEqual(len(event and event["description"]), common.DESCRIPTION_MAX_CHARS + 1)
 
-    def test_make_event_skips_cancelled_or_postponed_events(self):
+    def test_make_event_preserves_cancelled_or_postponed_events(self):
         cases = [
             ("-ABGESAGT- Jazzabend im Pantheon", "Heute leider abgesagt"),
             ("Veranstaltung fällt leider aus! Erleben Sie ein Stück lebendiger Geschichte", "Die historische Wassermühle öffnet ihre Tore."),
@@ -1229,7 +1230,8 @@ END:VCALENDAR
                     "Pantheon",
                     "Konzert Kultur",
                 )
-                self.assertIsNone(event)
+                self.assertIsNotNone(event)
+                self.assertIn(event and event["status"], {"cancelled", "postponed"})
 
     def test_make_event_keeps_live_events_with_non_status_cancel_words(self):
         cases = [
@@ -1307,7 +1309,7 @@ END:VCALENDAR
         events = requested_venues._events_from_kunstmuseum_bonn(html)
 
         self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["title"], "ERÖFFNUNG – HUMAN AI ART AWARD 2026")
+        self.assertEqual(events[0]["title"], "Eröffnung – Human AI Art Award 2026")
         self.assertEqual(events[0]["date"], "2026-06-20")
         self.assertEqual(events[0]["time"], "19:00")
         self.assertEqual(events[0]["venue"], "Kunstmuseum Bonn")

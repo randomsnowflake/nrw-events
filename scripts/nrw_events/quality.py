@@ -310,7 +310,7 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
         )
 
     unavailable_marker = _unavailable_status_marker(title, description)
-    if unavailable_marker:
+    if unavailable_marker and event.get("status") not in {"cancelled", "postponed"}:
         return QualityDecision(
             QualityAction.DROP,
             "availability.unavailable",
