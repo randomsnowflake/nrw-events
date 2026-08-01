@@ -61,6 +61,18 @@ class EventIdStabilityTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.assertEqual(event_id(occurrence(**{field: value})), base)
 
+    def test_only_the_start_time_defines_the_id(self):
+        """An end time that appears or is reformatted must not move the URL.
+
+        ``rc.time_text`` emits a range as soon as a listing names two clock
+        times, so the same occurrence legitimately arrives as ``11:30`` in one
+        import and ``11:30–14:30`` in the next.
+        """
+        base = event_id(occurrence(time="11:30"))
+        for time_text in ("11:30–14:30", "11:30-14:30", "11:30 – 14:30", "11:30 bis 14:30"):
+            with self.subTest(time=time_text):
+                self.assertEqual(event_id(occurrence(time=time_text)), base)
+
     def test_series_dates_and_times_stay_distinct(self):
         first = event_id(occurrence())
         other_day = event_id(occurrence(start_date="2026-08-09", date="2026-08-09", start_at="2026-08-09T11:30+02:00"))

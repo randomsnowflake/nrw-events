@@ -93,7 +93,10 @@ Jedes veröffentlichte Event trägt eine stabile `event_id`. Sie identifiziert
 genau eine Veranstaltungs-Occurrence und ist damit als dauerhafte URL
 verwendbar. Die ID wird nach der Deduplizierung und vor der Sortierung vergeben
 und leitet sich ausschließlich aus normalisiertem Titel, `start_date`,
-Startzeit, Venue-Identität (`venue_id`, sonst Venue-Name) und Ort ab. Feed-
+Startzeit, Venue-Identität (`venue_id`, sonst Venue-Name) und Ort ab. Aus
+`time` geht dabei ausschließlich die führende Startzeit ein: das Feld trägt
+häufig eine Spanne (`08:00–14:00`), und eine Endzeit, die eine Quelle ergänzt
+oder wegfallen lässt, darf keine veröffentlichte URL bewegen. Feed-
 Reihenfolge, Score, Quelle, Preis, Beschreibung und Link fließen bewusst nicht
 ein — Anreicherung darf keine bereits veröffentlichte URL bewegen. `source_id`
 benennt eine Quelle, kein Event, und ist nie Teil der Identität. Verschiedene

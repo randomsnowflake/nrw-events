@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 import json
+import re
 from typing import Any, Iterable, Mapping, Sequence
 
 from .normalization import comparison_text
@@ -47,11 +48,18 @@ def _venue_key(event: Mapping[str, Any]) -> str:
     return registry_id or comparison_text(str(event.get("venue") or ""))
 
 
+#: Leading clock time of a ``time`` field. Only the start may define identity:
+#: ``time`` frequently carries a range, because ``rc.time_text`` emits
+#: ``08:00–14:00`` as soon as a listing names two clock times. An end time that
+#: appears, disappears or is reformatted upstream must not move a published URL.
+_START_TIME_RE = re.compile(r"\s*(\d{1,2}):(\d{2})")
+
+
 def _time_key(event: Mapping[str, Any]) -> str:
     """Return the start-time identity, distinguishing the dates of a series."""
-    time_text = comparison_text(str(event.get("time") or ""), separator="-")
-    if time_text:
-        return time_text
+    start = _START_TIME_RE.match(str(event.get("time") or ""))
+    if start:
+        return f"{int(start.group(1)):02d}:{start.group(2)}"
     start_at = str(event.get("start_at") or "").strip()
     # ``start_at`` carries the same clock time as ``time`` when both exist; only
     # its time-of-day part matters here because the date is a separate field.
