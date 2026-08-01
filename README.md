@@ -260,6 +260,9 @@ bash scripts/nrw-events.sh heute-abend --kategorie markt,festival
 bash scripts/nrw-events.sh --days 7 --json
 ```
 
+Ein Verb (`heute`, `heute-abend`, `wochenende`) legt sein Zeitfenster selbst
+fest; die Kombination mit `--days` wird abgelehnt statt still überschrieben.
+
 `--json` schreibt ausschließlich die gefilterte Eventliste nach stdout und
 verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 überschreiben die entsprechenden Umgebungsvariablen.
