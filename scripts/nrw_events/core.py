@@ -612,11 +612,14 @@ def fetch_detail_url(
     timeout: int = 15,
     brightdata_fallback: bool = False,
     brightdata: bool = False,
+    cache_failures: bool = False,
     **fetch_kwargs,
 ) -> str:
     """Fetch a public event detail page through the persistent TTL cache.
 
-    Only successful responses are cached. Set
+    Successful responses are cached by default. Sources that must enforce a
+    strict request ceiling can set ``cache_failures=True``; a failed attempt is
+    then represented by an empty cached body until the TTL expires. Set
     ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to bypass both memory and disk.
     """
     if brightdata and brightdata_fallback:
@@ -638,7 +641,15 @@ def fetch_detail_url(
             return cached["body"]
         state["entries"].pop(url, None)
 
-    body = fetcher(url, timeout=timeout, **fetch_kwargs)
+    try:
+        body = fetcher(url, timeout=timeout, **fetch_kwargs)
+    except Exception:
+        if cache_failures:
+            with _DETAIL_PAGE_CACHE_LOCK:
+                state = _load_detail_page_cache(cache_namespace, ttl_seconds)
+                state["entries"][url] = {"fetched_at": time.time(), "body": ""}
+                state["dirty"] = True
+        raise
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         state["entries"][url] = {"fetched_at": time.time(), "body": body}

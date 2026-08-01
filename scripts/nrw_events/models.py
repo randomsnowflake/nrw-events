@@ -31,6 +31,7 @@ class RawEvent(TypedDict, total=False):
     status: str
     venue: str
     identity_venue: str
+    identity_venue_locked: bool
     venue_id: str
     venue_address: str
     venue_district: str
@@ -77,6 +78,7 @@ class CanonicalEvent(Mapping[str, Any]):
     status: str = "scheduled"
     venue: str = ""
     identity_venue: str = ""
+    identity_venue_locked: bool = False
     venue_id: str = ""
     venue_address: str = ""
     venue_district: str = ""

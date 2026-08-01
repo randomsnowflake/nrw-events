@@ -163,9 +163,9 @@ def _parse_dt(value: str):
 
 
 def _concise_detail_description(value: str) -> str:
-    """Keep detail enrichment useful without exporting Bonn.de's full article."""
+    """Clean detail enrichment, applying only an explicitly configured limit."""
     cleaned = re.sub(r"\s+", " ", value or "").strip()
-    max_chars = int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 500))
+    max_chars = int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 0))
     if not max_chars or len(cleaned) <= max_chars:
         return cleaned
     if max_chars == 1:
@@ -210,18 +210,17 @@ def _detail_paragraphs(html: str) -> list[str]:
             parts.append(text)
 
     for block in re.findall(r'<div data-sp-table class="SP-Paragraph">(.*?)</div>', html, flags=re.S):
-        paragraphs = [
-            common.clean_html(raw) for raw in re.findall(r"<p\b[^>]*>(.*?)</p>", block, re.S | re.I)
-        ]
-        paragraphs = [text for text in paragraphs if text]
+        paragraphs = []
+        for tag, raw in re.findall(r"<(p|li)\b[^>]*>(.*?)</\1>", block, re.S | re.I):
+            text = common.clean_html(raw)
+            if text:
+                paragraphs.append(f"• {text}" if tag.casefold() == "li" else text)
         if paragraphs:
             parts.extend(paragraphs)
         else:
             text = common.clean_html(block)
             if text:
                 parts.append(text)
-        if len(parts) >= 14:
-            break
     return parts
 
 
@@ -233,11 +232,16 @@ def _join_detail_paragraphs(parts: list[str]) -> list[str]:
         if not text or _is_detail_logistics(text):
             index += 1
             continue
-        is_heading = len(text) <= 60 and not re.search(r'\.["”’)]*$', text)
+        is_heading = (
+            not text.startswith("• ")
+            and len(text) <= 60
+            and not re.search(r'\.["”’)]*$', text)
+        )
         if is_heading and index + 1 < len(parts):
             following = re.sub(r"\s+", " ", parts[index + 1]).strip()
             if following and not _is_detail_logistics(following):
-                text = f"{text}: {following}"
+                separator = " " if re.search(r"[?:!]$", text) else ": "
+                text = f"{text}{separator}{following}"
                 index += 1
         filtered.append(text)
         index += 1
@@ -248,7 +252,7 @@ def _paragraph_aware_detail_description(parts: list[str]) -> str:
     paragraphs = _join_detail_paragraphs(parts)
     if not paragraphs:
         return ""
-    max_chars = int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 500))
+    max_chars = int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 0))
     if not max_chars:
         return " ".join(paragraphs)
 
@@ -343,6 +347,7 @@ def _fetch_detail_context(link: str) -> dict:
         html = common.fetch_detail_url(
             link,
             cache_namespace="bonn-detail",
+            cache_failures=True,
             timeout=15,
             accept="text/html,*/*;q=0.8",
             sec_fetch_mode="navigate",
@@ -485,6 +490,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
         link = (item.get("link") or "").strip()
         description = (item.get("description") or "").strip()
         venue = (item.get("locationName") or "").strip()
+        identity_venue = venue
         detail_context = {}
         location_address = (item.get("locationAddress") or "").strip()
         if link and common.window_contains(start_dt, end_dt) and (not description or not venue or not location_address):
@@ -512,9 +518,15 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             source, ", ".join(sorted(category_tags)), time_text=time_text,
             coords=points.get(venue.lower()))
         if ev:
+            # Detail-page location data is enrichment, not a new occurrence.
+            # Lock even an originally empty listing venue so a newly discovered
+            # Place does not move an already published event URL.
+            ev["identity_venue"] = identity_venue
+            ev["identity_venue_locked"] = True
             if location_address and not ev.get("venue_address"):
                 ev["venue_address"] = location_address
             ev = _apply_detail_location(ev, detail_context)
+            ev["description"] = common.concise_description(description, max_chars=0)
             ev = _apply_source_category_mapping(ev, tags)
             if free_allow and not allow:
                 ev = _apply_free_category_override(ev, tags)
@@ -659,10 +671,12 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 source, ", ".join(sorted(tags | ({"Kostenlos"} if free_only else set()))), trust=0.86, time_text=time_text,
             )
             if ev:
+                ev["identity_venue"] = ""
+                ev["identity_venue_locked"] = True
                 ev = _apply_detail_location(ev, detail_context)
                 ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:
-                    ev["description"] = common.concise_description(description)
+                    ev["description"] = common.concise_description(description, max_chars=0)
                 price = common.infer_free_admission_price(
                     raw_title, description,
                     "kostenlos" if free_only or "Kostenlos" in tags else "",
@@ -843,6 +857,9 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
                         trust=0.76,
                     )
                     if enriched:
+                        enriched["description"] = common.concise_description(
+                            detail_description, max_chars=0
+                        )
                         ev = enriched
             if ev:
                 price = common.infer_free_admission_price(title, desc)

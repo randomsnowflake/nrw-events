@@ -45,7 +45,7 @@ _FIELD_SEPARATOR = "\n"
 def _venue_key(event: Mapping[str, Any]) -> str:
     """Return the strongest available venue identity for this occurrence."""
     published_name = str(event.get("identity_venue") or "").strip()
-    if published_name:
+    if published_name or event.get("identity_venue_locked"):
         return comparison_text(published_name)
     registry_id = str(event.get("venue_id") or "").strip()
     return registry_id or comparison_text(str(event.get("venue") or ""))
@@ -129,6 +129,7 @@ def assign_event_ids(events: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]
                 record["event_id"] = f"{base_id}-{position + 1}"
     for record in assigned:
         record.pop("identity_venue", None)
+        record.pop("identity_venue_locked", None)
     return assigned
 
 

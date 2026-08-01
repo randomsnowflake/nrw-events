@@ -57,6 +57,8 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(events[0]["description"], context["description"])
         self.assertEqual(events[0]["venue"], context["venue"])
         self.assertEqual(events[0]["venue_address"], context["venue_address"])
+        self.assertEqual(events[0]["identity_venue"], "")
+        self.assertTrue(events[0]["identity_venue_locked"])
         fetch_detail.assert_called_once_with(DETAIL_LINK)
 
     def test_meaningful_listing_abstract_still_fetches_missing_location(self):
@@ -138,6 +140,52 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["venue"], "Collegium Leoninum")
         self.assertEqual(context["venue_address"], "Noeggerathstraße 34, 53111 Bonn")
         self.assertEqual(context["city"], "Bonn")
+
+    def test_default_detail_description_preserves_all_paragraphs_and_lists(self):
+        html = """
+<div class="SP-ArticleHeader__intro SP-Intro"><p>Nachhaltigkeits-Hub Region Bonn</p></div>
+<div data-sp-table class="SP-Paragraph">
+  <p>Erster vollständiger Absatz mit den wichtigsten Informationen.</p>
+  <p><strong>Was ihr gewinnen könnt</strong></p>
+  <ul>
+    <li>1. Platz: 2.500 €</li>
+    <li>Exklusives Pitch-Coaching für alle Finalteams</li>
+  </ul>
+  <p>Der abschließende Absatz muss ebenfalls vollständig exportiert werden.</p>
+</div>
+"""
+
+        description = bonn._parse_detail_context(html)["description"]
+
+        self.assertIn("1. Platz: 2.500 €", description)
+        self.assertIn("Exklusives Pitch-Coaching", description)
+        self.assertNotIn("2.500 €:", description)
+        self.assertTrue(description.endswith("vollständig exportiert werden."))
+        self.assertNotIn("…", description)
+
+    def test_listing_keeps_detail_description_beyond_shared_card_limit(self):
+        html = """
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/seelenklaenge.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">18.07.2026</span></span></div>
+    <h1 class="SP-Teaser__headline">Seelenklänge</h1>
+  </a>
+</article>
+"""
+        full_description = "Ein vollständiger Detailabsatz. " + ("Weitere belegte Information. " * 30) + "Letzter Fakt."
+        context = {
+            "description": full_description,
+            "venue": "Collegium Leoninum",
+            "venue_address": "Noeggerathstraße 34, 53111 Bonn",
+            "city": "Bonn",
+        }
+
+        with patch.object(bonn, "_fetch_detail_context", return_value=context):
+            events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertGreater(len(full_description), common.DESCRIPTION_MAX_CHARS)
+        self.assertEqual(events[0]["description"], full_description)
 
     def test_detail_description_is_trimmed_before_it_is_cached_or_exported(self):
         long_description = " ".join(
@@ -255,7 +303,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(first, second)
         fetch_url.assert_not_called()
 
-    def test_persistent_cache_does_not_hide_transient_detail_failure(self):
+    def test_persistent_cache_throttles_failed_detail_page_for_24_hours(self):
         with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
             "os.environ",
             {
@@ -267,11 +315,11 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
                 self.assertEqual(bonn._fetch_detail_context(DETAIL_LINK), {})
 
             bonn._reset_detail_context_cache()
-            with patch.object(common, "fetch_url", return_value=detail_html()) as fetch_url:
-                refreshed = bonn._fetch_detail_context(DETAIL_LINK)
+            with patch.object(common, "fetch_url", side_effect=AssertionError("cache miss")) as fetch_url:
+                cached_failure = bonn._fetch_detail_context(DETAIL_LINK)
 
-        self.assertEqual(fetch_url.call_count, 1)
-        self.assertEqual(refreshed["venue"], "Collegium Leoninum")
+        fetch_url.assert_not_called()
+        self.assertEqual(cached_failure["venue"], "")
 
     def test_expired_persistent_cache_is_refreshed(self):
         with tempfile.TemporaryDirectory() as cache_dir, patch.dict(

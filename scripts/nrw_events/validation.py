@@ -79,6 +79,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
     event["identity_venue"] = _text(event, "identity_venue", 300)
+    event["identity_venue_locked"] = bool(event.get("identity_venue_locked", False))
     explicit_venue_id = _text(event, "venue_id", 160)
     if explicit_venue_id and not re.fullmatch(
         r"[a-z0-9]+(?:-[a-z0-9]+)*",

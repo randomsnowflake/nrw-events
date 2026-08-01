@@ -104,6 +104,16 @@ class EventIdStabilityTests(unittest.TestCase):
         )
         self.assertEqual(event_id(published), event_id(enriched))
 
+    def test_locked_empty_published_venue_survives_detail_enrichment(self):
+        published = occurrence(venue="", venue_id="")
+        enriched = occurrence(
+            venue="Ernst-Moritz-Arndt-Haus",
+            venue_id="",
+            identity_venue="",
+            identity_venue_locked=True,
+        )
+        self.assertEqual(event_id(published), event_id(enriched))
+
     def test_venue_label_identifies_events_without_a_registry_venue(self):
         left = occurrence(venue_id="", venue="Marktplatz")
         right = occurrence(venue_id="", venue="Stadthalle")
@@ -158,8 +168,11 @@ class AssignEventIdsTests(unittest.TestCase):
         self.assertNotIn("event_id", source)
 
     def test_internal_identity_venue_is_not_published(self):
-        assigned = assign_event_ids([occurrence(identity_venue="Bundeskunsthalle")])
+        assigned = assign_event_ids([
+            occurrence(identity_venue="Bundeskunsthalle", identity_venue_locked=True)
+        ])
         self.assertNotIn("identity_venue", assigned[0])
+        self.assertNotIn("identity_venue_locked", assigned[0])
 
 
 class EventIdVectorTests(unittest.TestCase):
