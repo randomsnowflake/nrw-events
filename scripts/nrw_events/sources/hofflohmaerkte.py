@@ -2,7 +2,7 @@
 
 import re
 
-from .. import common
+from .. import common, http
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
@@ -51,5 +51,20 @@ def _events_from_page(html: str) -> list:
     return rc.dedupe(events)
 
 
+def _fetch_page(url: str, timeout: int = 20) -> str:
+    return http.fetch_url_with_brightdata_fallback(
+        url,
+        timeout=timeout,
+        allowed_hosts=("www.hofflohmaerkte.de",),
+        required_body_markers=("Hofflohmärkte Köln",),
+    )
+
+
 def fetch() -> list:
-    return rc.fetch_html_events("Hofflohmärkte Köln", _URL, _events_from_page, timeout=20)
+    return rc.fetch_html_events(
+        "Hofflohmärkte Köln",
+        _URL,
+        _events_from_page,
+        timeout=20,
+        fetcher=_fetch_page,
+    )
