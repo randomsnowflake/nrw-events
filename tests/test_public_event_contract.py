@@ -39,6 +39,7 @@ PUBLIC_VENUE_IDS = frozenset({
     "botanische-gaerten-bonn",
     "brueckenforum-bonn",
     "bundeskunsthalle",
+    "bikini-beach-bonn",
     "contra-kreis-theater",
     "die-werke-bonn",
     "euro-theater-central",

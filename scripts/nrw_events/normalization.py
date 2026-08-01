@@ -6,6 +6,8 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from html import unescape
+import json
+from pathlib import Path
 from typing import Mapping
 
 _GERMAN_TRANSLITERATION = str.maketrans({
@@ -49,6 +51,17 @@ class VenueResolution:
     venue_type: str = ""
     venue_latitude: float | None = None
     venue_longitude: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedVenueLocation:
+    """A checked map point that does not create a public venue identity."""
+
+    city: str
+    venue: str
+    address: str
+    latitude: float
+    longitude: float
 
 
 def _venue(
@@ -121,6 +134,8 @@ VENUE_REGISTRY: tuple[VenueRecord, ...] = (
     _venue("rhein-sieg-forum", "RHEIN SIEG FORUM", city="Siegburg", venue_type="event_venue"),
     _venue("stadthalle-remagen", "Stadthalle Remagen", city="Remagen", venue_type="event_venue"),
     _venue("internationaler-club-bonn", "Internationaler Club", "International Club", city="Bonn", venue_type="university", address="Poppelsdorfer Allee 53, Bonn"),
+    # Official vivenu event payload: event.location.geoCode and postal address.
+    _venue("bikini-beach-bonn", "Bikini Beach", "Bikini Beach Bonn", city="Bonn", district="Bonn-Beuel", venue_type="event_venue", address="Karl-Duwe-Straße 1, 53227 Bonn", coordinates=(50.7155999, 7.1566788)),
     _venue("annaplatz-bad-honnef", "Annaplatz", "Anna-Platz", "Anna-Platz Rommersdorf", city="Bad Honnef", venue_type="public_space", address="Rommersdorfer Straße 90a, 53604 Bad Honnef"),
 )
 
@@ -133,6 +148,26 @@ for _record in VENUE_REGISTRY:
         if _key in _VENUE_BY_ALIAS and _VENUE_BY_ALIAS[_key] != _record:
             raise ValueError(f"duplicate venue alias: {_alias}")
         _VENUE_BY_ALIAS[_key] = _record
+
+
+def _load_verified_venue_locations() -> tuple[VerifiedVenueLocation, ...]:
+    path = Path(__file__).with_name("verified_venue_locations.json")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return tuple(VerifiedVenueLocation(
+        city=str(item["city"]),
+        venue=str(item["venue"]),
+        address=str(item.get("address") or ""),
+        latitude=float(item["latitude"]),
+        longitude=float(item["longitude"]),
+    ) for item in payload["locations"])
+
+
+VERIFIED_VENUE_LOCATIONS = _load_verified_venue_locations()
+_VERIFIED_LOCATION_BY_ALIAS: dict[str, list[VerifiedVenueLocation]] = {}
+for _location in VERIFIED_VENUE_LOCATIONS:
+    _VERIFIED_LOCATION_BY_ALIAS.setdefault(
+        comparison_text(_location.venue), [],
+    ).append(_location)
 
 
 _TAG = re.compile(r"<[^>]+>")
@@ -186,6 +221,18 @@ def _record_for(value: str, city: str, explicit_id: str = "") -> VenueRecord | N
         if (not city or not record.city or _compatible_city(record.city, city)
                 or _same_place(candidate, city)):
             return record
+    return None
+
+
+def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | None:
+    candidates = [value]
+    first_segment = value.split(",", 1)[0].strip()
+    if first_segment and first_segment != value:
+        candidates.append(first_segment)
+    for candidate in candidates:
+        for location in _VERIFIED_LOCATION_BY_ALIAS.get(comparison_text(candidate), []):
+            if not city or _compatible_city(location.city, city):
+                return location
     return None
 
 
@@ -289,15 +336,23 @@ def resolve_venue(
     cleaned = _clean_venue_text(value)
     record = _record_for(cleaned, city, explicit_id)
     parsed_name, parsed_address = _split_venue(cleaned, city)
+    location = _verified_location_for(cleaned, city)
     if record:
         return VenueResolution(
             record.display_name,
             record.id,
-            record.address or parsed_address,
+            record.address or parsed_address or (location.address if location else ""),
             record.district,
             record.venue_type,
-            record.latitude,
-            record.longitude,
+            record.latitude if record.latitude is not None else (location.latitude if location else None),
+            record.longitude if record.longitude is not None else (location.longitude if location else None),
+        )
+    if location:
+        return VenueResolution(
+            parsed_name or location.venue,
+            venue_address=parsed_address or location.address,
+            venue_latitude=location.latitude,
+            venue_longitude=location.longitude,
         )
     if _same_place(parsed_name, city):
         parsed_name = ""

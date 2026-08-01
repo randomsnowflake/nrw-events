@@ -271,8 +271,15 @@ def _paragraph_aware_detail_description(parts: list[str]) -> str:
 
 
 def _parse_detail_context(html: str) -> dict:
-    """Extract the useful bits that Bonn's JSON feed omits on sparse records."""
-    context = {"description": "", "venue": "", "city": ""}
+    """Extract description and structured location facts from a Bonn detail page."""
+    context = {
+        "description": "",
+        "venue": "",
+        "venue_address": "",
+        "venue_latitude": None,
+        "venue_longitude": None,
+        "city": "",
+    }
 
     seen = set()
     description_parts = []
@@ -288,7 +295,8 @@ def _parse_detail_context(html: str) -> dict:
             data = json.loads(unescape(raw_json).strip())
         except Exception:
             continue
-        nodes = data.get("@graph", []) if isinstance(data, dict) else []
+        graph = data.get("@graph") if isinstance(data, dict) else None
+        nodes = list(graph) if isinstance(graph, list) else []
         if isinstance(data, dict):
             nodes.append(data)
         for node in nodes:
@@ -300,10 +308,29 @@ def _parse_detail_context(html: str) -> dict:
             if not locations:
                 continue
             location = locations[0] or {}
+            if not isinstance(location, dict):
+                continue
             context["venue"] = (location.get("name") or "").strip()
             address = location.get("address") or {}
             if isinstance(address, dict):
-                context["city"] = (address.get("addressLocality") or "").strip()
+                street = str(address.get("streetAddress") or "").strip()
+                postal_code = str(address.get("postalCode") or "").strip()
+                context["city"] = str(address.get("addressLocality") or "").strip()
+                locality = " ".join(part for part in (postal_code, context["city"]) if part)
+                context["venue_address"] = ", ".join(part for part in (street, locality) if part)
+            elif isinstance(address, str):
+                context["venue_address"] = common.clean_html(address)
+            geo = location.get("geo") or {}
+            if isinstance(geo, dict):
+                try:
+                    latitude = float(geo.get("latitude"))
+                    longitude = float(geo.get("longitude"))
+                except (TypeError, ValueError):
+                    pass
+                else:
+                    if -90 <= latitude <= 90 and -180 <= longitude <= 180:
+                        context["venue_latitude"] = latitude
+                        context["venue_longitude"] = longitude
             return context
 
     return context
@@ -325,6 +352,18 @@ def _fetch_detail_context(link: str) -> dict:
     except Exception as e:
         common.log_source_error("Bonn.de detail", e)
         return {}
+
+
+def _apply_detail_location(event: dict, context: dict) -> dict:
+    """Fill missing canonical location fields from Bonn.de's Event JSON-LD."""
+    for field in (
+        "venue_address",
+        "venue_latitude",
+        "venue_longitude",
+    ):
+        if event.get(field) in (None, "") and context.get(field) not in (None, ""):
+            event[field] = context[field]
+    return event
 
 
 def _clean_free_title_prefix(title: str) -> str:
@@ -447,11 +486,13 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
         description = (item.get("description") or "").strip()
         venue = (item.get("locationName") or "").strip()
         detail_context = {}
-        if link and common.window_contains(start_dt, end_dt) and (not description or not venue):
+        location_address = (item.get("locationAddress") or "").strip()
+        if link and common.window_contains(start_dt, end_dt) and (not description or not venue or not location_address):
             detail_context = _fetch_detail_context(link)
             description = description or detail_context.get("description", "")
             venue = venue or detail_context.get("venue", "")
-        parts = [p.strip() for p in (item.get("locationAddress") or "").split(",") if p.strip()]
+            location_address = location_address or detail_context.get("venue_address", "")
+        parts = [p.strip() for p in location_address.split(",") if p.strip()]
         town = re.sub(r"^\d{4,5}\s*", "", parts[-1]).strip() if parts else detail_context.get("city", "")
         city = common.refine_city_from_text(
             town or "Bonn", " ".join((title, venue, description))
@@ -471,6 +512,9 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             source, ", ".join(sorted(category_tags)), time_text=time_text,
             coords=points.get(venue.lower()))
         if ev:
+            if location_address and not ev.get("venue_address"):
+                ev["venue_address"] = location_address
+            ev = _apply_detail_location(ev, detail_context)
             ev = _apply_source_category_mapping(ev, tags)
             if free_allow and not allow:
                 ev = _apply_free_category_override(ev, tags)
@@ -581,16 +625,18 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
         description = listing_description
         classification_description = listing_description
         venue, city = "", "Bonn"
-        if has_in_window_occurrence and _is_sparse_listing_description(listing_description, raw_title):
+        detail_context = {}
+        if has_in_window_occurrence:
             detail_context = _fetch_detail_context(link)
-            description = detail_context.get("description", "") or raw_title
-            # Rich article copy is display enrichment. Keep the official teaser
-            # title/categories as the ranking input so words in a long detail
-            # page cannot make a valid listed event disappear below the score
-            # floor (for example Nachtwache or Das Stadtspiel).
-            classification_description = raw_title
             venue = detail_context.get("venue", "")
             city = detail_context.get("city", "") or city
+            if _is_sparse_listing_description(listing_description, raw_title):
+                description = detail_context.get("description", "") or raw_title
+                # Rich article copy is display enrichment. Keep the official teaser
+                # title/categories as the ranking input so words in a long detail
+                # page cannot make a valid listed event disappear below the score
+                # floor (for example Nachtwache or Das Stadtspiel).
+                classification_description = raw_title
         city = common.refine_city_from_text(
             city, " ".join((title, venue, listing_description, description))
         )
@@ -613,6 +659,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 source, ", ".join(sorted(tags | ({"Kostenlos"} if free_only else set()))), trust=0.86, time_text=time_text,
             )
             if ev:
+                ev = _apply_detail_location(ev, detail_context)
                 ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:
                     ev["description"] = common.concise_description(description)

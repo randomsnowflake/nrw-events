@@ -11,6 +11,9 @@ from tests.helpers import patch_window
 class BonnCategoryMappingTests(unittest.TestCase):
     def setUp(self):
         patch_window(self, datetime(2026, 7, 27), datetime(2026, 8, 3))
+        detail_context = patch.object(bonn, "_fetch_detail_context", return_value={})
+        detail_context.start()
+        self.addCleanup(detail_context.stop)
 
     @staticmethod
     def _listing(

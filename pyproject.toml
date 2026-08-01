@@ -23,6 +23,9 @@ package-dir = {"" = "scripts"}
 where = ["scripts"]
 include = ["nrw_events*"]
 
+[tool.setuptools.package-data]
+nrw_events = ["verified_venue_locations.json"]
+
 [dependency-groups]
 dev = ["ruff"]
 

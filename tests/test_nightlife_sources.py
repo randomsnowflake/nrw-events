@@ -137,6 +137,7 @@ class NightlifeSourceTests(unittest.TestCase):
             "name": "Barfuss am Strand Summer Closing",
             "start": "2026-09-06T12:00:00.000Z", "end": "2026-09-06T20:00:00.000Z",
             "locationName": "Bikini Beach", "locationCity": "Bonn",
+            "locationStreet": "Karl-Duwe-Straße 1", "locationPostal": "53227",
             "url": "barfuss-am-strand-season-closing-dhpmfm",
             "startingPrice": 22, "saleStatus": "onSale",
             "slogan": "w/ Felix Kröcher, Format :B und Wankelmut",
@@ -146,6 +147,12 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["time"], "14:00–22:00")
         self.assertEqual(events[0]["price"], "ab 22 €")
+        self.assertEqual(events[0]["venue_id"], "bikini-beach-bonn")
+        self.assertEqual(events[0]["identity_venue"], "Bikini Beach")
+        self.assertEqual(events[0]["venue_address"], "Karl-Duwe-Straße 1, 53227 Bonn")
+        self.assertAlmostEqual(events[0]["venue_latitude"], 50.7155999)
+        self.assertAlmostEqual(events[0]["venue_longitude"], 7.1566788)
+        self.assertEqual(events[0]["location_confidence"], "exact")
         self.assertIn("Felix Kröcher", events[0]["description"])
         self.assertEqual(events[0]["description_source"], "generated")
         self.assert_canonical(events[0])
