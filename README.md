@@ -283,7 +283,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS` | `60.0` | Obergrenze für einzelne Retry-Wartezeiten. |
 | `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `5000000` | Harte Antwortgrößen-Grenze pro HTTP-Request. |
 | `NRW_EVENTS_SOURCE_WORKERS` | `12` | Maximale parallele Quellen. Requests an denselben Host werden serialisiert; verschiedene Hosts laufen parallel. |
-| `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `180.0` | Gesamtbudget einer Quelle; nachfolgende Requests und Retries werden auf die verbleibende Zeit begrenzt. |
+| `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `180.0` | Inaktivitätsbudget einer Quelle. Jeder erfolgreiche Endpunkt erneuert es; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
 | `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` | nicht gesetzt | Bright-Data-Web-Unlocker-Zugang. vomFASS wird montags ausschließlich darüber aktualisiert; Hofflohmärkte Köln nutzt ihn nach direkten HTTP-429-Antworten als Fallback. |

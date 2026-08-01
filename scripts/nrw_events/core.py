@@ -154,9 +154,12 @@ def set_source_context(result: Optional[SourceResult], timeout_seconds: float | 
     """Attach warnings emitted by a legacy fetcher to its runner-owned result."""
     _SOURCE_CONTEXT.result = result
     if result is not None and timeout_seconds is not None:
+        _SOURCE_CONTEXT.timeout_seconds = timeout_seconds
         _SOURCE_CONTEXT.deadline = time.perf_counter() + timeout_seconds
-    elif hasattr(_SOURCE_CONTEXT, "deadline"):
-        delattr(_SOURCE_CONTEXT, "deadline")
+    else:
+        for attribute_name in ("timeout_seconds", "deadline"):
+            if hasattr(_SOURCE_CONTEXT, attribute_name):
+                delattr(_SOURCE_CONTEXT, attribute_name)
 
 
 @contextmanager
@@ -203,6 +206,12 @@ def _record_endpoint(url: str, **details) -> None:
     result = getattr(_SOURCE_CONTEXT, "result", None)
     if result is not None:
         result.endpoint(redact(url), **details)
+    status = details.get("status")
+    timeout_seconds = getattr(_SOURCE_CONTEXT, "timeout_seconds", None)
+    if isinstance(status, int) and 200 <= status < 400 and timeout_seconds is not None:
+        # Large adapters can legitimately process many pages. Treat the source
+        # limit as an inactivity budget, not a wall-clock runtime ceiling.
+        _SOURCE_CONTEXT.deadline = time.perf_counter() + timeout_seconds
 
 
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
