@@ -1,0 +1,148 @@
+{
+  "description": "Golden vectors for the stable public event id. The nrw-events importer (scripts/nrw_events/identity.py) and the website (website/src/lib/events/event-id.ts) must both reproduce every eventId below byte for byte.",
+  "vectors": [
+    {
+      "name": "konzert-mit-uhrzeit",
+      "event": {
+        "title": "GA-Sommergarten – Albie Donnelly's Supercharge",
+        "start_date": "2026-08-02",
+        "date": "2026-08-02",
+        "end_date": "2026-08-02",
+        "time": "11:30–14:30",
+        "start_at": "2026-08-02T11:30+02:00",
+        "all_day": false,
+        "venue": "Bundeskunsthalle",
+        "venue_id": "bundeskunsthalle",
+        "city": "Bonn"
+      },
+      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-2026-08-02-28fcc8bfaf"
+    },
+    {
+      "name": "gleiche-uhrzeit-ohne-endzeit",
+      "event": {
+        "title": "GA-Sommergarten – Albie Donnelly's Supercharge",
+        "start_date": "2026-08-02",
+        "date": "2026-08-02",
+        "end_date": "2026-08-02",
+        "time": "11:30",
+        "start_at": "2026-08-02T11:30+02:00",
+        "all_day": false,
+        "venue": "Bundeskunsthalle",
+        "venue_id": "bundeskunsthalle",
+        "city": "Bonn"
+      },
+      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-2026-08-02-28fcc8bfaf",
+      "note": "Identisch mit konzert-mit-uhrzeit, nur ohne Endzeit: nur die Startzeit darf in die Identität eingehen, sonst wandert die veröffentlichte URL, sobald eine Quelle eine Endzeit ergänzt oder wegfallen lässt."
+    },
+    {
+      "name": "gleiche-serie-anderer-tag",
+      "event": {
+        "title": "GA-Sommergarten – Albie Donnelly's Supercharge",
+        "start_date": "2026-08-09",
+        "date": "2026-08-09",
+        "end_date": "2026-08-09",
+        "time": "11:30–14:30",
+        "start_at": "2026-08-09T11:30+02:00",
+        "all_day": false,
+        "venue": "Bundeskunsthalle",
+        "venue_id": "bundeskunsthalle",
+        "city": "Bonn"
+      },
+      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-2026-08-09-322c304467"
+    },
+    {
+      "name": "umlaute-und-eszett",
+      "event": {
+        "title": "Straßenfest Pützchen & Küchenmärchen",
+        "start_date": "2026-09-12",
+        "date": "2026-09-12",
+        "end_date": "2026-09-12",
+        "time": "",
+        "start_at": "",
+        "all_day": true,
+        "venue": "Möhneplatz",
+        "venue_id": "",
+        "city": "Bonn-Pützchen"
+      },
+      "eventId": "strassenfest-puetzchen-kuechenmaerchen-2026-09-12-9ae5e93aae"
+    },
+    {
+      "name": "ganztaegig-ohne-venue-id",
+      "event": {
+        "title": "Flohmarkt in der Rheinaue",
+        "start_date": "2026-08-15",
+        "date": "2026-08-15",
+        "end_date": "2026-08-15",
+        "time": "",
+        "start_at": "",
+        "all_day": true,
+        "venue": "Freizeitpark Rheinaue",
+        "venue_id": "",
+        "city": "Bonn"
+      },
+      "eventId": "flohmarkt-in-der-rheinaue-2026-08-15-373ab6b9f3"
+    },
+    {
+      "name": "nur-start-at-keine-uhrzeit",
+      "event": {
+        "title": "Lesung im Kunstmuseum",
+        "start_date": "2026-08-20",
+        "date": "2026-08-20",
+        "end_date": "2026-08-20",
+        "time": "",
+        "start_at": "2026-08-20T19:00+02:00",
+        "all_day": false,
+        "venue": "Kunstmuseum Bonn",
+        "venue_id": "kunstmuseum-bonn",
+        "city": "Bonn"
+      },
+      "eventId": "lesung-im-kunstmuseum-2026-08-20-8f7a8d22be"
+    },
+    {
+      "name": "sehr-langer-titel",
+      "event": {
+        "title": "Ein außerordentlich langer Veranstaltungstitel, der die Kürzung des lesbaren Segments zuverlässig auslöst",
+        "start_date": "2026-10-01",
+        "date": "2026-10-01",
+        "end_date": "2026-10-03",
+        "time": "20:00",
+        "start_at": "2026-10-01T20:00+02:00",
+        "all_day": false,
+        "venue": "Pantheon",
+        "venue_id": "pantheon-theater",
+        "city": "Bonn"
+      },
+      "eventId": "ein-ausserordentlich-langer-veranstaltungstitel-der-die-2026-10-01-0dbf74d8e4"
+    },
+    {
+      "name": "nur-date-ohne-start-date",
+      "event": {
+        "title": "Markt am Markt",
+        "date": "2026-11-07",
+        "end_date": "2026-11-07",
+        "time": "08:00–14:00",
+        "all_day": false,
+        "venue": "Marktplatz",
+        "venue_id": "",
+        "city": "Siegburg"
+      },
+      "eventId": "markt-am-markt-2026-11-07-1bd8e4dcef"
+    },
+    {
+      "name": "leerer-titel-fallback",
+      "event": {
+        "title": "",
+        "start_date": "2026-12-24",
+        "date": "2026-12-24",
+        "end_date": "2026-12-24",
+        "time": "",
+        "start_at": "",
+        "all_day": true,
+        "venue": "",
+        "venue_id": "",
+        "city": "Köln"
+      },
+      "eventId": "2026-12-24-77d3c24434"
+    }
+  ]
+}

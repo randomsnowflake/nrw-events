@@ -21,6 +21,7 @@ from typing import Callable, Optional
 from . import common, config, report
 from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
+from .identity import assign_event_ids
 from .models import CanonicalEvent, normalize_source_id
 from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
@@ -754,7 +755,9 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
 def build_snapshot(import_result: ImportResult, context: RunContext) -> SnapshotPayload:
     """Build deterministic publication documents without filesystem access."""
     source_results = import_result.source_results
-    events = sorted((event.to_dict() for event in import_result.events),
+    # Ids are assigned after deduplication and before sorting: they identify the
+    # occurrence, so no consumer may see them move when the ranking moves.
+    events = sorted(assign_event_ids(event.to_dict() for event in import_result.events),
                     key=lambda event: -event["score"])
     issues = _import_issues(source_results)
     quality_metrics = summarize_event_quality(events)
