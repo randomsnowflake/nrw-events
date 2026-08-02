@@ -136,6 +136,7 @@ class MarketSourceTests(unittest.TestCase):
             timeout=20,
             allowed_hosts=("www.hofflohmaerkte.de",),
             required_body_markers=("Hofflohmärkte Köln",),
+            fallback_on_timeout=True,
         )
         self.assertEqual([event["title"] for event in events], ["Hofflohmarkt Königsdorf (Frechen)"])
 

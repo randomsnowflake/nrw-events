@@ -505,30 +505,54 @@ def _filmhaus_datetime(value: str):
 
 
 def _events_from_kurzfilmwanderung(html: str) -> list:
-    heading_m = re.search(
-        r'<h1[^>]*>(.*?KURZFILMWANDERUNG\s+BONN\s+20\d{2}.*?)</h1>',
+    title_block_m = re.search(
+        r'<(?P<tag>h[1-6]|p)\b[^>]*>(?P<body>.*?KURZFILMWANDERUNG\s+BONN\s+20\d{2}.*?)</(?P=tag)>',
         html or "",
         re.S | re.I,
     )
-    if not heading_m:
+    if not title_block_m:
         return []
-    heading = rc.clean(heading_m.group(1))
-    title_m = re.search(r'(KURZFILMWANDERUNG\s+BONN\s+20\d{2})', heading, re.I)
-    date_m = re.search(r'\d{1,2}\.\s*[A-Za-zäöüÄÖÜ]+\s+20\d{2}', heading)
-    time_m = re.search(r'(?:ab\s*)?(\d{1,2})(?::(\d{2}))?\s*Uhr', heading, re.I)
+    title_block = rc.clean(title_block_m.group("body"))
+    detail_text = title_block
+    if not re.search(r'\d{1,2}\.\s*[A-Za-zäöüÄÖÜ]+\s+20\d{2}', detail_text):
+        following = (html or "")[title_block_m.end():title_block_m.end() + 5000]
+        for block_m in re.finditer(
+            r'<(?:h[1-6]|p)\b[^>]*>(.*?)</(?:h[1-6]|p)>',
+            following,
+            re.S | re.I,
+        ):
+            candidate = rc.clean(block_m.group(1))
+            if re.search(r'\d{1,2}\.\s*[A-Za-zäöüÄÖÜ]+\s+20\d{2}', candidate):
+                detail_text = f"{title_block} {candidate}"
+                break
+
+    title_m = re.search(r'(KURZFILMWANDERUNG\s+BONN\s+20\d{2})', title_block, re.I)
+    date_m = re.search(r'\d{1,2}\.\s*[A-Za-zäöüÄÖÜ]+\s+20\d{2}', detail_text)
+    time_m = re.search(
+        r'(?:ab\s*|Beginn\s*:\s*)?(\d{1,2})(?::(\d{2}))?\s*Uhr',
+        detail_text,
+        re.I,
+    )
     if not (title_m and date_m):
         return []
     start = common.parse_date(date_m.group(0))
     if start and time_m:
         start = start.replace(hour=int(time_m.group(1)), minute=int(time_m.group(2) or 0))
-    venue_m = re.search(r'Uhr\s+(Bonn\s+[^|]+)$', heading, re.I)
+    venue_m = re.search(r'Treffpunkt\s*:\s*(.+)$', detail_text, re.I)
+    if not venue_m:
+        venue_m = re.search(r'Uhr\s+(Bonn\s+[^|]+)$', detail_text, re.I)
     venue = rc.clean(venue_m.group(1) if venue_m else "Bonn")
+    # The current WordPress block has a malformed nested <strong> split inside
+    # the final city name ("Bon</strong>n"). Preserve the intended address.
+    venue = re.sub(r'\bBon\s+n\b', 'Bonn', venue)
     intro_m = re.search(
         r'<p[^>]*>\s*<strong>Was ist die Kurzfilmwanderung Bonn\?</strong>(.*?)</p>',
         html,
         re.S | re.I,
     )
-    description = rc.clean(intro_m.group(1) if intro_m else "")
+    description = rc.clean(intro_m.group(1) if intro_m else "") or (
+        "Mobiles Kurzfilmfestival mit Stadtspaziergang und Open-Air-Kino im öffentlichen Raum."
+    )
     event = common.make_event(
         rc.clean(title_m.group(1)).title(),
         start,

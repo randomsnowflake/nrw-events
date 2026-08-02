@@ -231,6 +231,23 @@ Sa, 19. September 2026 ab</strong> 20<strong> Uhr<br>Bonn Auerberg</strong></h1>
         self.assertEqual(events[0]["venue"], "Bonn Auerberg")
         self.assert_valid_cinema_events(events)
 
+    def test_kurzfilmwanderung_accepts_current_wordpress_paragraph_layout(self):
+        html = """
+<p class="has-large-font-size"><strong>Kurzfilmwanderung Bonn 2026</strong></p>
+<p class="has-background"><strong><em>Stadtspaziergang | Open-Air-Kino | Begegnung</em><br>
+Samstag, 19. September 2026<br>Beginn: 20 Uhr<br>
+Treffpunkt: Jahnschule, Herseler Str. 7, 53117 Bon</strong>n</strong></p>
+"""
+
+        events = cinema_specials._events_from_kurzfilmwanderung(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["date"], "2026-09-19")
+        self.assertEqual(events[0]["time"], "20:00")
+        self.assertEqual(events[0]["venue"], "Jahnschule")
+        self.assertEqual(events[0]["venue_address"], "Herseler Str. 7, 53117 Bonn")
+        self.assert_valid_cinema_events(events)
+
     def test_kulturbad_feed_keeps_only_special_cinema_formats(self):
         feed_events = [{
             "title": "Open Air Kino: Kultfilm",

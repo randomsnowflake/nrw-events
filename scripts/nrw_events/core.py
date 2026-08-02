@@ -506,6 +506,7 @@ def fetch_url_with_brightdata_fallback(
     allowed_hosts: tuple[str, ...],
     required_body_markers: tuple[str, ...] = (),
     fallback_statuses: tuple[int, ...] = (429,),
+    fallback_on_timeout: bool = False,
     country: str = "DE",
     **fetch_kwargs,
 ) -> str:
@@ -516,13 +517,17 @@ def fetch_url_with_brightdata_fallback(
     """
     try:
         return fetch_url(url, timeout=timeout, **fetch_kwargs)
-    except urllib.error.HTTPError as direct_error:
+    except (urllib.error.HTTPError, TimeoutError) as direct_error:
         api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
         zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
         hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
         eligible_host = hostname in {host.lower() for host in allowed_hosts}
-        if (direct_error.code not in fallback_statuses or not eligible_host
-                or not api_key or not zone):
+        eligible_failure = (
+            direct_error.code in fallback_statuses
+            if isinstance(direct_error, urllib.error.HTTPError)
+            else fallback_on_timeout
+        )
+        if (not eligible_failure or not eligible_host or not api_key or not zone):
             raise
 
     return fetch_url_with_brightdata(

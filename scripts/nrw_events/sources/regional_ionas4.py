@@ -5,7 +5,7 @@ import re
 import urllib.parse
 from datetime import timedelta
 
-from .. import common
+from .. import common, http
 from ..models import normalize_source_id
 from . import regional_common as rc
 
@@ -54,9 +54,13 @@ def fetch() -> list:
     for city, url, calendar_url, trust in _CALENDARS:
         source_id = normalize_source_id(f"ionas4-{city}")
         try:
-            items = json.loads(common.fetch_url(
+            hostname = urllib.parse.urlsplit(url).hostname or ""
+            items = json.loads(http.fetch_url_with_brightdata_fallback(
                 url,
                 timeout=25,
+                allowed_hosts=(hostname,),
+                fallback_statuses=(408, 429, 500, 502, 503, 504),
+                fallback_on_timeout=True,
                 accept="application/json,*/*;q=0.8",
                 sec_fetch_mode="cors",
                 sec_fetch_dest="empty",

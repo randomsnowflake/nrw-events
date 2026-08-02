@@ -190,6 +190,57 @@ class HttpHeaderTests(unittest.TestCase):
         self.assertEqual(payload["format"], "raw")
         self.assertEqual(payload["country"], "DE")
 
+    def test_brightdata_fallback_recovers_exhausted_direct_timeout_when_enabled(self):
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.headers = Message()
+        bright_response.read.return_value = json.dumps({
+            "status_code": 200,
+            "body": "<article data-event-card>recovered</article>",
+        }).encode()
+        old_attempts = common._HTTP_RETRY_ATTEMPTS
+        common._HTTP_RETRY_ATTEMPTS = 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+            }), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                side_effect=[TimeoutError("request or source time budget exhausted"), bright_response],
+            ) as urlopen:
+                body = common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                    required_body_markers=("data-event-card",),
+                    fallback_on_timeout=True,
+                )
+        finally:
+            common._HTTP_RETRY_ATTEMPTS = old_attempts
+
+        self.assertEqual(body, "<article data-event-card>recovered</article>")
+        self.assertEqual(urlopen.call_count, 2)
+
+    def test_brightdata_fallback_preserves_timeout_when_not_enabled(self):
+        old_attempts = common._HTTP_RETRY_ATTEMPTS
+        common._HTTP_RETRY_ATTEMPTS = 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+            }), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                side_effect=TimeoutError("timed out"),
+            ) as urlopen:
+                with self.assertRaises(TimeoutError):
+                    common.fetch_url_with_brightdata_fallback(
+                        "https://www.vomfass.de/pages/tastings",
+                        allowed_hosts=("www.vomfass.de",),
+                    )
+        finally:
+            common._HTTP_RETRY_ATTEMPTS = old_attempts
+
+        self.assertEqual(urlopen.call_count, 1)
+
     def test_brightdata_only_fetch_never_requests_target_directly(self):
         bright_response = Mock()
         bright_response.status = 200

@@ -57,6 +57,7 @@ def _fetch_page(url: str, timeout: int = 20) -> str:
         timeout=timeout,
         allowed_hosts=("www.hofflohmaerkte.de",),
         required_body_markers=("Hofflohmärkte Köln",),
+        fallback_on_timeout=True,
     )
 
 

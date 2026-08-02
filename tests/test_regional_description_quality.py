@@ -1,7 +1,10 @@
 import unittest
+import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from unittest.mock import patch
 
+from nrw_events import common, http
 from nrw_events.sources import (
     bonn_venues,
     regional_feeds,
@@ -16,6 +19,25 @@ from tests.helpers import patch_window
 class RegionalDescriptionQualityTests(unittest.TestCase):
     def setUp(self):
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
+
+    def test_ionas4_listing_calendars_use_bounded_web_unlocker_fallbacks(self):
+        with patch.object(
+            http,
+            "fetch_url_with_brightdata_fallback",
+            side_effect=["[]"] * len(regional_ionas4._CALENDARS),
+        ) as fetcher:
+            events = regional_ionas4.fetch()
+
+        self.assertEqual(events, [])
+        self.assertEqual(fetcher.call_count, len(regional_ionas4._CALENDARS))
+        for call, (_, url, _, _) in zip(fetcher.call_args_list, regional_ionas4._CALENDARS):
+            self.assertEqual(call.args, (url,))
+            self.assertEqual(
+                call.kwargs["allowed_hosts"],
+                (urllib.parse.urlsplit(url).hostname,),
+            )
+            self.assertTrue(call.kwargs["fallback_on_timeout"])
+            self.assertEqual(call.kwargs["fallback_statuses"], (408, 429, 500, 502, 503, 504))
 
     def test_ionas4_uses_detail_description_location_and_direct_link(self):
         items = [{
