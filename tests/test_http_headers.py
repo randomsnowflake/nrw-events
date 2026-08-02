@@ -256,6 +256,25 @@ class HttpHeaderTests(unittest.TestCase):
         bright_request = urlopen.call_args.args[0]
         self.assertEqual(bright_request.full_url, common._BRIGHT_DATA_API_URL)
 
+    def test_brightdata_raw_json_target_is_not_mistaken_for_api_envelope(self):
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.headers = Message()
+        bright_response.read.return_value = b'[{"id": 1}, {"id": 2}]'
+        with patch.dict("os.environ", {
+            "BRIGHT_DATA_API_KEY": "secret-key",
+            "BRIGHT_DATA_ZONE": "events-unlocker",
+        }), patch(
+            "nrw_events.common.urllib.request.urlopen",
+            return_value=bright_response,
+        ):
+            body = common.fetch_url_with_brightdata(
+                "https://www.roesrath.de/kalender/events.json",
+                allowed_hosts=("www.roesrath.de",),
+            )
+
+        self.assertEqual(json.loads(body), [{"id": 1}, {"id": 2}])
+
     def test_brightdata_fallback_preserves_timeout_when_not_enabled(self):
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1

@@ -470,11 +470,15 @@ def fetch_url_with_brightdata(
         target_status = api_status
         body = decoded
     else:
-        if not isinstance(result, dict):
-            _raise_brightdata_failure(
-                url, started, RuntimeError("Bright Data returned an unexpected response"))
-        target_status = result.get("status_code")
-        body = result.get("body", "")
+        # `format=raw` may return a JSON target body directly. Only treat a
+        # decoded object as the Web Unlocker envelope when both envelope fields
+        # are present; JSON lists and ordinary JSON objects are target content.
+        if isinstance(result, dict) and {"status_code", "body"} <= result.keys():
+            target_status = result.get("status_code")
+            body = result.get("body", "")
+        else:
+            target_status = api_status
+            body = decoded
 
     if not isinstance(target_status, (int, str)):
         _raise_brightdata_failure(
