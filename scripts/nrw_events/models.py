@@ -47,6 +47,7 @@ class RawEvent(TypedDict, total=False):
     price: str
     admission_basis: str
     admission: dict[str, Any]
+    availability: str
     category: str
     category_key: str
     category_label: str
@@ -117,6 +118,7 @@ class CanonicalEvent(Mapping[str, Any]):
     price: str = ""
     admission_basis: str = ""
     admission: dict[str, Any] = field(default_factory=_empty_admission)
+    availability: str = ""
     category: str = ""
     category_key: str = "other"
     category_label: str = "Other"

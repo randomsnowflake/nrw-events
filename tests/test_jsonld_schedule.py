@@ -99,6 +99,30 @@ class JsonLdScheduleTests(unittest.TestCase):
         self.assertEqual(current["time"], "08:00–18:00")
         self.assertNotIn("2026-04-18–2026-10-17", [ev["date"] for ev in events])
 
+    def test_jsonld_offer_availability_survives_only_as_explicit_evidence(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Availability test event",
+            "startDate": "2026-06-12T19:00:00+02:00",
+            "offers": {
+                "@type": "Offer",
+                "price": 12,
+                "priceCurrency": "EUR",
+                "availability": "https://schema.org/LimitedAvailability",
+            },
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        [event] = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+        )
+        canonical = canonicalize_event(event)
+
+        self.assertEqual(event["availability"], "LimitedAvailability")
+        self.assertEqual(canonical.availability, "LimitedAvailability")
+        self.assertEqual(canonical.to_dict()["availability"], "LimitedAvailability")
+
     def test_jsonld_structured_admission_overrides_text_inference(self):
         fixtures = [
             (

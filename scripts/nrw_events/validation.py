@@ -125,6 +125,10 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     admission_basis = _text(event, "admission_basis", 16)
     if admission_basis not in {"", "explicit", "inferred", "implicit"}:
         raise EventValidationError("admission_basis_invalid")
+    availability = _text(event, "availability", 32)
+    if availability not in {"", "InStock", "SoldOut", "LimitedAvailability", "PreOrder"}:
+        raise EventValidationError("availability_invalid")
+    event["availability"] = availability
     event["description_source"] = (
         _text(event, "description_source", 16) or inferred_description_source
     )

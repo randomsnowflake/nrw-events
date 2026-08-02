@@ -1961,6 +1961,23 @@ def _jsonld_offer_price(offers) -> Optional[str]:
     return "kostenlos" if has_explicitly_free_offer else None
 
 
+def _jsonld_offer_availability(offers) -> str:
+    """Return an explicit schema.org availability, preferring a purchasable tier."""
+    candidates = offers if isinstance(offers, list) else [offers]
+    recognized = []
+    allowed = ("InStock", "LimitedAvailability", "PreOrder", "SoldOut")
+    for offer in candidates:
+        if not isinstance(offer, dict):
+            continue
+        value = str(offer.get("availability") or "").rstrip("/").rsplit("/", 1)[-1]
+        if value in allowed:
+            recognized.append(value)
+    for value in allowed:
+        if value in recognized:
+            return value
+    return ""
+
+
 def _jsonld_admission_price(item: dict) -> Optional[str]:
     """Resolve structured admission, with the direct free-access flag authoritative."""
     accessible_for_free = _jsonld_accessible_for_free(item.get("isAccessibleForFree"))
@@ -1988,6 +2005,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         desc = item.get("description", "")
         link = item.get("url") or default_link
         admission_price = _jsonld_admission_price(item)
+        availability = _jsonld_offer_availability(item.get("offers"))
 
         schedules = _jsonld_schedule_items(item.get("eventSchedule"))
         if schedules:
@@ -2002,6 +2020,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                     category_locked=category_locked,
                 )
                 if ev:
+                    if availability:
+                        ev["availability"] = availability
                     if admission_price is not None:
                         ev["price"] = admission_price
                         ev["admission_basis"] = "explicit"
@@ -2018,6 +2038,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             category_locked=category_locked,
         )
         if ev:
+            if availability:
+                ev["availability"] = availability
             if admission_price is not None:
                 ev["price"] = admission_price
                 ev["admission_basis"] = "explicit"
