@@ -1,10 +1,12 @@
 import json
+import time
 import unittest
 import urllib.error
 from email.message import Message
 from unittest.mock import Mock, patch
 
 from nrw_events import common
+from nrw_events.health import SourceResult
 
 
 class HttpHeaderTests(unittest.TestCase):
@@ -219,6 +221,40 @@ class HttpHeaderTests(unittest.TestCase):
 
         self.assertEqual(body, "<article data-event-card>recovered</article>")
         self.assertEqual(urlopen.call_count, 2)
+
+    def test_timeout_fallback_gets_one_fresh_bounded_proxy_budget(self):
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.headers = Message()
+        bright_response.read.return_value = json.dumps({
+            "status_code": 200,
+            "body": "<article data-event-card>recovered late</article>",
+        }).encode()
+        source_result = SourceResult("Slow grouped source")
+        common.set_source_context(source_result, timeout_seconds=1)
+        common._SOURCE_CONTEXT.deadline = time.perf_counter() - 1
+        try:
+            with patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+            }), patch(
+                "nrw_events.common.urllib.request.urlopen",
+                return_value=bright_response,
+            ) as urlopen:
+                body = common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    timeout=12,
+                    allowed_hosts=("www.vomfass.de",),
+                    required_body_markers=("data-event-card",),
+                    fallback_on_timeout=True,
+                )
+        finally:
+            common.set_source_context(None)
+
+        self.assertEqual(body, "<article data-event-card>recovered late</article>")
+        self.assertEqual(urlopen.call_count, 1)
+        bright_request = urlopen.call_args.args[0]
+        self.assertEqual(bright_request.full_url, common._BRIGHT_DATA_API_URL)
 
     def test_brightdata_fallback_preserves_timeout_when_not_enabled(self):
         old_attempts = common._HTTP_RETRY_ATTEMPTS

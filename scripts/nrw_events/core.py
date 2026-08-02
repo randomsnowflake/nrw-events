@@ -413,6 +413,7 @@ def fetch_url_with_brightdata(
     allowed_hosts: tuple[str, ...],
     required_body_markers: tuple[str, ...] = (),
     country: str = "DE",
+    fresh_request_budget: bool = False,
 ) -> str:
     """Fetch a public page exclusively through Bright Data Web Unlocker."""
     hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
@@ -441,7 +442,14 @@ def fetch_url_with_brightdata(
         method="POST",
     )
     started = time.perf_counter()
-    deadline = _request_deadline()
+    # A direct-first fallback may be entered precisely because the ordinary
+    # request/source budget expired. Give that one allowlisted proxy attempt a
+    # fresh, still-bounded budget instead of failing before it starts.
+    deadline = (
+        time.perf_counter() + max(timeout, 120)
+        if fresh_request_budget
+        else _request_deadline()
+    )
     try:
         with _host_request_slot(_BRIGHT_DATA_API_URL, deadline):
             with closing(urllib.request.urlopen(
@@ -515,6 +523,7 @@ def fetch_url_with_brightdata_fallback(
     The fallback is deliberately opt-in per source. If credentials are absent,
     the original direct-fetch error is preserved instead of changing behavior.
     """
+    fallback_needs_fresh_budget = False
     try:
         return fetch_url(url, timeout=timeout, **fetch_kwargs)
     except (urllib.error.HTTPError, TimeoutError) as direct_error:
@@ -529,6 +538,7 @@ def fetch_url_with_brightdata_fallback(
         )
         if (not eligible_failure or not eligible_host or not api_key or not zone):
             raise
+        fallback_needs_fresh_budget = isinstance(direct_error, TimeoutError)
 
     return fetch_url_with_brightdata(
         url,
@@ -536,6 +546,7 @@ def fetch_url_with_brightdata_fallback(
         allowed_hosts=allowed_hosts,
         required_body_markers=required_body_markers,
         country=country,
+        fresh_request_budget=fallback_needs_fresh_budget,
     )
 
 
