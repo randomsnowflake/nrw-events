@@ -128,7 +128,7 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched[2]["description"], "Feed copy")
         self.assertEqual(fetch_url.call_count, 2)
         fetch_url.assert_any_call(much._URL, timeout=20)
-        fetch_url.assert_any_call(DETAIL_LINK, timeout=20)
+        fetch_url.assert_any_call(DETAIL_LINK, timeout=20, cache=False)
 
     def test_detail_failure_keeps_listing_events_available(self):
         events = [{"title": "Gartencafe", "link": DETAIL_LINK, "description": ""}]

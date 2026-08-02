@@ -352,7 +352,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
                 "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
             },
         ):
-            Path(cache_dir, "detail-pages-bonn-detail-v1.json").write_text("[]")
+            Path(cache_dir, "detail-pages-bonn-detail-v2.json").write_text("[]")
             with patch.object(common, "fetch_url", return_value=detail_html()) as fetch_url:
                 context = bonn._fetch_detail_context(DETAIL_LINK)
 

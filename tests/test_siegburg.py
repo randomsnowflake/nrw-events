@@ -84,7 +84,7 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched[0]["description"], expected)
         self.assertEqual(enriched[1]["description"], expected)
         self.assertEqual(enriched[2]["description"], "Feed copy")
-        fetch_detail.assert_called_once_with(DETAIL_LINK, timeout=15)
+        fetch_detail.assert_called_once_with(DETAIL_LINK, timeout=15, cache=False)
 
     def test_detail_failure_keeps_ical_events_available(self):
         events = [{"title": "Gedenkstätten", "link": DETAIL_LINK, "description": ""}]

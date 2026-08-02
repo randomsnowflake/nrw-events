@@ -1,5 +1,7 @@
+import json
 import os
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -31,7 +33,7 @@ class DetailPageCacheTests(unittest.TestCase):
                 common.fetch_detail_url(url, cache_namespace="example"),
                 "<main>Event detail</main>",
             )
-        fetch.assert_called_once_with(url, timeout=15)
+        fetch.assert_called_once_with(url, timeout=15, cache=False)
 
         common._reset_detail_page_cache()
         with patch.object(common, "fetch_url", side_effect=AssertionError("cache miss")) as fetch:
@@ -40,6 +42,48 @@ class DetailPageCacheTests(unittest.TestCase):
                 "<main>Event detail</main>",
             )
         fetch.assert_not_called()
+
+    def test_persistent_detail_cache_is_private_and_does_not_store_raw_url_keys(self):
+        url = "https://example.org/detail?token=secret-value"
+        with patch.object(common, "fetch_url", return_value="<main>Event detail</main>"):
+            common.fetch_detail_url(url, cache_namespace="private")
+        common.flush_detail_page_caches("private")
+
+        cache_files = [
+            path for path in os.scandir(self.cache_dir.name)
+            if path.name.startswith("detail-pages-") and path.name.endswith(".json")
+        ]
+        self.assertEqual(len(cache_files), 1)
+        cache_path = cache_files[0].path
+        self.assertEqual(os.stat(self.cache_dir.name).st_mode & 0o777, 0o700)
+        self.assertEqual(os.stat(cache_path).st_mode & 0o777, 0o600)
+        with open(cache_path, encoding="utf-8") as handle:
+            persisted = handle.read()
+        self.assertNotIn(url, persisted)
+        self.assertNotIn("secret-value", persisted)
+
+    def test_flush_keeps_newer_entry_written_by_another_process(self):
+        url = "https://example.org/detail/concurrent"
+        with patch.object(common, "fetch_url", return_value="older body"):
+            common.fetch_detail_url(url, cache_namespace="concurrent")
+
+        cache_path = common._detail_page_cache_path("concurrent")
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_key = common._detail_page_cache_key(url)
+        cache_path.write_text(
+            json.dumps({
+                "version": common._DETAIL_PAGE_CACHE_VERSION,
+                "namespace": "concurrent",
+                "entries": {
+                    cache_key: {"fetched_at": time.time() + 1, "body": "newer body"},
+                },
+            }),
+            encoding="utf-8",
+        )
+
+        common.flush_detail_page_caches("concurrent")
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["entries"][cache_key]["body"], "newer body")
 
     def test_zero_ttl_disables_memory_and_disk_caching(self):
         url = "https://example.org/events/detail/uncached"

@@ -173,7 +173,7 @@ def quality_gate_warnings(
             if rate <= threshold:
                 continue
             affected = int(source_metrics.get(count_key) or 0)
-            warnings.append({
+            warning = {
                 "source": source,
                 "error_type": "QualityGateWarning",
                 "error": f"{description}: {affected}/{count} ({rate:.1%})",
@@ -182,7 +182,16 @@ def quality_gate_warnings(
                 "event_count": count,
                 "rate": rate,
                 "threshold": threshold,
-            })
+            }
+            if rule_id == "quality.missing-venue-rate":
+                warning.update({
+                    "action": "research",
+                    "action_message": (
+                        "Research official listing and detail pages before changing venue extraction; "
+                        "do not infer venue names only to improve the metric."
+                    ),
+                })
+            warnings.append(warning)
 
     for source, result in sorted(source_results.items()):
         reasons = result.get("rejection_reasons") or {}

@@ -166,6 +166,12 @@ class JunkFilterTests(unittest.TestCase):
         )
         self.assertEqual({warning["source"] for warning in warnings},
                          {"Weak Source", "Weak Runner"})
+        venue_warning = next(
+            warning for warning in warnings
+            if warning["rule_id"] == "quality.missing-venue-rate"
+        )
+        self.assertEqual(venue_warning["action"], "research")
+        self.assertIn("official listing and detail pages", venue_warning["action_message"])
 
     def test_uncategorized_gate_uses_documented_global_threshold(self):
         metrics = summarize_event_quality([

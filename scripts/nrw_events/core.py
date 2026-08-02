@@ -12,6 +12,8 @@ The public compatibility facade is :mod:`nrw_events.common`; new code should
 prefer the focused HTTP, text, event-builder, JSON-LD, and iCal modules.
 """
 
+import fcntl
+import hashlib
 import json
 import logging
 import os
@@ -329,7 +331,7 @@ def browser_headers(
     return hdrs
 
 
-def fetch_url(
+def _fetch_url_uncached(
     url: str,
     timeout: int = 15,
     headers: Optional[dict] = None,
@@ -395,6 +397,38 @@ def fetch_url(
     raise RuntimeError("fetch_url retry loop exhausted unexpectedly")  # pragma: no cover
 
 
+def fetch_url(
+    url: str,
+    timeout: int = 15,
+    headers: Optional[dict] = None,
+    accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    sec_fetch_mode: str = "navigate",
+    sec_fetch_dest: str = "document",
+    expected_content_types: Optional[tuple] = None,
+    cache: bool = True,
+) -> str:
+    """GET text through the persistent importer-wide response cache.
+
+    The cache identity includes request semantics but persists only their hash,
+    so authenticated feed URLs and headers do not leak into the cache file.
+    Set ``NRW_EVENTS_HTTP_CACHE_TTL_HOURS=0`` for an explicitly live request.
+    """
+    cache_key = _http_cache_key(
+        url, headers, accept, sec_fetch_mode, sec_fetch_dest, expected_content_types,
+    )
+    cached = _http_cache_lookup(cache_key, url) if cache else None
+    if cached is not None:
+        return cached
+
+    body = _fetch_url_uncached(
+        url, timeout, headers, accept, sec_fetch_mode, sec_fetch_dest,
+        expected_content_types,
+    )
+    if cache:
+        _http_cache_store(cache_key, body)
+    return body
+
+
 def _raise_brightdata_failure(url: str, started: float, exc: Exception) -> NoReturn:
     _record_endpoint(
         url,
@@ -414,11 +448,28 @@ def fetch_url_with_brightdata(
     required_body_markers: tuple[str, ...] = (),
     country: str = "DE",
     fresh_request_budget: bool = False,
+    cache: bool = True,
 ) -> str:
     """Fetch a public page exclusively through Bright Data Web Unlocker."""
     hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
     if hostname not in {host.lower() for host in allowed_hosts}:
         raise ValueError(f"Bright Data target host is not allowlisted: {hostname or '<missing>'}")
+
+    cache_key = _http_cache_key(
+        url,
+        {
+            "transport": "brightdata",
+            "country": country.upper(),
+            "required_body_markers": required_body_markers,
+        },
+        "text/html",
+        "cors",
+        "empty",
+        None,
+    )
+    cached = _http_cache_lookup(cache_key, url) if cache else None
+    if cached is not None:
+        return cached
 
     api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
     zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
@@ -508,6 +559,8 @@ def fetch_url_with_brightdata(
         duration_ms=round((time.perf_counter() - started) * 1000),
         transport="brightdata",
     )
+    if cache:
+        _http_cache_store(cache_key, body)
     return body
 
 
@@ -520,6 +573,7 @@ def fetch_url_with_brightdata_fallback(
     fallback_statuses: tuple[int, ...] = (429,),
     fallback_on_timeout: bool = False,
     country: str = "DE",
+    cache: bool = True,
     **fetch_kwargs,
 ) -> str:
     """Fetch directly first, then recover selected HTTP failures via Web Unlocker.
@@ -529,7 +583,7 @@ def fetch_url_with_brightdata_fallback(
     """
     fallback_needs_fresh_budget = False
     try:
-        return fetch_url(url, timeout=timeout, **fetch_kwargs)
+        return fetch_url(url, timeout=timeout, cache=cache, **fetch_kwargs)
     except (urllib.error.HTTPError, TimeoutError) as direct_error:
         api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
         zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
@@ -544,22 +598,108 @@ def fetch_url_with_brightdata_fallback(
             raise
         fallback_needs_fresh_budget = isinstance(direct_error, TimeoutError)
 
-    return fetch_url_with_brightdata(
+    body = fetch_url_with_brightdata(
         url,
         timeout=timeout,
         allowed_hosts=allowed_hosts,
         required_body_markers=required_body_markers,
         country=country,
         fresh_request_budget=fallback_needs_fresh_budget,
+        cache=cache,
     )
+    direct_cache_key = _http_cache_key(
+        url,
+        fetch_kwargs.get("headers"),
+        fetch_kwargs.get(
+            "accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        ),
+        fetch_kwargs.get("sec_fetch_mode", "navigate"),
+        fetch_kwargs.get("sec_fetch_dest", "document"),
+        fetch_kwargs.get("expected_content_types"),
+    )
+    if cache:
+        _http_cache_store(direct_cache_key, body)
+    return body
 
 
 # Detail pages are comparatively expensive because one listing can fan out into
 # dozens of requests. Keep their raw HTML in small source-specific files so a
 # parser can be improved without coupling the cache format to its parsed fields.
-_DETAIL_PAGE_CACHE_VERSION = 1
+_DETAIL_PAGE_CACHE_VERSION = 2
 _DETAIL_PAGE_CACHE_LOCK = threading.RLock()
 _DETAIL_PAGE_CACHE_STATES: dict[str, dict] = {}
+
+
+def _http_cache_ttl_seconds() -> float:
+    try:
+        return max(float(os.environ.get("NRW_EVENTS_HTTP_CACHE_TTL_HOURS", "26")), 0) * 60 * 60
+    except (TypeError, ValueError):
+        return 26 * 60 * 60
+
+
+def _http_cache_key(
+    url: str,
+    headers: Optional[dict],
+    accept: str,
+    sec_fetch_mode: str,
+    sec_fetch_dest: str,
+    expected_content_types: Optional[tuple],
+) -> str:
+    identity = json.dumps(
+        {
+            "url": url,
+            "headers": headers or {},
+            "accept": accept,
+            "sec_fetch_mode": sec_fetch_mode,
+            "sec_fetch_dest": sec_fetch_dest,
+            "expected_content_types": expected_content_types or (),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def _http_cache_lookup(cache_key: str, url: str) -> str | None:
+    ttl_seconds = _http_cache_ttl_seconds()
+    if not ttl_seconds:
+        return None
+    with _DETAIL_PAGE_CACHE_LOCK:
+        state = _load_detail_page_cache("__http_get__", ttl_seconds)
+        cached = state["entries"].get(cache_key)
+        if cached is None or time.time() - cached["fetched_at"] > ttl_seconds:
+            state["entries"].pop(cache_key, None)
+            return None
+        body = cached["body"]
+        _record_endpoint(
+            url, status=200, content_type="cache", bytes=len(body.encode("utf-8")),
+            duration_ms=0, transport="cache",
+            cache_age_seconds=round(time.time() - cached["fetched_at"]),
+        )
+        return body
+
+
+def _http_cache_store(cache_key: str, body: str) -> None:
+    ttl_seconds = _http_cache_ttl_seconds()
+    if not ttl_seconds:
+        return
+    with _DETAIL_PAGE_CACHE_LOCK:
+        state = _load_detail_page_cache("__http_get__", ttl_seconds)
+        state["entries"][cache_key] = {"fetched_at": time.time(), "body": body}
+        state["dirty"] = True
+
+
+def _http_cache_discard(cache_key: str) -> None:
+    ttl_seconds = _http_cache_ttl_seconds()
+    if not ttl_seconds:
+        return
+    with _DETAIL_PAGE_CACHE_LOCK:
+        state = _load_detail_page_cache("__http_get__", ttl_seconds)
+        if state["entries"].pop(cache_key, None) is not None:
+            state["dirty"] = True
 
 
 def _detail_page_cache_slug(namespace: str) -> str:
@@ -569,11 +709,15 @@ def _detail_page_cache_slug(namespace: str) -> str:
     return slug
 
 
+def _detail_page_cache_key(url: str) -> str:
+    return hashlib.sha256(url.encode("utf-8")).hexdigest()
+
+
 def _detail_page_cache_ttl_seconds() -> float:
     try:
-        return max(float(os.environ.get("NRW_EVENTS_DETAIL_CACHE_TTL_HOURS", "24")), 0) * 60 * 60
+        return max(float(os.environ.get("NRW_EVENTS_DETAIL_CACHE_TTL_HOURS", "72")), 0) * 60 * 60
     except (TypeError, ValueError):
-        return 24 * 60 * 60
+        return 72 * 60 * 60
 
 
 def _detail_page_cache_path(namespace: str) -> Path:
@@ -584,7 +728,9 @@ def _detail_page_cache_path(namespace: str) -> Path:
         xdg_cache = os.environ.get("XDG_CACHE_HOME", "").strip()
         cache_dir = Path(xdg_cache).expanduser() if xdg_cache else Path.home() / ".cache"
         cache_dir /= "nrw-events"
-    return cache_dir / f"detail-pages-{_detail_page_cache_slug(namespace)}-v1.json"
+    slug = _detail_page_cache_slug(namespace)
+    filename = "http-get-v2.json" if namespace == "__http_get__" else f"detail-pages-{slug}-v2.json"
+    return cache_dir / filename
 
 
 def _reset_detail_page_cache(namespace: str | None = None) -> None:
@@ -638,8 +784,14 @@ def _load_detail_page_cache(namespace: str, ttl_seconds: float) -> dict:
 def _persist_detail_page_cache(state: dict) -> None:
     path = state["path"]
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    lock_fd = None
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        os.chmod(path.parent, 0o700)
+        lock_fd = os.open(path.with_suffix(f"{path.suffix}.lock"), os.O_CREAT | os.O_RDWR, 0o600)
+        os.fchmod(lock_fd, 0o600)
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
         existing_entries = {}
         try:
             existing = json.loads(path.read_text(encoding="utf-8"))
@@ -651,7 +803,24 @@ def _persist_detail_page_cache(state: dict) -> None:
                 existing_entries = existing.get("entries") or {}
         except (FileNotFoundError, OSError, TypeError, ValueError):
             pass
-        entries = {**existing_entries, **state["entries"]}
+
+        now = time.time()
+        entries = {}
+        for key in existing_entries.keys() | state["entries"].keys():
+            candidates = [existing_entries.get(key), state["entries"].get(key)]
+            valid = []
+            for candidate in candidates:
+                if not isinstance(candidate, dict) or not isinstance(candidate.get("body"), str):
+                    continue
+                try:
+                    fetched_at = float(candidate.get("fetched_at", 0))
+                except (TypeError, ValueError):
+                    continue
+                if now - fetched_at <= state["ttl_seconds"]:
+                    valid.append((fetched_at, candidate))
+            if valid:
+                entries[key] = max(valid, key=lambda item: item[0])[1]
+
         temporary.write_text(
             json.dumps(
                 {
@@ -664,7 +833,9 @@ def _persist_detail_page_cache(state: dict) -> None:
             ),
             encoding="utf-8",
         )
+        os.chmod(temporary, 0o600)
         os.replace(temporary, path)
+        os.chmod(path, 0o600)
         state["entries"] = entries
         state["dirty"] = False
     except OSError as exc:
@@ -673,6 +844,12 @@ def _persist_detail_page_cache(state: dict) -> None:
             temporary.unlink(missing_ok=True)
         except OSError:
             pass
+    finally:
+        if lock_fd is not None:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(lock_fd)
 
 
 def flush_detail_page_caches(namespace: str | None = None) -> None:
@@ -709,16 +886,21 @@ def fetch_detail_url(
         fetcher = fetch_url_with_brightdata_fallback
     else:
         fetcher = fetch_url
+    # The detail cache is authoritative for these calls. Never nest the shorter
+    # importer-wide cache below it, otherwise TTL=0 or a shorter detail TTL
+    # could still return an older daily-cache response.
+    fetch_kwargs["cache"] = False
     ttl_seconds = _detail_page_cache_ttl_seconds()
     if not ttl_seconds:
         return fetcher(url, timeout=timeout, **fetch_kwargs)
 
+    cache_key = _detail_page_cache_key(url)
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
-        cached = state["entries"].get(url)
+        cached = state["entries"].get(cache_key)
         if cached is not None and time.time() - cached["fetched_at"] <= ttl_seconds:
             return cached["body"]
-        state["entries"].pop(url, None)
+        state["entries"].pop(cache_key, None)
 
     try:
         body = fetcher(url, timeout=timeout, **fetch_kwargs)
@@ -726,12 +908,12 @@ def fetch_detail_url(
         if cache_failures:
             with _DETAIL_PAGE_CACHE_LOCK:
                 state = _load_detail_page_cache(cache_namespace, ttl_seconds)
-                state["entries"][url] = {"fetched_at": time.time(), "body": ""}
+                state["entries"][cache_key] = {"fetched_at": time.time(), "body": ""}
                 state["dirty"] = True
         raise
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
-        state["entries"][url] = {"fetched_at": time.time(), "body": body}
+        state["entries"][cache_key] = {"fetched_at": time.time(), "body": body}
         state["dirty"] = True
     return body
 
@@ -746,9 +928,34 @@ def parse_float(value, default: float = 0.0) -> float:
         return default
 
 
+def _post_cache_key(url: str, payload, headers: Optional[dict], encoding: str) -> str:
+    identity = json.dumps(
+        {
+            "method": "POST",
+            "url": url,
+            "payload": payload,
+            "headers": headers or {},
+            "encoding": encoding,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
 def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict] = None,
               retry_safe: bool = False) -> dict:
-    """POST JSON and parse JSON; callers opt into retries for idempotent APIs."""
+    """POST JSON; idempotent calls share the importer-wide daily cache."""
+    cache_key = _post_cache_key(url, payload, headers, "json") if retry_safe else ""
+    if cache_key:
+        cached = _http_cache_lookup(cache_key, url)
+        if cached is not None:
+            try:
+                return json.loads(cached)
+            except (TypeError, ValueError):
+                _http_cache_discard(cache_key)
     hdrs = browser_headers(
         accept="application/json",
         sec_fetch_mode="cors",
@@ -769,7 +976,10 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
                         raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
-            return json.loads(body.decode("utf-8"))
+            parsed = json.loads(body.decode("utf-8"))
+            if cache_key:
+                _http_cache_store(cache_key, json.dumps(parsed, ensure_ascii=False))
+            return parsed
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
@@ -783,7 +993,15 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
 
 def post_form(url: str, fields, timeout: int = 45, headers: Optional[dict] = None,
               retry_safe: bool = True) -> dict:
-    """POST URL-encoded form fields and parse a JSON response."""
+    """POST an idempotent form query and cache its parsed JSON response."""
+    cache_key = _post_cache_key(url, fields, headers, "form") if retry_safe else ""
+    if cache_key:
+        cached = _http_cache_lookup(cache_key, url)
+        if cached is not None:
+            try:
+                return json.loads(cached)
+            except (TypeError, ValueError):
+                _http_cache_discard(cache_key)
     hdrs = browser_headers(
         accept="application/json",
         sec_fetch_mode="cors",
@@ -804,7 +1022,10 @@ def post_form(url: str, fields, timeout: int = 45, headers: Optional[dict] = Non
                         raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
-            return json.loads(body.decode("utf-8"))
+            parsed = json.loads(body.decode("utf-8"))
+            if cache_key:
+                _http_cache_store(cache_key, json.dumps(parsed, ensure_ascii=False))
+            return parsed
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
