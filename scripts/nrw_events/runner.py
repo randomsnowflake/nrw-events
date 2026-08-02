@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import common, config, highlights as highlight_selection, report, series as series_entities
+from . import common, config, detail_enrichment, highlights as highlight_selection, report, series as series_entities
 from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .identity import assign_event_ids, content_hash, event_id
@@ -91,6 +91,15 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
             events = fetched
         if not isinstance(events, list):
             raise TypeError(f"source returned {type(events).__name__}, expected list")
+        # Feed/listing payloads are commonly teasers.  Every registered source
+        # gets the same cached detail-page second pass before canonical fields
+        # are validated, classified and stored.  Ad-hoc embedded/test sources
+        # remain side-effect free unless they opt into the helper directly.
+        if name in SOURCE_IDS:
+            events = detail_enrichment.enrich_events(
+                events,
+                cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
+            )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         result.finish(events)
         if typed_status in {
