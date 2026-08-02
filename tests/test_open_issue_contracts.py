@@ -150,6 +150,21 @@ class OpenIssueContractTests(unittest.TestCase):
         )
         self.assertEqual(concluded["series_state"], "concluded")
 
+    def test_announced_future_date_is_the_confirmed_next_occurrence(self):
+        ledger = {"schema_version": 1, "series": {"market": {
+            "series_id": "market", "title": "Wintermarkt", "venue": "Marktplatz",
+            "canonical_venue_id": "marktplatz", "city": "Bonn", "category_key": "market",
+            "first_seen": "2025-01-01T00:00:00", "last_seen": "2025-02-01T00:00:00",
+            "occurrences": {"a": "2025-01-01", "b": "2025-02-01"},
+            "announced_dates": ["2026-09-01"],
+        }}}
+        _, [market], _ = series.enrich_events(
+            [], ledger, today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
+        )
+        self.assertEqual(market["series_state"], "active")
+        self.assertEqual(market["next_occurrence"], "2026-09-01")
+        self.assertIsNone(market["next_occurrence_estimated"])
+
     def test_highlights_are_reproducible_and_apply_generic_diversity_caps(self):
         events = []
         for index in range(6):

@@ -189,7 +189,7 @@ def enrich_events(
             continue
         runs = _runs(series_id, known_dates, today)
         season_start, season_end, confidence, years = _season(known_dates)
-        future = [value for value in dates if value >= today]
+        future = [value for value in known_dates if value >= today]
         if future:
             state = "active"
         elif season_start is not None and len(years) >= 2:
