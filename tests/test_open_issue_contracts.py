@@ -77,9 +77,10 @@ class OpenIssueContractTests(unittest.TestCase):
 
     def test_side_channel_cancellation_is_canonicalized_before_cross_run_fields(self):
         cancellation = raw_event(
-            title="Trödelmarkt beim KAUFLAND", source="Grote & Hiller", source_id="grote-hiller",
-            city="Siegburg", venue="Wilhelm-Ostwald-Straße 1", venue_id="",
-            link="https://www.grote-hiller.de/markt/", status="cancelled", score=0.0,
+            title="Deutschkurs für Männer", source="Stadt Bonn", source_id="stadt-bonn",
+            city="Bonn", venue="Bürgerzentrum", venue_id="",
+            link="https://example.test/course", status="cancelled", score=0.0,
+            category="kurs", category_key="workshop", category_label="Workshops & Kurse",
             description="Der Termin wurde abgesagt.",
         )
 
@@ -90,7 +91,7 @@ class OpenIssueContractTests(unittest.TestCase):
         [event] = events
         self.assertEqual(event.status, "cancelled")
         self.assertEqual(event.cancelled_at, "2026-08-01T12:00:00")
-        self.assertEqual(event.cancellation_source, "Grote & Hiller")
+        self.assertEqual(event.cancellation_source, "Stadt Bonn")
 
     def test_series_model_handles_seasonal_runs_and_keeps_estimates_separate(self):
         events = [raw_event(day=value) for value in ("2026-04-12", "2026-04-26", "2026-05-10")]

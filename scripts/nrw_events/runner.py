@@ -539,7 +539,11 @@ def _attach_cross_run_fields(
     enriched: list[CanonicalEvent] = []
     for event in events:
         if isinstance(event, dict):
-            event = validate_event(event)
+            event = CanonicalEvent(**{
+                name: event[name]
+                for name in CanonicalEvent.__dataclass_fields__
+                if name in event
+            })
         identifier = event_id(event)
         prior = previous_by_id.get(identifier, {})
         first_seen = str(
