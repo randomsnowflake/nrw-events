@@ -67,6 +67,17 @@ class RawEvent(TypedDict, total=False):
     run_id: str
 
 
+def _empty_admission() -> dict[str, Any]:
+    return {
+        "isFree": None,
+        "amount": None,
+        "currency": "EUR",
+        "basis": "",
+        "note": "",
+        "donationSuggested": False,
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class CanonicalEvent(Mapping[str, Any]):
     """A validated, immutable event safe for downstream pipeline stages."""
@@ -102,7 +113,7 @@ class CanonicalEvent(Mapping[str, Any]):
     description_source: str = "scraped"
     price: str = ""
     admission_basis: str = ""
-    admission: dict[str, Any] = field(default_factory=dict)
+    admission: dict[str, Any] = field(default_factory=_empty_admission)
     category: str = ""
     category_key: str = "other"
     category_label: str = "Other"
