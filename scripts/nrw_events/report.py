@@ -136,6 +136,14 @@ def _normalized_city(value: str) -> str:
     return city
 
 
+def _citywide_title_family(title: str) -> str:
+    """Identify event formats whose source calendars commonly name an area differently."""
+    words = comparison_text(title)
+    if "street food festival" in words:
+        return "street-food-festival"
+    return ""
+
+
 def _locations_compatible(left: dict, right: dict) -> bool:
     left_venue_text = _venue_comparison_text(left)
     right_venue_text = _venue_comparison_text(right)
@@ -158,6 +166,13 @@ def _locations_compatible(left: dict, right: dict) -> bool:
                 marker in left_title
                 for marker in ("flohmarkt", "trödelmarkt", "antikmarkt")
             )
+        ):
+            return True
+        if (
+            left_title == right_title
+            and _citywide_title_family(left.get("title", ""))
+            == _citywide_title_family(right.get("title", ""))
+            != ""
         ):
             return True
         if not left_venue or not right_venue:
@@ -194,6 +209,8 @@ def _locations_compatible(left: dict, right: dict) -> bool:
 def _venue_comparison_text(event: dict) -> str:
     """Normalize a venue while ignoring a redundant leading city label."""
     venue = comparison_text(event.get("venue", ""))
+    if len(comparison_text(venue, separator="")) < 2:
+        return ""
     city = _normalized_city(event.get("city", ""))
     if city and venue.startswith(f"{city} "):
         return venue[len(city) + 1:]
@@ -404,7 +421,12 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     for field in ("price", "venue", "time", "time_note", "start_at", "end_at"):
         if field == "price" and separate_admission_charge:
             continue
-        if not winner.get(field) and duplicate.get(field):
+        winner_value_is_missing = not winner.get(field)
+        winner_venue_is_implausible = field == "venue" and not _venue_comparison_text(winner)
+        duplicate_value_is_usable = bool(duplicate.get(field)) and (
+            field != "venue" or bool(_venue_comparison_text(duplicate))
+        )
+        if (winner_value_is_missing or winner_venue_is_implausible) and duplicate_value_is_usable:
             updates[field] = duplicate[field]
             if field == "price":
                 updates["admission_basis"] = duplicate.get("admission_basis", "")
