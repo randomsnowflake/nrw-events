@@ -29,6 +29,17 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Klimatreff", "", "Eintritt: frei€"),
             ("Ausstellung", "", "Eintritt: frei 0 €"),
             ("Lesung", "", "Eintritt frei €"),
+            ("Vesper", "Der Eintirtt ist frei - Spenden sind herzlich erbeten.", ""),
+            ("Sommerfestival", "Der Eintritt ist natürlich wieder frei.", ""),
+            ("Pedelec-Training", "Das kostenlose Pedelec-Training vermittelt eine sichere Fahrweise.", ""),
+            ("Tribute-Konzert", "Hier könnt ihr euch die größten Hits kostenlos anhören.", ""),
+            ("Singtreff", "Gemeinsam singen.\n\nkostenlos", ""),
+            ("Offener Treff", "Kostenlos natürlich.", ""),
+            ("Wissens-Olympiade", "Anmeldung erforderlich.\n\nKostenfrei!\n\nTeste dein Wissen.", ""),
+            ("Ausstellung", "Öffnungszeiten am Wochenende.\n\nfrei", ""),
+            ("Konzert", "Pop, Jazz und Latin.\n\nfrei, es geht der Hut rum", ""),
+            ("Ausstellung", "Öffnungszeiten am Wochenende.<p>frei</p>", ""),
+            ("Videokunst", "Einlass gratis", ""),
         ]
 
         for title, description, price in cases:
@@ -42,13 +53,18 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
         cases = [
             ("Vorlesen", "Kostenloser Bibliotheksausweis erforderlich.", ""),
             ("Sommerleseclub", "Zum Abschluss gibt es gratis Popcorn.", ""),
-            ("Repair Café", "Kleidungsstücke können kostenlos geändert werden.", ""),
+            ("Textilwerkstatt", "Kleidungsstücke können kostenlos geändert werden.", ""),
             ("Wanderung", "Kurze Anmeldung (kostenlos) bis zum Vorabend.", ""),
             ("Führung", "Der Eintritt in den Park ist frei. Die Führung kostet 8 Euro.", ""),
             ("Familienmuseum", "Eintritt 12 Euro, Kinder bis 6 Jahre kostenlos.", ""),
             ("Familientag", "Kosten: kostenfrei für Kinder. Erwachsene zahlen 8 Euro.", ""),
             ("Sportkurs", "Kostenlos und draußen für Mitglieder; Gäste zahlen 5 Euro.", ""),
             ("Konzert", "Der Eintritt ist nicht frei.", ""),
+            ("Ausstellung", "Einlass 15 Uhr. Anmeldung nicht erforderlich: frei", ""),
+            ("Fitnesskurs", "Die erste Stunde ist ein kostenloses Probetraining.", ""),
+            ("Museum", "Der Audioguide kann kostenlos heruntergeladen werden.", ""),
+            ("Ausstellung", "Eintritt 10 Euro.\n\nfrei", ""),
+            ("Workshop", "Kostenfrei!\n\nTeilnahmegebühr 5 Euro.", ""),
             # "frei" as the start of a longer word must not read as free.
             ("Markt", "", "Eintritt: freitags 10 €"),
         ]
@@ -64,6 +80,8 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Antik- und Trödelmarkt Bad Godesberg", "Viele Verkaufsstände in der Innenstadt."),
             ("Poppelsdorfer Straßenfest", "Vereine und Gastronomie feiern im Viertel."),
             ("Tag der offenen Tür", "Blicke hinter die Kulissen."),
+            ("Wachtberger Repair Café", "Gemeinsam reparieren wir defekte Geräte."),
+            ("Döörper Repair-Café", "Spenden für die Kaffeekasse sind willkommen."),
         ]
 
         for title, description in cases:
@@ -78,6 +96,7 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Flohmarkt Spezial", "", "4 Euro"),
             ("Designmarkt", "Lokale Labels und Kunsthandwerk.", ""),
             ("St. Pantaleon Kirmes", "Traditionelles Kirmesprogramm.", ""),
+            ("Repair Café Sondertermin", "Besuchereintritt 4 Euro.", ""),
         ]
 
         for title, description, price in cases:
