@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
@@ -527,7 +528,7 @@ def _source_result_for_event(
 
 
 def _attach_cross_run_fields(
-    events: list[CanonicalEvent], previous: dict, generated_at: str,
+    events: Sequence[CanonicalEvent | dict], previous: dict, generated_at: str,
 ) -> list[CanonicalEvent]:
     """Carry first-seen timestamps and expose a content-change fingerprint."""
     previous_by_id = {
@@ -537,6 +538,8 @@ def _attach_cross_run_fields(
     }
     enriched: list[CanonicalEvent] = []
     for event in events:
+        if isinstance(event, dict):
+            event = validate_event(event)
         identifier = event_id(event)
         prior = previous_by_id.get(identifier, {})
         first_seen = str(
