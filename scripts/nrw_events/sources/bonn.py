@@ -21,7 +21,7 @@ import re
 from datetime import datetime
 from html import unescape
 
-from .. import category_taxonomy, common
+from .. import category_taxonomy, common, richtext
 
 # Full official event calendar as structured JSON. This endpoint has repeatedly
 # emitted malformed/truncated payloads and can miss entries visible in the public
@@ -201,6 +201,33 @@ def _is_detail_logistics(text: str) -> bool:
     )
 
 
+def _detail_rich_text(html: str) -> str:
+    """The same body copy as the allowed HTML subset, headings and lists intact.
+
+    ``_detail_paragraphs`` reduces each block to a line of text because the rest
+    of the pipeline reasons over plain strings. The detail page can show more
+    than that, so the raw fragments are sanitized a second time here — the
+    logistics blocks that ``_join_detail_paragraphs`` drops are skipped so both
+    forms describe the same event.
+    """
+    fragments = []
+    intro = re.search(r'<div class="SP-ArticleHeader__intro[^"]*"[^>]*>(.*?)</div>', html, flags=re.S)
+    if intro:
+        fragments.append(intro.group(1))
+    fragments.extend(re.findall(r'<div data-sp-table class="SP-Paragraph">(.*?)</div>', html, flags=re.S))
+
+    kept = []
+    for fragment in fragments:
+        rendered = richtext.sanitize_rich_text(fragment)
+        plain = richtext.to_plain_text(rendered)
+        if plain and not _is_detail_logistics(plain):
+            kept.append(rendered)
+    return richtext.sanitize_rich_text(
+        "".join(kept),
+        int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 0)) or None,
+    )
+
+
 def _detail_paragraphs(html: str) -> list[str]:
     parts = []
     intro = re.search(r'<div class="SP-ArticleHeader__intro[^"]*"[^>]*>(.*?)</div>', html, flags=re.S)
@@ -248,18 +275,36 @@ def _join_detail_paragraphs(parts: list[str]) -> list[str]:
     return filtered
 
 
+def _render_detail_paragraphs(paragraphs: list[str]) -> str:
+    """Join the extracted paragraphs the way the detail page laid them out.
+
+    These parts were already separated by the source's own ``<p>`` and ``<li>``
+    tags; joining them with a space was what turned a structured page into one
+    block of running text. Consecutive bullets stay a list rather than becoming
+    a stack of one-line paragraphs.
+    """
+    rendered = ""
+    for paragraph in paragraphs:
+        if not rendered:
+            rendered = paragraph
+            continue
+        both_bullets = paragraph.startswith("• ") and rendered.rsplit("\n", 1)[-1].startswith("• ")
+        rendered += ("\n" if both_bullets else "\n\n") + paragraph
+    return rendered
+
+
 def _paragraph_aware_detail_description(parts: list[str]) -> str:
     paragraphs = _join_detail_paragraphs(parts)
     if not paragraphs:
         return ""
     max_chars = int(_env_number("NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS", 0))
     if not max_chars:
-        return " ".join(paragraphs)
+        return _render_detail_paragraphs(paragraphs)
 
     selected = []
     omitted = False
     for paragraph in paragraphs:
-        candidate = " ".join([*selected, paragraph])
+        candidate = _render_detail_paragraphs([*selected, paragraph])
         if len(candidate) <= max_chars:
             selected.append(paragraph)
             continue
@@ -268,7 +313,7 @@ def _paragraph_aware_detail_description(parts: list[str]) -> str:
             return _concise_detail_description(paragraph)
         break
 
-    description = " ".join(selected)
+    description = _render_detail_paragraphs(selected)
     if omitted and len(description) < max_chars:
         description = f"{description}…"
     return description
@@ -278,6 +323,7 @@ def _parse_detail_context(html: str) -> dict:
     """Extract description and structured location facts from a Bonn detail page."""
     context = {
         "description": "",
+        "description_html": "",
         "venue": "",
         "venue_address": "",
         "venue_latitude": None,
@@ -293,6 +339,7 @@ def _parse_detail_context(html: str) -> dict:
             seen.add(key)
             description_parts.append(text)
     context["description"] = _paragraph_aware_detail_description(description_parts)
+    context["description_html"] = _detail_rich_text(html)
 
     for raw_json in re.findall(r'<script[^>]+type="application/ld\+json"[^>]*>(.*?)</script>', html, flags=re.S):
         try:
@@ -527,6 +574,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
                 ev["venue_address"] = location_address
             ev = _apply_detail_location(ev, detail_context)
             ev["description"] = common.concise_description(description, max_chars=0)
+            ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
             ev = _apply_source_category_mapping(ev, tags)
             if free_allow and not allow:
                 ev = _apply_free_category_override(ev, tags)
@@ -677,6 +725,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:
                     ev["description"] = common.concise_description(description, max_chars=0)
+                ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
                 price = common.infer_free_admission_price(
                     raw_title, description,
                     "kostenlos" if free_only or "Kostenlos" in tags else "",

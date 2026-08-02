@@ -35,6 +35,7 @@ class VenueCompletenessTests(unittest.TestCase):
             regional_sitekit._detail_context(html),
             {
                 "description": "Kleiner Stadtteilmarkt.",
+                "description_html": "<p>Kleiner Stadtteilmarkt.</p>",
                 "venue": "Balthasar-Neumann-Platz",
                 "venue_address": "Balthasar-Neumann-Platz, 50321 Brühl",
             },

@@ -355,6 +355,20 @@ def _has_separate_admission_charge(event) -> bool:
     ))
 
 
+def _adopted_description(source: dict) -> dict:
+    """Take a duplicate's copy as a unit.
+
+    The markup renders one particular description. Adopting the text without it
+    left the winner's own markup behind, so the page showed a generated
+    "findet am … statt" line above the real write-up it was supposed to render.
+    """
+    return {
+        "description": source["description"],
+        "description_source": source.get("description_source", "scraped"),
+        "description_html": source.get("description_html", ""),
+    }
+
+
 def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
@@ -432,14 +446,12 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     duplicate_has_charge = _has_separate_admission_charge(duplicate)
     winner_has_charge = _has_separate_admission_charge(winner)
     if duplicate_has_charge and not winner_has_charge:
-        updates["description"] = duplicate["description"]
-        updates["description_source"] = duplicate.get("description_source", "scraped")
+        updates.update(_adopted_description(duplicate))
     elif (
         len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip())
         and not (winner_has_charge and not duplicate_has_charge)
     ):
-        updates["description"] = duplicate["description"]
-        updates["description_source"] = duplicate.get("description_source", "scraped")
+        updates.update(_adopted_description(duplicate))
 
     # Classification is derived data, but a broad aggregator label must not
     # override a usable classification from the canonical publisher. Peers may
@@ -566,6 +578,15 @@ def deduplicate(
             "score": 0.0,
         }
         if match_index is None:
+            # A tombstone only means something for an occurrence a visitor could
+            # still be looking at. ``cancelled_events`` is filled inside
+            # ``make_event``, before the report window is applied, so a source
+            # that keeps a months-old "verschoben" entry in its calendar would
+            # otherwise publish that past date as a standalone event — listed
+            # everywhere, with no detail page, because the site builds pages for
+            # current events only.
+            if not common.event_in_window(cancellation):
+                continue
             if isinstance(cancellation, CanonicalEvent):
                 result.append(replace(cancellation, **updates))
             else:
@@ -731,7 +752,10 @@ def format_report(events: list, *, window_start: datetime | None = None,
             lines.append(f"- **{ev['title']}**")
             lines.append(f"  {' · '.join(meta)}")
             if ev.get("description"):
-                lines.append(f"  _{ev['description']}_")
+                # One markdown list item per event: a real break here would end
+                # the emphasis run and split the bullet.
+                flat = " ".join(ev["description"].split())
+                lines.append(f"  _{flat}_")
             if ev.get("link"):
                 lines.append(f"  🔗 {ev['link']}")
             lines.append("")

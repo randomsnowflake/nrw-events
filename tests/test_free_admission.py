@@ -24,6 +24,11 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Kostenlos Seepferdchen-Prüfung", "", ""),
             ("Offener Kunstraum", "", "Eintritt: 0 €"),
             ("Musik im Park", "", "frei, Hutspenden erbeten"),
+            # Calendar templates that append their currency to every ticket
+            # label, whatever the maintained value is (KULT41).
+            ("Klimatreff", "", "Eintritt: frei€"),
+            ("Ausstellung", "", "Eintritt: frei 0 €"),
+            ("Lesung", "", "Eintritt frei €"),
         ]
 
         for title, description, price in cases:
@@ -44,6 +49,8 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Familientag", "Kosten: kostenfrei für Kinder. Erwachsene zahlen 8 Euro.", ""),
             ("Sportkurs", "Kostenlos und draußen für Mitglieder; Gäste zahlen 5 Euro.", ""),
             ("Konzert", "Der Eintritt ist nicht frei.", ""),
+            # "frei" as the start of a longer word must not read as free.
+            ("Markt", "", "Eintritt: freitags 10 €"),
         ]
 
         for title, description, price in cases:

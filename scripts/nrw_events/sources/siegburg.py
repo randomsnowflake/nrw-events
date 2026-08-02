@@ -24,12 +24,14 @@ def _parse_detail_description(html: str) -> str:
     description_parts = []
     normalized_parts = set()
     for target in ("subtitle", "description"):
-        text = parser.text(target)
-        normalized = text.casefold()
+        text = parser.block_text(target)
+        # Dedupe on the flattened form: a subtitle repeated as the opening
+        # paragraph differs only in its breaks.
+        normalized = " ".join(text.casefold().split())
         if text and normalized not in normalized_parts:
             description_parts.append(text)
             normalized_parts.add(normalized)
-    return common.concise_description(" ".join(description_parts))
+    return common.concise_description("\n\n".join(description_parts))
 
 
 def _fallback_description(event: dict) -> str:

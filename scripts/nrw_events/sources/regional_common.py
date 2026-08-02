@@ -20,6 +20,14 @@ VOID_TAGS = frozenset({
 })
 
 
+BLOCK_TAGS = frozenset({
+    "p", "div", "section", "article", "header", "footer", "ul", "ol", "dl",
+    "table", "blockquote", "figure", "figcaption", "pre", "hr",
+    "h1", "h2", "h3", "h4", "h5", "h6",
+})
+LINE_TAGS = frozenset({"br", "li", "dt", "dd", "tr"})
+
+
 class ClassScopedTextParser(HTMLParser):
     """Collect text inside elements selected by attribute matcher callables."""
 
@@ -41,9 +49,10 @@ class ClassScopedTextParser(HTMLParser):
                 self._depth = 1
         elif tag not in VOID_TAGS:
             self._depth += 1
+        self._mark_break(tag)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        return
+        self._mark_break(tag)
 
     def handle_endtag(self, tag: str) -> None:
         if not self._target or tag in VOID_TAGS:
@@ -51,13 +60,38 @@ class ClassScopedTextParser(HTMLParser):
         self._depth -= 1
         if self._depth == 0:
             self._target = ""
+            return
+        # Only a closing block ends a thought. Marking ``</li>`` too would put a
+        # blank line between every bullet, turning a list into one-line
+        # paragraphs, because the following ``<li>`` breaks as well.
+        if tag in BLOCK_TAGS:
+            self._mark_break(tag)
+
+    def _mark_break(self, tag: str) -> None:
+        """Record where the author ended a thought, before the tags are gone.
+
+        The collected text nodes are joined afterwards; without these markers a
+        paragraph boundary is indistinguishable from a space and the whole
+        description arrives as one block.
+        """
+        if not self._target:
+            return
+        if tag in BLOCK_TAGS:
+            self.parts[self._target].append("\n\n")
+        elif tag in LINE_TAGS:
+            self.parts[self._target].append("\n")
 
     def handle_data(self, data: str) -> None:
         if self._target:
             self.parts[self._target].append(data)
 
     def text(self, target: str) -> str:
+        """Flattened to a single line — the historical contract for short fields."""
         return common.clean_html(" ".join(self.parts.get(target, [])))
+
+    def block_text(self, target: str) -> str:
+        """Prose with the source's paragraph breaks preserved."""
+        return common.normalize_block_text("".join(self.parts.get(target, [])))
 
 
 _MONTH = {
@@ -73,6 +107,11 @@ def abs_url(base: str, href: str) -> str:
 
 def clean(text: str) -> str:
     return common.clean_html(text or "")
+
+
+def clean_blocks(text: str) -> str:
+    """``clean`` for prose: keeps the paragraph breaks the source authored."""
+    return common.clean_html_blocks(text or "")
 
 
 def first_group(pattern: str, text: str, *, flags: int = re.S | re.I) -> str:
@@ -123,6 +162,8 @@ def enrich_descriptions(
         if len(replacement) > len(event.get("description") or ""):
             event["description"] = replacement
             event["description_source"] = common.description_source_for(replacement)
+        if context.get("description_html"):
+            event["description_html"] = context["description_html"]
         if not event.get("venue") and context.get("venue"):
             event["venue"] = context["venue"]
         if not event.get("venue_address") and context.get("venue_address"):

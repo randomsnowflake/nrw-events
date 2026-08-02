@@ -41,10 +41,19 @@ class DescriptionMetadataTests(unittest.TestCase):
         self.assertEqual(shortened, "Eine Beschreibung ohne passende…")
         self.assertLessEqual(len(shortened), 35)
 
-    def test_concise_description_removes_literal_newline_escapes(self):
+    def test_concise_description_turns_literal_newline_escapes_into_breaks(self):
+        """A feed that serialized its copy keeps the paragraphs it wrote.
+
+        The escape is the source's own break, not noise: flattening it produced
+        the same unreadable wall of text as dropping a ``<p>`` tag would.
+        """
         self.assertEqual(
             common.concise_description("Erster Satz.\\n\\n Zweiter Satz."),
-            "Erster Satz. Zweiter Satz.",
+            "Erster Satz.\n\nZweiter Satz.",
+        )
+        self.assertEqual(
+            common.concise_description("Erster Satz.\\nZweiter Satz."),
+            "Erster Satz.\nZweiter Satz.",
         )
 
     def test_make_event_marks_generated_and_scraped_descriptions(self):
@@ -80,6 +89,62 @@ class DescriptionMetadataTests(unittest.TestCase):
         invalid = dict(event, description_source="invented")
         with self.assertRaisesRegex(EventValidationError, "description_source_invalid"):
             canonicalize_event(invalid)
+
+
+
+class DescriptionParagraphTests(unittest.TestCase):
+    """Event copy is prose: the breaks the source authored are content.
+
+    Flattening them produced one unreadable block on the detail page. Only
+    description text keeps them — a title, venue or price stays single-line.
+    """
+
+    def test_block_tags_become_paragraphs_and_inline_tags_do_not(self):
+        html = (
+            "<div><p>Gemütliches Beisammensein mit Spielen.</p>"
+            "<p>Gäste sind <strong>herzlich</strong> <a href='#'>willkommen</a>.</p>"
+            "<ul><li>Dienstags, 17 Uhr</li><li>Donnerstags, 11 Uhr</li></ul>"
+            "<p>Die Teilnahme ist kostenfrei.<br>Einstieg jederzeit.</p></div>"
+        )
+
+        self.assertEqual(
+            common.clean_html_blocks(html),
+            "Gemütliches Beisammensein mit Spielen.\n\n"
+            "Gäste sind herzlich willkommen.\n\n"
+            "Dienstags, 17 Uhr\nDonnerstags, 11 Uhr\n\n"
+            "Die Teilnahme ist kostenfrei.\nEinstieg jederzeit.",
+        )
+
+    def test_clean_html_still_flattens_single_value_fields(self):
+        self.assertEqual(
+            common.clean_html("<p>Haus der<br>Springmaus</p>"),
+            "Haus der Springmaus",
+        )
+
+    def test_layout_padding_never_becomes_a_third_separator(self):
+        self.assertEqual(
+            common.clean_html_blocks("<p>Eins</p><br><br><br><p>Zwei</p>"),
+            "Eins\n\nZwei",
+        )
+
+    def test_truncation_does_not_glue_two_paragraphs_together(self):
+        long_word = "x" * 40
+        value = f"{long_word} {long_word}\n\n{long_word} {long_word}"
+
+        shortened = common.concise_description(value, max_chars=100)
+
+        self.assertNotIn(f"{long_word}{long_word}", shortened)
+        self.assertTrue(shortened.endswith("…"))
+
+    def test_ical_description_keeps_its_breaks_but_summary_does_not(self):
+        self.assertEqual(
+            common._ical_unescape("Erster Satz.\\n\\nZweiter Satz.", preserve_breaks=True),
+            "Erster Satz.\n\nZweiter Satz.",
+        )
+        self.assertEqual(
+            common._ical_unescape("Konzert\\nim Park"),
+            "Konzert im Park",
+        )
 
 
 if __name__ == "__main__":

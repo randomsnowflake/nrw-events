@@ -7,7 +7,7 @@ import re
 import urllib.parse
 from typing import Any
 
-from . import category_taxonomy, common
+from . import category_taxonomy, common, richtext
 from .models import CanonicalEvent, RawEvent, normalize_source_id
 from .normalization import canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
@@ -75,9 +75,16 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         _text(event, "source_id", 200) or event["source"]
     )
     inferred_description_source = common.description_source_for(event.get("description", ""))
-    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("description", 8000),
+    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("description", 8000), ("description_html", 24000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    # Re-built from the allowed vocabulary at the canonical boundary, so a
+    # source that sets this field directly cannot smuggle markup past it, and
+    # discarded outright when it no longer renders the description it belongs to.
+    rich_text = richtext.sanitize_rich_text(event["description_html"])
+    if not richtext.describes_same_copy(rich_text, event["description"]):
+        rich_text = ""
+    event["description_html"] = rich_text or richtext.from_plain_text(event["description"])
     event["identity_venue"] = _text(event, "identity_venue", 300)
     event["identity_venue_locked"] = bool(event.get("identity_venue_locked", False))
     explicit_venue_id = _text(event, "venue_id", 160)

@@ -3,7 +3,7 @@
 import re
 import urllib.parse
 
-from .. import common
+from .. import common, richtext
 from . import regional_common as rc
 
 _SOURCE = "SiteKit regional"
@@ -132,22 +132,40 @@ def fetch() -> list:
 
 
 def _detail_description(html: str) -> str:
-    """Prefer visible SiteKit body copy over a teaser synopsis."""
+    """Prefer visible SiteKit body copy over a teaser synopsis.
+
+    Only the bare `SP-Paragraph` block is body copy. SiteKit reuses the class
+    with a modifier for the town-hall footer (`--footer`: postal address, phone,
+    Bürgeramt opening hours), the venue contact card (`SP-Contact__…`) and the
+    cookie banner, all of which used to land in the description and drown the
+    two sentences that actually describe the event.
+    """
     paragraphs = [
-        rc.clean(fragment)
+        rc.clean_blocks(fragment)
         for fragment in re.findall(
-            r'<div[^>]+class="[^"]*\bSP-Paragraph\b[^"]*"[^>]*>(.*?)</div>',
+            r'<div[^>]+class="SP-Paragraph"[^>]*>(.*?)</div>',
             html or "",
             re.S | re.I,
         )
     ]
     paragraphs = [paragraph for paragraph in paragraphs if paragraph]
-    return common.concise_description(" ".join(paragraphs))
+    return common.concise_description("\n\n".join(paragraphs))
+
+
+def _detail_rich_text(html: str) -> str:
+    """The same body copy with its headings, lists and emphasis intact."""
+    fragments = re.findall(
+        r'<div[^>]+class="SP-Paragraph"[^>]*>(.*?)</div>', html or "", re.S | re.I,
+    )
+    return richtext.sanitize_rich_text("".join(fragments))
 
 
 def _detail_context(html: str) -> dict[str, str]:
     """Return the SiteKit detail copy and its schema.org place fields."""
-    context = {"description": _detail_description(html)}
+    context = {
+        "description": _detail_description(html),
+        "description_html": _detail_rich_text(html),
+    }
     items = common.jsonld_event_items(html)
     location = items[0].get("location") if items else None
     if isinstance(location, list):

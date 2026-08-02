@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime
 
-from .. import common
+from .. import common, richtext
 from ..models import AdmissionDefault
 from . import regional_common as rc
 
@@ -112,7 +112,11 @@ def events_from_repair_cafes(html: str) -> list:
         venue = _match_clean(r"class=['\"]location-label['\"][\s\S]*?<span[^>]*></span>\s*(.*?)</a>", article)
         if not venue:
             venue = _match_clean(r"Karte<span[^>]*>\s*(.*?)</span>", article)
-        desc = _match_clean(r"<div class=['\"]longdesc description['\"]>(.*?)</div>\s*<div class=['\"]mc-location", article)
+        # The Repair-Café cards write "Hier kannst Du:" followed by a real list.
+        # Keep the raw fragment so the bullets survive as bullets.
+        desc_html = rc.first_group(
+            r"<div class=['\"]longdesc description['\"]>(.*?)</div>\s*<div class=['\"]mc-location", article)
+        desc = rc.clean_blocks(desc_html)
         link = _match_text(r"class=['\"]mc-details['\"]><a[^>]+href=['\"]([^'\"]+)['\"]", article) or _REPAIR_CAFES_URL
         coords = _coords_from_google_maps(article)
         ev = common.make_event(
@@ -130,6 +134,7 @@ def events_from_repair_cafes(html: str) -> list:
             admission=AdmissionDefault.FREE_BY_NATURE,
         )
         if ev:
+            ev["description_html"] = richtext.sanitize_rich_text(desc_html)
             events.append(ev)
     return events
 
@@ -466,8 +471,14 @@ _match_clean = rc.first_group_clean
 
 
 def _clean_price(text: str) -> str:
-    text = rc.clean(text)
-    return "" if text in {"Eintritt: €", "Eintritt:"} else text
+    """Repair the KULT41 ticket label, which appends its currency blindly.
+
+    The template emits "Eintritt: " + the maintained value + "€", so a value
+    that already carries a unit arrives doubled ("Eintritt: 10€€") and an
+    unmaintained one arrives as a bare label.
+    """
+    text = re.sub(r"€\s*(?:€\s*)+", "€", rc.clean(text))
+    return "" if re.fullmatch(r"Eintritt:?\s*€?", text) else text
 
 
 # The festival navigation lists every host town as

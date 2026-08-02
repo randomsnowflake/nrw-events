@@ -103,6 +103,33 @@ class JunkFilterTests(unittest.TestCase):
                 self.assertTrue(decision.should_drop)
                 self.assertEqual(decision.rule_id, expected_rule)
 
+    def test_civic_body_credited_as_co_organizer_is_not_a_governance_meeting(self):
+        """Naming a Beirat in the prose credits a host; it does not convene one.
+
+        The governance rule reads the title, category, venue and link, never the
+        free description — a public sports course announcing "gemeinsam mit dem
+        Seniorenbeirat" was otherwise dropped as an administrative meeting the
+        moment the source handed over its full copy.
+        """
+        course = event(
+            "Sport im Park am Schloss",
+            "Von Mai bis September lädt die Stadt gemeinsam mit dem Seniorenbeirat "
+            "und dem TV Forsbach zu zwei kostenlosen Outdoor-Kursen ein. "
+            "Die Teilnahme ist kostenfrei und ohne Anmeldung möglich.",
+        )
+
+        self.assertFalse(evaluate_event_quality(course).should_drop)
+
+        for convened in (
+            event("Sitzung des Seniorenbeirats", "Öffentliche Sitzung."),
+            event("Ausschuss für Umwelt und Verkehr", "Öffentliche Beratung."),
+            {**event("Öffentliche Beratung"), "venue": "Ratssaal, Sitzungszimmer"},
+        ):
+            with self.subTest(title=convened["title"], venue=convened["venue"]):
+                decision = evaluate_event_quality(convened)
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "civic.governance")
+
     def test_quality_gates_warn_only_for_material_source_rates(self):
         metrics = summarize_event_quality([
             {"source": "Weak Source", "category_key": "workshop",

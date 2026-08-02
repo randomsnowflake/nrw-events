@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import NoReturn, Optional
 from zoneinfo import ZoneInfo
 
-from . import category_taxonomy, config
+from . import category_taxonomy, config, richtext
 from .health import SourceResult, SourceStatus
 from .location import coords_for_city as coords_for_city
 from .location import refine_city_from_text as refine_city_from_text
@@ -846,6 +846,54 @@ def clean_html(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+# Tags whose boundary the author used to separate thoughts. Everything else
+# (``<strong>``, ``<a>``, ``<span>`` …) is inline and must not break a sentence.
+_BLOCK_TAG_PATTERN = re.compile(
+    r"</?(?:p|div|section|article|header|footer|ul|ol|dl|table|"
+    r"h[1-6]|blockquote|figure|figcaption|pre|hr)\b[^>]*>",
+    re.I,
+)
+# One entry per line, but a list is one block: a blank line between every bullet
+# reads as a series of one-line paragraphs. Only the opening tag breaks, so
+# "</li><li>" stays a single break rather than becoming a paragraph gap.
+_LIST_ITEM_OPEN_PATTERN = re.compile(r"<(?:li|dt|dd|tr)\b[^>]*>", re.I)
+_LIST_ITEM_CLOSE_PATTERN = re.compile(r"</(?:li|dt|dd|tr)\s*>", re.I)
+_LINE_BREAK_TAG_PATTERN = re.compile(r"<br\b[^>]*>", re.I)
+
+
+def clean_html_blocks(text: str) -> str:
+    """Strip tags but keep the author's paragraph structure.
+
+    ``clean_html`` flattens everything to one line, which is right for a title,
+    a venue or a price. Event copy is prose: the source wrote paragraphs and
+    lists, and collapsing them produced a single unreadable wall of text on the
+    detail page. Block boundaries become a blank line, ``<br>`` a single one,
+    and only horizontal whitespace is collapsed.
+    """
+    text = unescape(text or "")
+    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
+    text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.S | re.I)
+    text = _LINE_BREAK_TAG_PATTERN.sub("\n", text)
+    text = _LIST_ITEM_CLOSE_PATTERN.sub("", text)
+    text = _LIST_ITEM_OPEN_PATTERN.sub("\n", text)
+    text = _BLOCK_TAG_PATTERN.sub("\n\n", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return normalize_block_text(text)
+
+
+def normalize_block_text(text: str) -> str:
+    """Collapse horizontal runs and stray blank lines, keeping paragraph breaks."""
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[^\S\n]+", " ", text)
+    # Stripping an inline tag leaves a space where the markup was, so copy that
+    # ends a sentence inside a link reads as "willkommen ." once the tag is gone.
+    text = re.sub(r" +([,.;:!?])", r"\1", text)
+    text = re.sub(r" *\n *", "\n", text)
+    # Three or more breaks are layout padding, not a third kind of separator.
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def normalize_url(url: str) -> str:
     """Decode HTML entities and make internationalized hostnames link-safe."""
     url = unescape(url or "").strip()
@@ -929,9 +977,11 @@ def _is_sentence_boundary(text: str, match: re.Match) -> bool:
 def concise_description(value: str, max_chars: int | None = None) -> str:
     """Return cleaned event copy sized for reports and downstream cards."""
     generated = isinstance(value, GeneratedDescription)
-    cleaned = clean_html(value)
-    cleaned = re.sub(r"(?:\\r\\n|\\[rn])+", " ", cleaned)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = clean_html_blocks(value)
+    # Feeds that serialize their copy into a JSON string carry the break as the
+    # two characters "\" and "n"; it means the same thing the tag did.
+    cleaned = re.sub(r"\\r\\n|\\[rn]", "\n", cleaned)
+    cleaned = normalize_block_text(cleaned)
     limit = DESCRIPTION_MAX_CHARS if max_chars is None else max_chars
     if not limit or len(cleaned) <= limit:
         shortened = cleaned
@@ -945,8 +995,11 @@ def concise_description(value: str, max_chars: int | None = None) -> str:
             shortened = cleaned[:sentence_ends[-1].end()].rstrip()
         else:
             prefix = cleaned[:max(0, limit - 1)]
-            shortened = prefix.rsplit(" ", 1)[0].rstrip(" ,;:")
+            # A cut may land mid-paragraph; break on the last whitespace of any
+            # kind so the truncation never glues two paragraphs together.
+            shortened = re.split(r"\s(?=\S*$)", prefix)[0].rstrip(" ,;:\n")
             shortened = f"{shortened}…" if shortened else "…"[:limit]
+    shortened = normalize_block_text(shortened)
     return GeneratedDescription(shortened) if generated else shortened
 
 
@@ -1223,7 +1276,13 @@ _FREE_TITLE_PATTERN = re.compile(r"^\s*(?:kostenlos|kostenfrei)\s+", re.IGNORECA
 _FREE_PRICE_PATTERN = re.compile(
     r"^(?:(?:eintritt|kosten|preis|teilnahmegebühr|teilnahmegebuehr)\s*:?\s*)?"
     r"(?:(?:frei|kostenlos|kostenfrei|free)"
-    r"(?:\s*[,;/(-].*)?|0(?:[,.]00)?\s*(?:€|eur|euro))$",
+    # Calendar templates append their currency unconditionally, so a free event
+    # arrives as "Eintritt: frei€" or "Eintritt: frei 0 €". Without this the
+    # whole string fails the match, the price is treated as a real amount and
+    # the event is published as paid. The trailing group stays anchored so
+    # "Eintritt: freitags 10 €" is still not free.
+    r"(?:\s*[,;/(-].*|(?:\s*0(?:[,.]00)?)?\s*(?:€|eur|euro))?"
+    r"|0(?:[,.]00)?\s*(?:€|eur|euro))$",
     re.IGNORECASE,
 )
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(
@@ -1449,6 +1508,9 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "venue_longitude": canonical_venue.venue_longitude,
         "city": clean_html(city).title(),
         "description": concise_description(description),
+        # Every event carries renderable markup. A source that kept the raw
+        # HTML overwrites this with the real headings and lists afterwards.
+        "description_html": richtext.from_plain_text(concise_description(description)),
         "description_source": description_source or description_source_for(description),
         "price": price,
         "admission_basis": admission_basis,
@@ -1611,11 +1673,17 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         # organizer's regular group turn it into a routine meetup.
         "kristallklangschalenreise",
     }
+    # Matched against everything except the free prose: a committee meeting says
+    # so in its title, its category or the room it books, while a description
+    # naming one is usually crediting a co-organizer ("gemeinsam mit dem
+    # Seniorenbeirat"). Scanning the description dropped public events — a
+    # sports course, a summer festival — for the body that helped host them.
+    governance_text = f"{title} {category} {venue} {link}"
     if ("cinema-special" not in category
-            and any(bit in text for bit in routine_or_political_bits)
+            and any(bit in governance_text for bit in routine_or_political_bits)
             and not destination_market
             and not any(bit in title_desc_text for bit in cultural_event_bits)):
-        matched = next(bit for bit in routine_or_political_bits if bit in text)
+        matched = next(bit for bit in routine_or_political_bits if bit in governance_text)
         return (
             "civic.governance",
             "routine political or administrative meeting is outside the editorial scope",
@@ -1966,8 +2034,14 @@ def _ical_unfold(text: str) -> str:
     return re.sub(r"\r?\n[ \t]", "", text)
 
 
-def _ical_unescape(text: str) -> str:
-    return (text.replace("\\n", " ").replace("\\N", " ")
+def _ical_unescape(text: str, *, preserve_breaks: bool = False) -> str:
+    """Decode RFC 5545 escapes.
+
+    ``\\n`` is the only way an iCal feed can express a paragraph, so DESCRIPTION
+    keeps it; a SUMMARY or URL stays on one line.
+    """
+    break_replacement = "\n" if preserve_breaks else " "
+    return (text.replace("\\n", break_replacement).replace("\\N", break_replacement)
                 .replace('\\"', '"')
                 .replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")).strip()
 
@@ -2348,7 +2422,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                 occurrence_start, occurrence_end,
                 location,
                 city,
-                _ical_unescape(props.get("DESCRIPTION", "")),
+                _ical_unescape(props.get("DESCRIPTION", ""), preserve_breaks=True),
                 _ical_best_link(props, url),
                 source, cat, trust,
                 all_day=all_day,

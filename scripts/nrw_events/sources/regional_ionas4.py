@@ -103,8 +103,13 @@ def _detail_context(html: str) -> dict:
     link = re.search(
         r'navigator\.clipboard\.writeText\(\s*["\']([^"\']+)', html or "", re.S | re.I)
     return {
-        "description": common.concise_description(
-            parser.text("description"), max_chars=360),
+        # Handed over untrimmed, with its paragraphs: ``make_event`` infers
+        # admission from the text it is given and only then shortens it for
+        # display. Cutting to 360 here dropped the closing "Die Teilnahme ist
+        # kostenfrei" sentence these calendars put last — IONAS4 has no price
+        # field at all, so that sentence is the only admission evidence the
+        # source ever offers.
+        "description": parser.block_text("description"),
         # Preserve the source string until the canonical event boundary so its
         # street address can be separated into ``venue_address`` there.
         "venue": parser.text("location"),

@@ -288,6 +288,7 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
                 first,
                 {
                     "description": "",
+                    "description_html": "",
                     "venue": "",
                     "venue_address": "",
                     "venue_latitude": None,

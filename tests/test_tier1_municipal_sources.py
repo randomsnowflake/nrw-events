@@ -248,6 +248,12 @@ class SitekitPaginationTests(unittest.TestCase):
             '<div class="SP-Text"><div class="SP-Paragraph">'
             '<p>Für alle ab 16 Jahre, die Fans von Social-Deduction-Spielen sind.</p>'
             '</div></div>'
+            # Same class with a modifier: venue contact card and town-hall
+            # footer. Neither describes the event.
+            '<div class="SP-Contact__locality__text SP-Paragraph">'
+            '<p>Bürgerhaus Teststadt Marktweg 1</p></div>'
+            '<div class="SP-Paragraph SP-Paragraph--footer">'
+            '<p>Stadt Teststadt Telefax 0000/1-2 Bürgeramt 8.00 - 12.00 Uhr</p></div>'
         )
 
         with mock.patch.object(
@@ -263,6 +269,8 @@ class SitekitPaginationTests(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         self.assertIn("Social-Deduction-Spielen", events[0]["description"])
+        self.assertNotIn("Telefax", events[0]["description"])
+        self.assertNotIn("Bürgerhaus Teststadt", events[0]["description"])
         self.assertEqual(events[0]["category_key"], "activities")
         self.assertEqual(
             events[0]["category_reason"],

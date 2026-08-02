@@ -1,6 +1,6 @@
 import unittest
 
-from nrw_events import report
+from nrw_events import common, report
 
 
 class ReportTests(unittest.TestCase):
@@ -915,3 +915,77 @@ class ReportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UnmatchedCancellationWindowTests(unittest.TestCase):
+    """A tombstone with no scheduled counterpart is only published in-window.
+
+    ``cancelled_events`` is filled inside ``make_event``, before the report
+    window is applied. A source that leaves a months-old "verschoben" entry in
+    its calendar would otherwise have that past occurrence appended as a
+    standalone event — listed everywhere, but with no detail page, because the
+    website builds pages for current events only.
+    """
+
+    @staticmethod
+    def _cancellation(day):
+        return {
+            "title": "Lesung mit Autor Marco Hasenkopf", "start_date": day,
+            "end_date": day, "date": day, "city": "Troisdorf",
+            "venue": "Stadtbibliothek City-Center Troisdorf", "score": 0.0,
+            "source": "Troisdorf", "status": "postponed", "price": "",
+            "description": "Verschoben wegen der Hitze auf den 4. Juli!",
+            "link": "https://www.troisdorf.de/de/kalender/startseite/",
+            "time": "19:00–21:00", "start_at": f"{day}T19:00+02:00",
+            "end_at": f"{day}T21:00+02:00",
+        }
+
+    def test_past_unmatched_cancellation_is_not_published(self):
+        past = self._cancellation("2026-06-04")
+
+        self.assertEqual(report.deduplicate([], cancellations=[past]), [])
+
+    def test_in_window_unmatched_cancellation_is_still_published(self):
+        current = self._cancellation(common.TODAY.strftime("%Y-%m-%d"))
+
+        [published] = report.deduplicate([], cancellations=[current])
+
+        self.assertEqual(published["status"], "postponed")
+        self.assertEqual(published["cancellation_source"], "Troisdorf")
+
+
+class AdoptedDescriptionTests(unittest.TestCase):
+    """A duplicate's copy is adopted as text *and* markup, or not at all.
+
+    ``description_html`` renders one particular description. Taking the longer
+    text from a duplicate while keeping the winner's markup published a
+    generated "findet am … statt" line in place of the real write-up.
+    """
+
+    @staticmethod
+    def _event(title, description, html, source, score):
+        return {
+            "title": title, "start_date": "2026-08-06", "end_date": "2026-08-06",
+            "date": "2026-08-06", "city": "Bonn", "venue": "Rathaustreppe",
+            "score": score, "source": source, "description": description,
+            "description_html": html, "description_source": "scraped", "price": "",
+            "link": "https://example.test/a", "time": "19:00",
+            "start_at": "2026-08-06T19:00+02:00", "end_at": "2026-08-06T21:00+02:00",
+        }
+
+    def test_longer_duplicate_copy_brings_its_own_markup(self):
+        winner = self._event(
+            "Musik auf der Rathaustreppe", "Kurz.",
+            "<p>„Musik auf der Rathaustreppe“ findet am 06.08.2026 statt.</p>",
+            "Bonn.de Events", 1.0)
+        duplicate = self._event(
+            "Musik auf der Rathaustreppe",
+            "Die B-Five Bluesband spielt auf der Rathaustreppe. Eintritt frei.",
+            "<p>Die B-Five Bluesband spielt auf der Rathaustreppe.</p><p>Eintritt frei.</p>",
+            "Beuel.net", 0.9)
+
+        [merged] = report.deduplicate([winner, duplicate])
+
+        self.assertIn("B-Five Bluesband", merged["description"])
+        self.assertIn("B-Five Bluesband", merged["description_html"])
+        self.assertNotIn("findet am", merged["description_html"])

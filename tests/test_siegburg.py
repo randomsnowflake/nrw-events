@@ -55,7 +55,8 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(
             description,
             (
-                "Eine Ausstellung des Projektkurses Q1 der Gesamtschule am Michaelsberg "
+                "Eine Ausstellung des Projektkurses Q1 der Gesamtschule am Michaelsberg"
+                "\n\n"
                 "Ausstellung vom 1. Juli bis 18. Juli 2026"
             ),
         )
@@ -73,8 +74,11 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
                 patch.object(siegburg.common, "fetch_url", return_value=DETAIL_HTML) as fetch_detail:
             enriched = siegburg.fetch()
 
+        # Subtitle and body are separate blocks on the page and stay separate
+        # paragraphs here.
         expected = (
-            "Eine Ausstellung des Projektkurses Q1 der Gesamtschule am Michaelsberg "
+            "Eine Ausstellung des Projektkurses Q1 der Gesamtschule am Michaelsberg"
+            "\n\n"
             "Ausstellung vom 1. Juli bis 18. Juli 2026"
         )
         self.assertEqual(enriched[0]["description"], expected)
