@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 import re
 from typing import Any, Iterator, Mapping, Optional, TypedDict
@@ -102,7 +102,7 @@ class CanonicalEvent(Mapping[str, Any]):
     description_source: str = "scraped"
     price: str = ""
     admission_basis: str = ""
-    admission: Optional[dict[str, Any]] = None
+    admission: dict[str, Any] = field(default_factory=dict)
     category: str = ""
     category_key: str = "other"
     category_label: str = "Other"

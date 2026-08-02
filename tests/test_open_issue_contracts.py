@@ -92,6 +92,7 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual(event.status, "cancelled")
         self.assertEqual(event.cancelled_at, "2026-08-01T12:00:00")
         self.assertEqual(event.cancellation_source, "Stadt Bonn")
+        self.assertEqual(event.admission, {})
 
     def test_series_model_handles_seasonal_runs_and_keeps_estimates_separate(self):
         events = [raw_event(day=value) for value in ("2026-04-12", "2026-04-26", "2026-05-10")]
