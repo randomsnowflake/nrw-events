@@ -38,6 +38,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(runner._parse_cli(["nrw-events", "heute-abend"], monday)[0], 1)
         self.assertEqual(runner._parse_cli(["nrw-events", "wochenende"], monday)[0], 7)
 
+    def test_verbs_reject_a_conflicting_explicit_day_count(self):
+        monday = datetime(2026, 8, 3, 10)
+        for argv in (
+            ["nrw-events", "heute", "--days", "7"],
+            ["nrw-events", "wochenende", "--days", "14"],
+        ):
+            with self.subTest(argv=argv), self.assertRaisesRegex(ValueError, "own window"):
+                runner._parse_cli(argv, monday)
+
     def test_filters_apply_category_free_radius_and_evening_semantics(self):
         today = datetime(2026, 7, 31)
         result = runner.ImportResult((

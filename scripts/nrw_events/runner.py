@@ -727,6 +727,10 @@ def _parse_cli(argv: list[str], now: datetime | None = None) -> tuple[Optional[i
             raise ValueError(f"unknown verb {target!r}; use one of: {', '.join(VERBS)}") from exc
     if positional_days is not None and args.days is not None:
         raise ValueError("days_ahead may be given either positionally or with --days, not both")
+    if verb and args.days is not None:
+        # A verb *is* the time window. Silently discarding --days would make an
+        # agent believe it queried 14 days when it only ever saw one.
+        raise ValueError(f"{verb} already defines its own window; drop --days")
     explicit_days = args.days if args.days is not None else positional_days
     current = (now or datetime.now(common.LOCAL_TIMEZONE)).replace(tzinfo=None)
     if verb in {"heute", "heute-abend"}:
