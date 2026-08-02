@@ -546,7 +546,9 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
             "note": "",
             "donationSuggested": False,
         }
-    for field in ("price", "venue", "organizer", "time", "time_note", "start_at", "end_at"):
+    for field in (
+        "price", "availability", "venue", "organizer", "time", "time_note", "start_at", "end_at",
+    ):
         if field == "price" and separate_admission_charge:
             continue
         winner_value_is_missing = not winner.get(field)
