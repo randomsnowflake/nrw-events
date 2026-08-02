@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common, http
+from nrw_events import http
 from nrw_events.sources import (
     bonn_venues,
     regional_feeds,

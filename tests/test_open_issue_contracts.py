@@ -150,6 +150,47 @@ class OpenIssueContractTests(unittest.TestCase):
         )
         self.assertEqual(concluded["series_state"], "concluded")
 
+    def test_announced_future_date_is_the_confirmed_next_occurrence(self):
+        ledger = {"schema_version": 1, "series": {"market": {
+            "series_id": "market", "title": "Wintermarkt", "venue": "Marktplatz",
+            "canonical_venue_id": "marktplatz", "city": "Bonn", "category_key": "market",
+            "first_seen": "2025-01-01T00:00:00", "last_seen": "2025-02-01T00:00:00",
+            "occurrences": {"a": "2025-01-01", "b": "2025-02-01"},
+            "announced_dates": ["2026-09-01"],
+        }}}
+        _, [market], _ = series.enrich_events(
+            [], ledger, today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
+        )
+        self.assertEqual(market["series_state"], "active")
+        self.assertEqual(market["next_occurrence"], "2026-09-01")
+        self.assertIsNone(market["next_occurrence_estimated"])
+
+    def test_cancelled_announced_date_is_not_a_future_occurrence(self):
+        historical = [
+            raw_event("Wintermarkt", day, venue="Marktplatz", venue_id="marktplatz")
+            for day in ("2025-01-01", "2025-02-01")
+        ]
+        _, _, ledger = series.enrich_events(
+            historical, {"schema_version": 1, "series": {}},
+            today=date(2025, 1, 1), generated_at="2025-02-01T00:00:00",
+            announced_events=[
+                raw_event("Wintermarkt", "2026-09-01", venue="Marktplatz", venue_id="marktplatz"),
+            ],
+        )
+        _, [market], updated = series.enrich_events(
+            [], ledger, today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
+            announced_events=[
+                raw_event(
+                    "Wintermarkt", "2026-09-01", venue="Marktplatz", venue_id="marktplatz",
+                    status="cancelled",
+                ),
+            ],
+        )
+        self.assertEqual(market["series_state"], "concluded")
+        self.assertIsNone(market["next_occurrence"])
+        self.assertEqual(market["announced_dates"], [])
+        self.assertEqual(next(iter(updated["series"].values()))["announced_dates"], [])
+
     def test_highlights_are_reproducible_and_apply_generic_diversity_caps(self):
         events = []
         for index in range(6):
