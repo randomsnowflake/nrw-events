@@ -153,7 +153,11 @@ def enrich_events(
         occurrences[event_id(event)] = str(event.get("start_date") or event.get("date") or "")
         record["last_seen"] = generated_at
 
-    for event in announced_events:
+    announced_rows = [dict(event) for event in announced_events]
+    cancelled_announcements: set[tuple[str, str]] = set()
+    for event in announced_rows:
+        if str(event.get("status") or "").lower() not in {"cancelled", "postponed"}:
+            continue
         key = _series_key(event)
         announced_date = str(event.get("start_date") or event.get("date") or "")
         try:
@@ -163,6 +167,26 @@ def enrich_events(
         if not key:
             continue
         series_id = _identifier(key)
+        cancelled_announcements.add((series_id, announced_date))
+        record = stored.get(series_id)
+        if record is not None:
+            record["announced_dates"] = [
+                value for value in record.get("announced_dates") or []
+                if value != announced_date
+            ]
+
+    for event in announced_rows:
+        key = _series_key(event)
+        announced_date = str(event.get("start_date") or event.get("date") or "")
+        try:
+            date.fromisoformat(announced_date)
+        except (TypeError, ValueError):
+            continue
+        if not key:
+            continue
+        series_id = _identifier(key)
+        if (series_id, announced_date) in cancelled_announcements:
+            continue
         record = stored.setdefault(series_id, {
             "series_id": series_id,
             "title": str(event.get("series_title") or event.get("title") or ""),
