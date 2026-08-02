@@ -41,6 +41,7 @@ class RawEvent(TypedDict, total=False):
     city: str
     link: str
     link_kind: str
+    organizer: str
     description: str
     description_html: str
     description_source: str
@@ -110,6 +111,7 @@ class CanonicalEvent(Mapping[str, Any]):
     city: str = ""
     link: str = ""
     link_kind: str = ""
+    organizer: str = ""
     description: str = ""
     """The same copy as the allowed HTML subset; see ``richtext``."""
     description_html: str = ""

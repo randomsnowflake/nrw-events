@@ -1883,6 +1883,21 @@ def _jsonld_location(loc) -> tuple:
     return venue, city
 
 
+def _jsonld_entity_names(value) -> str:
+    """Return explicitly named schema.org people or organizations, in source order."""
+    candidates = value if isinstance(value, list) else [value]
+    names = []
+    for candidate in candidates:
+        if isinstance(candidate, dict):
+            candidate = candidate.get("name", "")
+        if not isinstance(candidate, str):
+            continue
+        name = clean_html(candidate).strip()
+        if name and name not in names:
+            names.append(name)
+    return "; ".join(names)
+
+
 def _jsonld_schedule_items(schedule) -> list:
     """Return schema.org Schedule objects as a list, preserving source order."""
     if isinstance(schedule, list):
@@ -1988,6 +2003,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         desc = item.get("description", "")
         link = item.get("url") or default_link
         admission_price = _jsonld_admission_price(item)
+        organizer = _jsonld_entity_names(item.get("organizer"))
 
         schedules = _jsonld_schedule_items(item.get("eventSchedule"))
         if schedules:
@@ -2002,6 +2018,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                     category_locked=category_locked,
                 )
                 if ev:
+                    if organizer:
+                        ev["organizer"] = organizer
                     if admission_price is not None:
                         ev["price"] = admission_price
                         ev["admission_basis"] = "explicit"
@@ -2018,6 +2036,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             category_locked=category_locked,
         )
         if ev:
+            if organizer:
+                ev["organizer"] = organizer
             if admission_price is not None:
                 ev["price"] = admission_price
                 ev["admission_basis"] = "explicit"
