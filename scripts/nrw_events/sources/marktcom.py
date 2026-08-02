@@ -23,6 +23,7 @@ Only listing pages are fetched; the per-event detail pages are never requested.
 import re
 
 from .. import common
+from ..models import AdmissionDefault
 from . import regional_common as rc
 
 
@@ -51,6 +52,13 @@ WANTED_CATEGORIES = {
     6: "Modellbau-, Eisenbahn- & Spielzeugmarkt",
     11: "Antiquariat & Bücherbörse",
 }
+
+# These structured marktcom formats describe visitor-free second-hand markets by
+# nature. The listing often names only the venue (for example "Trödelfabrik"), so
+# title-based admission inference cannot reliably see the market type. Explicit
+# visitor charges still override this default in common.make_event; seller fees do
+# not, because they are not admission.
+_FREE_BY_NATURE_CATEGORIES = frozenset({1, 35, 39, 42})
 
 # Organizers already read first hand. A directory copy of their markets adds no
 # coverage and cannot be title-matched against the first-party record, so it is
@@ -195,6 +203,11 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
             f"{category_label} markt trödelmarkt flohmarkt",
             0.75,
             source_id=_SOURCE_ID,
+            admission=(
+                AdmissionDefault.FREE_BY_NATURE
+                if badge_category_id in _FREE_BY_NATURE_CATEGORIES
+                else None
+            ),
         )
         if event:
             events.append(event)
