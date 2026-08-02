@@ -76,7 +76,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     )
     inferred_description_source = common.description_source_for(event.get("description", ""))
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("description", 8000), ("description_html", 24000),
-                         ("price", 160), ("category", 500), ("link", 2048)):
+                         ("price", 160), ("category", 500), ("link", 2048), ("image_url", 2048)):
         event[field] = _text(event, field, limit)
     # Re-built from the allowed vocabulary at the canonical boundary, so a
     # source that sets this field directly cannot smuggle markup past it, and
@@ -174,10 +174,12 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         "note": event["price"],
         "donationSuggested": donation_suggested,
     }
-    if event["link"]:
-        parsed = urllib.parse.urlsplit(event["link"])
+    for url_field in ("link", "image_url"):
+        if not event[url_field]:
+            continue
+        parsed = urllib.parse.urlsplit(str(event[url_field]))
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise EventValidationError("link_invalid")
+            raise EventValidationError(f"{url_field}_invalid")
     link_kind = _text(event, "link_kind", 16)
     if link_kind not in {"", "detail", "overview"}:
         raise EventValidationError("link_kind_invalid")
