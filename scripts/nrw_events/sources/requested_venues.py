@@ -17,22 +17,22 @@ def fetch() -> list:
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="kunstmuseum-bonn", timeout=20),
         ),
-    ))
+     source_id="kunstmuseum-bonn"))
     events.extend(rc.fetch_html_events(
         "Sankt Augustin",
         "https://www.sankt-augustin.de/veranstaltungen/",
         _events_from_sankt_augustin,
-    ))
+     source_id="sankt-augustin-events"))
     events.extend(rc.fetch_html_events(
         "Pantheon Bonn",
         "https://www.pantheon.de/programm/",
         _events_from_pantheon,
-    ))
+     source_id="pantheon-bonn"))
     events.extend(rc.fetch_html_events(
         "Haus der Springmaus",
         "https://www.springmaus-theater.de/events.html?s=all",
         _events_from_springmaus,
-    ))
+     source_id="haus-der-springmaus"))
     events.extend(rc.fetch_html_events(
         "Brückenforum Bonn",
         "https://www.brueckenforum.de/alle-events/",
@@ -41,7 +41,7 @@ def fetch() -> list:
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="brueckenforum-bonn", timeout=20),
         ),
-    ))
+     source_id="brueckenforum-bonn"))
     return rc.dedupe(events)
 
 

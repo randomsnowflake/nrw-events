@@ -183,4 +183,4 @@ def fetch_parkbuchhandlung() -> list:
     return rc.fetch_html_events(
         "Parkbuchhandlung", PARKBUCHHANDLUNG_URL,
         lambda html: events_from_parkbuchhandlung_html(html, common.fetch_url),
-    )
+     source_id="parkbuchhandlung")

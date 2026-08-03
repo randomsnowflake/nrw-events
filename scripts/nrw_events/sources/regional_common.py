@@ -2,6 +2,7 @@
 
 import re
 import urllib.parse
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from html import unescape
 from html.parser import HTMLParser
@@ -270,32 +271,56 @@ def range_dates(text: str):
 
 
 def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
-                      *, source_id: str = "", empty_is_healthy: bool = False,
-                      fetcher=None) -> list:
-    try:
-        html = (fetcher or common.fetch_url)(url, timeout=timeout)
-        with common.capture_parser_metrics() as metrics:
-            events = parser(html)
-        parser_empty = (
-            not events
-            and metrics["out_of_window_count"] == 0
-            and not empty_is_healthy
-        )
-        common._record_endpoint(
-            url,
-            parser_type="html",
-            candidate_count=metrics["candidate_count"],
-            out_of_window_count=metrics["out_of_window_count"],
-            parsed_event_count=len(events),
-            parser_empty=parser_empty,
-        )
-        if parser_empty:
+                      *, source_id: str, empty_is_healthy: bool = False,
+                      fetcher=None,
+                      page_urls: Iterable[str] | Callable[[str, int], str] | None = None,
+                      stop_when: Callable[[str, int], bool] | None = None,
+                      max_pages: int = 30) -> list:
+    """Fetch one or more HTML pages with uniform metrics and source attribution."""
+    if callable(page_urls):
+        endpoints = (page_urls(url, page) for page in range(1, max_pages + 1))
+    elif page_urls is not None:
+        endpoints = iter(page_urls)
+    else:
+        endpoints = iter((url,))
+
+    all_events = []
+    for page, endpoint in enumerate(endpoints, 1):
+        try:
+            html = (fetcher or common.fetch_url)(endpoint, timeout=timeout)
+            with common.capture_parser_metrics() as metrics:
+                events = parser(html)
+            parser_empty = (
+                not events
+                and metrics["out_of_window_count"] == 0
+                and not empty_is_healthy
+            )
+            common._record_endpoint(
+                endpoint,
+                parser_type="html",
+                candidate_count=metrics["candidate_count"],
+                out_of_window_count=metrics["out_of_window_count"],
+                parsed_event_count=len(events),
+                parser_empty=parser_empty,
+            )
+            for event in events:
+                if isinstance(event, dict):
+                    event.setdefault("source_id", source_id)
+            if parser_empty:
+                common.log_source_error(
+                    name,
+                    ParserEmptyError("parser returned no event records"),
+                    source_id=source_id,
+                )
+            all_events.extend(events)
+            if stop_when and stop_when(html, page):
+                break
+        except Exception as exc:
             common.log_source_error(
-                name,
-                ParserEmptyError("parser returned no event records"),
+                name if page == 1 else f"{name} page {page}",
+                exc,
                 source_id=source_id,
             )
-        return events
-    except Exception as e:
-        common.log_source_error(name, e, source_id=source_id)
-        return []
+            if page == 1:
+                break
+    return all_events

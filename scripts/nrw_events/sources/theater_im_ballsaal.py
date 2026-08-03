@@ -91,4 +91,4 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
 
 
 def fetch() -> list[dict]:
-    return rc.fetch_html_events(_SOURCE, _CALENDAR, events_from_html)
+    return rc.fetch_html_events(_SOURCE, _CALENDAR, events_from_html, source_id="theater-im-ballsaal")

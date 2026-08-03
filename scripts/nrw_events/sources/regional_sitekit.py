@@ -44,57 +44,24 @@ def _page_starts_after_window(html: str) -> bool:
     return bool(dates) and min(dates) > common.END_DATE
 
 
-def _parse_page(html: str, endpoint: str, city: str, source_id: str,
-                base_url: str, trust: float) -> list:
-    with common.capture_parser_metrics() as metrics:
-        events = _events_from_teasers(html, base_url, city, trust, source_id)
-    parser_empty = not events and metrics["out_of_window_count"] == 0
-    common._record_endpoint(
-        endpoint,
-        parser_type="html",
-        candidate_count=metrics["candidate_count"],
-        out_of_window_count=metrics["out_of_window_count"],
-        parsed_event_count=len(events),
-        parser_empty=parser_empty,
-    )
-    if parser_empty:
-        common.log_source_error(
-            f"{_SOURCE} ({city})",
-            rc.ParserEmptyError("parser returned no event records"),
-            source_id=source_id,
-        )
-    return events
-
-
 def _fetch_calendar(city: str, source_id: str, url: str, trust: float) -> list:
-    events = []
-    try:
-        first = common.fetch_url(url, timeout=25)
-        events.extend(_parse_page(first, url, city, source_id, url, trust))
-    except Exception as exc:
-        common.log_source_error(f"{_SOURCE} ({city})", exc, source_id=source_id)
-        return []
+    page_limit = {"value": 1}
 
-    if _page_starts_after_window(first):
-        return events
+    def stop_when(html: str, page: int) -> bool:
+        if page == 1:
+            page_limit["value"] = min(_pagination_max(html), _MAX_PAGES)
+        return _page_starts_after_window(html) or page >= page_limit["value"]
 
-    max_page = min(_pagination_max(first), _MAX_PAGES)
-    for page in range(2, max_page + 1):
-        endpoint = _page_url(url, page)
-        try:
-            html = common.fetch_url(endpoint, timeout=25)
-            events.extend(_parse_page(
-                html, endpoint, city, source_id, url, trust,
-            ))
-            if _page_starts_after_window(html):
-                break
-        except Exception as exc:
-            common.log_source_error(
-                f"{_SOURCE} ({city}) page {page}",
-                exc,
-                source_id=source_id,
-            )
-    return events
+    return rc.fetch_html_events(
+        f"{_SOURCE} ({city})",
+        url,
+        lambda html: _events_from_teasers(html, url, city, trust, source_id),
+        timeout=25,
+        source_id=source_id,
+        page_urls=_page_url,
+        stop_when=stop_when,
+        max_pages=_MAX_PAGES,
+    )
 
 
 def fetch() -> list:

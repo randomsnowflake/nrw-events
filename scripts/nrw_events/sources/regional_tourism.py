@@ -23,18 +23,18 @@ def fetch() -> list:
             "ahrtal wein wanderung führung kultur ausstellung",
             0.86,
         ),
-    ))
+     source_id="ahrtal-tourismus"))
     events.extend(_fetch_linz())
     events.extend(rc.fetch_html_events(
         "Bad Münstereifel",
         "https://www.bad-muenstereifel.de/tourismus-freizeit/veranstaltungskalender",
         _events_from_bad_muenstereifel,
-    ))
+     source_id="bad-muenstereifel-tourismus"))
     events.extend(rc.fetch_html_events(
         "Kultur Euskirchen",
         "https://www.kultur-euskirchen.de/stadttheater/veranstaltungen",
         _events_from_euskirchen,
-    ))
+     source_id="kultur-euskirchen"))
     return rc.dedupe(events)
 
 

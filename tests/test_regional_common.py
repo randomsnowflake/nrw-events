@@ -30,9 +30,11 @@ class RegionalCommonHealthTests(unittest.TestCase):
              patch.object(common, "_record_endpoint") as record_endpoint, \
              patch.object(common, "log_source_error") as log_source_error:
             events = regional_common.fetch_html_events(
-                "Seasonal calendar", "https://example.test/events", parser)
+                "Seasonal calendar", "https://example.test/events", parser,
+                source_id="seasonal-calendar")
 
         self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["source_id"], "seasonal-calendar")
         log_source_error.assert_not_called()
         record_endpoint.assert_called_once_with(
             "https://example.test/events",
@@ -75,7 +77,8 @@ class RegionalCommonHealthTests(unittest.TestCase):
              patch.object(common, "_record_endpoint") as record_endpoint, \
              patch.object(common, "log_source_error") as log_source_error:
             events = regional_common.fetch_html_events(
-                "Broken calendar", "https://example.test/events", lambda _html: [])
+                "Broken calendar", "https://example.test/events", lambda _html: [],
+                source_id="broken-calendar")
 
         self.assertEqual(events, [])
         record_endpoint.assert_called_once_with(

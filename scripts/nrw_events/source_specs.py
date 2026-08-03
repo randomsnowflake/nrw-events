@@ -44,6 +44,7 @@ class SourceSpec:
     page_urls: tuple[str, ...] = ()
     detail_urls: tuple[str, ...] = ()
     selectors: tuple[tuple[str, str], ...] = ()
+    component_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,6 +213,7 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
     specs = []
     ids: set[str] = set()
     names: set[str] = set()
+    component_ids: set[str] = set()
     for index, raw in enumerate(payload["sources"]):
         if not isinstance(raw, dict):
             raise ValueError(f"source registry row {index} must be an object")
@@ -241,6 +243,14 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
         if adapter is not AdapterType.PYTHON and not urls:
             raise ValueError(f"declarative source {source_id} requires urls")
         admission = raw.get("admission")
+        components = tuple(str(value) for value in raw.get("component_ids") or [])
+        if any(
+            not component or component != normalize_source_id(component)
+            for component in components
+        ):
+            raise ValueError(f"source registry row {index} has an invalid component id")
+        if len(components) != len(set(components)) or component_ids.intersection(components):
+            raise ValueError(f"source registry row {index} has duplicate component ids")
         spec = SourceSpec(
             id=source_id, display_name=display_name, urls=urls, adapter=adapter,
             city=str(raw.get("city") or ""), region=region,
@@ -252,8 +262,12 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
             category_locked=bool(raw.get("category_locked", False)),
             callable=callable_reference, page_urls=page_urls, detail_urls=detail_urls,
             selectors=tuple(tuple(value) for value in raw.get("selectors") or []),
+            component_ids=components,
         )
         ids.add(source_id)
         names.add(display_name)
+        component_ids.update(components)
         specs.append(spec)
+    if ids.intersection(component_ids):
+        raise ValueError("source registry component ids must not duplicate top-level source ids")
     return tuple(specs)
