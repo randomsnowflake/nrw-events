@@ -351,6 +351,10 @@ class OpenIssueContractTests(unittest.TestCase):
             [row["eventId"] for row in second["categories"][0]["selected"]],
         )
         self.assertLessEqual(len(first["categories"][0]["selected"]), highlights.MAX_PER_VENUE)
+        self.assertEqual(
+            first["categories"][0]["selectedEventIds"],
+            [row["eventId"] for row in first["categories"][0]["selected"]],
+        )
 
     def test_registry_fixture_is_schema_valid_region_aware_and_declarative(self):
         path = Path(__file__).parents[1] / "scripts/nrw_events/sources/registry.json"

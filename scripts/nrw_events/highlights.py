@@ -9,17 +9,6 @@ from typing import Any, Iterable, Mapping
 SCHEMA_VERSION = "1.0"
 MAX_PER_VENUE = 2
 MAX_PER_CATEGORY = 3
-_BASE36 = "0123456789abcdefghijklmnopqrstuvwxyz"
-
-
-def _planner_id(index: int) -> str:
-    result = ""
-    while index:
-        index, remainder = divmod(index, 36)
-        result = _BASE36[remainder] + result
-    return result or "0"
-
-
 def _rank(event: Mapping[str, Any]) -> tuple[float, float, str, str]:
     distance = event.get("distance_km")
     return (
@@ -36,7 +25,6 @@ def build_highlights(
     """Select diverse events without network or LLM access."""
     all_rows = [dict(event) for event in events]
     rows = [event for event in all_rows if event.get("status") == "scheduled"]
-    canonical_index = {str(event.get("event_id")): index for index, event in enumerate(all_rows)}
     ranked = sorted(rows, key=_rank)
     venue_counts: Counter[str] = Counter()
     category_counts: Counter[str] = Counter()
@@ -57,7 +45,7 @@ def build_highlights(
             choices = [event for event in ranked if event.get("category_key") == category][:3]
         categories.append({
             "key": category,
-            "selectedEventIds": [_planner_id(canonical_index[event["event_id"]]) for event in choices],
+            "selectedEventIds": [str(event["event_id"]) for event in choices],
             "selected": [
                 {
                     "eventId": event["event_id"],

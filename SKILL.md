@@ -326,6 +326,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 
 - `EXA_API_KEY` / `XAI_API_KEY` — credentials for the optional Exa and Grok search fallbacks.
 - `NRW_EVENTS_MAX_PER_SECTION=N` — cap events shown per category (0/unset = all).
+- `NRW_EVENTS_REPORT_MAX_CHARS=N` — optionally cap the complete Markdown report (0/unset = full output).
 - `NRW_EVENTS_DAYS_AHEAD=3` — default time window when the CLI has no day argument (1–90).
 - `NRW_EVENTS_SCORE_FLOOR=0.4` — minimum score to keep. Lower = more/noisier.
 - `NRW_EVENTS_RADIUS_KM=75` — maximum distance from Bonn (`--umkreis 15km`).
