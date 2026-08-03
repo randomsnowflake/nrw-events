@@ -596,10 +596,18 @@ _SPORTS_URL = "https://www.bonn.de/bonn-erleben/aktiv-und-unterwegs/sportveranst
 _RSS_URL = (_HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit")
 # Annual press release. The slug embeds the year; we build it dynamically so the
 # source keeps working in future years with no code change (no dates hardcoded).
-_PRESS_URL_TEMPLATE = (
-    "https://www.bonn.de/pressemitteilungen/dezember/"
-    "abwechslungsreiches-veranstaltungsjahr-{year}-in-bonn.php"
+_PRESS_MONTH_PATHS = (
+    "dezember", "november", "januar", "oktober", "september", "august",
+    "juli", "juni", "mai", "april", "maerz", "februar",
 )
+
+
+def _press_urls(year: int) -> tuple[str, ...]:
+    slug = f"abwechslungsreiches-veranstaltungsjahr-{year}-in-bonn.php"
+    return tuple(
+        f"https://www.bonn.de/pressemitteilungen/{month}/{slug}"
+        for month in _PRESS_MONTH_PATHS
+    )
 
 
 def _calendar_search_url(page: int = 1, *, free_only: bool = True) -> str:
@@ -1054,11 +1062,23 @@ def fetch_press_festivals() -> list:
 
     events = []
     for year in years:
-        url = _PRESS_URL_TEMPLATE.format(year=year)
-        try:
-            html = common.fetch_url(url, timeout=20)
-        except Exception:
-            continue  # edition not published / slug changed → just skip
+        html = ""
+        url = ""
+        last_error = None
+        for candidate_url in _press_urls(year):
+            try:
+                html = common.fetch_url(candidate_url, timeout=20)
+                url = candidate_url
+                break
+            except Exception as exc:
+                last_error = exc
+        if not html:
+            common.log_source_error(
+                source,
+                RuntimeError(f"annual press release for {year} was not found: {last_error}"),
+                source_id="bonn-district-festivals",
+            )
+            continue
         for li in re.findall(r"<li>(.*?)</li>", html, re.S):
             text = common.clean_html(li)
             if len(text) < 6:

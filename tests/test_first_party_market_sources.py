@@ -1,6 +1,8 @@
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
+from nrw_events import common
 from nrw_events.sources import (
     SOURCES,
     geide,
@@ -178,7 +180,14 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         </div></div>
         <p>Alte Heerstraße 53 - 53757 Sankt Augustin</p>
         """
-        self.assertEqual(geide._events_from_page(html, url), [])
+        from nrw_events.health import SourceResult
+
+        result = SourceResult(source="Geide Märkte")
+        common.set_source_context(result)
+        self.addCleanup(common.set_source_context, None)
+        with patch.object(common, "TODAY", datetime(2027, 1, 2)):
+            self.assertEqual(geide._events_from_page(html, url), [])
+        self.assertTrue(any("expired on 2026-12-31" in warning["error"] for warning in result.warnings))
 
     def test_krewelshof_parses_explicit_schedule_and_ignores_conflicting_prose(self):
         html = """

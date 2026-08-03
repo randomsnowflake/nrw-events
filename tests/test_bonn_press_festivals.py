@@ -51,6 +51,20 @@ class BonnPressFestivalTests(unittest.TestCase):
         self.assertEqual(events[0]["venue"], "Hermannstraße")
         self.assertEqual(events[0]["category_key"], "market")
 
+    def test_finds_annual_release_outside_the_historical_december_path(self):
+        html = "<ul><li>Sommerfest Bonn, Marktplatz, 16. August 2026</li></ul>"
+
+        def fetch(url, **_kwargs):
+            if "/november/" in url:
+                return html
+            raise FileNotFoundError(url)
+
+        with patch.object(common, "fetch_url", side_effect=fetch):
+            events = bonn.fetch_press_festivals()
+
+        self.assertEqual(len(events), 1)
+        self.assertIn("/november/", events[0]["link"])
+
 
 if __name__ == "__main__":
     unittest.main()
