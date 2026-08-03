@@ -1,4 +1,5 @@
 import unittest
+import unicodedata
 
 from nrw_events.normalization import (
     VENUE_REGISTRY,
@@ -27,6 +28,15 @@ def event(**overrides):
 
 
 class VenueRegistryTests(unittest.TestCase):
+    def test_nfd_venue_name_resolves_like_its_nfc_equivalent(self):
+        nfd_name = unicodedata.normalize("NFD", "Werkstattbühne")
+
+        venue = resolve_venue(nfd_name, "Bonn")
+
+        self.assertEqual(venue.venue, "Werkstattbühne")
+        self.assertEqual(venue.venue_id, "werkstattbuehne-bonn")
+        self.assertAlmostEqual(venue.venue_latitude or 0, 50.7363281468)
+
     def test_registry_ids_and_aliases_are_unique(self):
         ids = [record.id for record in VENUE_REGISTRY]
         aliases = [
