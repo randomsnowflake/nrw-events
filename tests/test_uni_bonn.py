@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common
@@ -11,42 +12,9 @@ CHOIR_URL = (
     "https://www.uni-bonn.de/de/veranstaltungen/"
     "sommerkonzert-internationaler-chor-1"
 )
-ICAL = f"""BEGIN:VCALENDAR
-VERSION:2.0
-X-WR-TIMEZONE:Europe/Berlin
-BEGIN:VEVENT
-SUMMARY:Internationaler Chor: Sommerkonzert
-DTSTART;TZID=Europe/Berlin:20260720T200000
-DTEND;TZID=Europe/Berlin:20260720T211500
-CATEGORIES:International Office,Campus International,Internationaler Chor
-DESCRIPTION:Herzliche Einladung zum Semesterabschlusskonzert des Internationalen Chores mit Liedern aus aller Welt. Eintritt frei!
-URL:{CHOIR_URL}
-END:VEVENT
-BEGIN:VEVENT
-SUMMARY:Corrupt historical event
-DTSTART:20251202T181500
-DTEND:29251202T194500
-DESCRIPTION:Broken Plone end date
-URL:https://www.uni-bonn.de/de/veranstaltungen/corrupt
-END:VEVENT
-END:VCALENDAR
-"""
-DETAIL_HTML = """
-<div id="event-wrapper">
-  <div class="content-item">
-    <div class="item-title"><span>Ort</span></div>
-    <div class="item-value"><span>Hörsaalzentrum Campus Poppelsdorf</span></div>
-  </div>
-  <div class="content-item">
-    <div class="item-title"><span>Raum</span></div>
-    <div class="item-value"><span>Hörsaal 1</span></div>
-  </div>
-  <div class="content-item">
-    <div class="item-title"><span>Reservierung</span></div>
-    <div class="item-value"><span>nicht erforderlich</span></div>
-  </div>
-</div>
-"""
+FIXTURES = Path(__file__).parent / "fixtures" / "uni-bonn"
+ICAL = (FIXTURES / "calendar.ics").read_text(encoding="utf-8")
+DETAIL_HTML = (FIXTURES / "choir-detail.html").read_text(encoding="utf-8")
 
 
 class UniBonnSourceTests(unittest.TestCase):
