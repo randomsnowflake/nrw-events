@@ -86,6 +86,32 @@ class CliTests(unittest.TestCase):
         self.assertEqual(json.loads(stdout.getvalue())[0]["title"], "Machine readable")
         publish.assert_not_called()
 
+    def test_filtered_cli_publishes_unfiltered_canonical_snapshot(self):
+        def fake_import(context, sources):
+            date = context.window.start.strftime("%Y-%m-%d")
+            return runner.ImportResult((
+                event("Visible market", date, category="market"),
+                event("Canonical concert", date, category="concert"),
+            ), {}, 2, "healthy")
+
+        stdout = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.dict(os.environ, {
+            "NRW_EVENTS_ENV_FILE": os.path.join(tmpdir, "missing.env"),
+            "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
+            "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
+            "NRW_EVENTS_HIGHLIGHTS_JSON_OUT": os.path.join(tmpdir, "highlights.json"),
+            "NRW_EVENTS_SERIES_LEDGER_JSON": os.path.join(tmpdir, "series.json"),
+        }, clear=True), mock.patch.object(runner, "run_import", side_effect=fake_import), \
+                mock.patch.object(runner, "publish_snapshot") as publish, contextlib.redirect_stdout(stdout):
+            exit_code = runner.cli(["nrw-events", "heute", "--kategorie", "markt"])
+
+        self.assertEqual(exit_code, runner.EXIT_SUCCESS)
+        published = publish.call_args.args[0]
+        self.assertEqual([row["title"] for row in published.events], ["Visible market", "Canonical concert"])
+        self.assertEqual(published.metadata["event_count"], 2)
+        self.assertIn("Visible market", stdout.getvalue())
+        self.assertNotIn("Canonical concert", stdout.getvalue())
+
     def test_cli_flags_override_environment(self):
         with mock.patch.dict(os.environ, {
             "NRW_EVENTS_RADIUS_KM": "75",
