@@ -122,8 +122,8 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
             raise ValueError("days_ahead must be between 1 and 90")
         configured_days = days_ahead
     level = os.environ.get("NRW_EVENTS_LOG_LEVEL", "INFO").upper()
-    if level not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
-        raise ValueError("NRW_EVENTS_LOG_LEVEL must be DEBUG, INFO, WARNING, or ERROR")
+    if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        raise ValueError("NRW_EVENTS_LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR, or CRITICAL")
     return RuntimeConfig(
         days_ahead=configured_days,
         score_floor=_float("NRW_EVENTS_SCORE_FLOOR", 0.4, 0.0, 10.0),

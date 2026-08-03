@@ -1,12 +1,16 @@
 """NRW Events offline test suite."""
 
+import atexit
 import os
+import shutil
 import socket
 import tempfile
 
 
 _TEST_CACHE_DIR = tempfile.mkdtemp(prefix="nrw-events-tests-")
+atexit.register(shutil.rmtree, _TEST_CACHE_DIR, ignore_errors=True)
 os.environ.setdefault("NRW_EVENTS_CACHE_DIR", _TEST_CACHE_DIR)
+os.environ.setdefault("NRW_EVENTS_LOG_LEVEL", "CRITICAL")
 
 
 def _block_network(*_args, **_kwargs):

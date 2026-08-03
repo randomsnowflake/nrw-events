@@ -76,6 +76,7 @@ class CliTests(unittest.TestCase):
             "NRW_EVENTS_ENV_FILE": os.path.join(tmpdir, "missing.env"),
             "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
             "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
+            "NRW_EVENTS_LOG_LEVEL": "CRITICAL",
         }, clear=True), mock.patch.object(runner, "run_import", side_effect=fake_import), \
                 mock.patch.object(runner, "publish_snapshot") as publish, contextlib.redirect_stdout(stdout):
             exit_code = runner.cli(["nrw-events", "heute", "--json"])
