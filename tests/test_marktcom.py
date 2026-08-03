@@ -176,6 +176,100 @@ class MarktcomSourceTests(unittest.TestCase):
             with self.subTest(title=event["title"]):
                 self.assertNotIn("Beschreibung des Marktes", event["title"])
 
+    def test_free_by_nature_market_format_marks_venue_named_event_free(self):
+        html = _listing(_event_block(
+            "troedelfabrik-bonn-siemensstr-25-in-53121-bonn",
+            "Trödelfabrik Bonn Siemensstr. 25",
+            "53121",
+            "Bonn",
+            "Trödelfabrik Bonn",
+            "08.08.2026",
+            1,
+            "Hier findet jeden Samstag ein Wetter unabhängiger Floh/Trödel/Antikmarkt statt.",
+        ))
+
+        [event] = marktcom.events_from_listing(html, 1)
+
+        self.assertEqual(event["price"], "kostenlos")
+        self.assertEqual(event["admission_basis"], "implicit")
+
+    def test_free_by_nature_market_format_keeps_explicit_visitor_charge(self):
+        html = _listing(_event_block(
+            "ticketed-flohmarkt-in-53121-bonn",
+            "Flohmarkt Bonn",
+            "53121",
+            "Bonn",
+            "Veranstalter",
+            "08.08.2026",
+            1,
+            "Besuchereintritt: 4 Euro. Standgebühr: 20 Euro.",
+        ))
+
+        [event] = marktcom.events_from_listing(html, 1)
+
+        self.assertEqual(event["price"], "")
+        self.assertEqual(event["admission_basis"], "")
+
+    def test_free_by_nature_market_format_ignores_seller_fee(self):
+        html = _listing(_event_block(
+            "hofflohmarkt-in-53121-bonn",
+            "Garagenzentrum Bonn",
+            "53121",
+            "Bonn",
+            "Veranstalter",
+            "08.08.2026",
+            39,
+            "Standgebühr für Verkäufer: 20 Euro.",
+        ))
+
+        [event] = marktcom.events_from_listing(html, 39)
+
+        self.assertEqual(event["price"], "kostenlos")
+        self.assertEqual(event["admission_basis"], "implicit")
+
+    def test_ticketed_market_formats_do_not_get_the_default(self):
+        for category_id in (14, 34, 47):
+            with self.subTest(category_id=category_id):
+                html = _listing(_event_block(
+                    f"venue-{category_id}-in-53121-bonn",
+                    "Halle am Park",
+                    "53121",
+                    "Bonn",
+                    "Veranstalter",
+                    "08.08.2026",
+                    category_id,
+                ))
+
+                [event] = marktcom.events_from_listing(html, category_id)
+
+                self.assertEqual(event["price"], "")
+                self.assertEqual(event["admission_basis"], "")
+
+    def test_free_by_nature_format_respects_ticketed_market_markers(self):
+        for marker in (
+            "Nachtflohmarkt",
+            "Indoor-Flohmarkt",
+            "Stadthalle",
+            "Eventhalle",
+            "Tickets im Vorverkauf",
+        ):
+            with self.subTest(marker=marker):
+                html = _listing(_event_block(
+                    f"ticketed-{marker.casefold()}-in-53121-bonn",
+                    f"{marker} Bonn",
+                    "53121",
+                    "Bonn",
+                    "Veranstalter",
+                    "08.08.2026",
+                    1,
+                    f"{marker}: weitere Informationen folgen.",
+                ))
+
+                [event] = marktcom.events_from_listing(html, 1)
+
+                self.assertEqual(event["price"], "")
+                self.assertEqual(event["admission_basis"], "")
+
     def test_truncated_listing_title_is_completed_from_the_detail_heading(self):
         html = _listing(_event_block(
             "neuss-kaufland-parkplatz-in-41462-neuss",
