@@ -1,7 +1,5 @@
 """Official Theater Bonn JSON calendar."""
 
-import json
-
 from .. import category_taxonomy, common
 from . import regional_common as rc
 
@@ -111,7 +109,7 @@ def events_from_payload(items: list[dict]) -> list[dict]:
 
 def fetch() -> list[dict]:
     try:
-        payload = json.loads(common.fetch_url(_API, timeout=30, accept="application/json"))
+        payload = common.fetch_json(_API, timeout=30)
         items = payload if isinstance(payload, list) else payload.get("events", [])
         return events_from_payload(items)
     except Exception as exc:

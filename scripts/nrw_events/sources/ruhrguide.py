@@ -47,12 +47,7 @@ def _detail_description(html: str) -> str:
         common.clean_html(metadata.group(1) if metadata else ""), max_chars=360)
 
 
-def _fallback_description(event: dict) -> str:
-    start = common.parse_iso_date(event.get("start_date") or "")
-    return common.factual_event_description(
-        event.get("title", ""), date_value=start, time_text=event.get("time", ""),
-        venue=event.get("venue", ""), city=event.get("city", ""),
-    )
+_fallback_description = rc.factual_fallback()
 
 
 def _enrich_missing_descriptions(events: list, detail_fetcher) -> list:

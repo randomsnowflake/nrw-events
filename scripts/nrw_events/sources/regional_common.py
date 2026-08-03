@@ -124,6 +124,49 @@ def first_group_clean(pattern: str, text: str, *, flags: int = re.S | re.I) -> s
     return clean(first_group(pattern, text, flags=flags))
 
 
+def factual_fallback(default_city: str = "", calendar_name=""):
+    """Return a shared factual-description builder for sparse calendar rows."""
+    def build(event: dict) -> str:
+        start = common.parse_iso_date(event.get("start_date") or "")
+        resolved_calendar = calendar_name(event) if callable(calendar_name) else calendar_name
+        return common.factual_event_description(
+            event.get("title", ""), date_value=start or event.get("date", ""),
+            time_text=event.get("time", ""), venue=event.get("venue", ""),
+            city=event.get("city") or default_city, calendar_name=resolved_calendar,
+        )
+    return build
+
+
+def meta_description(html: str, *, fallback_pattern: str = "") -> str:
+    """Extract description metadata regardless of HTML attribute order."""
+    for pattern in (
+        r'<meta[^>]+(?:property|name)=["\'](?:og:description|description)["\'][^>]+content=(["\'])(.*?)\1',
+        r'<meta[^>]+content=(["\'])(.*?)\1[^>]+(?:property|name)=["\'](?:og:description|description)["\']',
+    ):
+        match = re.search(pattern, html or "", re.I)
+        if match:
+            return common.concise_description(match.group(2))
+    fallback = re.search(fallback_pattern, html or "", re.I | re.S) if fallback_pattern else None
+    return common.concise_description(fallback.group(1)) if fallback else ""
+
+
+def meta_detail_description(
+    url: str,
+    *,
+    namespace: str,
+    source: str,
+    timeout: int = 15,
+    fallback_pattern: str = "",
+) -> str:
+    """Fetch a cached detail page and return its metadata description safely."""
+    try:
+        html = common.fetch_detail_url(url, cache_namespace=namespace, timeout=timeout)
+        return meta_description(html, fallback_pattern=fallback_pattern)
+    except Exception as exc:
+        common.log_source_error(f"{source} detail", exc)
+        return ""
+
+
 def enrich_descriptions(
     events: list,
     *,

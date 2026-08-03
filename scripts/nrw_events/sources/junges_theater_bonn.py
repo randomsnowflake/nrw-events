@@ -39,25 +39,13 @@ def _url(month: datetime) -> str:
 
 
 def _meta_description(html: str) -> str:
-    patterns = (
-        r'<meta[^>]+(?:property|name)=["\'](?:og:description|description)["\'][^>]+content=(["\'])(.*?)\1',
-        r'<meta[^>]+content=(["\'])(.*?)\1[^>]+(?:property|name)=["\'](?:og:description|description)["\']',
-    )
-    for pattern in patterns:
-        match = re.search(pattern, html, re.I)
-        if match:
-            return common.concise_description(match.group(2))
-    return ""
+    return rc.meta_description(html)
 
 
 def _detail_description(url: str) -> str:
-    try:
-        return _meta_description(common.fetch_detail_url(
-            url, cache_namespace="junges-theater-bonn", timeout=15
-        ))
-    except Exception as exc:
-        common.log_source_error(f"{_SOURCE} detail", exc)
-        return ""
+    return rc.meta_detail_description(
+        url, namespace="junges-theater-bonn", source=_SOURCE,
+    )
 
 
 def events_from_html(html: str, detail_fetcher=None) -> list[dict]:

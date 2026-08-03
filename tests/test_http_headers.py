@@ -10,6 +10,18 @@ from nrw_events.health import SourceResult
 
 
 class HttpHeaderTests(unittest.TestCase):
+    def test_fetch_json_enforces_api_headers_and_content_type(self):
+        with patch.object(common, "fetch_url", return_value='{"items": [1]}') as fetch:
+            payload = common.fetch_json("https://api.example.test/events", timeout=20)
+
+        self.assertEqual(payload, {"items": [1]})
+        fetch.assert_called_once_with(
+            "https://api.example.test/events", timeout=20, headers=None,
+            accept="application/json,*/*;q=0.8", sec_fetch_mode="cors",
+            sec_fetch_dest="empty",
+            expected_content_types=("application/json", "text/json"),
+        )
+
     def test_fetch_url_preserves_mixed_utf8_and_windows_1252_characters(self):
         response = Mock()
         response.read.return_value = "Kölner ".encode("utf-8") + b"Flohm\xe4rkte"
