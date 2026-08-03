@@ -39,7 +39,7 @@ from .junk_rules import legacy_junk_decision
 from .quality import evaluate_event_quality
 from .location import refine_bonn_location as refine_bonn_location
 from .location import guess_city_from_text, haversine, resolve_location
-from .models import AdmissionDefault, RawEvent
+from .models import AdmissionDefault, EventDraft, RawEvent
 from .normalization import resolve_venue
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
@@ -1493,9 +1493,6 @@ def infer_admission(
     description: str,
     price: str = "",
     *,
-    venue: str = "",
-    source: str = "",
-    link: str = "",
     admission: AdmissionDefault | None = None,
     admission_basis: str = "",
 ) -> tuple[str, str]:
@@ -1549,76 +1546,84 @@ def infer_free_admission_price(
     description: str,
     price: str = "",
     *,
-    venue: str = "",
-    source: str = "",
-    link: str = "",
     admission: AdmissionDefault | None = None,
 ) -> str:
     """Return a normalized free-admission label from explicit or safe implicit evidence."""
     return infer_admission(
-        title, description, price, venue=venue, source=source, link=link,
-        admission=admission,
+        title, description, price, admission=admission,
     )[0]
 
 
-def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
-               venue: str, city: str, description: str, link: str, source: str,
-               category: str, trust: float = 1.0, time_text: str = "",
-               coords: Optional[tuple] = None, all_day: Optional[bool] = None,
-               timezone_name: str = "Europe/Berlin", source_id: str = "",
-               description_source: str = "",
-               admission: AdmissionDefault | None = None,
-               time_note: str = "",
-               default_category_key: str = "",
-               category_locked: bool = False) -> Optional[dict]:
-    """Build a scored event dict and apply radius + junk checks.
+def _event_time_fields(
+    start: datetime | None,
+    end: datetime | None,
+    time_text: str,
+    time_note: str,
+    all_day: bool | None,
+) -> tuple[str, str, bool]:
+    if not time_text and start and (start.hour or start.minute):
+        time_text = start.strftime("%H:%M")
+        if end and (end.hour or end.minute):
+            time_text += "–" + end.strftime("%H:%M")
+    canonical_time, inferred_note = normalize_time_fields(time_text)
+    if not canonical_time and start and (start.hour or start.minute):
+        derived = start.strftime("%H:%M")
+        if end and (end.hour or end.minute):
+            derived += "–" + end.strftime("%H:%M")
+        canonical_time, _ = normalize_time_fields(derived)
+    combined_note = combine_time_notes(time_note, inferred_note)
+    if all_day is None:
+        all_day = not canonical_time and not combined_note and not (
+            start and (start.hour or start.minute)
+        )
+    return canonical_time, combined_note, all_day
 
-    ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
-    point — instead of deriving it from ``city`` via :func:`coords_for_city`.
-    """
-    if not title or (start_dt is None and end_dt is not None):
-        return None
-    title = normalize_event_title(title, start=start_dt, end=end_dt, source=source)
-    # Most sources only ever report "Bonn". Resolve the district centrally from
-    # the venue so every source benefits instead of each repeating the lookup.
-    city = refine_bonn_location(city, f"{venue} {city}")
+
+def _event_location(city: str, venue: str, coords: tuple | None):
     canonical_venue = resolve_venue(venue, city)
-    outside_window = bool(
-        (end_dt is not None and start_dt is None)
-        or (start_dt is not None and not window_contains(start_dt, end_dt))
-    )
-    _record_parser_candidate(out_of_window=outside_window)
     registry_coords = (
         (canonical_venue.venue_latitude, canonical_venue.venue_longitude)
         if canonical_venue.venue_latitude is not None
         and canonical_venue.venue_longitude is not None
         else None
     )
-    resolved_coords, location_confidence, location_source = resolve_location(
-        city,
-        coords if coords is not None else registry_coords,
+    resolved, confidence, source = resolve_location(
+        city, coords if coords is not None else registry_coords,
     )
     if coords is None and registry_coords is not None:
-        location_source = "venue_registry"
-    km = haversine(BONN_LAT, BONN_LON, *resolved_coords) if resolved_coords else None
+        source = "venue_registry"
+    distance = haversine(BONN_LAT, BONN_LON, *resolved) if resolved else None
+    return canonical_venue, distance, confidence, source
+
+
+def build_event(draft: EventDraft) -> RawEvent | None:
+    """Normalize one bundled event draft and apply radius and quality checks.
+
+    ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
+    point — instead of deriving it from ``city`` via :func:`coords_for_city`.
+    """
+    title, start_dt, end_dt = draft.title, draft.start, draft.end
+    venue, city, description = draft.venue, draft.city, draft.description
+    link, source, category, trust = draft.link, draft.source, draft.category, draft.trust
+    time_text, coords, all_day = draft.time_text, draft.coords, draft.all_day
+    timezone_name, source_id = draft.timezone_name, draft.source_id
+    description_source, admission = draft.description_source, draft.admission
+    time_note = draft.time_note
+    default_category_key, category_locked = draft.default_category_key, draft.category_locked
+    if not title or (start_dt is None and end_dt is not None):
+        return None
+    title = normalize_event_title(title, start=start_dt, end=end_dt, source=source)
+    # Most sources only ever report "Bonn". Resolve the district centrally from
+    # the venue so every source benefits instead of each repeating the lookup.
+    city = refine_bonn_location(city, f"{venue} {city}")
+    outside_window = bool(start_dt is not None and not window_contains(start_dt, end_dt))
+    _record_parser_candidate(out_of_window=outside_window)
+    canonical_venue, km, location_confidence, location_source = _event_location(city, venue, coords)
     date_text = start_dt.strftime("%Y-%m-%d") if start_dt else ""
     ongoing = bool(start_dt and end_dt and start_dt < TODAY <= end_dt)
-    if not time_text and start_dt and (start_dt.hour or start_dt.minute):
-        time_text = start_dt.strftime("%H:%M")
-        if end_dt and (end_dt.hour or end_dt.minute):
-            time_text += "–" + end_dt.strftime("%H:%M")
-    canonical_time, inferred_time_note = normalize_time_fields(time_text)
-    if not canonical_time and start_dt and (start_dt.hour or start_dt.minute):
-        derived_time = start_dt.strftime("%H:%M")
-        if end_dt and (end_dt.hour or end_dt.minute):
-            derived_time += "–" + end_dt.strftime("%H:%M")
-        canonical_time, _ = normalize_time_fields(derived_time)
-    time_text = canonical_time
-    time_note = combine_time_notes(time_note, inferred_time_note)
-    if all_day is None:
-        all_day = not time_text and not time_note and not (
-            start_dt and (start_dt.hour or start_dt.minute)
-        )
+    time_text, time_note, all_day = _event_time_fields(
+        start_dt, end_dt, time_text, time_note, all_day,
+    )
     full_text = f"{title} {venue} {city} {description} {category}"
     # URLs encode venue slugs and other implementation detail (for example
     # ``alte-vhs`` in an aggregator concert URL). They are not event content and
@@ -1643,11 +1648,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     local_zone = ZoneInfo(timezone_name)
     start_at = "" if all_day or not start_dt else start_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     end_at = "" if all_day or not end_dt else end_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
-    price, admission_basis = infer_admission(
-        title, description, venue=venue, source=source, link=event_link,
-        admission=admission,
-    )
-    ev = {
+    price, admission_basis = infer_admission(title, description, admission=admission)
+    ev: RawEvent = {
         "title": clean_html(title),
         "date": date_text,
         "time": time_text,
@@ -1708,6 +1710,28 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
             log_source_quality_skip(source, decision.rule_id)
         return None
     return ev
+
+
+def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
+               venue: str, city: str, description: str, link: str, source: str,
+               category: str, trust: float = 1.0, time_text: str = "",
+               coords: Optional[tuple] = None, all_day: Optional[bool] = None,
+               timezone_name: str = "Europe/Berlin", source_id: str = "",
+               description_source: str = "",
+               admission: AdmissionDefault | None = None,
+               time_note: str = "",
+               default_category_key: str = "",
+               category_locked: bool = False) -> RawEvent | None:
+    """Compatibility adapter for source modules migrating to :class:`EventDraft`."""
+    return build_event(EventDraft(
+        title=title, start=start_dt, end=end_dt, venue=venue, city=city,
+        description=description, link=link, source=source, category=category,
+        trust=trust, time_text=time_text, coords=coords, all_day=all_day,
+        timezone_name=timezone_name, source_id=source_id,
+        description_source=description_source, admission=admission,
+        time_note=time_note, default_category_key=default_category_key,
+        category_locked=category_locked,
+    ))
 
 
 def _legacy_is_junk_event(ev: dict) -> bool:
@@ -2422,45 +2446,31 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
 
 # ── Web-search helper (shared by Exa + Grok) ────────────────────────
 
-def search_result_event(title: str, link: str, desc: str, source: str, trust: float) -> Optional[dict]:
-    """Convert a search result into a low-trust event, or None if out-of-window/radius/junk."""
+def search_result_event(title: str, link: str, desc: str, source: str, trust: float) -> RawEvent | None:
+    """Convert a search result through the same canonical draft pipeline as adapters."""
     full_text = f"{title} {desc} {link}"
     extracted_dates = extract_dates(full_text)
     if not extracted_dates:
         return None
     if not date_range_overlaps(extracted_dates):
         return None
-    city_guess = guess_city_from_text(full_text) or "Bonn area"
-    resolved_coords, location_confidence, location_source = resolve_location(city_guess)
-    if not resolved_coords:
+    city_guess = guess_city_from_text(full_text)
+    if not city_guess:
         return None
-    km = haversine(BONN_LAT, BONN_LON, *resolved_coords)
-    if km > MAX_RADIUS_KM:
-        return None
-    candidate = {
-        "title": unescape(clean_html(title)),
-        "date": extracted_dates[0].strftime("%Y-%m-%d") if extracted_dates else "",
-        "time": "",
-        "venue": "",
-        "city": city_guess.title(),
-        "description": clean_html(desc),
-        "price": "",
-        "link": link,
-        "distance_km": round(km, 1),
-        "location_confidence": location_confidence,
-        "location_source": location_source,
-        "score": round(distance_score(km) * category_score(full_text) * trust, 2),
-        "source": source,
-        "category": "search fallback",
-        "status": "scheduled",
-        "start_at": "",
-        "end_at": "",
-        "start_date": extracted_dates[0].strftime("%Y-%m-%d"),
-        "end_date": extracted_dates[0].strftime("%Y-%m-%d"),
-        "all_day": True,
-        "timezone": "Europe/Berlin",
-    }
-    return None if is_junk_event(candidate) else candidate
+    start = extracted_dates[0]
+    return build_event(EventDraft(
+        title=unescape(clean_html(title)),
+        start=start,
+        end=start,
+        venue="",
+        city=city_guess,
+        description=clean_html(desc),
+        link=link,
+        source=source,
+        category="search fallback",
+        trust=trust,
+        all_day=True,
+    ))
 
 
 def log_source_error(source: str, err: Exception, *, source_id: str = "") -> None:

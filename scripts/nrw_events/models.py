@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import datetime
 from enum import Enum
 import re
 from typing import Any, Iterator, Mapping, Optional, TypedDict
@@ -70,6 +71,32 @@ class RawEvent(TypedDict, total=False):
     series_id: str
     series_title: str
     run_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class EventDraft:
+    """Source facts required to construct one normalized raw event."""
+
+    title: str
+    start: Optional[datetime]
+    end: Optional[datetime]
+    venue: str
+    city: str
+    description: str
+    link: str
+    source: str
+    category: str
+    trust: float = 1.0
+    time_text: str = ""
+    coords: Optional[tuple] = None
+    all_day: Optional[bool] = None
+    timezone_name: str = "Europe/Berlin"
+    source_id: str = ""
+    description_source: str = ""
+    admission: AdmissionDefault | None = None
+    time_note: str = ""
+    default_category_key: str = ""
+    category_locked: bool = False
 
 
 def _empty_admission() -> dict[str, Any]:
