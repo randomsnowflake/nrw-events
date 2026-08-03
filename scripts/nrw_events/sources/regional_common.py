@@ -304,8 +304,8 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
                 parser_empty=parser_empty,
             )
             for event in events:
-                if isinstance(event, dict):
-                    event.setdefault("source_id", source_id)
+                if isinstance(event, dict) and not event.get("source_id"):
+                    event["source_id"] = source_id
             if parser_empty:
                 common.log_source_error(
                     name,
