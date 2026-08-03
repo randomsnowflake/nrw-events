@@ -146,6 +146,7 @@ To trim output for terse contexts, set `NRW_EVENTS_MAX_PER_SECTION=N`.
 
 Defaults favour **quantity over quality** (filter the full list yourself):
 
+- `EXA_API_KEY` / `XAI_API_KEY` — credentials for the optional Exa and Grok search fallbacks.
 - `NRW_EVENTS_MAX_PER_SECTION=N` — cap events shown per category (0/unset = all).
 - `NRW_EVENTS_DAYS_AHEAD=3` — default time window when the CLI has no day argument (1–90).
 - `NRW_EVENTS_SCORE_FLOOR=0.4` — minimum score to keep. Lower = more/noisier.
@@ -153,18 +154,26 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_CATEGORIES=market,festival` — canonical category filter (`--kategorie`).
 - `NRW_EVENTS_FREE_ONLY=1` — keep only explicitly free events (`--kostenlos`).
 - `NRW_EVENTS_JSON_STDOUT=1` — emit only JSON to stdout and do not publish snapshots (`--json`).
+- `NRW_EVENTS_HIGHLIGHTS_JSON_OUT` / `NRW_EVENTS_SERIES_LEDGER_JSON` — override durable highlight and series paths.
+- `NRW_EVENTS_PREVIOUS_META_JSON` — previous published metadata used to retain unexpired events from a degraded source.
+- `NRW_EVENTS_DESCRIPTION_MAX_CHARS=700` — maximum normalized description length.
 - `NRW_EVENTS_CATEGORY_FALLBACK_CACHE=/path/cache.json` — optional reviewed category cache; the importer itself never invokes an LLM.
 - `NRW_EVENTS_EXA_QUERIES=10` — how many `search_queries()` to send to Exa (~5 results each).
 - `NRW_EVENTS_ENABLE_GROK=1` — enable the slow/costly agentic Grok sweep (off by default).
 - `NRW_EVENTS_USER_AGENT` — override the default browser-like user agent.
 - `NRW_EVENTS_HTTP_RETRY_ATTEMPTS=5` — transient HTTP/network retry limit.
+- `NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS=45.0` — total request, retry, and backoff budget.
 - `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS=1.0` — exponential backoff base with jitter.
 - `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` / `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=5000000` — cap retry waits and response sizes.
 - `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT=10` — annotate a source that drops from a recent meaningful count to zero.
+- `NRW_EVENTS_SOURCE_WORKERS=12` / `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS=180` — source parallelism and inactivity budget.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
+- `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES=30` — safety cap for paginated Bonn.de calendars.
 - `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` — Bright Data Web Unlocker credentials; vomFASS refreshes only on Mondays and always uses this proxy. Hofflohmärkte Köln and allowlisted IONAS4 regional calendars are direct-first and use it only after selected transient failures or exhausted direct-request timeouts.
 - `NRW_EVENTS_CACHE_DIR=~/.cache/nrw-events` — persistent cache root for bounded detail-page enrichment.
+- `XDG_CACHE_HOME=~/.cache` — cache base when `NRW_EVENTS_CACHE_DIR` is unset.
 - `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=24` — default TTL for successful generic detail-page fetches; `0` disables memory and disk caching.
+- `NRW_EVENTS_DETAIL_ENRICHMENT=1` — shared primary-detail enrichment; set to `0` to disable.
 - `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS=500` — target length for meaningful Bonn.de detail summaries after logistics boilerplate is removed.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.

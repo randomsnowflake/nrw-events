@@ -11,7 +11,12 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["ruff"]
+dev = [
+    "coverage~=7.9.2",
+    "mypy~=1.17.0",
+    "pytest~=8.4.1",
+    "ruff~=0.12.3",
+]
 
 [project.scripts]
 nrw-events = "nrw_events.runner:main"
@@ -25,9 +30,6 @@ include = ["nrw_events*"]
 
 [tool.setuptools.package-data]
 nrw_events = ["verified_venue_locations.json", "sources/registry.json"]
-
-[dependency-groups]
-dev = ["ruff"]
 
 [tool.ruff]
 target-version = "py310"
