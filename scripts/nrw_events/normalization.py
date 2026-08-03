@@ -20,7 +20,7 @@ _GERMAN_TRANSLITERATION = str.maketrans({
 
 def comparison_text(value: str, *, separator: str = " ") -> str:
     """Casefold and transliterate text into a punctuation-insensitive key."""
-    folded = (value or "").casefold().translate(_GERMAN_TRANSLITERATION)
+    folded = unicodedata.normalize("NFC", value or "").casefold().translate(_GERMAN_TRANSLITERATION)
     ascii_text = unicodedata.normalize("NFKD", folded).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", separator, ascii_text).strip(separator)
 
