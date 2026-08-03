@@ -555,6 +555,12 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
             field != "venue" or bool(_venue_comparison_text(duplicate))
         )
         if (winner_value_is_missing or winner_venue_is_implausible) and duplicate_value_is_usable:
+            if field == "venue" and not winner.get("identity_venue_locked"):
+                updates["identity_venue"] = winner.get("venue", "")
+                updates["identity_venue_locked"] = True
+            if field in {"time", "start_at"} and not winner.get("identity_time_locked"):
+                updates["identity_time"] = winner.get("time") or winner.get("start_at") or ""
+                updates["identity_time_locked"] = True
             updates[field] = duplicate[field]
             if field == "price":
                 updates["admission_basis"] = duplicate.get("admission_basis", "")

@@ -20,6 +20,8 @@ class RawEvent(TypedDict, total=False):
     source_id: str
     date: str
     time: str
+    identity_time: str
+    identity_time_locked: bool
     time_note: str
     start_date: str
     end_date: str
@@ -90,6 +92,8 @@ class CanonicalEvent(Mapping[str, Any]):
     source_id: str = ""
     date: str = ""
     time: str = ""
+    identity_time: str = ""
+    identity_time_locked: bool = False
     time_note: str = ""
     end_date: str = ""
     start_at: str = ""
@@ -132,6 +136,7 @@ class CanonicalEvent(Mapping[str, Any]):
     replacement_start_date: str = ""
     first_seen_at: str = ""
     content_hash: str = ""
+    preserved_event_id: str = ""
     series_id: str = ""
     series_title: str = ""
     run_id: str = ""

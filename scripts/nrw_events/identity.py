@@ -60,10 +60,17 @@ _START_TIME_RE = re.compile(r"\s*(\d{1,2}):(\d{2})")
 
 def _time_key(event: Mapping[str, Any]) -> str:
     """Return the start-time identity, distinguishing the dates of a series."""
-    start = _START_TIME_RE.match(str(event.get("time") or ""))
+    published_time = str(event.get("identity_time") or "").strip()
+    if published_time or event.get("identity_time_locked"):
+        return _time_value_key(published_time)
+    return _time_value_key(str(event.get("time") or event.get("start_at") or ""))
+
+
+def _time_value_key(value: str) -> str:
+    start = _START_TIME_RE.match(value)
     if start:
         return f"{int(start.group(1)):02d}:{start.group(2)}"
-    start_at = str(event.get("start_at") or "").strip()
+    start_at = value.strip()
     # ``start_at`` carries the same clock time as ``time`` when both exist; only
     # its time-of-day part matters here because the date is a separate field.
     return start_at[11:16] if len(start_at) >= 16 else "all-day"
@@ -95,7 +102,7 @@ def content_fingerprint(event: Mapping[str, Any]) -> str:
         {
             key: event[key]
             for key in sorted(event)
-            if key not in {"event_id", "content_hash", "first_seen_at"}
+            if key not in {"event_id", "preserved_event_id", "content_hash", "first_seen_at"}
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -111,6 +118,9 @@ def content_hash(event: Mapping[str, Any]) -> str:
 
 def event_id(event: Mapping[str, Any]) -> str:
     """Return the stable, readable id for one event occurrence."""
+    preserved = str(event.get("preserved_event_id") or "").strip()
+    if preserved:
+        return preserved
     parts = identity_tuple(event)
     title_slug = comparison_text(str(event.get("title") or ""), separator="-")[:TITLE_SLUG_LIMIT].strip("-")
     start_date = parts[1]
@@ -139,6 +149,9 @@ def assign_event_ids(events: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]
     for record in assigned:
         record.pop("identity_venue", None)
         record.pop("identity_venue_locked", None)
+        record.pop("identity_time", None)
+        record.pop("identity_time_locked", None)
+        record.pop("preserved_event_id", None)
     return assigned
 
 

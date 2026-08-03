@@ -475,6 +475,9 @@ def _retain_previous_events(
             event = validate_event(retained_raw)
         except EventValidationError:
             continue
+        published_event_id = str(raw_event.get("event_id") or "").strip()
+        if published_event_id:
+            event = replace(event, preserved_event_id=published_event_id)
         if event.end_date < window_start:
             expired_counts[label] += 1
             continue

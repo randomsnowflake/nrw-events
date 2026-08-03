@@ -261,6 +261,46 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(metadata["expired_retained_event_count"], 1)
         self.assertEqual(metadata["retained_sources"][0]["consecutive_failures"], 0)
 
+    def test_retained_enriched_event_keeps_its_published_id(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-07-20T05:00:00",
+                    "source_results": {
+                        "Calendar": {
+                            "raw_event_count": 1,
+                            "event_source_ids": ["calendar"],
+                        },
+                    },
+                    "events": [{
+                        "title": "Sommerkonzert", "source": "Calendar",
+                        "source_id": "calendar", "date": "2026-07-27",
+                        "time": "20:00", "start_at": "2026-07-27T20:00:00+02:00",
+                        "score": 1.0, "city": "Bonn",
+                        "event_id": "sommerkonzert-2026-07-27-original",
+                    }],
+                }, handle)
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path),
+                EventWindow(datetime(2026, 7, 24), datetime(2026, 8, 20)),
+                "retained-id-test",
+                configure_logging("retained-id-test", "ERROR", "", ""),
+                clock=lambda: datetime(2026, 7, 24, 5),
+            )
+            result = runner.run_import(
+                context,
+                {"Calendar": lambda: SourceFetchResult.parser_empty("temporarily empty")},
+            )
+            snapshot = runner.build_snapshot(result, context)
+
+        self.assertEqual(
+            snapshot.events[0]["event_id"],
+            "sommerkonzert-2026-07-27-original",
+        )
+        self.assertNotIn("preserved_event_id", snapshot.events[0])
+
     def test_healthy_source_replaces_previous_snapshot_instead_of_retaining_it(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             previous_path = os.path.join(tmpdir, "previous.json")
