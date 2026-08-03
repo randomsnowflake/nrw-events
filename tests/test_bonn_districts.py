@@ -83,13 +83,14 @@ class BonnDistrictSourceTests(unittest.TestCase):
             self.assertEqual(confidence, "known_city")
             self.assertEqual(source, "configured_city")
 
-    def test_beuel_parser_uses_specific_districts_and_description_fallbacks(self):
+    def test_beuel_parser_uses_specific_districts_and_only_master_data(self):
         events = bonn_districts.events_from_beuel_html(BEUEL_HTML)
 
         self.assertEqual([event["city"] for event in events], ["Bonn-Vilich", "Bonn-Oberkassel"])
         self.assertTrue(all(event["description"] for event in events))
         self.assertIn("findet", events[0]["description"])
-        self.assertIn("gemeinsam", events[1]["description"])
+        self.assertNotIn("gemeinsam", events[1]["description"])
+        self.assertTrue(all(event["description_source"] == "generated" for event in events))
         self.assertEqual(events[0]["start_date"], "2026-07-31")
         self.assertEqual(events[0]["end_date"], "2026-08-01")
         self.assertEqual(events[0]["time"], "")
@@ -107,6 +108,22 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(event["title"], "Floh- und Trödelmarkt Beueler Rathausplatz")
         self.assertEqual(event["venue"], "Beueler Rathausplatz (Möhneplatz)")
         self.assertEqual(event["city"], "Bonn-Beuel")
+
+    def test_beuel_discovery_record_is_only_kept_after_primary_source_fetch(self):
+        discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)
+        fetched = []
+
+        events = bonn_districts._confirm_beuel_primary_sources(
+            discovered,
+            primary_fetcher=lambda url: fetched.append(url) or "<html><title>Primärquelle</title></html>",
+        )
+
+        self.assertEqual(fetched, [
+            "https://www.green-juice.de/festival/",
+            "https://example.test/kirmes",
+        ])
+        self.assertEqual([event["source"] for event in events], ["green-juice.de", "example.test"])
+        self.assertTrue(all(event["source_id"] == "beuel-net" for event in events))
 
     def test_bonn_district_refinement_prefers_specific_configured_place(self):
         self.assertEqual(

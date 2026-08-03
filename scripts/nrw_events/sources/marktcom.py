@@ -221,7 +221,9 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
             ),
         )
         if event:
-            events.append(event)
+            if organizer:
+                event["organizer"] = organizer
+            events.append(common.keep_only_event_master_data(event))
     return events
 
 

@@ -302,52 +302,26 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("15.07.2026", events[0]["description"])
         self.assertIn("Kunstmuseum Bonn", events[0]["description"])
 
-    def test_ruhrguide_uses_event_jsonld_description(self):
+    def test_ruhrguide_discards_source_description_and_does_not_fetch_detail_copy(self):
         events = [{
             "title": "Conni – Das Musical!",
             "start_date": "2026-07-19",
+            "end_date": "2026-07-19",
             "time": "15:00",
             "venue": "Theater am Tanzbrunnen, Köln",
             "city": "Köln",
             "link": "https://www.ruhr-guide.de/veranstaltung/conni-das-musical/",
-            "description": "",
-        }]
-        detail_html = """
-<script type="application/ld+json">
-{
-  "@type": "Event",
-  "name": "Conni – Das Musical!",
-  "description": "Das Cocomico-Musical geht auf große Tournee. Conni feiert Geburtstag und das Publikum wird Teil der Inszenierung.",
-  "startDate": "2026-07-19T15:00:00"
-}
-</script>
-"""
-
-        enriched = ruhrguide._enrich_missing_descriptions(
-            events,
-            detail_fetcher=lambda _url: detail_html,
-        )
-
-        self.assertIn("Publikum wird Teil der Inszenierung", enriched[0]["description"])
-
-    def test_ruhrguide_detail_failure_still_returns_useful_text(self):
-        events = [{
-            "title": "Conni – Das Musical!",
-            "start_date": "2026-07-19",
-            "time": "15:00",
-            "venue": "Theater am Tanzbrunnen, Köln",
-            "city": "Köln",
-            "link": "https://www.ruhr-guide.de/veranstaltung/conni-das-musical/",
-            "description": "",
+            "description": "Langer redaktioneller Ruhr-Guide-Text.",
+            "description_html": "<p>Langer redaktioneller Ruhr-Guide-Text.</p>",
+            "description_source": "scraped",
         }]
 
-        enriched = ruhrguide._enrich_missing_descriptions(
-            events,
-            detail_fetcher=lambda _url: (_ for _ in ()).throw(TimeoutError("detail timeout")),
-        )
+        [minimal] = ruhrguide._keep_only_master_data(events)
 
-        self.assertIn("19.07.2026", enriched[0]["description"])
-        self.assertIn("Theater am Tanzbrunnen", enriched[0]["description"])
+        self.assertNotIn("redaktioneller", minimal["description"])
+        self.assertIn("19.07.2026", minimal["description"])
+        self.assertIn("Theater am Tanzbrunnen", minimal["description"])
+        self.assertEqual(minimal["description_source"], "generated")
 
     def test_linz_parser_uses_current_cards_and_rich_detail_copy(self):
         listing_html = """

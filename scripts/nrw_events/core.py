@@ -1255,6 +1255,30 @@ def factual_event_description(
     return GeneratedDescription(concise_description(description))
 
 
+def keep_only_event_master_data(event: RawEvent) -> RawEvent:
+    """Replace publisher prose with a sentence generated only from event facts.
+
+    This is for discovery platforms and directories whose descriptive copy must
+    not be republished. Classification, admission and status extraction happen
+    before this helper is called; the public description then contains only the
+    allowed title, date, time and place fields already present on the record.
+    """
+    start = parse_iso_date(event.get("start_date") or event.get("date") or "")
+    end = parse_iso_date(event.get("end_date") or "")
+    description = factual_event_description(
+        event.get("title", ""),
+        date_value=start,
+        end_date_value=end,
+        time_text=event.get("time", ""),
+        venue=event.get("venue", ""),
+        city=event.get("city", ""),
+    )
+    event["description"] = description
+    event["description_html"] = richtext.from_plain_text(description)
+    event["description_source"] = "generated"
+    return event
+
+
 _CANCELLED_STATUS_WORDS = (
     r"abgesagt(?:\s+(?:werden|wird|wurde))?|entfällt|entfaellt|"
     r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|"

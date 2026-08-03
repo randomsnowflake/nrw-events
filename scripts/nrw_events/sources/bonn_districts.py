@@ -263,36 +263,6 @@ def _beuel_city(venue: str) -> str:
     return common.refine_city_from_text("Bonn-Beuel", venue)
 
 
-def _beuel_description(card: dict, title: str, date_text: str, venue: str) -> str:
-    ignored = {title.casefold(), date_text.casefold(), venue.casefold(), "externer link:"}
-    parts = []
-    for text in card["texts"]:
-        normalized = text.casefold()
-        normalized_label = normalized.strip(" |")
-        if normalized in ignored or normalized_label in {"externer link", "externer link:"}:
-            continue
-        if re.fullmatch(r"(?:heute|in \d+ tagen?)", normalized_label):
-            continue
-        if re.search(r"\b\d{1,2}\.\d{1,2}\.", normalized_label):
-            continue
-        if venue and venue.casefold() in normalized_label:
-            continue
-        if normalized.startswith(("beuel.net/", "www.")) or re.fullmatch(r"[\w.-]+\.[a-z]{2,}/?…?", normalized):
-            continue
-        if text not in parts:
-            parts.append(text)
-    description = common.concise_description(" ".join(parts))
-    if re.fullmatch(
-        r"(?:große\s+)?(?:evangelische\s+|katholische\s+)?(?:kirche|halle|rathaus|stadion|platz|straße|str\.?|rheinufer).{0,50}",
-        description,
-        re.IGNORECASE,
-    ):
-        return ""
-    if re.fullmatch(r"ticket(?:/einladung)? erforderlich", description, re.IGNORECASE):
-        return ""
-    return description
-
-
 def events_from_beuel_html(html: str) -> list:
     parser = _BeuelParser()
     parser.feed(html or "")
@@ -313,11 +283,12 @@ def events_from_beuel_html(html: str) -> list:
         if is_beuel_rathaus_market:
             title = "Floh- und Trödelmarkt Beueler Rathausplatz"
             venue = "Beueler Rathausplatz (Möhneplatz)"
-        description = _beuel_description(card, title, date_text, venue)
-        if not description:
-            description = common.factual_event_description(
-                title, date_value=start, time_text=time_text, venue=venue, city=_beuel_city(venue)
-            )
+        # Beuel.net is discovery-only. Never carry its editorial card copy into
+        # the event record; fetch_beuel confirms the linked primary page below.
+        description = common.factual_event_description(
+            title, date_value=start, end_date_value=end, time_text=time_text,
+            venue=venue, city=_beuel_city(venue),
+        )
         event = common.make_event(
             title, start, end, venue, _beuel_city(venue), description,
             links[-1] if links else BEUEL_URL, "Beuel.net",
@@ -330,12 +301,44 @@ def events_from_beuel_html(html: str) -> list:
             all_day=not bool(time_text),
         )
         if event:
-            events.append(event)
+            events.append(common.keep_only_event_master_data(event))
     return regional_common.dedupe(events)
 
 
+def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
+    """Keep discovery records only when their linked first-party page is readable."""
+    confirmed = []
+    for event in events:
+        link = event.get("link", "")
+        hostname = (urllib.parse.urlsplit(link).hostname or "").casefold()
+        source = hostname.removeprefix("www.")
+        if not source or source in {"beuel.net", "www.beuel.net"}:
+            continue
+        try:
+            primary_html = primary_fetcher(link)
+            if not str(primary_html or "").strip():
+                raise regional_common.ParserEmptyError("primary event page returned no content")
+        except Exception as exc:
+            common.log_source_error(
+                f"Beuel.net primary ({source})", exc, source_id="beuel-net",
+            )
+            continue
+        event["source"] = source
+        event["source_id"] = "beuel-net"
+        confirmed.append(common.keep_only_event_master_data(event))
+    return confirmed
+
+
 def fetch_beuel() -> list:
-    return regional_common.fetch_html_events("Beuel.net", BEUEL_URL, events_from_beuel_html, source_id="beuel-net")
+    discovered = regional_common.fetch_html_events(
+        "Beuel.net", BEUEL_URL, events_from_beuel_html, source_id="beuel-net",
+    )
+    return _confirm_beuel_primary_sources(
+        discovered,
+        primary_fetcher=lambda url: common.fetch_detail_url(
+            url, cache_namespace="beuel-primary", timeout=20,
+        ),
+    )
 
 
 class _BadGodesbergCalendarParser(HTMLParser):

@@ -176,6 +176,13 @@ class MarktcomSourceTests(unittest.TestCase):
             with self.subTest(title=event["title"]):
                 self.assertNotIn("Beschreibung des Marktes", event["title"])
 
+    def test_directory_copy_is_reduced_to_master_data(self):
+        event = next(e for e in self._events() if e["city"] == "Köln")
+
+        self.assertNotIn("Beschreibung des Marktes", event["description"])
+        self.assertEqual(event["description_source"], "generated")
+        self.assertEqual(event["organizer"], "Trödelfabrik Köln")
+
     def test_free_by_nature_market_format_marks_venue_named_event_free(self):
         html = _listing(_event_block(
             "troedelfabrik-bonn-siemensstr-25-in-53121-bonn",

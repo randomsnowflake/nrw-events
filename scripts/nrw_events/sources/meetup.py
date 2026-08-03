@@ -23,6 +23,7 @@ def fetch() -> list:
             )
             for event in group_events:
                 event["source_id"] = source_id
+                common.keep_only_event_master_data(event)
             events.extend(group_events)
         except Exception as e:
             common.log_source_error(f"Meetup ({slug})", e, source_id=source_id)
