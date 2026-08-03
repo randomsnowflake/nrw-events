@@ -64,6 +64,8 @@ class BrueserBergSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["link"], "https://files.example.test/figuren.pdf")
         self.assertEqual(events[1]["link"], bonn_districts.BRUESER_BERG_URL)
         self.assertTrue(all(event["description"] for event in events))
+        self.assertTrue(all(event["source_id"] == "veranstaltungen-brueser-berg" for event in events))
+        self.assertTrue(all(event["score"] >= 0.4 for event in events))
 
     def test_fetch_discovers_the_public_supabase_read_endpoint(self):
         page = '<script type="module" src="/assets/index-AbCd1234.js"></script>'

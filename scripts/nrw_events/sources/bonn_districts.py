@@ -102,8 +102,9 @@ def events_from_brueser_berg_json(raw: str) -> list:
         event = common.make_event(
             title, start, None, venue, "Bonn-Brüser Berg", description,
             _brueser_berg_link(row), _BRUESER_BERG_SOURCE,
-            "stadtteil nachbarschaft kultur familie bildung beratung spiele workshop",
+            "stadtteil nachbarschaft kultur bildung beratung spiele workshop",
             0.8, time_text=time_text, all_day=not bool(time_text),
+            source_id=_BRUESER_BERG_SOURCE_ID,
         )
         if event:
             events.append(event)
