@@ -1,4 +1,5 @@
 import importlib
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -14,6 +15,7 @@ class ModuleBoundaryTests(unittest.TestCase):
     def test_common_compatibility_import_has_one_canonical_module_identity(self):
         self.assertIs(importlib.import_module("nrw_events.common"), common)
         self.assertEqual(common.__name__, "nrw_events.core")
+        self.assertNotIn("scripts.nrw_events", sys.modules)
 
     def test_common_facade_reexports_stable_location_and_scoring_helpers(self):
         self.assertIs(common.haversine, location.haversine)
