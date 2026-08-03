@@ -398,8 +398,10 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_SERIES_LEDGER_JSON` | State-Verzeichnis/`series-ledger.json` | Dauerhafte Occurrence-Historie für Serien, Runs und Saisonalität. |
 | `NRW_EVENTS_CATEGORY_FALLBACK_CACHE` | nicht gesetzt | Optionaler geprüfter Cache für unklare Serien (`source_id` + normalisierter Titel). Es erfolgt kein LLM- oder Netzwerkaufruf. |
 | `OPENAI_API_KEY` | nicht gesetzt | OpenAI-Projektschlüssel für die zweistufige Faktenextraktion und neutrale Zusammenfassung der rechtlich eingeschränkten Quellen. Ohne Schlüssel bleiben deren Beschreibungen leer. |
+| `OPENROUTER_API_KEY` | nicht gesetzt | OpenRouter-Schlüssel, wenn `NRW_EVENTS_AI_PROVIDER=openrouter` gewählt ist. Anfragen erzwingen ZDR, schließen sammelnde Provider aus und verwenden nur Endpunkte mit Structured Outputs. |
+| `NRW_EVENTS_AI_PROVIDER` | `openai` | `openai` nutzt die Responses API; `openrouter` nutzt Chat Completions mit providergetrenntem Cache. |
 | `NRW_EVENTS_AI_ENRICHMENT` | `1` | Aktiviert die AI-Verarbeitung ausschließlich für `bonn-de-events`, `bonn-de-sports`, `marktcom` und `radio-bonn-rhein-sieg`. Die Quellprosa wird unabhängig davon nie veröffentlicht. |
-| `NRW_EVENTS_AI_MODEL` | `gpt-5.6-luna` | Modell für beide getrennten Responses-API-Aufrufe. |
+| `NRW_EVENTS_AI_MODEL` | providerabhängig | Standardmäßig `gpt-5.6-luna` für OpenAI und `deepseek/deepseek-v4-flash-0731` für OpenRouter. Beide Stufen verwenden dasselbe Modell. |
 | `NRW_EVENTS_AI_CACHE_DB` | Cache-Verzeichnis/`ai-enrichment.sqlite3` | Persistente SQLite-Datenbank. Für Dokploy auf ein dauerhaftes Volume legen; standardmäßig wird `NRW_EVENTS_CACHE_DIR` verwendet. |
 | `NRW_EVENTS_AI_MAX_ATTEMPTS` | `2` | Höchstens zwei Versuche je AI-Stufe und Fehlerfenster. Eine erfolgreiche erste Stufe wird auch bei Fehlern der zweiten wiederverwendet. |
 | `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS` | `24` | Sperrzeit nach ausgeschöpften Versuchen; danach darf derselbe Inhalt erneut versucht werden. |

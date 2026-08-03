@@ -1,9 +1,12 @@
 import json
+from contextlib import closing
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 
 from nrw_events import ai_enrichment
 
@@ -101,6 +104,32 @@ class FakeClient:
         return reply, ai_enrichment.Usage(input_tokens=100, cached_input_tokens=10, output_tokens=50)
 
 
+class FakeHTTPResponse:
+    def __init__(self, document):
+        self.payload = json.dumps(document).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self):
+        return self.payload
+
+
+class RecordingOpener:
+    def __init__(self, document):
+        self.document = document
+        self.request = None
+        self.timeout = None
+
+    def __call__(self, request, *, timeout):
+        self.request = request
+        self.timeout = timeout
+        return FakeHTTPResponse(self.document)
+
+
 class AIEnrichmentTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="nrw-ai-test-")
@@ -120,6 +149,57 @@ class AIEnrichmentTests(unittest.TestCase):
         source = event(source_id="trusted-source")
         result = ai_enrichment.enrich_event(source, settings=self.settings, client=FakeClient([]))
         self.assertEqual(source, result)
+
+    def test_openrouter_settings_use_their_own_key_and_default_model(self):
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "NRW_EVENTS_AI_PROVIDER": "openrouter",
+                "OPENROUTER_API_KEY": "router-test-key",
+            },
+            clear=True,
+        ):
+            settings = ai_enrichment.settings_from_env()
+
+        self.assertEqual("openrouter", settings.provider)
+        self.assertEqual("router-test-key", settings.api_key)
+        self.assertEqual("deepseek/deepseek-v4-flash-0731", settings.model)
+
+    def test_openrouter_client_enforces_structured_zdr_non_reasoning_requests(self):
+        opener = RecordingOpener({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(FACTS)},
+            }],
+            "usage": {
+                "prompt_tokens": 120,
+                "completion_tokens": 80,
+                "cost": 0.000025,
+                "prompt_tokens_details": {"cached_tokens": 20},
+            },
+        })
+        settings = replace(
+            self.settings,
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+        )
+        parsed, usage = ai_enrichment.OpenRouterClient(settings, opener=opener).structured(
+            stage="facts",
+            system="Extract facts.",
+            payload={"source_material": "Private source copy."},
+            schema=ai_enrichment._FACT_SCHEMA,
+            attempt=1,
+        )
+        body = json.loads(opener.request.data)
+
+        self.assertEqual(FACTS, parsed)
+        self.assertEqual({"effort": "none"}, body["reasoning"])
+        self.assertEqual(
+            {"require_parameters": True, "data_collection": "deny", "zdr": True, "sort": "price"},
+            body["provider"],
+        )
+        self.assertTrue(body["response_format"]["json_schema"]["strict"])
+        self.assertEqual(ai_enrichment.Usage(120, 20, 80, 0.000025), usage)
 
     def test_disabled_or_missing_key_never_falls_back_to_source_copy(self):
         source = event()
@@ -152,6 +232,29 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("concert", first["category_key"])
         self.assertEqual("Bonner Klangräume", first["series_title"])
 
+    def test_cache_is_separate_per_provider(self):
+        ai_enrichment.enrich_event(
+            event(), settings=self.settings, client=FakeClient([FACTS, SUMMARY]), now=self.now,
+        )
+        router_client = FakeClient([FACTS, SUMMARY])
+        router_settings = replace(self.settings, provider="openrouter")
+        result = ai_enrichment.enrich_event(
+            event(), settings=router_settings, client=router_client, now=self.now,
+        )
+
+        self.assertEqual(2, len(router_client.calls))
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+        with closing(sqlite3.connect(self.settings.cache_db)) as connection:
+            versions = {
+                row[0] for row in connection.execute(
+                    "SELECT pipeline_version FROM ai_event_enrichment"
+                )
+            }
+        self.assertEqual({
+            f"{ai_enrichment.PIPELINE_VERSION}:gpt-5.6-luna",
+            f"{ai_enrichment.OPENROUTER_PIPELINE_VERSION}:openrouter:gpt-5.6-luna",
+        }, versions)
+
     def test_changed_source_content_gets_a_new_cache_version(self):
         first = FakeClient([FACTS, SUMMARY])
         ai_enrichment.enrich_event(event(), settings=self.settings, client=first, now=self.now)
@@ -160,7 +263,7 @@ class AIEnrichmentTests(unittest.TestCase):
         ai_enrichment.enrich_event(changed, settings=self.settings, client=second, now=self.now)
         self.assertEqual(2, len(second.calls))
 
-        with sqlite3.connect(self.settings.cache_db) as connection:
+        with closing(sqlite3.connect(self.settings.cache_db)) as connection:
             self.assertEqual(2, connection.execute("SELECT COUNT(*) FROM ai_event_enrichment").fetchone()[0])
 
     def test_successful_extraction_is_kept_when_summary_stage_fails(self):
@@ -213,6 +316,39 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertNotIn("Weitere Angaben", result["ai_summary"])
         self.assertEqual(2, len(client.calls))
 
+    def test_recommendation_language_is_rejected_with_feedback_on_retry(self):
+        promotional = {
+            **SUMMARY,
+            "ai_summary": (
+                "Wer Musik mag, sollte sich diesen stimmungsvollen Abend unbedingt vormerken. "
+                "Das Konzert bietet eine gute Gelegenheit für ein entspanntes Erlebnis. " * 3
+            ),
+        }
+        client = FakeClient([FACTS, promotional, SUMMARY])
+        result = ai_enrichment.enrich_event(
+            event(), settings=self.settings, client=client, now=self.now,
+        )
+
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+        self.assertIn("retry_instruction", client.calls[2]["payload"])
+
+    def test_varied_missing_detail_sentences_are_removed_before_quality_check(self):
+        padded = {
+            **SUMMARY,
+            "ai_summary": (
+                "Das Training beginnt um 19:30 Uhr und dauert 90 Minuten. "
+                "Nähere Details zum Treffpunkt sind nicht bekannt. "
+                "Die übrigen Informationen werden direkt vom Verein kommuniziert."
+            ),
+        }
+        client = FakeClient([FACTS, padded])
+        result = ai_enrichment.enrich_event(
+            event(), settings=self.settings, client=client, now=self.now,
+        )
+
+        self.assertEqual("Das Training beginnt um 19:30 Uhr und dauert 90 Minuten.", result["ai_summary"])
+        self.assertEqual(2, len(client.calls))
+
     def test_explicit_and_locked_fields_are_not_overwritten(self):
         source = event(
             time="20:00", identity_time_locked=True,
@@ -235,13 +371,28 @@ class AIEnrichmentTests(unittest.TestCase):
         facts = {**FACTS, "is_concrete_event": False, "event_evidence": None}
         client = FakeClient([facts])
         result = ai_enrichment.enrich_event(
-            event(description="Das Geschäft ist jeden Montag von 10 bis 18 Uhr geöffnet."),
+            event(
+                source="marktcom",
+                source_id="marktcom",
+                description="Das Geschäft ist jeden Montag von 10 bis 18 Uhr geöffnet.",
+            ),
             settings=self.settings,
             client=client,
             now=self.now,
         )
         self.assertEqual(["facts"], [call["stage"] for call in client.calls])
         self.assertEqual("", result["ai_summary"])
+
+    def test_explicit_non_marktcom_calendar_occurrence_overrides_false_non_event(self):
+        facts = {**FACTS, "is_concrete_event": False, "event_evidence": None}
+        client = FakeClient([facts, SUMMARY])
+        result = ai_enrichment.enrich_event(
+            event(), settings=self.settings, client=client, now=self.now,
+        )
+
+        self.assertEqual(["facts", "summary"], [call["stage"] for call in client.calls])
+        self.assertTrue(client.calls[1]["payload"]["facts"]["is_concrete_event"])
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
 
 
 if __name__ == "__main__":

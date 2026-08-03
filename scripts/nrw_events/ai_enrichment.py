@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 import re
 import sqlite3
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, Callable, Iterator, Mapping, Protocol
 import urllib.error
 import urllib.request
 
@@ -34,8 +34,11 @@ TARGET_SOURCE_IDS = frozenset({
     "radio-bonn-rhein-sieg",
 })
 PIPELINE_VERSION = "event-facts-summary-v5"
+OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v6"
 DEFAULT_MODEL = "gpt-5.6-luna"
-_API_URL = "https://api.openai.com/v1/responses"
+DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash-0731"
+_OPENAI_API_URL = "https://api.openai.com/v1/responses"
+_OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 _CATEGORY_KEYS = tuple(category["key"] for category in category_taxonomy.CATEGORIES)
 
 
@@ -49,6 +52,7 @@ class AISettings:
     api_key: str
     model: str
     cache_db: Path
+    provider: str = "openai"
     max_attempts: int = 2
     negative_cache_hours: float = 24.0
     timeout_seconds: float = 90.0
@@ -60,6 +64,19 @@ class Usage:
     input_tokens: int = 0
     cached_input_tokens: int = 0
     output_tokens: int = 0
+    cost_usd: float = 0.0
+
+
+class StructuredClient(Protocol):
+    def structured(
+        self,
+        *,
+        stage: str,
+        system: str,
+        payload: Mapping[str, Any],
+        schema: dict[str, Any],
+        attempt: int,
+    ) -> tuple[dict[str, Any], Usage]: ...
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -95,11 +112,17 @@ def settings_from_env() -> AISettings:
         raise ValueError("NRW_EVENTS_AI_TIMEOUT_SECONDS must be between 5 and 300")
     if not 0 <= max_events <= 100_000:
         raise ValueError("NRW_EVENTS_AI_MAX_EVENTS must be between 0 and 100000")
+    provider = os.environ.get("NRW_EVENTS_AI_PROVIDER", "openai").strip().casefold()
+    if provider not in {"openai", "openrouter"}:
+        raise ValueError("NRW_EVENTS_AI_PROVIDER must be openai or openrouter")
+    default_model = DEFAULT_OPENROUTER_MODEL if provider == "openrouter" else DEFAULT_MODEL
+    key_name = "OPENROUTER_API_KEY" if provider == "openrouter" else "OPENAI_API_KEY"
     return AISettings(
         enabled=_env_bool("NRW_EVENTS_AI_ENRICHMENT", True),
-        api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
-        model=os.environ.get("NRW_EVENTS_AI_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL,
+        api_key=os.environ.get(key_name, "").strip(),
+        model=os.environ.get("NRW_EVENTS_AI_MODEL", default_model).strip() or default_model,
         cache_db=cache_db,
+        provider=provider,
         max_attempts=max_attempts,
         negative_cache_hours=negative_hours,
         timeout_seconds=timeout,
@@ -265,6 +288,9 @@ Normalerweise sind 120 bis 250 Wörter angemessen. Bei wenigen Fakten deutlich k
 Nenne Datum, Uhrzeit und Ort nicht mechanisch doppelt. Erkläre Inhalt, Ablauf und relevante praktische Hinweise.
 Erwähne niemals, welche Angaben fehlen oder nicht vorliegen. Verändere Satzbau und Wortwahl gegenüber den
 Fakten deutlich, ohne Namen, Zahlen oder Fachbegriffe zu verfälschen.
+Sprich die Lesenden nicht direkt an. Vermeide insbesondere du, ihr, euch, man sollte, lädt ein, lockt,
+Gelegenheit, Erlebnis, Paradies, Geheimtipp, vormerken und jede Empfehlung. Verweise nie auf die Quelle,
+eine Website für weitere Informationen oder darauf, dass Veranstalter später noch Details mitteilen.
 Das Objekt field_policy nennt gesperrte vorhandene Werte. Widersprich ihnen weder im Text noch in Attributen;
 lasse einen Konflikt vollständig weg. Gesperrte Werte sind keine Schreibfakten: Verwende sie im Text nur, wenn
 dieselbe Angabe auch in facts steht. Preis meint ausschließlich den Eintritt für Besucher, niemals Standgebühren,
@@ -311,7 +337,7 @@ class ResponsesClient:
             },
         }
         request = urllib.request.Request(
-            _API_URL,
+            _OPENAI_API_URL,
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {self.settings.api_key}",
@@ -360,6 +386,101 @@ class ResponsesClient:
         )
 
 
+class OpenRouterClient:
+    """OpenRouter Chat Completions client with strict JSON and ZDR routing."""
+
+    def __init__(
+        self,
+        settings: AISettings,
+        opener: Callable[..., Any] = urllib.request.urlopen,
+    ) -> None:
+        self.settings = settings
+        self._opener = opener
+
+    def structured(self, *, stage: str, system: str, payload: Mapping[str, Any], schema: dict[str, Any], attempt: int) -> tuple[dict[str, Any], Usage]:
+        body = {
+            "model": self.settings.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"attempt": attempt, "event": payload},
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                },
+            ],
+            "max_tokens": 5000 if stage == "facts" else 3000,
+            # Extraction and rewriting do not benefit enough from hidden
+            # reasoning to justify billed output tokens.
+            "reasoning": {"effort": "none"},
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": f"nrw_event_{stage}",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+            "provider": {
+                "require_parameters": True,
+                "data_collection": "deny",
+                "zdr": True,
+                "sort": "price",
+            },
+        }
+        request = urllib.request.Request(
+            _OPENROUTER_API_URL,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.settings.api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://veranstaltungen-bonn.de",
+                "X-OpenRouter-Title": "nrw-events",
+                "User-Agent": "nrw-events-ai-enrichment/1",
+            },
+            method="POST",
+        )
+        try:
+            with self._opener(request, timeout=self.settings.timeout_seconds) as response:
+                raw = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            raise AIEnrichmentError(f"OpenRouter HTTP {exc.code}") from exc
+        except (OSError, TimeoutError, urllib.error.URLError) as exc:
+            raise AIEnrichmentError(f"OpenRouter request failed: {type(exc).__name__}") from exc
+        try:
+            document = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise AIEnrichmentError("OpenRouter returned invalid JSON") from exc
+        if document.get("error"):
+            error = document["error"] if isinstance(document["error"], dict) else {}
+            raise AIEnrichmentError(f"OpenRouter error: {str(error.get('message') or 'unknown')[:300]}")
+        choices = document.get("choices") or []
+        if not choices or not isinstance(choices[0], dict):
+            raise AIEnrichmentError("OpenRouter response contained no choice")
+        if choices[0].get("finish_reason") != "stop":
+            raise AIEnrichmentError(f"OpenRouter response incomplete: {choices[0].get('finish_reason')}")
+        message = choices[0].get("message") or {}
+        output_text = message.get("content") if isinstance(message, dict) else ""
+        if not isinstance(output_text, str) or not output_text:
+            raise AIEnrichmentError("OpenRouter response contained no output text")
+        try:
+            parsed = json.loads(output_text)
+        except json.JSONDecodeError as exc:
+            raise AIEnrichmentError("OpenRouter structured output was not JSON") from exc
+        if not isinstance(parsed, dict):
+            raise AIEnrichmentError("OpenRouter structured output was not an object")
+        usage = document.get("usage") or {}
+        input_details = usage.get("prompt_tokens_details") or {}
+        return parsed, Usage(
+            input_tokens=int(usage.get("prompt_tokens") or 0),
+            cached_input_tokens=int(input_details.get("cached_tokens") or 0),
+            output_tokens=int(usage.get("completion_tokens") or 0),
+            cost_usd=float(usage.get("cost") or 0),
+        )
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -403,12 +524,20 @@ def _locked_database(path: Path) -> Iterator[sqlite3.Connection]:
                     input_tokens INTEGER NOT NULL DEFAULT 0,
                     cached_input_tokens INTEGER NOT NULL DEFAULT 0,
                     output_tokens INTEGER NOT NULL DEFAULT 0,
+                    cost_usd REAL NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY (event_key, input_hash, pipeline_version)
                 )
                 """
             )
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(ai_event_enrichment)")
+            }
+            if "cost_usd" not in columns:
+                connection.execute(
+                    "ALTER TABLE ai_event_enrichment ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0"
+                )
             connection.commit()
             yield connection
         finally:
@@ -416,16 +545,23 @@ def _locked_database(path: Path) -> Iterator[sqlite3.Connection]:
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
 
 
-def _ensure_row(connection: sqlite3.Connection, *, event_key: str, digest: str, source_id: str, model: str, now: datetime) -> sqlite3.Row:
+def cache_pipeline_version(settings: AISettings) -> str:
+    """Keep existing OpenAI cache keys stable while isolating other providers."""
+    if settings.provider == "openai":
+        return f"{PIPELINE_VERSION}:{settings.model}"
+    return f"{OPENROUTER_PIPELINE_VERSION}:{settings.provider}:{settings.model}"
+
+
+def _ensure_row(connection: sqlite3.Connection, *, event_key: str, digest: str, source_id: str, settings: AISettings, now: datetime) -> sqlite3.Row:
     stamp = _timestamp(now)
-    pipeline_version = f"{PIPELINE_VERSION}:{model}"
+    pipeline_version = cache_pipeline_version(settings)
     connection.execute(
         """
         INSERT OR IGNORE INTO ai_event_enrichment
             (event_key, input_hash, pipeline_version, source_id, model, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (event_key, digest, pipeline_version, source_id, model, stamp, stamp),
+        (event_key, digest, pipeline_version, source_id, settings.model, stamp, stamp),
     )
     connection.commit()
     row = connection.execute(
@@ -445,12 +581,14 @@ def _record_success(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: 
         f"""UPDATE ai_event_enrichment SET {field} = ?, {attempts} = {attempts} + 1,
             negative_until = '', last_error = '', input_tokens = input_tokens + ?,
             cached_input_tokens = cached_input_tokens + ?, output_tokens = output_tokens + ?,
+            cost_usd = cost_usd + ?,
             updated_at = ? WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
         (
             json.dumps(payload, ensure_ascii=False, sort_keys=True),
             usage.input_tokens,
             usage.cached_input_tokens,
             usage.output_tokens,
+            usage.cost_usd,
             _timestamp(now), row["event_key"], row["input_hash"], row["pipeline_version"],
         ),
     )
@@ -468,10 +606,11 @@ def _record_failure(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: 
         f"""UPDATE ai_event_enrichment SET {attempts} = {attempts} + 1,
             negative_until = ?, last_error = ?, input_tokens = input_tokens + ?,
             cached_input_tokens = cached_input_tokens + ?, output_tokens = output_tokens + ?,
+            cost_usd = cost_usd + ?,
             updated_at = ? WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
         (
             negative_until, str(error)[:500], usage.input_tokens, usage.cached_input_tokens,
-            usage.output_tokens, _timestamp(now), row["event_key"], row["input_hash"],
+            usage.output_tokens, usage.cost_usd, _timestamp(now), row["event_key"], row["input_hash"],
             row["pipeline_version"],
         ),
     )
@@ -503,12 +642,26 @@ def _reset_expired_failure_window(connection: sqlite3.Connection, row: sqlite3.R
 _MARKETING_PATTERN = re.compile(
     r"\b(?:freuen\s+sie\s+sich|lassen\s+sie\s+sich|erleben\s+sie|entdecken\s+sie|"
     r"tauchen\s+sie|sichern\s+sie\s+sich|jetzt\s+(?:buchen|tickets)|unvergesslich|"
-    r"einzigartig|spektakulär|atemberaubend|hochkarätig|darf\s+man\s+nicht\s+verpassen)\b",
+    r"einzigartig|spektakulär|atemberaubend|hochkarätig|darf\s+man\s+nicht\s+verpassen|"
+    r"lädt\b[^.!?]{0,100}\bein|lockt|paradies|besonder(?:e[snr]?|er)\s+erlebnis|"
+    r"(?:gute|schöne|ideale|entspannte)\s+gelegenheit|bietet\s+sich\b|"
+    r"wer\b[^.!?]{0,100}\b(?:mag|möchte|lust\s+hat)|\b(?:du|ihr|euch|dein(?:e[rmns]?)?)\b|"
+    r"\bsollte(?:st|n)?\b|könnte\b[^.!?]{0,100}\bfündig|vormerken|freihalten|"
+    r"wermutstropfen|intime\s+atmosphäre|stimmungsvoll|ausgelassene?\s+(?:stimmung|fest)|"
+    r"gemütlich(?:e[snr]?)?|entspannt(?:e[snr]?)?|schnäppchen)\b",
     re.IGNORECASE,
 )
 _MISSING_INFO_PATTERN = re.compile(
     r"\b(?:weitere|genauere)\s+angaben\b[^.!?]{0,140}\b(?:nicht\s+vor|fehlen)\b"
-    r"|\b(?:ein|der)\s+(?:genauer\s+)?veranstaltungsort\s+ist\s+nicht\s+angegeben\b",
+    r"|\b(?:weitere|nähere|genauere|aktuelle|übrige[nsr]?)?\s*(?:details|informationen|angaben)\b"
+    r"[^.!?]{0,160}\b(?:nicht\s+(?:bekannt|angegeben|ausgewiesen|enthalten|genannt|vorhanden|vor)|"
+    r"direkt\s+(?:vom|beim)|in\s+der\s+quelle)\b"
+    r"|\b(?:ein|der)\s+(?:genauer\s+)?veranstaltungsort\s+ist\s+nicht\s+angegeben\b"
+    r"|\b(?:genauer?|konkreter?)\s+(?:ort|treffpunkt|ablauf|öffnungszeiten?)\b"
+    r"[^.!?]{0,120}\b(?:nicht\s+(?:bekannt|angegeben|bezeichnet|genannt)|fehlt|fehlen)\b"
+    r"|\b(?:liegt|liegen|ist|sind|wurde|wurden)\b[^.!?]{0,80}\b"
+    r"nicht\s+(?:bekannt|angegeben|ausgewiesen|enthalten|genannt|bezeichnet|vorhanden)\b"
+    r"|\b(?:informiere|informiert|informieren)\b[^.!?]{0,100}\b(?:vorab|direkt|veranstalter|verein)\b",
     re.IGNORECASE,
 )
 _VENDOR_FEE_PATTERN = re.compile(
@@ -657,11 +810,24 @@ def _apply_result(event: RawEvent, result: Mapping[str, Any]) -> RawEvent:
     return strip_restricted_copy(enriched)
 
 
+def _calendar_occurrence_overrides_non_event(
+    facts: Mapping[str, Any],
+    original: Mapping[str, Any],
+    source_id: str,
+) -> bool:
+    """Keep explicit calendar occurrences; only marktcom contains shop listings."""
+    return (
+        facts.get("is_concrete_event") is False
+        and source_id != "marktcom"
+        and bool(original.get("start_date") or original.get("date"))
+    )
+
+
 def enrich_event(
     event: RawEvent,
     *,
     settings: AISettings | None = None,
-    client: ResponsesClient | None = None,
+    client: StructuredClient | None = None,
     now: datetime | None = None,
 ) -> RawEvent:
     """Enrich one target event, using a forever cache keyed by content/version."""
@@ -680,23 +846,21 @@ def enrich_event(
     digest = _input_hash(payload)
     key = event_id(original)
     source_id = normalize_source_id(original.get("source_id") or original.get("source"))
-    api = client or ResponsesClient(configured)
+    api = client or (
+        OpenRouterClient(configured)
+        if configured.provider == "openrouter"
+        else ResponsesClient(configured)
+    )
 
     with _locked_database(configured.cache_db) as connection:
         row = _ensure_row(
             connection, event_key=key, digest=digest, source_id=source_id,
-            model=configured.model, now=current_time,
+            settings=configured, now=current_time,
         )
         row = _reset_expired_failure_window(connection, row, current_time)
         negative_until = _parse_timestamp(row["negative_until"])
         if negative_until and negative_until > current_time:
             return event
-        if row["stage2_json"]:
-            try:
-                return _apply_result(event, json.loads(row["stage2_json"]))
-            except (TypeError, ValueError, json.JSONDecodeError):
-                return event
-
         facts: dict[str, Any] | None = None
         if row["stage1_json"]:
             try:
@@ -704,6 +868,39 @@ def enrich_event(
                 facts = cached_facts if isinstance(cached_facts, dict) else None
             except json.JSONDecodeError:
                 facts = None
+        if row["stage2_json"]:
+            try:
+                cached_result = json.loads(row["stage2_json"])
+            except json.JSONDecodeError:
+                return event
+            if not isinstance(cached_result, dict):
+                return event
+            if (
+                facts is not None
+                and _calendar_occurrence_overrides_non_event(facts, original, source_id)
+                and not cached_result.get("ai_summary")
+            ):
+                connection.execute(
+                    """UPDATE ai_event_enrichment
+                       SET stage2_json = '', stage2_attempts = 0,
+                           negative_until = '', last_error = '', updated_at = ?
+                       WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+                    (
+                        _timestamp(current_time), row["event_key"], row["input_hash"],
+                        row["pipeline_version"],
+                    ),
+                )
+                connection.commit()
+                row = connection.execute(
+                    """SELECT * FROM ai_event_enrichment
+                       WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+                    (row["event_key"], row["input_hash"], row["pipeline_version"]),
+                ).fetchone()
+            else:
+                try:
+                    return _apply_result(event, cached_result)
+                except (TypeError, ValueError):
+                    return event
         while facts is None and row["stage1_attempts"] < configured.max_attempts:
             usage = Usage()
             try:
@@ -721,6 +918,17 @@ def enrich_event(
                 )
         if facts is None:
             return event
+        if _calendar_occurrence_overrides_non_event(facts, original, source_id):
+            facts = {
+                **facts,
+                "is_concrete_event": True,
+                "event_evidence": (
+                    "Der kanonische Kalenderdatensatz enthält einen konkreten Termin."
+                ),
+                "start_date": facts.get("start_date") or payload["start_date"] or None,
+                "end_date": facts.get("end_date") or payload["end_date"] or None,
+                "time": facts.get("time") or payload["time"] or None,
+            }
 
         stage2_payload = {
             "facts": facts,
@@ -770,11 +978,18 @@ def enrich_event(
             non_event["ai_summary"] = ""
             _record_success(connection, row, stage=2, payload=non_event, usage=Usage(), now=current_time)
             return event
+        quality_feedback = ""
         while row["stage2_attempts"] < configured.max_attempts:
             usage = Usage()
             try:
+                request_payload = dict(stage2_payload)
+                if quality_feedback:
+                    request_payload["retry_instruction"] = (
+                        "Der vorige Text wurde von der lokalen Qualitätsprüfung abgelehnt: "
+                        f"{quality_feedback}. Schreibe vollständig neu und vermeide diesen Fehler."
+                    )
                 result, usage = api.structured(
-                    stage="summary", system=_SUMMARY_PROMPT, payload=stage2_payload,
+                    stage="summary", system=_SUMMARY_PROMPT, payload=request_payload,
                     schema=_SUMMARY_SCHEMA, attempt=row["stage2_attempts"] + 1,
                 )
                 result = _clean_summary_result(
@@ -783,6 +998,7 @@ def enrich_event(
                 )
                 quality_error = _summary_quality(result.get("ai_summary"), source_material, facts)
                 if quality_error:
+                    quality_feedback = quality_error
                     raise AIEnrichmentError(quality_error)
                 row = _record_success(connection, row, stage=2, payload=result, usage=usage, now=current_time)
                 return _apply_result(event, result)

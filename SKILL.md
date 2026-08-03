@@ -68,9 +68,14 @@ JSON event list plus metadata defaulting to the user's XDG state directory
 (`~/.local/state/nrw-events` when `XDG_STATE_HOME` is unset).
 
 For the restricted sources Bonn.de Events/Sports, marktcom and Radio
-Bonn/Rhein-Sieg, source prose is never published. With `OPENAI_API_KEY` and
-`NRW_EVENTS_AI_ENRICHMENT=1`, two separate `gpt-5.6-luna` Responses API calls
-extract facts and then write `ai_summary`; otherwise the summary stays empty.
+Bonn/Rhein-Sieg, source prose is never published. By default,
+`OPENAI_API_KEY` and `NRW_EVENTS_AI_ENRICHMENT=1` run two separate
+`gpt-5.6-luna` Responses API calls that extract facts and then write
+`ai_summary`; without the selected provider's key the summary stays empty.
+For model comparisons, `NRW_EVENTS_AI_PROVIDER=openrouter` uses
+`OPENROUTER_API_KEY`, strict structured Chat Completions, zero-data-retention
+routing, and a provider-specific cache namespace. Its default model is
+`deepseek/deepseek-v4-flash-0731` with reasoning disabled.
 The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 `NRW_EVENTS_CACHE_DIR`, `NRW_EVENTS_AI_MAX_ATTEMPTS`,
 `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS`, `NRW_EVENTS_AI_TIMEOUT_SECONDS`,

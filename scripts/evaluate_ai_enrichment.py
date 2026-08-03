@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from contextlib import closing
 from dataclasses import replace
 from hashlib import sha256
 import json
@@ -77,46 +78,80 @@ def select_pilot(events: list[dict[str, Any]], limit: int) -> list[dict[str, Any
     return selected[:limit]
 
 
-def _usage(path: Path) -> tuple[int, int, int]:
+def select_reference_pilot(
+    events: list[dict[str, Any]],
+    cache_db: Path,
+    pipeline_version: str,
+) -> list[dict[str, Any]]:
+    with closing(sqlite3.connect(cache_db)) as connection:
+        keys = {
+            str(row[0])
+            for row in connection.execute(
+                "SELECT event_key FROM ai_event_enrichment WHERE pipeline_version = ?",
+                (pipeline_version,),
+            )
+        }
+    by_key = {event_id(event): event for event in events if event_id(event) in keys}
+    missing = keys - by_key.keys()
+    if missing:
+        raise ValueError(f"reference pilot has {len(missing)} events missing from the input")
+    return sorted(
+        by_key.values(),
+        key=lambda event: (str(event.get("source_id") or ""), event_id(event)),
+    )
+
+
+def _usage(path: Path) -> tuple[int, int, int, float]:
     if not path.exists():
-        return 0, 0, 0
-    with sqlite3.connect(path) as connection:
+        return 0, 0, 0, 0.0
+    with closing(sqlite3.connect(path)) as connection:
         try:
+            columns = {
+                str(row[1]) for row in connection.execute("PRAGMA table_info(ai_event_enrichment)")
+            }
+            cost_column = "COALESCE(SUM(cost_usd), 0)" if "cost_usd" in columns else "0"
             row = connection.execute(
-                """SELECT COALESCE(SUM(input_tokens), 0),
+                f"""SELECT COALESCE(SUM(input_tokens), 0),
                           COALESCE(SUM(cached_input_tokens), 0),
-                          COALESCE(SUM(output_tokens), 0)
+                          COALESCE(SUM(output_tokens), 0),
+                          {cost_column}
                    FROM ai_event_enrichment"""
             ).fetchone()
         except sqlite3.OperationalError:
-            return 0, 0, 0
-    return int(row[0]), int(row[1]), int(row[2])
+            return 0, 0, 0, 0.0
+    return int(row[0]), int(row[1]), int(row[2]), float(row[3])
 
 
-def _cache_outcome(path: Path, key: str, model: str) -> str:
-    with sqlite3.connect(path) as connection:
+def _cache_outcome(path: Path, key: str, settings: ai_enrichment.AISettings) -> str:
+    with closing(sqlite3.connect(path)) as connection:
         row = connection.execute(
-            """SELECT stage1_json, stage2_json FROM ai_event_enrichment
+            """SELECT source_id, stage1_json, stage2_json FROM ai_event_enrichment
                WHERE event_key = ? AND pipeline_version = ?
                ORDER BY updated_at DESC LIMIT 1""",
-            (key, f"{ai_enrichment.PIPELINE_VERSION}:{model}"),
+            (key, ai_enrichment.cache_pipeline_version(settings)),
         ).fetchone()
     if not row:
         return "rejected"
     try:
-        facts = json.loads(row[0]) if row[0] else {}
-        result = json.loads(row[1]) if row[1] else {}
+        facts = json.loads(row[1]) if row[1] else {}
+        result = json.loads(row[2]) if row[2] else {}
     except json.JSONDecodeError:
         return "rejected"
-    if facts.get("is_concrete_event") is False:
+    if result.get("ai_summary"):
+        return "summarized"
+    if facts.get("is_concrete_event") is False and row[0] == "marktcom":
         return "non_event"
-    return "summarized" if result.get("ai_summary") else "rejected"
+    return "rejected"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("input", type=Path, help="local importer/website event snapshot")
     parser.add_argument("--limit", type=int, default=36)
+    parser.add_argument(
+        "--reference-pipeline-version",
+        help="reuse the exact event IDs from a prior cached pilot",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if not 1 <= args.limit <= 200:
@@ -125,8 +160,22 @@ def main() -> int:
     config.load_env_file()
     settings = replace(ai_enrichment.settings_from_env(), enabled=True, max_events=0)
     if not settings.api_key:
-        parser.error("OPENAI_API_KEY is missing")
-    candidates = select_pilot(_events(args.input), args.limit)
+        key_name = "OPENROUTER_API_KEY" if settings.provider == "openrouter" else "OPENAI_API_KEY"
+        parser.error(f"{key_name} is missing")
+    available_events = _events(args.input)
+    candidates = (
+        select_reference_pilot(
+            available_events,
+            settings.cache_db,
+            args.reference_pipeline_version,
+        )
+        if args.reference_pipeline_version
+        else select_pilot(available_events, args.limit)
+    )
+    if args.reference_pipeline_version and len(candidates) != args.limit:
+        parser.error(
+            f"reference pilot contains {len(candidates)} events, expected --limit {args.limit}"
+        )
     before = _usage(settings.cache_db)
     results = []
     for index, event in enumerate(candidates, start=1):
@@ -138,14 +187,21 @@ def main() -> int:
             flush=True,
         )
     after = _usage(settings.cache_db)
-    input_tokens, cached_tokens, output_tokens = tuple(end - start for start, end in zip(before, after))
+    input_tokens = after[0] - before[0]
+    cached_tokens = after[1] - before[1]
+    output_tokens = after[2] - before[2]
+    recorded_cost_usd = after[3] - before[3]
     uncached_tokens = max(input_tokens - cached_tokens, 0)
-    estimated_cost_usd = (uncached_tokens + cached_tokens * 0.1 + output_tokens * 6) / 1_000_000
+    estimated_cost_usd = (
+        recorded_cost_usd
+        if recorded_cost_usd > 0
+        else (uncached_tokens + cached_tokens * 0.1 + output_tokens * 6) / 1_000_000
+    )
 
     rows = []
     for original, result in zip(candidates, results):
         summary = str(result.get("ai_summary") or "")
-        outcome = _cache_outcome(settings.cache_db, event_id(original), settings.model)
+        outcome = _cache_outcome(settings.cache_db, event_id(original), settings)
         rows.append({
             "event_id": event_id(original),
             "source_id": original.get("source_id", ""),
@@ -166,8 +222,10 @@ def main() -> int:
             "series_title": result.get("series_title", ""),
         })
     report = {
+        "provider": settings.provider,
         "model": settings.model,
-        "pipeline_version": ai_enrichment.PIPELINE_VERSION,
+        "pipeline_version": ai_enrichment.cache_pipeline_version(settings),
+        "reference_pipeline_version": args.reference_pipeline_version,
         "selected": len(rows),
         "successful": sum(row["success"] for row in rows),
         "non_events": sum(row["outcome"] == "non_event" for row in rows),
@@ -180,7 +238,9 @@ def main() -> int:
             "input_tokens": input_tokens,
             "cached_input_tokens": cached_tokens,
             "output_tokens": output_tokens,
+            "recorded_cost_usd": round(recorded_cost_usd, 6),
             "estimated_cost_usd": round(estimated_cost_usd, 6),
+            "cost_basis": "provider-reported" if recorded_cost_usd > 0 else "token-price-estimate",
         },
         "events": rows,
     }
