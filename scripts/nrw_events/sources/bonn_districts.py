@@ -9,13 +9,11 @@ from html.parser import HTMLParser
 from .. import common
 from . import regional_common
 
-
 VILICH_MUELDORF_ICAL = "https://www.bv-vilich-mueldorf.de/events/?ical=1"
 BEUEL_URL = "https://beuel.net/events/"
 BAD_GODESBERG_URL = "https://bad-godesberg.info/veranstaltungen"
 BAD_GODESBERG_DETAILS_API = (
-    "https://bad-godesberg.info/wp-json/wp/v2/veranstaltungen_st"
-    "?per_page=100&_fields=link,title,content"
+    "https://bad-godesberg.info/wp-json/wp/v2/veranstaltungen_st?per_page=100&_fields=link,title,content"
 )
 HARDTBERG_API = "https://www.hardtbergkultur.de/wp-json/wp/v2/posts"
 ROLEBER_ICAL = "https://bsvroleber.de/events/?ical=1"
@@ -126,10 +124,12 @@ class _BeuelParser(HTMLParser):
 
 def _beuel_dates(value: str) -> tuple[datetime | None, datetime | None, str]:
     text = regional_common.clean(value)
-    matches = list(re.finditer(
-        r"(\d{1,2})\.(\d{1,2})\.(?:(20\d{2}))?(?:\s+(\d{1,2}):(\d{2}))?",
-        text,
-    ))
+    matches = list(
+        re.finditer(
+            r"(\d{1,2})\.(\d{1,2})\.(?:(20\d{2}))?(?:\s+(\d{1,2}):(\d{2}))?",
+            text,
+        )
+    )
     if not matches:
         return None, None, ""
 
@@ -215,14 +215,21 @@ def events_from_beuel_html(html: str) -> list:
                 title, date_value=start, time_text=time_text, venue=venue, city=_beuel_city(venue)
             )
         event = common.make_event(
-            title, start, end, venue, _beuel_city(venue), description,
-            links[-1] if links else BEUEL_URL, "Beuel.net",
+            title,
+            start,
+            end,
+            venue,
+            _beuel_city(venue),
+            description,
+            links[-1] if links else BEUEL_URL,
+            "Beuel.net",
             (
                 "stadtteil kultur flohmarkt trödelmarkt markt familie"
                 if is_beuel_rathaus_market
                 else "stadtteil kultur markt familie"
             ),
-            0.95, time_text=time_text,
+            0.95,
+            time_text=time_text,
             all_day=not bool(time_text),
         )
         if event:
@@ -321,9 +328,17 @@ def events_from_bad_godesberg_html(html: str, descriptions: dict[str, str]) -> l
             title, date_value=start, venue="Bad Godesberger Innenstadt", city="Bonn-Bad Godesberg"
         )
         event = common.make_event(
-            title, start, end, "Bad Godesberger Innenstadt", "Bonn-Bad Godesberg",
-            description, link, "Bad Godesberg Stadtmarketing",
-            "stadtfest markt familie kultur", 1.0, all_day=True,
+            title,
+            start,
+            end,
+            "Bad Godesberger Innenstadt",
+            "Bonn-Bad Godesberg",
+            description,
+            link,
+            "Bad Godesberg Stadtmarketing",
+            "stadtfest markt familie kultur",
+            1.0,
+            all_day=True,
         )
         if event:
             events.append(event)
@@ -337,8 +352,10 @@ def fetch_bad_godesberg() -> list:
         details = common.fetch_url(BAD_GODESBERG_DETAILS_API, timeout=25)
         events = events_from_bad_godesberg_html(html, _bad_godesberg_descriptions(details))
         common._record_endpoint(
-            BAD_GODESBERG_URL, parser_type="html+wordpress-rest",
-            parsed_event_count=len(events), parser_empty=not bool(events),
+            BAD_GODESBERG_URL,
+            parser_type="html+wordpress-rest",
+            parsed_event_count=len(events),
+            parser_empty=not bool(events),
         )
         return events
     except Exception as exc:
@@ -356,19 +373,29 @@ def events_from_hardtberg_json(raw: str) -> list:
             continue
         title = common.clean_html(item.get("title", {}).get("rendered", ""))
         description = common.concise_description(
-            item.get("excerpt", {}).get("rendered", "")
-            or item.get("content", {}).get("rendered", "")
+            item.get("excerpt", {}).get("rendered", "") or item.get("content", {}).get("rendered", "")
         )
         if not description:
             description = common.factual_event_description(
-                title, date_value=start, time_text=start.strftime("%H:%M"),
-                venue="Hardtberger Kulturzentrum", city="Bonn-Duisdorf",
+                title,
+                date_value=start,
+                time_text=start.strftime("%H:%M"),
+                venue="Hardtberger Kulturzentrum",
+                city="Bonn-Duisdorf",
             )
         event = common.make_event(
-            title, start, start, "Hardtberger Kulturzentrum", "Bonn-Duisdorf",
-            description, item.get("link") or "https://www.hardtbergkultur.de/",
-            "Hardtberg Kultur", "kultur konzert ausstellung", 1.0,
-            time_text=start.strftime("%H:%M"), all_day=False,
+            title,
+            start,
+            start,
+            "Hardtberger Kulturzentrum",
+            "Bonn-Duisdorf",
+            description,
+            item.get("link") or "https://www.hardtbergkultur.de/",
+            "Hardtberg Kultur",
+            "kultur konzert ausstellung",
+            1.0,
+            time_text=start.strftime("%H:%M"),
+            all_day=False,
         )
         if event:
             events.append(event)
@@ -377,14 +404,16 @@ def events_from_hardtberg_json(raw: str) -> list:
 
 def fetch_hardtberg() -> list:
     source = "Hardtberg Kultur"
-    params = urllib.parse.urlencode({
-        "per_page": 100,
-        "after": common.TODAY.strftime("%Y-%m-%dT00:00:00"),
-        "before": common.END_DATE.strftime("%Y-%m-%dT23:59:59"),
-        "orderby": "date",
-        "order": "asc",
-        "_fields": "date,link,title,content,excerpt",
-    })
+    params = urllib.parse.urlencode(
+        {
+            "per_page": 100,
+            "after": common.TODAY.strftime("%Y-%m-%dT00:00:00"),
+            "before": common.END_DATE.strftime("%Y-%m-%dT23:59:59"),
+            "orderby": "date",
+            "order": "asc",
+            "_fields": "date,link,title,content,excerpt",
+        }
+    )
     url = f"{HARDTBERG_API}?{params}"
     try:
         raw = common.fetch_url(url, timeout=25)
@@ -408,9 +437,12 @@ def fetch_hardtberg() -> list:
 
 
 def _roleber_detail_description(html: str) -> str:
-    parser = regional_common.ClassScopedTextParser({
-        "description": lambda _tag, attrs: "tribe-events-single-event-description" in (attrs.get("class") or "").split(),
-    })
+    parser = regional_common.ClassScopedTextParser(
+        {
+            "description": lambda _tag, attrs: "tribe-events-single-event-description"
+            in (attrs.get("class") or "").split(),
+        }
+    )
     parser.feed(html or "")
     return common.concise_description(parser.text("description"))
 
@@ -419,8 +451,10 @@ def _enrich_roleber_descriptions(events: list) -> list:
     def fallback(event):
         start = common.parse_iso_date(event.get("start_date") or "")
         return common.factual_event_description(
-            event.get("title", ""), date_value=start,
-            time_text=event.get("time", ""), venue=event.get("venue", ""),
+            event.get("title", ""),
+            date_value=start,
+            time_text=event.get("time", ""),
+            venue=event.get("venue", ""),
             city=event.get("city", "Bonn-Roleber"),
         )
 
@@ -443,9 +477,7 @@ def _enrich_roleber_descriptions(events: list) -> list:
 def fetch_roleber() -> list:
     source = "BSV Roleber"
     try:
-        events = common.fetch_ical(
-            ROLEBER_ICAL, source, "Bonn-Roleber", "sport verein familie", 1.0
-        )
+        events = common.fetch_ical(ROLEBER_ICAL, source, "Bonn-Roleber", "sport verein familie", 1.0)
         return _enrich_roleber_descriptions(events)
     except Exception as exc:
         common.log_source_error(source, exc)
@@ -502,12 +534,21 @@ def events_from_holzlar_html(html: str) -> list:
         link = regional_common.first_group(_HOLZLAR_LINK.pattern, block) or HOLZLAR_URL
         city = common.refine_city_from_text("Bonn-Holzlar", venue)
         event = common.make_event(
-            title, start, end, venue, city,
+            title,
+            start,
+            end,
+            venue,
+            city,
             common.factual_event_description(
-                title, date_value=start, venue=venue, city=city,
+                title,
+                date_value=start,
+                venue=venue,
+                city=city,
             ),
-            link, "BV Holzlar",
-            "stadtteil verein gemeinschaft", 1.0,
+            link,
+            "BV Holzlar",
+            "stadtteil verein gemeinschaft",
+            1.0,
             all_day=True,
         )
         if event:

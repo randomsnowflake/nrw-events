@@ -6,7 +6,6 @@ from datetime import datetime
 from .. import common
 from . import regional_common as rc
 
-
 _URL = "https://okkengmbh.de/flohmarkt-bonn/"
 _SOURCE = "Okken Märkte"
 _SOURCE_ID = "okken-bonn-puetzchen"
@@ -36,12 +35,18 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
         if not date_value:
             continue
         start = datetime(
-            date_value.year, date_value.month, date_value.day,
-            int(start_hour), int(start_minute or 0),
+            date_value.year,
+            date_value.month,
+            date_value.day,
+            int(start_hour),
+            int(start_minute or 0),
         )
         end = datetime(
-            date_value.year, date_value.month, date_value.day,
-            int(end_hour), int(end_minute or 0),
+            date_value.year,
+            date_value.month,
+            date_value.day,
+            int(end_hour),
+            int(end_minute or 0),
         )
         if not common.window_contains(start, end):
             continue
@@ -59,8 +64,7 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             _SOURCE,
             "flohmarkt trödelmarkt markt",
             1.0,
-            f"{int(start_hour):02d}:{int(start_minute or 0):02d}–"
-            f"{int(end_hour):02d}:{int(end_minute or 0):02d}",
+            f"{int(start_hour):02d}:{int(start_minute or 0):02d}–{int(end_hour):02d}:{int(end_minute or 0):02d}",
             source_id=_SOURCE_ID,
         )
         if event:

@@ -10,15 +10,16 @@ Yields: exhibitions, museum events, town markets, readings and local happenings.
 from .. import common
 from . import regional_common as rc
 
-_ICS_URL = ("https://siegburg.de/kalender/kombinierter-kalender/"
-            "event.ics?weekends=false&tagMode=ANY")
+_ICS_URL = "https://siegburg.de/kalender/kombinierter-kalender/event.ics?weekends=false&tagMode=ANY"
 
 
 def _parse_detail_description(html: str) -> str:
-    parser = rc.ClassScopedTextParser({
-        "subtitle": lambda _tag, attrs: attrs.get("id") == "event_subtitle_wrapper",
-        "description": lambda _tag, attrs: "dwa_event_description_text" in (attrs.get("class") or "").split(),
-    })
+    parser = rc.ClassScopedTextParser(
+        {
+            "subtitle": lambda _tag, attrs: attrs.get("id") == "event_subtitle_wrapper",
+            "description": lambda _tag, attrs: "dwa_event_description_text" in (attrs.get("class") or "").split(),
+        }
+    )
     parser.feed(html or "")
 
     description_parts = []
@@ -37,8 +38,11 @@ def _parse_detail_description(html: str) -> str:
 def _fallback_description(event: dict) -> str:
     start = common.parse_iso_date(event.get("start_date") or "")
     return common.factual_event_description(
-        event.get("title", ""), date_value=start, time_text=event.get("time", ""),
-        venue=event.get("venue", ""), city=event.get("city", "Siegburg"),
+        event.get("title", ""),
+        date_value=start,
+        time_text=event.get("time", ""),
+        venue=event.get("venue", ""),
+        city=event.get("city", "Siegburg"),
     )
 
 

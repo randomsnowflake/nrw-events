@@ -22,34 +22,43 @@ _RHEIN_IN_FLAMMEN_URL = "https://www.rhein-in-flammen.com/"
 def fetch() -> list:
     events = []
     for month, year in _months_in_window():
-        events.extend(rc.fetch_html_events(
-            "KULT41",
-            f"{_KULT41_URL}?mo={month}&yr={year}",
-            events_from_kult41,
-        ))
-        events.extend(rc.fetch_html_events(
-            "Repair Cafés Bonn",
-            f"{_REPAIR_CAFES_URL}?time=month&yr={year}&month={month}",
-            events_from_repair_cafes,
-        ))
+        events.extend(
+            rc.fetch_html_events(
+                "KULT41",
+                f"{_KULT41_URL}?mo={month}&yr={year}",
+                events_from_kult41,
+            )
+        )
+        events.extend(
+            rc.fetch_html_events(
+                "Repair Cafés Bonn",
+                f"{_REPAIR_CAFES_URL}?time=month&yr={year}&month={month}",
+                events_from_repair_cafes,
+            )
+        )
     events.extend(_fetch_brotfabrik())
     events.extend(_fetch_volkssternwarte())
-    events.extend(rc.fetch_html_events(
-        "Botanische Gärten Bonn",
-        _BOTGART_URL,
-        lambda html: events_from_botgart(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="botanische-gaerten-bonn", timeout=20),
-        ),
-    ))
+    events.extend(
+        rc.fetch_html_events(
+            "Botanische Gärten Bonn",
+            _BOTGART_URL,
+            lambda html: events_from_botgart(
+                html,
+                detail_fetcher=lambda url: common.fetch_detail_url(
+                    url, cache_namespace="botanische-gaerten-bonn", timeout=20
+                ),
+            ),
+        )
+    )
     events.extend(_fetch_vox_bona())
     events.extend(_fetch_bonner_muenster())
-    events.extend(rc.fetch_html_events(
-        "Rhein in Flammen Bonn",
-        _RHEIN_IN_FLAMMEN_URL,
-        events_from_rhein_in_flammen,
-    ))
+    events.extend(
+        rc.fetch_html_events(
+            "Rhein in Flammen Bonn",
+            _RHEIN_IN_FLAMMEN_URL,
+            events_from_rhein_in_flammen,
+        )
+    )
     return rc.dedupe(events)
 
 
@@ -61,12 +70,19 @@ def events_from_kult41(html: str) -> list:
         metadata = block.split('<div class="em-item-desc">', 1)[0]
         title = re.search(r'<h3 class="em-item-title">\s*<a href="([^"]+)">(.*?)</a>\s*</h3>', block, re.S | re.I)
         date = re.search(r'class="[^"]*em-event-date[^"]*".*?</span>\s*([^<]+)</div>', block, re.S | re.I)
-        time = re.search(r'class="[^"]*em-event-time[^"]*".*?em-icon-clock.*?</span>\s*([^<]+)</div>', block, re.S | re.I)
+        time = re.search(
+            r'class="[^"]*em-event-time[^"]*".*?em-icon-clock.*?</span>\s*([^<]+)</div>', block, re.S | re.I
+        )
         desc = re.search(r'<div class="em-item-desc">\s*(.*?)\s*</div>', block, re.S | re.I)
-        cats = " ".join(rc.clean(cat) for cat in re.findall(
-            r'events/categories/[^"]+">(.*?)</a>', metadata, re.S | re.I,
-        ))
-        price = _match_clean(r'em-icon-ticket.*?</span>\s*([^<]+)</div>', block)
+        cats = " ".join(
+            rc.clean(cat)
+            for cat in re.findall(
+                r'events/categories/[^"]+">(.*?)</a>',
+                metadata,
+                re.S | re.I,
+            )
+        )
+        price = _match_clean(r"em-icon-ticket.*?</span>\s*([^<]+)</div>", block)
         if not (title and date):
             continue
         title_text = rc.clean(title.group(2)).strip(' "“”')
@@ -95,7 +111,9 @@ def events_from_kult41(html: str) -> list:
 def events_from_repair_cafes(html: str) -> list:
     events = []
     for article in re.findall(r"<article[^>]+calendar-event\b.*?</article>", html, re.S | re.I):
-        title = re.search(r"<h3[^>]*class=['\"]event-title summary['\"][^>]*>.*?<button[^>]*>(.*?)</button>", article, re.S | re.I)
+        title = re.search(
+            r"<h3[^>]*class=['\"]event-title summary['\"][^>]*>.*?<button[^>]*>(.*?)</button>", article, re.S | re.I
+        )
         if not title:
             title = re.search(r"<h3[^>]*class=['\"]event-title summary['\"][^>]*>(.*?)</h3>", article, re.S | re.I)
         if not title:
@@ -115,7 +133,8 @@ def events_from_repair_cafes(html: str) -> list:
         # The Repair-Café cards write "Hier kannst Du:" followed by a real list.
         # Keep the raw fragment so the bullets survive as bullets.
         desc_html = rc.first_group(
-            r"<div class=['\"]longdesc description['\"]>(.*?)</div>\s*<div class=['\"]mc-location", article)
+            r"<div class=['\"]longdesc description['\"]>(.*?)</div>\s*<div class=['\"]mc-location", article
+        )
         desc = rc.clean_blocks(desc_html)
         link = _match_text(r"class=['\"]mc-details['\"]><a[^>]+href=['\"]([^'\"]+)['\"]", article) or _REPAIR_CAFES_URL
         coords = _coords_from_google_maps(article)
@@ -220,8 +239,7 @@ def _botgart_detail_description(html: str) -> str:
         html or "",
         re.S | re.I,
     )
-    return common.concise_description(
-        rc.clean(metadata.group(1) if metadata else ""), max_chars=360)
+    return common.concise_description(rc.clean(metadata.group(1) if metadata else ""), max_chars=360)
 
 
 def _botgart_fallback_description(title: str, kind: str, start) -> str:
@@ -229,15 +247,14 @@ def _botgart_fallback_description(title: str, kind: str, start) -> str:
     if start and start.strftime("%H:%M") != "00:00":
         schedule += f" um {start:%H:%M} Uhr"
     category = f" aus dem Bereich „{kind}“" if kind else ""
-    return (
-        f"Die Veranstaltung „{title}“{category} findet{schedule} "
-        "in den Botanischen Gärten Bonn statt."
-    )
+    return f"Die Veranstaltung „{title}“{category} findet{schedule} in den Botanischen Gärten Bonn statt."
 
 
 def events_from_botgart(html: str, detail_fetcher=None) -> list:
     events = []
-    for href, body in re.findall(r'<a[^>]+href="([^"]+/de/ihr-besuch/veranstaltungen/[^"]+)"[^>]*>(.*?)</a>', html, re.S | re.I):
+    for href, body in re.findall(
+        r'<a[^>]+href="([^"]+/de/ihr-besuch/veranstaltungen/[^"]+)"[^>]*>(.*?)</a>', html, re.S | re.I
+    ):
         text = rc.clean(body)
         match = re.search(
             r"^(?P<kind>[A-Za-zÄÖÜäöüß]+)\s+"
@@ -286,7 +303,7 @@ def events_from_bonner_muenster(html: str) -> list:
         if not title:
             title = _match_clean(r'<a[^>]+href="[^"]*/detail/[^"]+"[^>]*>([^<]*?:[^<]+)</a>', block)
         date_text = _match_clean(
-            r'((?:Mo|Di|Mi|Do|Fr|Sa|So)\.\s+\d{1,2}\.\s+[A-Za-zÄÖÜäöüß]+\.?\s+20\d{2}\s+\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})',
+            r"((?:Mo|Di|Mi|Do|Fr|Sa|So)\.\s+\d{1,2}\.\s+[A-Za-zÄÖÜäöüß]+\.?\s+20\d{2}\s+\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})",
             block,
         )
         if not (title and date_text):
@@ -328,14 +345,16 @@ def _fetch_volkssternwarte() -> list:
 
 def _fetch_brotfabrik() -> list:
     try:
-        items = json.loads(common.fetch_url(
-            _BROTFABRIK_EVENTS_API,
-            timeout=20,
-            accept="application/json,*/*;q=0.8",
-            sec_fetch_mode="cors",
-            sec_fetch_dest="empty",
-            headers={"Referer": _BROTFABRIK_URL},
-        ))
+        items = json.loads(
+            common.fetch_url(
+                _BROTFABRIK_EVENTS_API,
+                timeout=20,
+                accept="application/json,*/*;q=0.8",
+                sec_fetch_mode="cors",
+                sec_fetch_dest="empty",
+                headers={"Referer": _BROTFABRIK_URL},
+            )
+        )
         events = events_from_brotfabrik_items(items)
         if events:
             return events
@@ -362,8 +381,7 @@ def _fetch_vox_bona() -> list:
 def _fetch_bonner_muenster() -> list:
     events = []
     urls = [_BONNER_MUENSTER_URL] + [
-        f"https://www.bonner-muenster.de/musik/index.html?reloaded&sort=date_asc&page={page}"
-        for page in range(2, 7)
+        f"https://www.bonner-muenster.de/musik/index.html?reloaded&sort=date_asc&page={page}" for page in range(2, 7)
     ]
     for url in urls:
         try:
@@ -400,13 +418,21 @@ def _with_end_time(start, text: str):
 def _split_brotfabrik_prefix(prefix: str) -> tuple[str, str]:
     prefix = rc.clean(prefix)
     categories = (
-        "Hofkultur", "Theater", "Kino", "Bib", "Kulturkneipe", "Tanz", "Konzert",
-        "Ausstellung", "Workshop", "Performance",
+        "Hofkultur",
+        "Theater",
+        "Kino",
+        "Bib",
+        "Kulturkneipe",
+        "Tanz",
+        "Konzert",
+        "Ausstellung",
+        "Workshop",
+        "Performance",
     )
     for category in categories:
         suffix = f" {category}"
         if prefix.endswith(suffix):
-            return prefix[:-len(suffix)].strip(" -"), category
+            return prefix[: -len(suffix)].strip(" -"), category
     parts = prefix.rsplit(" ", 1)
     if len(parts) == 2:
         return parts[0].strip(" -"), parts[1]
@@ -501,10 +527,16 @@ def events_from_rhein_in_flammen(html: str) -> list:
         title = f"Rhein in Flammen {town}"
         venue = "Rheinaue und Rheinufer"
         event = common.make_event(
-            title, start, start, venue, town,
+            title,
+            start,
+            start,
+            venue,
+            town,
             common.factual_event_description(title, date_value=start, venue=venue, city=town),
-            rc.abs_url(_RHEIN_IN_FLAMMEN_URL, href), "Rhein in Flammen Bonn",
-            "fest festival feuerwerk rhein open air stadtleben", 1.0,
+            rc.abs_url(_RHEIN_IN_FLAMMEN_URL, href),
+            "Rhein in Flammen Bonn",
+            "fest festival feuerwerk rhein open air stadtleben",
+            1.0,
             all_day=True,
         )
         if event:

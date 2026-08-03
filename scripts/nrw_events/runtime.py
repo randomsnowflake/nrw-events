@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Callable
 from zoneinfo import ZoneInfo
 
 from .config import RuntimeConfig
-
 
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
 
@@ -20,7 +19,7 @@ class EventWindow:
     end: datetime
 
     @classmethod
-    def from_days(cls, days_ahead: int, now: datetime | None = None) -> "EventWindow":
+    def from_days(cls, days_ahead: int, now: datetime | None = None) -> EventWindow:
         current = now or datetime.now(LOCAL_TIMEZONE)
         if current.tzinfo is not None:
             current = current.astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)

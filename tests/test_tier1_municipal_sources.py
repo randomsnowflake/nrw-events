@@ -4,8 +4,8 @@ from unittest import mock
 
 from nrw_events import common, config
 from nrw_events.source_specs import AdapterType
-from nrw_events.sources import SOURCE_SPECS
-from nrw_events.sources import regional_ionas4, regional_sitekit
+from nrw_events.sources import SOURCE_SPECS, regional_ionas4, regional_sitekit
+
 from tests.helpers import patch_window
 
 
@@ -37,19 +37,14 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
                 self.assertTrue(calendar_url.endswith("/"))
 
     def test_sitekit_covers_the_sitepark_cluster(self):
-        self.assertLessEqual(
-            {"Frechen", "Hürth", "Erftstadt", "Zülpich"}, _sitekit_cities()
-        )
+        self.assertLessEqual({"Frechen", "Hürth", "Erftstadt", "Zülpich"}, _sitekit_cities())
 
     def test_sitekit_source_ids_are_unique(self):
         ids = [source_id for _city, source_id, _url, _trust in regional_sitekit._CALENDARS]
         self.assertEqual(len(ids), len(set(ids)))
 
     def test_sitekit_pagination_metadata_and_url_are_supported(self):
-        html = (
-            '<div class="SP-Pagination" '
-            'data-page="{&quot;min&quot;:1,&quot;max&quot;:11}"></div>'
-        )
+        html = '<div class="SP-Pagination" data-page="{&quot;min&quot;:1,&quot;max&quot;:11}"></div>'
 
         self.assertEqual(regional_sitekit._pagination_max(html), 11)
         self.assertIn(
@@ -57,9 +52,7 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
             regional_sitekit._page_url("https://example.test/events", 3),
         )
         self.assertTrue(
-            regional_sitekit._page_starts_after_window(
-                '<span class="SP-Scheduling__date">01.09.2026</span>'
-            )
+            regional_sitekit._page_starts_after_window('<span class="SP-Scheduling__date">01.09.2026</span>')
         )
 
     def test_waldbroel_is_registered_as_an_ical_spec(self):
@@ -77,9 +70,7 @@ class Tier1GeoCoverageTests(unittest.TestCase):
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 8, 31))
 
     def test_every_new_source_city_has_configured_coordinates(self):
-        cities = _ionas4_cities() | _sitekit_cities() | {
-            spec.city for spec in SOURCE_SPECS if spec.city
-        }
+        cities = _ionas4_cities() | _sitekit_cities() | {spec.city for spec in SOURCE_SPECS if spec.city}
         for city in sorted(cities):
             with self.subTest(city=city):
                 coords, kind, _reason = common.resolve_location(city, None)
@@ -87,8 +78,7 @@ class Tier1GeoCoverageTests(unittest.TestCase):
                 self.assertEqual(kind, "known_city")
 
     def test_new_source_cities_sit_inside_the_report_radius(self):
-        for city in ["Rösrath", "Ruppichteroth", "Frechen", "Hürth",
-                     "Erftstadt", "Zülpich", "Waldbröl"]:
+        for city in ["Rösrath", "Ruppichteroth", "Frechen", "Hürth", "Erftstadt", "Zülpich", "Waldbröl"]:
             with self.subTest(city=city):
                 coords, _kind, _reason = common.resolve_location(city, None)
                 distance = common.haversine(common.BONN_LAT, common.BONN_LON, *coords)
@@ -111,9 +101,7 @@ class MalformedSourceUrlTests(unittest.TestCase):
         )
 
     def test_wellformed_urls_are_untouched(self):
-        for url in ("https://www.roesrath.de/kalender/",
-                    "http://example.de/a?b=1#c",
-                    ""):
+        for url in ("https://www.roesrath.de/kalender/", "http://example.de/a?b=1#c", ""):
             with self.subTest(url=url):
                 self.assertEqual(common.normalize_url(url), url)
 
@@ -123,20 +111,26 @@ class Ionas4EventQualityTests(unittest.TestCase):
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 8, 31))
 
     def test_json_location_and_category_survive_without_a_detail_page(self):
-        items = [{
-            "id": "30292:0",
-            "start": "2026-08-15T10:30",
-            "end": "2026-08-15T16:00",
-            "allDay": False,
-            "title": "KISABA - Kindersachenbasar Ruppichteroth",
-            "website": "",
-            "category": {"id": "5689", "name": "Allgemeines"},
-            "tags": [],
-            "location": {"name": "evangl. Gemeindehaus Ruppichteroth"},
-        }]
+        items = [
+            {
+                "id": "30292:0",
+                "start": "2026-08-15T10:30",
+                "end": "2026-08-15T16:00",
+                "allDay": False,
+                "title": "KISABA - Kindersachenbasar Ruppichteroth",
+                "website": "",
+                "category": {"id": "5689", "name": "Allgemeines"},
+                "tags": [],
+                "location": {"name": "evangl. Gemeindehaus Ruppichteroth"},
+            }
+        ]
         events = regional_ionas4._events_from_items(
-            items, "Ruppichteroth", "https://www.ruppichteroth.de/kalender/", 0.95,
-            detail_fetcher=None, source_id="ionas4-ruppichteroth",
+            items,
+            "Ruppichteroth",
+            "https://www.ruppichteroth.de/kalender/",
+            0.95,
+            detail_fetcher=None,
+            source_id="ionas4-ruppichteroth",
         )
         self.assertEqual(len(events), 1)
         event = events[0]
@@ -147,38 +141,50 @@ class Ionas4EventQualityTests(unittest.TestCase):
     def test_administrative_appointments_are_not_imported(self):
         # These municipal calendars mix public events with office hours; the
         # latter must not reach the site.
-        items = [{
-            "id": "30292:1",
-            "start": "2026-08-07T09:00",
-            "end": "2026-08-07T12:00",
-            "allDay": False,
-            "title": "Notarsprechtag im Rathaus",
-            "website": "",
-            "category": {"name": "Allgemeines"},
-            "tags": [],
-            "location": {"name": "Rathaus der Gemeinde Ruppichteroth"},
-        }]
+        items = [
+            {
+                "id": "30292:1",
+                "start": "2026-08-07T09:00",
+                "end": "2026-08-07T12:00",
+                "allDay": False,
+                "title": "Notarsprechtag im Rathaus",
+                "website": "",
+                "category": {"name": "Allgemeines"},
+                "tags": [],
+                "location": {"name": "Rathaus der Gemeinde Ruppichteroth"},
+            }
+        ]
         events = regional_ionas4._events_from_items(
-            items, "Ruppichteroth", "https://www.ruppichteroth.de/kalender/", 0.95,
-            detail_fetcher=None, source_id="ionas4-ruppichteroth",
+            items,
+            "Ruppichteroth",
+            "https://www.ruppichteroth.de/kalender/",
+            0.95,
+            detail_fetcher=None,
+            source_id="ionas4-ruppichteroth",
         )
         self.assertEqual(events, [])
 
     def test_malformed_website_becomes_a_usable_link(self):
-        items = [{
-            "id": "26596:0",
-            "start": "2026-08-14T00:00",
-            "end": "2026-08-17T00:00",
-            "allDay": True,
-            "title": "Bröltaler Erntedankfest",
-            "website": "http:\\\\www.ernteverein.de",
-            "category": {"name": "Allgemeines"},
-            "tags": [],
-            "location": {"name": "Festplatz Bruchhausen Röttgen"},
-        }]
+        items = [
+            {
+                "id": "26596:0",
+                "start": "2026-08-14T00:00",
+                "end": "2026-08-17T00:00",
+                "allDay": True,
+                "title": "Bröltaler Erntedankfest",
+                "website": "http:\\\\www.ernteverein.de",
+                "category": {"name": "Allgemeines"},
+                "tags": [],
+                "location": {"name": "Festplatz Bruchhausen Röttgen"},
+            }
+        ]
         events = regional_ionas4._events_from_items(
-            items, "Ruppichteroth", "https://www.ruppichteroth.de/kalender/", 0.95,
-            detail_fetcher=None, source_id="ionas4-ruppichteroth",
+            items,
+            "Ruppichteroth",
+            "https://www.ruppichteroth.de/kalender/",
+            0.95,
+            detail_fetcher=None,
+            source_id="ionas4-ruppichteroth",
         )
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["link"], "http://www.ernteverein.de")
@@ -196,13 +202,12 @@ class SitekitPaginationTests(unittest.TestCase):
             f'<h4 class="SP-Teaser__headline">{title}</h4>'
             f'<span class="SP-Scheduling__date">{date}</span>'
             '<div class="SP-Teaser__abstract">Offizielle Beschreibung.</div>'
-            '</a></article>'
+            "</a></article>"
         )
 
     def test_fetch_follows_every_advertised_result_page(self):
         first = (
-            self._teaser("Erster Markt", "01.08.2026")
-            + '<div class="SP-Pagination" '
+            self._teaser("Erster Markt", "01.08.2026") + '<div class="SP-Pagination" '
             'data-page="{&quot;min&quot;:1,&quot;max&quot;:2}"></div>'
         )
         second = self._teaser("Zweiter Markt", "02.08.2026")
@@ -212,12 +217,14 @@ class SitekitPaginationTests(unittest.TestCase):
             urls.append(url)
             return first if len(urls) == 1 else second
 
-        with mock.patch.object(
-            regional_sitekit,
-            "_CALENDARS",
-            [("Teststadt", "sitekit-test", "https://example.test/events", 0.9)],
-        ), mock.patch.object(common, "fetch_url", side_effect=fake_fetch), mock.patch.object(
-            common, "fetch_detail_url", return_value=""
+        with (
+            mock.patch.object(
+                regional_sitekit,
+                "_CALENDARS",
+                [("Teststadt", "sitekit-test", "https://example.test/events", 0.9)],
+            ),
+            mock.patch.object(common, "fetch_url", side_effect=fake_fetch),
+            mock.patch.object(common, "fetch_detail_url", return_value=""),
         ):
             events = regional_sitekit.fetch()
 
@@ -226,9 +233,7 @@ class SitekitPaginationTests(unittest.TestCase):
             {"Erster Markt", "Zweiter Markt"},
         )
         self.assertEqual(len(urls), 2)
-        self.assertTrue(
-            all(len(event["description"]) >= 40 for event in events)
-        )
+        self.assertTrue(all(len(event["description"]) >= 40 for event in events))
         self.assertIn(
             "sp%3Apage%5BeventSearch-1.form%5D%5B0%5D=2",
             urls[1],
@@ -241,29 +246,33 @@ class SitekitPaginationTests(unittest.TestCase):
             '<h4 class="SP-Teaser__headline">Offene Spielrunde</h4>'
             '<span class="SP-Scheduling__date">21.08.2026</span>'
             '<div class="SP-Teaser__abstract">'
-            'Ein Dämon geht nachts um. Wem kannst du trauen?'
-            '</div></a></article>'
+            "Ein Dämon geht nachts um. Wem kannst du trauen?"
+            "</div></a></article>"
         )
         detail = (
             '<div class="SP-Text"><div class="SP-Paragraph">'
-            '<p>Für alle ab 16 Jahre, die Fans von Social-Deduction-Spielen sind.</p>'
-            '</div></div>'
+            "<p>Für alle ab 16 Jahre, die Fans von Social-Deduction-Spielen sind.</p>"
+            "</div></div>"
             # Same class with a modifier: venue contact card and town-hall
             # footer. Neither describes the event.
             '<div class="SP-Contact__locality__text SP-Paragraph">'
-            '<p>Bürgerhaus Teststadt Marktweg 1</p></div>'
+            "<p>Bürgerhaus Teststadt Marktweg 1</p></div>"
             '<div class="SP-Paragraph SP-Paragraph--footer">'
-            '<p>Stadt Teststadt Telefax 0000/1-2 Bürgeramt 8.00 - 12.00 Uhr</p></div>'
+            "<p>Stadt Teststadt Telefax 0000/1-2 Bürgeramt 8.00 - 12.00 Uhr</p></div>"
         )
 
-        with mock.patch.object(
-            regional_sitekit,
-            "_CALENDARS",
-            [("Teststadt", "sitekit-test", "https://example.test/events", 0.9)],
-        ), mock.patch.object(common, "fetch_url", return_value=listing), mock.patch.object(
-            common,
-            "fetch_detail_url",
-            return_value=detail,
+        with (
+            mock.patch.object(
+                regional_sitekit,
+                "_CALENDARS",
+                [("Teststadt", "sitekit-test", "https://example.test/events", 0.9)],
+            ),
+            mock.patch.object(common, "fetch_url", return_value=listing),
+            mock.patch.object(
+                common,
+                "fetch_detail_url",
+                return_value=detail,
+            ),
         ):
             events = regional_sitekit.fetch()
 

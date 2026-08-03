@@ -14,14 +14,44 @@ def category_score(text: str) -> float:
     """Preference score from event text, with a guard for kids-only listings."""
     text_lower = text.lower()
     negative_keywords = {
-        "kinder", "kids", "grundschüler", "grundschueler", "familie", "family", "vorlesen",
-        "basteln", "jugendliche", "babys", "spielgruppe", "krabbelgruppe", "eltern-kind",
+        "kinder",
+        "kids",
+        "grundschüler",
+        "grundschueler",
+        "familie",
+        "family",
+        "vorlesen",
+        "basteln",
+        "jugendliche",
+        "babys",
+        "spielgruppe",
+        "krabbelgruppe",
+        "eltern-kind",
     }
     adult_outdoor_signals = {
-        "wein", "wine", "winzer", "weingut", "afterwalk", "genuss", "lounge", "beats",
-        "festival", "markt", "flohmarkt", "street food", "kulinar", "stadtteilfest",
-        "straßenfest", "strassenfest", "dorffest", "kirmes", "viertel", "meile",
+        "wein",
+        "wine",
+        "winzer",
+        "weingut",
+        "afterwalk",
+        "genuss",
+        "lounge",
+        "beats",
+        "festival",
+        "markt",
+        "flohmarkt",
+        "street food",
+        "kulinar",
+        "stadtteilfest",
+        "straßenfest",
+        "strassenfest",
+        "dorffest",
+        "kirmes",
+        "viertel",
+        "meile",
     }
-    if any(word in text_lower for word in negative_keywords) and not any(word in text_lower for word in adult_outdoor_signals):
+    if any(word in text_lower for word in negative_keywords) and not any(
+        word in text_lower for word in adult_outdoor_signals
+    ):
         return 0.25
     return max([0.8] + [weight for keyword, weight in config.CATEGORY_WEIGHT.items() if keyword in text_lower])

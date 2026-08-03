@@ -9,6 +9,7 @@ from datetime import datetime
 
 from nrw_events import report
 from nrw_events.sources import SOURCES, rhein_antik
+
 from tests.helpers import patch_window
 
 
@@ -24,15 +25,20 @@ def _item(text):
 FIXTURE = (
     '<h2 class="elementor-heading-title">'
     "Geplante Antik-, Kunst- &amp; Design-Märkte 2026</h2>"
-    + _item("So 12. April") + _item("Bonn - Friedensplatz")
+    + _item("So 12. April")
+    + _item("Bonn - Friedensplatz")
     + _item("Mi 3. bis So 7. Juni")
     + _item("Aachen / Kornelimünster - hist. Jahrmarkt WIEDER DA!!!")
-    + _item("Sa 18. &amp; So 19. Juli") + _item("Königswinter - Marktplatz")
-    + _item("So 16. August") + _item("Bonn - Friedensplatz")
-    + _item("So 27. September") + _item("Siegburg - Marktplatz NEUER TERMIN")
+    + _item("Sa 18. &amp; So 19. Juli")
+    + _item("Königswinter - Marktplatz")
+    + _item("So 16. August")
+    + _item("Bonn - Friedensplatz")
+    + _item("So 27. September")
+    + _item("Siegburg - Marktplatz NEUER TERMIN")
     + _item("Sa 10. &amp; So 11. Okt.")
     + _item("Bendorf - Industriedenkmal Sayner Hütte NEU!!!")
-    + _item("So 25. Oktober") + _item("Bad Schwalbach - Kurhaus INDOOR NEU!!!")
+    + _item("So 25. Oktober")
+    + _item("Bad Schwalbach - Kurhaus INDOOR NEU!!!")
     + _item("So 13. Dezember")
     + _item("Koblenz / Mülheim-Kärlich CORE Eventlocation INDOOR NEU!!!")
 )
@@ -76,8 +82,7 @@ class RheinAntikSourceTests(unittest.TestCase):
         self.assertEqual(event["end_date"], "2026-10-11")
 
     def test_badges_are_stripped_from_the_venue(self):
-        for start_date, venue in (("2026-09-27", "Marktplatz"),
-                                  ("2026-10-10", "Industriedenkmal Sayner Hütte")):
+        for start_date, venue in (("2026-09-27", "Marktplatz"), ("2026-10-10", "Industriedenkmal Sayner Hütte")):
             with self.subTest(start_date=start_date):
                 self.assertEqual(self._by_date(start_date)["venue"], venue)
 
@@ -106,9 +111,7 @@ class RheinAntikSourceTests(unittest.TestCase):
         self.assertEqual(event["venue"], "CORE Eventlocation")
 
     def test_events_use_a_stable_source_id(self):
-        self.assertTrue(
-            all(event["source_id"] == "rhein-antik" for event in self._events())
-        )
+        self.assertTrue(all(event["source_id"] == "rhein-antik" for event in self._events()))
 
     def test_titles_dedupe_against_the_press_calendar_market_name(self):
         """The organizer record must collapse with the same civic occurrence."""

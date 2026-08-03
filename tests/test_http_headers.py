@@ -12,7 +12,7 @@ from nrw_events.health import SourceResult
 class HttpHeaderTests(unittest.TestCase):
     def test_fetch_url_preserves_mixed_utf8_and_windows_1252_characters(self):
         response = Mock()
-        response.read.return_value = "Kölner ".encode("utf-8") + b"Flohm\xe4rkte"
+        response.read.return_value = "Kölner ".encode() + b"Flohm\xe4rkte"
         headers = Message()
         headers["Content-Type"] = "text/html; charset=UTF-8"
         response.headers = headers
@@ -28,9 +28,11 @@ class HttpHeaderTests(unittest.TestCase):
         old_limit = common._HTTP_MAX_RESPONSE_BYTES
         common._HTTP_MAX_RESPONSE_BYTES = 10
         try:
-            with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
-                with self.assertRaises(common.ResponseTooLargeError):
-                    common.fetch_url("https://example.org/events")
+            with (
+                patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+                self.assertRaises(common.ResponseTooLargeError),
+            ):
+                common.fetch_url("https://example.org/events")
         finally:
             common._HTTP_MAX_RESPONSE_BYTES = old_limit
 
@@ -40,25 +42,32 @@ class HttpHeaderTests(unittest.TestCase):
         headers = Message()
         headers["Content-Type"] = "text/html"
         response.headers = headers
-        with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
-            with self.assertRaises(common.UnexpectedContentTypeError):
-                common.fetch_url("https://example.org/events", expected_content_types=("application/json",))
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+            self.assertRaises(common.UnexpectedContentTypeError),
+        ):
+            common.fetch_url("https://example.org/events", expected_content_types=("application/json",))
 
     def test_post_json_retries_only_when_marked_safe(self):
         response = Mock()
         response.read.return_value = b'{"ok": true}'
         transient = urllib.error.HTTPError("https://example.org/api", 503, "Unavailable", Message(), None)
         self.addCleanup(transient.close)
-        with patch("nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
-                patch("nrw_events.common.time.sleep"):
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen,
+            patch("nrw_events.common.time.sleep"),
+        ):
             self.assertEqual(common.post_json("https://example.org/api", {}, retry_safe=True), {"ok": True})
         self.assertEqual(urlopen.call_count, 2)
+
     def test_fetch_url_uses_browser_like_headers_by_default(self):
         response = Mock()
         response.read.return_value = b"ok"
 
-        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("nrw_events.common.urllib.request.Request") as request:
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+            patch("nrw_events.common.urllib.request.Request") as request,
+        ):
             common.fetch_url("https://example.org/events")
 
         _, kwargs = request.call_args
@@ -76,8 +85,10 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"{}"
 
-        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("nrw_events.common.urllib.request.Request") as request:
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+            patch("nrw_events.common.urllib.request.Request") as request,
+        ):
             common.fetch_url(
                 "https://example.org/events.json",
                 accept="application/json,*/*;q=0.8",
@@ -95,8 +106,10 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"ok"
 
-        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("nrw_events.common.urllib.request.Request") as request:
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+            patch("nrw_events.common.urllib.request.Request") as request,
+        ):
             common.fetch_url(
                 "https://example.org/feed.json",
                 headers={"Accept": "application/feed+json", "User-Agent": "Custom Browser"},
@@ -111,8 +124,10 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"BEGIN:VCALENDAR\nEND:VCALENDAR\n"
 
-        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("nrw_events.common.urllib.request.Request") as request:
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+            patch("nrw_events.common.urllib.request.Request") as request,
+        ):
             self.assertEqual(common.fetch_ical("https://example.org/events.ics", "Example", "Bonn"), [])
 
         headers = request.call_args.kwargs["headers"]
@@ -125,25 +140,29 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"ok after retry"
         transient = urllib.error.HTTPError(
-            "https://example.org/events", 503, "Service Temporarily Unavailable", Message(), None)
+            "https://example.org/events", 503, "Service Temporarily Unavailable", Message(), None
+        )
         self.addCleanup(transient.close)
 
-        with patch("nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen, \
-             patch("nrw_events.common.time.sleep") as sleep:
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", side_effect=[transient, response]) as urlopen,
+            patch("nrw_events.common.time.sleep") as sleep,
+        ):
             self.assertEqual(common.fetch_url("https://example.org/events"), "ok after retry")
 
         self.assertEqual(urlopen.call_count, 2)
         sleep.assert_called_once()
 
     def test_fetch_url_does_not_retry_non_transient_http_errors(self):
-        not_found = urllib.error.HTTPError(
-            "https://example.org/missing", 404, "Not Found", Message(), None)
+        not_found = urllib.error.HTTPError("https://example.org/missing", 404, "Not Found", Message(), None)
         self.addCleanup(not_found.close)
 
-        with patch("nrw_events.common.urllib.request.urlopen", side_effect=not_found) as urlopen, \
-             patch("nrw_events.common.time.sleep") as sleep:
-            with self.assertRaises(urllib.error.HTTPError):
-                common.fetch_url("https://example.org/missing")
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", side_effect=not_found) as urlopen,
+            patch("nrw_events.common.time.sleep") as sleep,
+            self.assertRaises(urllib.error.HTTPError),
+        ):
+            common.fetch_url("https://example.org/missing")
 
         self.assertEqual(urlopen.call_count, 1)
         sleep.assert_not_called()
@@ -160,20 +179,28 @@ class HttpHeaderTests(unittest.TestCase):
         bright_response = Mock()
         bright_response.status = 200
         bright_response.headers = Message()
-        bright_response.read.return_value = json.dumps({
-            "status_code": 200,
-            "body": "<article data-event-card>vomFASS tastings</article>",
-        }).encode()
+        bright_response.read.return_value = json.dumps(
+            {
+                "status_code": 200,
+                "body": "<article data-event-card>vomFASS tastings</article>",
+            }
+        ).encode()
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "secret-key",
-                "BRIGHT_DATA_ZONE": "events-unlocker",
-            }), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                side_effect=[rate_limited, bright_response],
-            ) as urlopen:
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "secret-key",
+                        "BRIGHT_DATA_ZONE": "events-unlocker",
+                    },
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    side_effect=[rate_limited, bright_response],
+                ) as urlopen,
+            ):
                 body = common.fetch_url_with_brightdata_fallback(
                     "https://www.vomfass.de/pages/tastings",
                     allowed_hosts=("www.vomfass.de",),
@@ -196,20 +223,28 @@ class HttpHeaderTests(unittest.TestCase):
         bright_response = Mock()
         bright_response.status = 200
         bright_response.headers = Message()
-        bright_response.read.return_value = json.dumps({
-            "status_code": 200,
-            "body": "<article data-event-card>recovered</article>",
-        }).encode()
+        bright_response.read.return_value = json.dumps(
+            {
+                "status_code": 200,
+                "body": "<article data-event-card>recovered</article>",
+            }
+        ).encode()
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "secret-key",
-                "BRIGHT_DATA_ZONE": "events-unlocker",
-            }), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                side_effect=[TimeoutError("request or source time budget exhausted"), bright_response],
-            ) as urlopen:
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "secret-key",
+                        "BRIGHT_DATA_ZONE": "events-unlocker",
+                    },
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    side_effect=[TimeoutError("request or source time budget exhausted"), bright_response],
+                ) as urlopen,
+            ):
                 body = common.fetch_url_with_brightdata_fallback(
                     "https://www.vomfass.de/pages/tastings",
                     allowed_hosts=("www.vomfass.de",),
@@ -226,21 +261,29 @@ class HttpHeaderTests(unittest.TestCase):
         bright_response = Mock()
         bright_response.status = 200
         bright_response.headers = Message()
-        bright_response.read.return_value = json.dumps({
-            "status_code": 200,
-            "body": "<article data-event-card>recovered late</article>",
-        }).encode()
+        bright_response.read.return_value = json.dumps(
+            {
+                "status_code": 200,
+                "body": "<article data-event-card>recovered late</article>",
+            }
+        ).encode()
         source_result = SourceResult("Slow grouped source")
         common.set_source_context(source_result, timeout_seconds=1)
         common._SOURCE_CONTEXT.deadline = time.perf_counter() - 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "secret-key",
-                "BRIGHT_DATA_ZONE": "events-unlocker",
-            }), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                return_value=bright_response,
-            ) as urlopen:
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "secret-key",
+                        "BRIGHT_DATA_ZONE": "events-unlocker",
+                    },
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    return_value=bright_response,
+                ) as urlopen,
+            ):
                 body = common.fetch_url_with_brightdata_fallback(
                     "https://www.vomfass.de/pages/tastings",
                     timeout=12,
@@ -261,12 +304,18 @@ class HttpHeaderTests(unittest.TestCase):
         bright_response.status = 200
         bright_response.headers = Message()
         bright_response.read.return_value = b'[{"id": 1}, {"id": 2}]'
-        with patch.dict("os.environ", {
-            "BRIGHT_DATA_API_KEY": "secret-key",
-            "BRIGHT_DATA_ZONE": "events-unlocker",
-        }), patch(
-            "nrw_events.common.urllib.request.urlopen",
-            return_value=bright_response,
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "BRIGHT_DATA_API_KEY": "secret-key",
+                    "BRIGHT_DATA_ZONE": "events-unlocker",
+                },
+            ),
+            patch(
+                "nrw_events.common.urllib.request.urlopen",
+                return_value=bright_response,
+            ),
         ):
             body = common.fetch_url_with_brightdata(
                 "https://www.roesrath.de/kalender/events.json",
@@ -279,18 +328,24 @@ class HttpHeaderTests(unittest.TestCase):
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "secret-key",
-                "BRIGHT_DATA_ZONE": "events-unlocker",
-            }), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                side_effect=TimeoutError("timed out"),
-            ) as urlopen:
-                with self.assertRaises(TimeoutError):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "secret-key",
+                        "BRIGHT_DATA_ZONE": "events-unlocker",
+                    },
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    side_effect=TimeoutError("timed out"),
+                ) as urlopen,
+                self.assertRaises(TimeoutError),
+            ):
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -299,17 +354,25 @@ class HttpHeaderTests(unittest.TestCase):
     def test_brightdata_only_fetch_never_requests_target_directly(self):
         bright_response = Mock()
         bright_response.status = 200
-        bright_response.read.return_value = json.dumps({
-            "status_code": 200,
-            "body": "<article data-event-card>vomFASS tastings</article>",
-        }).encode()
-        with patch.dict("os.environ", {
-            "BRIGHT_DATA_API_KEY": "secret-key",
-            "BRIGHT_DATA_ZONE": "events-unlocker",
-        }), patch(
-            "nrw_events.common.urllib.request.urlopen",
-            return_value=bright_response,
-        ) as urlopen:
+        bright_response.read.return_value = json.dumps(
+            {
+                "status_code": 200,
+                "body": "<article data-event-card>vomFASS tastings</article>",
+            }
+        ).encode()
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "BRIGHT_DATA_API_KEY": "secret-key",
+                    "BRIGHT_DATA_ZONE": "events-unlocker",
+                },
+            ),
+            patch(
+                "nrw_events.common.urllib.request.urlopen",
+                return_value=bright_response,
+            ) as urlopen,
+        ):
             body = common.fetch_url_with_brightdata(
                 "https://www.vomfass.de/pages/tastings",
                 allowed_hosts=("www.vomfass.de",),
@@ -326,17 +389,24 @@ class HttpHeaderTests(unittest.TestCase):
         )
 
     def test_brightdata_only_fetch_requires_credentials_without_network(self):
-        with patch.dict("os.environ", {
-            "BRIGHT_DATA_API_KEY": "",
-            "BRIGHT_DATA_ZONE": "",
-        }, clear=False), patch(
-            "nrw_events.common.urllib.request.urlopen",
-        ) as urlopen:
-            with self.assertRaisesRegex(RuntimeError, "credentials are required"):
-                common.fetch_url_with_brightdata(
-                    "https://www.vomfass.de/pages/tastings",
-                    allowed_hosts=("www.vomfass.de",),
-                )
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "BRIGHT_DATA_API_KEY": "",
+                    "BRIGHT_DATA_ZONE": "",
+                },
+                clear=False,
+            ),
+            patch(
+                "nrw_events.common.urllib.request.urlopen",
+            ) as urlopen,
+            self.assertRaisesRegex(RuntimeError, "credentials are required"),
+        ):
+            common.fetch_url_with_brightdata(
+                "https://www.vomfass.de/pages/tastings",
+                allowed_hosts=("www.vomfass.de",),
+            )
 
         urlopen.assert_not_called()
 
@@ -352,18 +422,25 @@ class HttpHeaderTests(unittest.TestCase):
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "",
-                "BRIGHT_DATA_ZONE": "",
-            }, clear=False), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                side_effect=rate_limited,
-            ) as urlopen:
-                with self.assertRaises(urllib.error.HTTPError):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "",
+                        "BRIGHT_DATA_ZONE": "",
+                    },
+                    clear=False,
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    side_effect=rate_limited,
+                ) as urlopen,
+                self.assertRaises(urllib.error.HTTPError),
+            ):
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -382,18 +459,24 @@ class HttpHeaderTests(unittest.TestCase):
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "secret-key",
-                "BRIGHT_DATA_ZONE": "events-unlocker",
-            }), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                side_effect=rate_limited,
-            ) as urlopen:
-                with self.assertRaises(urllib.error.HTTPError):
-                    common.fetch_url_with_brightdata_fallback(
-                        metadata_url,
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "secret-key",
+                        "BRIGHT_DATA_ZONE": "events-unlocker",
+                    },
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    side_effect=rate_limited,
+                ) as urlopen,
+                self.assertRaises(urllib.error.HTTPError),
+            ):
+                common.fetch_url_with_brightdata_fallback(
+                    metadata_url,
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -410,25 +493,33 @@ class HttpHeaderTests(unittest.TestCase):
         self.addCleanup(rate_limited.close)
         bright_response = Mock()
         bright_response.status = 200
-        bright_response.read.return_value = json.dumps({
-            "status_code": 429,
-            "body": "",
-        }).encode()
+        bright_response.read.return_value = json.dumps(
+            {
+                "status_code": 429,
+                "body": "",
+            }
+        ).encode()
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "secret-key",
-                "BRIGHT_DATA_ZONE": "events-unlocker",
-            }), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                side_effect=[rate_limited, bright_response],
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "secret-key",
+                        "BRIGHT_DATA_ZONE": "events-unlocker",
+                    },
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    side_effect=[rate_limited, bright_response],
+                ),
+                self.assertRaisesRegex(RuntimeError, "target returned HTTP 429"),
             ):
-                with self.assertRaisesRegex(RuntimeError, "target returned HTTP 429"):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -443,26 +534,34 @@ class HttpHeaderTests(unittest.TestCase):
         self.addCleanup(rate_limited.close)
         bright_response = Mock()
         bright_response.status = 200
-        bright_response.read.return_value = json.dumps({
-            "status_code": 200,
-            "body": "<html>generic challenge page</html>",
-        }).encode()
+        bright_response.read.return_value = json.dumps(
+            {
+                "status_code": 200,
+                "body": "<html>generic challenge page</html>",
+            }
+        ).encode()
         old_attempts = common._HTTP_RETRY_ATTEMPTS
         common._HTTP_RETRY_ATTEMPTS = 1
         try:
-            with patch.dict("os.environ", {
-                "BRIGHT_DATA_API_KEY": "secret-key",
-                "BRIGHT_DATA_ZONE": "events-unlocker",
-            }), patch(
-                "nrw_events.common.urllib.request.urlopen",
-                side_effect=[rate_limited, bright_response],
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "BRIGHT_DATA_API_KEY": "secret-key",
+                        "BRIGHT_DATA_ZONE": "events-unlocker",
+                    },
+                ),
+                patch(
+                    "nrw_events.common.urllib.request.urlopen",
+                    side_effect=[rate_limited, bright_response],
+                ),
+                self.assertRaisesRegex(RuntimeError, "failed source validation"),
             ):
-                with self.assertRaisesRegex(RuntimeError, "failed source validation"):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                        required_body_markers=("data-event-card",),
-                    )
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                    required_body_markers=("data-event-card",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -475,9 +574,11 @@ class HttpHeaderTests(unittest.TestCase):
         common._HOST_LAST_FETCH_AT["bonn.de"] = 100.0
 
         try:
-            with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
-                 patch("nrw_events.common.time.monotonic", side_effect=[100.25, 101.0]), \
-                 patch("nrw_events.common.time.sleep") as sleep:
+            with (
+                patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+                patch("nrw_events.common.time.monotonic", side_effect=[100.25, 101.0]),
+                patch("nrw_events.common.time.sleep") as sleep,
+            ):
                 self.assertEqual(common.fetch_url("https://www.bonn.de/citykey/events-json.php"), "ok")
         finally:
             common._HOST_LAST_FETCH_AT.clear()
@@ -489,8 +590,10 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b'{"ok": true}'
 
-        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("nrw_events.common.urllib.request.Request") as request:
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+            patch("nrw_events.common.urllib.request.Request") as request,
+        ):
             self.assertEqual(common.post_json("https://example.org/api", {"q": "events"}), {"ok": True})
 
         headers = request.call_args.kwargs["headers"]
@@ -504,8 +607,10 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b'{"data": {"content": "ok"}}'
 
-        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
-             patch("nrw_events.common.urllib.request.Request") as request:
+        with (
+            patch("nrw_events.common.urllib.request.urlopen", return_value=response),
+            patch("nrw_events.common.urllib.request.Request") as request,
+        ):
             payload = common.post_form(
                 "https://example.org/events-api",
                 [("filter", "music"), ("category", "1"), ("category", "2")],

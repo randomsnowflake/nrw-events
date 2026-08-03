@@ -7,7 +7,6 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _SOURCE = "Geide Märkte"
 # The organizer's 2026 schedule PDF states a common visitor market time of
 # 11:00–18:00:
@@ -78,38 +77,24 @@ _PAGES = {
 
 def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list:
     page = _PAGES.get(page_url)
-    years = {
-        int(value)
-        for value in re.findall(r"(?:files/pdf/|Termine-)(20\d{2})(?:/|-)", html or "", re.I)
-    }
+    years = {int(value) for value in re.findall(r"(?:files/pdf/|Termine-)(20\d{2})(?:/|-)", html or "", re.I)}
     clean = common.clean_html(html or "")
     address_ok = bool(page and re.search(page["address_pattern"], clean, re.I))
-    venue_ok = bool(
-        page
-        and (
-            not page.get("venue_pattern")
-            or re.search(page["venue_pattern"], clean, re.I)
-        )
-    )
+    venue_ok = bool(page and (not page.get("venue_pattern") or re.search(page["venue_pattern"], clean, re.I)))
     time_match = re.search(
         r"Verkauf\s+der\s+Ware.*?von\s+(\d{1,2})\s*Uhr\s+bis\s+(\d{1,2})\s*Uhr",
         clean,
         re.I,
     )
     configured_hours = page.get("hours") if page else None
-    configured_hours_ok = bool(
-        configured_hours and years == {_CONFIGURED_HOURS_YEAR}
-    )
+    configured_hours_ok = bool(configured_hours and years == {_CONFIGURED_HOURS_YEAR})
     if not (page and len(years) == 1 and address_ok and venue_ok and (time_match or configured_hours_ok)):
         if strict:
             raise rc.ParserEmptyError("Geide year, address, venue, or hours contract changed")
         return []
 
     year = years.pop()
-    start_hour, end_hour = (
-        tuple(int(value) for value in time_match.groups())
-        if time_match else configured_hours
-    )
+    start_hour, end_hour = tuple(int(value) for value in time_match.groups()) if time_match else configured_hours
     events = []
     valid_cards = 0
     for block in re.findall(r'<div[^>]+class="[^"]*\bevent-itm\b[^"]*"[^>]*>(.*?)</div>\s*</div>', html, re.S | re.I):
@@ -126,9 +111,9 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
         try:
             start = datetime(year, month, int(day_match.group(1)), start_hour)
             end = datetime(year, month, int(day_match.group(1)), end_hour)
-        except ValueError:
+        except ValueError as exc:
             if strict:
-                raise rc.ParserEmptyError("Geide date contract changed")
+                raise rc.ParserEmptyError("Geide date contract changed") from exc
             return []
         valid_cards += 1
         if not common.window_contains(start, end):
@@ -157,12 +142,14 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
 def fetch() -> list:
     events = []
     for url in _PAGES:
-        events.extend(rc.fetch_html_events(
-            _SOURCE,
-            url,
-            lambda html, page_url=url: _events_from_page(html, page_url, strict=True),
-            timeout=20,
-            source_id=_PAGES[url]["source_id"],
-            empty_is_healthy=True,
-        ))
+        events.extend(
+            rc.fetch_html_events(
+                _SOURCE,
+                url,
+                lambda html, page_url=url: _events_from_page(html, page_url, strict=True),
+                timeout=20,
+                source_id=_PAGES[url]["source_id"],
+                empty_is_healthy=True,
+            )
+        )
     return rc.dedupe(events)

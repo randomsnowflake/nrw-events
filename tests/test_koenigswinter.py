@@ -4,13 +4,13 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import koenigswinter
+
 from tests.helpers import patch_window
 
 
 class KoenigswinterParserTests(unittest.TestCase):
     def setUp(self):
-        self.cache_env = patch.dict(
-            "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
+        self.cache_env = patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.cache_env.start()
         common._reset_detail_page_cache()
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
@@ -31,7 +31,7 @@ class KoenigswinterParserTests(unittest.TestCase):
 <div class="location mt-2">
   <span class="gcevent-list-location-span">Rheinfähre Königswinter/Bonn-Mehlem</span>
 </div>
-"""
+"""  # noqa: E501
         detail_html = """
 <div class="event-content mb-2">
   <p>Der Radtreff Campus Bonn plant eine Fahrradfernfahrt von Königswinter nach Cognac.<br />

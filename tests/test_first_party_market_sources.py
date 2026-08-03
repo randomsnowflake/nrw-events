@@ -9,6 +9,7 @@ from nrw_events.sources import (
     regional_common,
     rheinbach_flohmarkt,
 )
+
 from tests.helpers import patch_window
 
 
@@ -133,23 +134,33 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         cases = {
             "https://www.geide-maerkte.de/bonn-alfter-oedekoven.html": (
                 "Alfterer Str. 35-37 - 53347 Alfter Oedekoven",
-                "Alfter", "OBI, Alfterer Straße 35–37", "geide-alfter-obi",
+                "Alfter",
+                "OBI, Alfterer Straße 35–37",
+                "geide-alfter-obi",
             ),
             "https://www.geide-maerkte.de/bonn-alfter-oedekoven-rewe-markt.html": (
                 "Ziegelweg 1 53347 Alfter-Oedekoven",
-                "Alfter", "REWE, Ziegelweg 1", "geide-alfter-rewe",
+                "Alfter",
+                "REWE, Ziegelweg 1",
+                "geide-alfter-rewe",
             ),
             "https://www.geide-maerkte.de/sankt-augustin-hit-markt.html": (
                 "Alte Heerstraße 53 - 53757 Sankt Augustin",
-                "Sankt Augustin", "HIT-Markt, Alte Heerstraße 53", "geide-sankt-augustin-hit",
+                "Sankt Augustin",
+                "HIT-Markt, Alte Heerstraße 53",
+                "geide-sankt-augustin-hit",
             ),
             "https://www.geide-maerkte.de/siegburg.html": (
                 "Flohmärkte am OBI-Baumarkt in Siegburg Adresse / - 53721 Siegburg",
-                "Siegburg", "OBI-Baumarkt Siegburg", "geide-siegburg-obi",
+                "Siegburg",
+                "OBI-Baumarkt Siegburg",
+                "geide-siegburg-obi",
             ),
             "https://www.geide-maerkte.de/hennef-sieg.html": (
                 "Frankfurter Straße - Marktplatz - 53773 Hennef (Sieg)",
-                "Hennef", "Marktplatz und Frankfurter Straße", "geide-hennef-stadtflohmarkt",
+                "Hennef",
+                "Marktplatz und Frankfurter Straße",
+                "geide-hennef-stadtflohmarkt",
             ),
         }
         card = """
@@ -257,10 +268,13 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         """
         self.assertEqual(rheinbach_flohmarkt._events_from_page(html), [])
 
-        allowed_goods = html + """
+        allowed_goods = (
+            html
+            + """
         <p>Es sind nur Privatanbieter zugelassen.</p>
         <p>Neuwaren, Lebensmittel und Kunstobjekte sind ausdrücklich erlaubt.</p>
         """
+        )
         self.assertEqual(rheinbach_flohmarkt._events_from_page(allowed_goods), [])
 
     def test_new_sources_respect_the_inclusive_28_day_window(self):

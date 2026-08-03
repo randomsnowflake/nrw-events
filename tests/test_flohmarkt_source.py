@@ -5,6 +5,7 @@ from unittest import mock
 
 from nrw_events import common
 from nrw_events.sources import flohmarkt
+
 from tests.helpers import patch_window
 
 
@@ -32,8 +33,8 @@ class RheinauenFlohmarktSourceTests(unittest.TestCase):
         }
         body = (
             '<div class="SP-Text"><div class="SP-Paragraph">'
-            '<p>Der Flohmarkt in der Rheinaue gilt als einer der größten Flohmärkte in Deutschland.</p>'
-            '<p>Von April bis Oktober werden die Stände aufgebaut; verkauft werden dürfen gebrauchte Waren und Kunsthandwerk.</p>'
+            "<p>Der Flohmarkt in der Rheinaue gilt als einer der größten Flohmärkte in Deutschland.</p>"
+            "<p>Von April bis Oktober werden die Stände aufgebaut; verkauft werden dürfen gebrauchte Waren und Kunsthandwerk.</p>"  # noqa: E501
             "</div></div>"
         )
         html = f'<script type="application/ld+json">{json.dumps(payload)}</script>{body}'

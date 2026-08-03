@@ -5,7 +5,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://afterjobparty.ticket.io/"
 SOURCE = "AfterJobParty Bonn"
 
@@ -72,9 +71,8 @@ def _events_from_listing(html: str) -> list:
         description = _description(row) or common.factual_event_description(
             title, date_value=start, venue=venue, city=city
         )
-        if (
-            re.search(r"\bpützchens markt\b", title, re.I)
-            and re.search(r"\bwiesn-party\b|\boktoberfest\b", description, re.I)
+        if re.search(r"\bpützchens markt\b", title, re.I) and re.search(
+            r"\bwiesn-party\b|\boktoberfest\b", description, re.I
         ):
             title = (
                 "AfterJob Wiesn-Party in der Bayernfesthalle"
@@ -82,10 +80,18 @@ def _events_from_listing(html: str) -> list:
                 else "Wiesn-Party in der Bayernfesthalle"
             )
         event = common.make_event(
-            title, start, end, venue, city, description,
-            str(item.get("url") or URL), SOURCE,
-            "after work party nightlife dj dance club", 0.98,
-            coords=coords, source_id="afterjobparty-bonn",
+            title,
+            start,
+            end,
+            venue,
+            city,
+            description,
+            str(item.get("url") or URL),
+            SOURCE,
+            "after work party nightlife dj dance club",
+            0.98,
+            coords=coords,
+            source_id="afterjobparty-bonn",
         )
         if event:
             price = _price(item.get("offers"))
@@ -102,9 +108,12 @@ def fetch() -> list:
             events = _events_from_listing(html)
         parser_empty = not events and metrics["out_of_window_count"] == 0
         common._record_endpoint(
-            URL, parser_type="json-ld-in-html", candidate_count=metrics["candidate_count"],
+            URL,
+            parser_type="json-ld-in-html",
+            candidate_count=metrics["candidate_count"],
             out_of_window_count=metrics["out_of_window_count"],
-            parsed_event_count=len(events), parser_empty=parser_empty,
+            parsed_event_count=len(events),
+            parser_empty=parser_empty,
         )
         if parser_empty:
             common.log_source_error(SOURCE, rc.ParserEmptyError("parser returned no event records"))

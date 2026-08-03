@@ -5,11 +5,7 @@ from unittest.mock import patch
 from nrw_events import common
 from nrw_events.sources import much
 
-
-DETAIL_LINK = (
-    "https://www.much.de/willkommen/veranstaltungen/detail/"
-    "19-07-2026_1400/gartencafe-der-solawi-much"
-)
+DETAIL_LINK = "https://www.much.de/willkommen/veranstaltungen/detail/19-07-2026_1400/gartencafe-der-solawi-much"
 
 
 DETAIL_HTML = """
@@ -36,13 +32,12 @@ DETAIL_HTML = """
   </div>
   <footer>Öffnungszeiten und Kontaktdaten der Gemeinde Much</footer>
 </main>
-"""
+"""  # noqa: E501
 
 
 class MuchDetailEnrichmentTests(unittest.TestCase):
     def setUp(self):
-        self.cache_env = patch.dict(
-            "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
+        self.cache_env = patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.cache_env.start()
         much.common._reset_detail_page_cache()
 
@@ -51,8 +46,7 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
         self.cache_env.stop()
 
     def test_parser_selects_richest_official_description(self):
-        description = much._parse_detail_description(
-            DETAIL_HTML, "Gartencafe der Solawi Much")
+        description = much._parse_detail_description(DETAIL_HTML, "Gartencafe der Solawi Much")
 
         self.assertEqual(
             description,
@@ -98,8 +92,10 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(
             context["description"],
             common.factual_event_description(
-                "Trauer Treff", date_value=datetime(2026, 7, 14, 16),
-                time_text="16:00", end_time_text="17:30",
+                "Trauer Treff",
+                date_value=datetime(2026, 7, 14, 16),
+                time_text="16:00",
+                end_time_text="17:30",
                 venue="Amb. Hospizdienst Much, Dr. Wirtz Str. 6, 53804 Much",
                 city="Much",
             ),
@@ -114,8 +110,10 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
             {"title": "Andere Veranstaltung", "link": "https://example.test", "description": "Feed copy"},
         ]
 
-        with patch.object(much.common, "fetch_url", side_effect=["listing", DETAIL_HTML]) as fetch_url, \
-                patch.object(much.common, "events_from_time_listing", return_value=events):
+        with (
+            patch.object(much.common, "fetch_url", side_effect=["listing", DETAIL_HTML]) as fetch_url,
+            patch.object(much.common, "events_from_time_listing", return_value=events),
+        ):
             enriched = much.fetch()
 
         expected = (
@@ -133,9 +131,11 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
     def test_detail_failure_keeps_listing_events_available(self):
         events = [{"title": "Gartencafe", "link": DETAIL_LINK, "description": ""}]
 
-        with patch.object(much.common, "fetch_url", side_effect=["listing", TimeoutError("detail timeout")]), \
-                patch.object(much.common, "events_from_time_listing", return_value=events), \
-                patch.object(much.common, "log_source_error") as log_error:
+        with (
+            patch.object(much.common, "fetch_url", side_effect=["listing", TimeoutError("detail timeout")]),
+            patch.object(much.common, "events_from_time_listing", return_value=events),
+            patch.object(much.common, "log_source_error") as log_error,
+        ):
             result = much.fetch()
 
         self.assertIn("findet", result[0]["description"])

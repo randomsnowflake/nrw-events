@@ -35,7 +35,9 @@ def events_from_html(html: str) -> list:
             article,
             re.S | re.I,
         )
-        time_match = re.search(r'<time[^>]+datetime="(20\d{2}-\d{2}-\d{2})\s+(\d{2}):(\d{2})"[^>]*>(.*?)</time>', article, re.S | re.I)
+        time_match = re.search(
+            r'<time[^>]+datetime="(20\d{2}-\d{2}-\d{2})\s+(\d{2}):(\d{2})"[^>]*>(.*?)</time>', article, re.S | re.I
+        )
         if not (title_match and time_match):
             continue
 
@@ -48,12 +50,15 @@ def events_from_html(html: str) -> list:
         end = None
         if len(clocks) >= 2:
             end = start.replace(hour=int(clocks[-1][0]), minute=int(clocks[-1][1]))
-        description_match = re.search(r'</h3>\s*(?:</header>\s*)?<p>(.*?)</p>', article, re.S | re.I)
-        labels = [rc.clean(label) for label in re.findall(
-            r'class="[^"]*\bevents-teaser__content-label\b[^"]*"[^>]*>\s*<span>(.*?)</span>',
-            article,
-            re.S | re.I,
-        )]
+        description_match = re.search(r"</h3>\s*(?:</header>\s*)?<p>(.*?)</p>", article, re.S | re.I)
+        labels = [
+            rc.clean(label)
+            for label in re.findall(
+                r'class="[^"]*\bevents-teaser__content-label\b[^"]*"[^>]*>\s*<span>(.*?)</span>',
+                article,
+                re.S | re.I,
+            )
+        ]
         description = rc.clean(description_match.group(1) if description_match else "")
         if not description:
             description = " ".join(labels) or "Veranstaltung im Deutschen Museum Bonn."
@@ -85,7 +90,7 @@ def _detail_description(html: str, _event: dict) -> dict:
         html or "",
         re.S | re.I,
     )
-    teaser = re.search(r'data-teaser-text-target[^>]*>\s*<p>(.*?)</p>', html or "", re.S | re.I)
+    teaser = re.search(r"data-teaser-text-target[^>]*>\s*<p>(.*?)</p>", html or "", re.S | re.I)
     description = common.concise_description(
         rc.clean(body.group(1) if body else (teaser.group(1) if teaser else "")),
         max_chars=300,

@@ -19,40 +19,37 @@ import random
 import re
 import threading
 import time
-import urllib.request
-import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
 import urllib.error
-from contextlib import closing, contextmanager
+import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
+import urllib.request
+from contextlib import closing, contextmanager, suppress
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
-from typing import NoReturn, Optional
+from typing import NoReturn
 from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, config, richtext
+from .dates import MONTH_DE as MONTH_DE
+from .dates import MONTH_EN as MONTH_EN
+from .dates import configure_reference_date as _configure_date_reference
+from .dates import parse_date, parse_iso_date
 from .health import SourceResult, SourceStatus
 from .location import coords_for_city as coords_for_city
-from .location import refine_city_from_text as refine_city_from_text
-from .location import refine_bonn_location as refine_bonn_location
 from .location import guess_city_from_text, haversine, resolve_location
+from .location import refine_bonn_location as refine_bonn_location
+from .location import refine_city_from_text as refine_city_from_text
 from .models import AdmissionDefault
 from .normalization import resolve_venue
 from .observability import LOGGER_NAME, log, redact
-from .scoring import category_score, distance_score
 from .runtime import RunContext
+from .scoring import category_score, distance_score
 from .title_normalization import normalize_event_title
-from .dates import configure_reference_date as _configure_date_reference
-from .dates import MONTH_DE as MONTH_DE
-from .dates import MONTH_EN as MONTH_EN
-from .dates import parse_date
-from .dates import parse_iso_date
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
-TODAY = datetime.now(LOCAL_TIMEZONE).replace(
-    hour=0, minute=0, second=0, microsecond=0, tzinfo=None
-)
+TODAY = datetime.now(LOCAL_TIMEZONE).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
 END_DATE = TODAY + timedelta(days=max(DAYS_AHEAD - 1, 0))
 _configure_date_reference(TODAY)
 
@@ -78,9 +75,7 @@ _BROWSER_PROFILES = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
-        "Sec-CH-UA": (
-            '"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'
-        ),
+        "Sec-CH-UA": ('"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'),
         "Sec-CH-UA-Platform": '"Windows"',
     },
     {
@@ -88,19 +83,14 @@ _BROWSER_PROFILES = [
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
-        "Sec-CH-UA": (
-            '"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'
-        ),
+        "Sec-CH-UA": ('"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'),
         "Sec-CH-UA-Platform": '"macOS"',
     },
     {
         "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
-        "Sec-CH-UA": (
-            '"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'
-        ),
+        "Sec-CH-UA": ('"Google Chrome";v="131", "Chromium";v="131", "Not.A/Brand";v="24"'),
         "Sec-CH-UA-Platform": '"Linux"',
     },
 ]
@@ -126,7 +116,15 @@ _HOST_SLOTS: dict[str, threading.Lock] = {}
 
 def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger) -> None:
     """Apply validated settings after the optional env file has been loaded."""
-    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _HTTP_REQUEST_BUDGET_SECONDS, _HTTP_RETRY_MAX_DELAY_SECONDS, _HTTP_MAX_RESPONSE_BYTES, _RUN_ID, _LOGGER, MAX_RADIUS_KM
+    global \
+        _HTTP_RETRY_ATTEMPTS, \
+        _HTTP_RETRY_BASE_SECONDS, \
+        _HTTP_REQUEST_BUDGET_SECONDS, \
+        _HTTP_RETRY_MAX_DELAY_SECONDS, \
+        _HTTP_MAX_RESPONSE_BYTES, \
+        _RUN_ID, \
+        _LOGGER, \
+        MAX_RADIUS_KM
     _HTTP_RETRY_ATTEMPTS = settings.http_retry_attempts
     _HTTP_RETRY_BASE_SECONDS = settings.http_retry_base_seconds
     _HTTP_REQUEST_BUDGET_SECONDS = settings.http_request_budget_seconds
@@ -150,7 +148,7 @@ def configure_context(context: RunContext) -> None:
     _configure_date_reference(TODAY)
 
 
-def set_source_context(result: Optional[SourceResult], timeout_seconds: float | None = None) -> None:
+def set_source_context(result: SourceResult | None, timeout_seconds: float | None = None) -> None:
     """Attach warnings emitted by a legacy fetcher to its runner-owned result."""
     _SOURCE_CONTEXT.result = result
     if result is not None and timeout_seconds is not None:
@@ -280,13 +278,13 @@ def _retry_delay(exc: Exception, attempt_index: int) -> float:
             except ValueError:
                 pass
     jitter = random.SystemRandom().uniform(0, _HTTP_RETRY_BASE_SECONDS / 2) if _HTTP_RETRY_BASE_SECONDS else 0.0
-    return min(_HTTP_RETRY_BASE_SECONDS * (2 ** attempt_index) + jitter, _HTTP_RETRY_MAX_DELAY_SECONDS)
+    return min(_HTTP_RETRY_BASE_SECONDS * (2**attempt_index) + jitter, _HTTP_RETRY_MAX_DELAY_SECONDS)
 
 
 def _is_retryable_fetch_error(exc: Exception) -> bool:
     if isinstance(exc, urllib.error.HTTPError):
         return exc.code in _TRANSIENT_HTTP_STATUSES
-    return isinstance(exc, (urllib.error.URLError, TimeoutError, ConnectionError))
+    return isinstance(exc, urllib.error.URLError | TimeoutError | ConnectionError)
 
 
 def _close_http_error(exc: Exception) -> None:
@@ -300,7 +298,7 @@ def browser_headers(
     accept: str,
     sec_fetch_mode: str,
     sec_fetch_dest: str,
-    extra: Optional[dict] = None,
+    extra: dict | None = None,
 ) -> dict:
     """Return realistic browser request headers for public event-source fetches.
 
@@ -332,11 +330,11 @@ def browser_headers(
 def fetch_url(
     url: str,
     timeout: int = 15,
-    headers: Optional[dict] = None,
+    headers: dict | None = None,
     accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     sec_fetch_mode: str = "navigate",
     sec_fetch_dest: str = "document",
-    expected_content_types: Optional[tuple] = None,
+    expected_content_types: tuple | None = None,
 ) -> str:
     """GET a URL and return decoded text. Raises on network/HTTP error.
 
@@ -355,22 +353,33 @@ def fetch_url(
         try:
             started = time.perf_counter()
             req = urllib.request.Request(url, headers=hdrs)
-            with _host_request_slot(url, deadline):
-                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    headers_obj = getattr(resp, "headers", None)
-                    content_type = headers_obj.get_content_type() if hasattr(headers_obj, "get_content_type") else ""
-                    if not isinstance(content_type, str):
-                        content_type = ""
-                    if expected_content_types and content_type and not any(content_type.startswith(item) for item in expected_content_types):
-                        raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
-                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-                    charset = headers_obj.get_content_charset() if hasattr(headers_obj, "get_content_charset") else None
-                    if not isinstance(charset, str):
-                        charset = None
-                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
-                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            with (
+                _host_request_slot(url, deadline),
+                closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp,
+            ):
+                headers_obj = getattr(resp, "headers", None)
+                content_type = headers_obj.get_content_type() if hasattr(headers_obj, "get_content_type") else ""
+                if not isinstance(content_type, str):
+                    content_type = ""
+                if (
+                    expected_content_types
+                    and content_type
+                    and not any(content_type.startswith(item) for item in expected_content_types)
+                ):
+                    raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
+                body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+                if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                charset = headers_obj.get_content_charset() if hasattr(headers_obj, "get_content_charset") else None
+                if not isinstance(charset, str):
+                    charset = None
+                _record_endpoint(
+                    url,
+                    status=getattr(resp, "status", 200),
+                    content_type=content_type,
+                    bytes=len(body),
+                    duration_ms=round((time.perf_counter() - started) * 1000),
+                )
             try:
                 return body.decode(charset or "utf-8")
             except UnicodeDecodeError:
@@ -381,7 +390,8 @@ def fetch_url(
                 decoded = body.decode("utf-8", errors="surrogateescape")
                 return "".join(
                     bytes((ord(char) - 0xDC00,)).decode("cp1252", errors="replace")
-                    if 0xDC80 <= ord(char) <= 0xDCFF else char
+                    if 0xDC80 <= ord(char) <= 0xDCFF
+                    else char
                     for char in decoded
                 )
         except Exception as exc:
@@ -445,21 +455,21 @@ def fetch_url_with_brightdata(
     # A direct-first fallback may be entered precisely because the ordinary
     # request/source budget expired. Give that one allowlisted proxy attempt a
     # fresh, still-bounded budget instead of failing before it starts.
-    deadline = (
-        time.perf_counter() + max(timeout, 120)
-        if fresh_request_budget
-        else _request_deadline()
-    )
+    deadline = time.perf_counter() + max(timeout, 120) if fresh_request_budget else _request_deadline()
     try:
-        with _host_request_slot(_BRIGHT_DATA_API_URL, deadline):
-            with closing(urllib.request.urlopen(
-                request,
-                timeout=_remaining_timeout(deadline, max(timeout, 120)),
-            )) as response:
-                raw = response.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                if len(raw) > _HTTP_MAX_RESPONSE_BYTES:
-                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-                api_status = getattr(response, "status", 200)
+        with (
+            _host_request_slot(_BRIGHT_DATA_API_URL, deadline),
+            closing(
+                urllib.request.urlopen(
+                    request,
+                    timeout=_remaining_timeout(deadline, max(timeout, 120)),
+                )
+            ) as response,
+        ):
+            raw = response.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+            if len(raw) > _HTTP_MAX_RESPONSE_BYTES:
+                raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+            api_status = getattr(response, "status", 200)
     except Exception as exc:
         _raise_brightdata_failure(url, started, exc)
 
@@ -480,9 +490,8 @@ def fetch_url_with_brightdata(
             target_status = api_status
             body = decoded
 
-    if not isinstance(target_status, (int, str)):
-        _raise_brightdata_failure(
-            url, started, RuntimeError("Bright Data response omitted the target status"))
+    if not isinstance(target_status, int | str):
+        _raise_brightdata_failure(url, started, RuntimeError("Bright Data response omitted the target status"))
     try:
         target_status = int(target_status)
     except (TypeError, ValueError) as exc:
@@ -490,15 +499,12 @@ def fetch_url_with_brightdata(
         error.__cause__ = exc
         _raise_brightdata_failure(url, started, error)
     if not 200 <= target_status < 300:
-        _raise_brightdata_failure(
-            url, started, RuntimeError(f"Bright Data target returned HTTP {target_status}"))
+        _raise_brightdata_failure(url, started, RuntimeError(f"Bright Data target returned HTTP {target_status}"))
     if not isinstance(body, str) or not body.strip():
-        _raise_brightdata_failure(
-            url, started, RuntimeError("Bright Data returned an empty target body"))
+        _raise_brightdata_failure(url, started, RuntimeError("Bright Data returned an empty target body"))
     missing_markers = [marker for marker in required_body_markers if marker not in body]
     if missing_markers:
-        _raise_brightdata_failure(
-            url, started, RuntimeError("Bright Data target body failed source validation"))
+        _raise_brightdata_failure(url, started, RuntimeError("Bright Data target body failed source validation"))
 
     _record_endpoint(
         url,
@@ -540,7 +546,7 @@ def fetch_url_with_brightdata_fallback(
             if isinstance(direct_error, urllib.error.HTTPError)
             else fallback_on_timeout
         )
-        if (not eligible_failure or not eligible_host or not api_key or not zone):
+        if not eligible_failure or not eligible_host or not api_key or not zone:
             raise
         fallback_needs_fresh_budget = isinstance(direct_error, TimeoutError)
 
@@ -609,9 +615,11 @@ def _load_detail_page_cache(namespace: str, ttl_seconds: float) -> dict:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, OSError, TypeError, ValueError):
         payload = {}
-    if (isinstance(payload, dict)
-            and payload.get("version") == _DETAIL_PAGE_CACHE_VERSION
-            and payload.get("namespace") == slug):
+    if (
+        isinstance(payload, dict)
+        and payload.get("version") == _DETAIL_PAGE_CACHE_VERSION
+        and payload.get("namespace") == slug
+    ):
         now = time.time()
         for url, entry in (payload.get("entries") or {}).items():
             if not isinstance(url, str) or not isinstance(entry, dict):
@@ -669,10 +677,8 @@ def _persist_detail_page_cache(state: dict) -> None:
         state["dirty"] = False
     except OSError as exc:
         log_source_error(f"{state['namespace']} detail cache", exc)
-        try:
+        with suppress(OSError):
             temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
 
 
 def flush_detail_page_caches(namespace: str | None = None) -> None:
@@ -746,8 +752,9 @@ def parse_float(value, default: float = 0.0) -> float:
         return default
 
 
-def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict] = None,
-              retry_safe: bool = False) -> dict:
+def post_json(
+    url: str, payload: dict, timeout: int = 45, headers: dict | None = None, retry_safe: bool = False
+) -> dict:
     """POST JSON and parse JSON; callers opt into retries for idempotent APIs."""
     hdrs = browser_headers(
         accept="application/json",
@@ -762,13 +769,20 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
-            with _host_request_slot(url, deadline):
-                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
-                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            with (
+                _host_request_slot(url, deadline),
+                closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp,
+            ):
+                body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+                if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                _record_endpoint(
+                    url,
+                    status=getattr(resp, "status", 200),
+                    content_type="application/json",
+                    bytes=len(body),
+                    duration_ms=round((time.perf_counter() - started) * 1000),
+                )
             return json.loads(body.decode("utf-8"))
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
@@ -781,8 +795,7 @@ def post_json(url: str, payload: dict, timeout: int = 45, headers: Optional[dict
     raise RuntimeError("post_json retry loop exhausted unexpectedly")  # pragma: no cover
 
 
-def post_form(url: str, fields, timeout: int = 45, headers: Optional[dict] = None,
-              retry_safe: bool = True) -> dict:
+def post_form(url: str, fields, timeout: int = 45, headers: dict | None = None, retry_safe: bool = True) -> dict:
     """POST URL-encoded form fields and parse a JSON response."""
     hdrs = browser_headers(
         accept="application/json",
@@ -797,13 +810,20 @@ def post_form(url: str, fields, timeout: int = 45, headers: Optional[dict] = Non
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
-            with _host_request_slot(url, deadline):
-                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
-                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
-                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+            with (
+                _host_request_slot(url, deadline),
+                closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp,
+            ):
+                body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
+                if len(body) > _HTTP_MAX_RESPONSE_BYTES:
+                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                _record_endpoint(
+                    url,
+                    status=getattr(resp, "status", 200),
+                    content_type="application/json",
+                    bytes=len(body),
+                    duration_ms=round((time.perf_counter() - started) * 1000),
+                )
             return json.loads(body.decode("utf-8"))
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
@@ -836,6 +856,7 @@ def extract_json_array(text: str) -> list:
 
 
 # ── HTML / text ─────────────────────────────────────────────────────
+
 
 def clean_html(text: str) -> str:
     """Strip tags/entities and collapse whitespace."""
@@ -935,9 +956,11 @@ def is_raw_api_url(url: str) -> bool:
         return True
     if "/api/" in path or path.startswith("/api"):
         return True
-    if path in {"", "/"} and query and any(bit in query for bit in ("format=json", "output=json", "type=json", "eventid=")):
-        return True
-    return False
+    return bool(
+        path in {"", "/"}
+        and query
+        and any(bit in query for bit in ("format=json", "output=json", "type=json", "eventid="))
+    )
 
 
 def normalize_venue_name(value: str, city: str = "") -> str:
@@ -954,24 +977,38 @@ def description_source_for(value: str) -> str:
     return "generated" if isinstance(value, GeneratedDescription) else "scraped"
 
 
-_NON_TERMINAL_ABBREVIATIONS = frozenset({
-    "abb", "bsp", "bzw", "ca", "d.h", "dr", "etc", "ggf", "inkl", "nr",
-    "prof", "sog", "str", "u.a", "usw", "vgl", "z.b", "zzgl",
-})
+_NON_TERMINAL_ABBREVIATIONS = frozenset(
+    {
+        "abb",
+        "bsp",
+        "bzw",
+        "ca",
+        "d.h",
+        "dr",
+        "etc",
+        "ggf",
+        "inkl",
+        "nr",
+        "prof",
+        "sog",
+        "str",
+        "u.a",
+        "usw",
+        "vgl",
+        "z.b",
+        "zzgl",
+    }
+)
 
 
 def _is_sentence_boundary(text: str, match: re.Match) -> bool:
     """Reject periods that belong to common abbreviations, initials, or ordinals."""
     if match.group(0)[0] != ".":
         return True
-    token_match = re.search(r"([\wÄÖÜäöüß.]+)$", text[:match.start()])
+    token_match = re.search(r"([\wÄÖÜäöüß.]+)$", text[: match.start()])
     token = token_match.group(1) if token_match else ""
     normalized = token.casefold().strip(".")
-    return not (
-        token.isdigit()
-        or len(normalized) == 1
-        or normalized in _NON_TERMINAL_ABBREVIATIONS
-    )
+    return not (token.isdigit() or len(normalized) == 1 or normalized in _NON_TERMINAL_ABBREVIATIONS)
 
 
 def concise_description(value: str, max_chars: int | None = None) -> str:
@@ -988,13 +1025,13 @@ def concise_description(value: str, max_chars: int | None = None) -> str:
     else:
         sentence_ends = [
             match
-            for match in re.finditer(r'''[.!?](?:["'“”’»\)\]]*)(?=\s|$)''', cleaned[:limit])
+            for match in re.finditer(r"""[.!?](?:["'“”’»\)\]]*)(?=\s|$)""", cleaned[:limit])
             if _is_sentence_boundary(cleaned, match)
         ]
         if sentence_ends:
-            shortened = cleaned[:sentence_ends[-1].end()].rstrip()
+            shortened = cleaned[: sentence_ends[-1].end()].rstrip()
         else:
-            prefix = cleaned[:max(0, limit - 1)]
+            prefix = cleaned[: max(0, limit - 1)]
             # A cut may land mid-paragraph; break on the last whitespace of any
             # kind so the truncation never glues two paragraphs together.
             shortened = re.split(r"\s(?=\S*$)", prefix)[0].rstrip(" ,;:\n")
@@ -1018,9 +1055,7 @@ def factual_event_description(
     """Build useful minimum copy when an upstream listing has no description."""
     clean_title = clean_html(title)
     date_text = (
-        date_value.strftime("%d.%m.%Y")
-        if hasattr(date_value, "strftime")
-        else clean_html(str(date_value or ""))
+        date_value.strftime("%d.%m.%Y") if hasattr(date_value, "strftime") else clean_html(str(date_value or ""))
     )
     clean_time = sanitize_time_text(time_text).removesuffix(" Uhr")
     end_date_text = (
@@ -1044,8 +1079,7 @@ def factual_event_description(
     for index, value in enumerate((venue, city)):
         cleaned = clean_html(value)
         if cleaned and not any(
-            cleaned.casefold() == part.casefold()
-            or (index == 1 and cleaned.casefold() in part.casefold())
+            cleaned.casefold() == part.casefold() or (index == 1 and cleaned.casefold() in part.casefold())
             for part in place_parts
         ):
             place_parts.append(cleaned)
@@ -1085,10 +1119,7 @@ _CANCELLED_CONTEXT_PATTERN = re.compile(
 def has_cancelled_status(title: str, description: str) -> bool:
     """True when text marks this event as cancelled/postponed."""
     combined = " ".join([title or "", description or ""])
-    return bool(
-        _CANCELLED_TITLE_PATTERN.search(title or "")
-        or _CANCELLED_CONTEXT_PATTERN.search(combined)
-    )
+    return bool(_CANCELLED_TITLE_PATTERN.search(title or "") or _CANCELLED_CONTEXT_PATTERN.search(combined))
 
 
 def event_status(title: str, description: str) -> str:
@@ -1100,6 +1131,7 @@ def event_status(title: str, description: str) -> str:
 
 
 # ── Date parsing ────────────────────────────────────────────────────
+
 
 def extract_dates(text: str) -> list:
     """Extract parseable dates from free text (for search-result filtering)."""
@@ -1134,7 +1166,7 @@ def in_date_range(date_str: str) -> bool:
     return window_contains(dt)
 
 
-def window_contains(start_dt: Optional[datetime], end_dt: Optional[datetime] = None) -> bool:
+def window_contains(start_dt: datetime | None, end_dt: datetime | None = None) -> bool:
     """Return whether a dated event overlaps the inclusive report window."""
     if start_dt is None:
         return False
@@ -1159,8 +1191,10 @@ def event_in_window(event: dict) -> bool:
 
 
 def event_in_window_and_radius(
-    start_dt: Optional[datetime], end_dt: Optional[datetime], city: str,
-    coords: Optional[tuple] = None,
+    start_dt: datetime | None,
+    end_dt: datetime | None,
+    city: str,
+    coords: tuple | None = None,
 ) -> bool:
     """Cheap preflight for detail-page fan-out before full event construction."""
     if not window_contains(start_dt, end_dt):
@@ -1328,7 +1362,12 @@ _DESTINATION_MARKET_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _DESTINATION_MARKET_EVENT_BITS = {
-    "festival", "kirmes", "stadtteilfest", "strassenfest", "straßenfest", "street food",
+    "festival",
+    "kirmes",
+    "stadtteilfest",
+    "strassenfest",
+    "straßenfest",
+    "street food",
 }
 
 
@@ -1373,7 +1412,9 @@ def infer_admission(
         return "", "explicit"
     if visitor_charge:
         return "", ""
-    if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
+    if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(
+        re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS
+    ):
         return "", ""
     if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
         return "kostenlos", "inferred"
@@ -1404,21 +1445,38 @@ def infer_free_admission_price(
 ) -> str:
     """Return a normalized free-admission label from explicit or safe implicit evidence."""
     return infer_admission(
-        title, description, price, venue=venue, source=source, link=link,
+        title,
+        description,
+        price,
+        venue=venue,
+        source=source,
+        link=link,
         admission=admission,
     )[0]
 
 
-def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
-               venue: str, city: str, description: str, link: str, source: str,
-               category: str, trust: float = 1.0, time_text: str = "",
-               coords: Optional[tuple] = None, all_day: Optional[bool] = None,
-               timezone_name: str = "Europe/Berlin", source_id: str = "",
-               description_source: str = "",
-               admission: AdmissionDefault | None = None,
-               time_note: str = "",
-               default_category_key: str = "",
-               category_locked: bool = False) -> Optional[dict]:
+def make_event(
+    title: str,
+    start_dt: datetime | None,
+    end_dt: datetime | None,
+    venue: str,
+    city: str,
+    description: str,
+    link: str,
+    source: str,
+    category: str,
+    trust: float = 1.0,
+    time_text: str = "",
+    coords: tuple | None = None,
+    all_day: bool | None = None,
+    timezone_name: str = "Europe/Berlin",
+    source_id: str = "",
+    description_source: str = "",
+    admission: AdmissionDefault | None = None,
+    time_note: str = "",
+    default_category_key: str = "",
+    category_locked: bool = False,
+) -> dict | None:
     """Build a scored event dict and apply radius + junk checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
@@ -1432,14 +1490,12 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     city = refine_bonn_location(city, f"{venue} {city}")
     canonical_venue = resolve_venue(venue, city)
     outside_window = bool(
-        (end_dt is not None and start_dt is None)
-        or (start_dt is not None and not window_contains(start_dt, end_dt))
+        (end_dt is not None and start_dt is None) or (start_dt is not None and not window_contains(start_dt, end_dt))
     )
     _record_parser_candidate(out_of_window=outside_window)
     registry_coords = (
         (canonical_venue.venue_latitude, canonical_venue.venue_longitude)
-        if canonical_venue.venue_latitude is not None
-        and canonical_venue.venue_longitude is not None
+        if canonical_venue.venue_latitude is not None and canonical_venue.venue_longitude is not None
         else None
     )
     resolved_coords, location_confidence, location_source = resolve_location(
@@ -1464,9 +1520,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     time_text = canonical_time
     time_note = combine_time_notes(time_note, inferred_time_note)
     if all_day is None:
-        all_day = not time_text and not time_note and not (
-            start_dt and (start_dt.hour or start_dt.minute)
-        )
+        all_day = not time_text and not time_note and not (start_dt and (start_dt.hour or start_dt.minute))
     full_text = f"{title} {venue} {city} {description} {category}"
     # URLs encode venue slugs and other implementation detail (for example
     # ``alte-vhs`` in an aggregator concert URL). They are not event content and
@@ -1491,7 +1545,11 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     start_at = "" if all_day or not start_dt else start_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     end_at = "" if all_day or not end_dt else end_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     price, admission_basis = infer_admission(
-        title, description, venue=venue, source=source, link=event_link,
+        title,
+        description,
+        venue=venue,
+        source=source,
+        link=event_link,
         admission=admission,
     )
     ev = {
@@ -1518,8 +1576,9 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         "distance_km": round(km, 1) if km is not None else None,
         "location_confidence": location_confidence,
         "location_source": location_source,
-        "score": round(distance_score(km) * category_score(full_text) * trust, 2) if km is not None
-                 else round(0.3 * category_score(full_text) * trust, 2),
+        "score": round(distance_score(km) * category_score(full_text) * trust, 2)
+        if km is not None
+        else round(0.3 * category_score(full_text) * trust, 2),
         "source": source,
         "source_id": source_id,
         "status": status,
@@ -1538,7 +1597,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     }
     if status == "postponed":
         replacement_dates = [
-            candidate for candidate in extract_dates(f"{title} {description}")
+            candidate
+            for candidate in extract_dates(f"{title} {description}")
             if not start_dt or candidate.date() != start_dt.date()
         ]
         if replacement_dates:
@@ -1557,7 +1617,7 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     return ev
 
 
-def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]]:
+def _legacy_junk_decision(ev: dict) -> tuple[str, str, tuple[str, ...]] | None:
     """Return the named decision for the remaining compatibility policy."""
     title = (ev.get("title") or "").lower()
     desc = (ev.get("description") or "").lower()
@@ -1572,14 +1632,32 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
     destination_market = _is_destination_market(content_text)
 
     junk_title_bits = {
-        "privacy policy", "faq", "frequently asked questions", "contact", "kontakt",
-        "imprint", "impressum", "corruption prevention", "accessibility statement",
-        "newsletter", "jobs", "sitemap", "terms of use", "datenschutz",
-        "veranstaltungen aktuell", "auf einen blick", "10 best", "the best events",
-        "alle veranstaltungen", "veranstaltungskalender", "event calendar",
+        "privacy policy",
+        "faq",
+        "frequently asked questions",
+        "contact",
+        "kontakt",
+        "imprint",
+        "impressum",
+        "corruption prevention",
+        "accessibility statement",
+        "newsletter",
+        "jobs",
+        "sitemap",
+        "terms of use",
+        "datenschutz",
+        "veranstaltungen aktuell",
+        "auf einen blick",
+        "10 best",
+        "the best events",
+        "alle veranstaltungen",
+        "veranstaltungskalender",
+        "event calendar",
         # Administrative notices and pharmacy campaigns from regional calendar
         # feeds are not destination events.
-        "straßenreinigung", "strassenreinigung", "venen aktionstag",
+        "straßenreinigung",
+        "strassenreinigung",
+        "venen aktionstag",
     }
     if matched := next((bit for bit in junk_title_bits if bit in title), ""):
         return (
@@ -1589,8 +1667,17 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         )
 
     junk_link_bits = {
-        "/privacy", "/faq", "/contact", "/imprint", "/jobs", "/search", "/sitemap",
-        "eventim.de/city", "livegigs.de", "news.de/lokales", "/metro-areas/",
+        "/privacy",
+        "/faq",
+        "/contact",
+        "/imprint",
+        "/jobs",
+        "/search",
+        "/sitemap",
+        "eventim.de/city",
+        "livegigs.de",
+        "news.de/lokales",
+        "/metro-areas/",
     }
     if matched := next((bit for bit in junk_link_bits if bit in link), ""):
         return (
@@ -1607,8 +1694,13 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         )
 
     narrow_private_event_bits = {
-        "abiball", "abi-ball", "abi ball", "abschlussball", "abschluss-ball",
-        "abiturball", "abitur-ball",
+        "abiball",
+        "abi-ball",
+        "abi ball",
+        "abschlussball",
+        "abschluss-ball",
+        "abiturball",
+        "abitur-ball",
     }
     if matched := next((bit for bit in narrow_private_event_bits if bit in text), ""):
         return (
@@ -1617,10 +1709,10 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
             (matched,),
         )
 
-    if (
-        has_cancelled_status(ev.get("title") or "", ev.get("description") or "")
-        and ev.get("status") not in {"cancelled", "postponed"}
-    ):
+    if has_cancelled_status(ev.get("title") or "", ev.get("description") or "") and ev.get("status") not in {
+        "cancelled",
+        "postponed",
+    }:
         return (
             "schedule.cancelled",
             "cancelled occurrence must not be published as scheduled",
@@ -1643,32 +1735,93 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         )
 
     routine_or_political_bits = {
-        "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
-        "fraktion", "infostand", "kreistag", "mitgliederversammlung", "ortsbeirat", "parteitag",
-        "ratssitzung", "ratsinformationssystem", "seniorenbeirat", "seniorenvertretung", "sitzung",
-        "sprechstunde", "sprechtag", "stadtrat", "stadtverordnete", "tagesordnung",
-        "telefon-hotline bürgermeister", "telefon-hotline buergermeister",
-        "verwaltungsrat", "wahlkampf", "wahlstand",
+        "ausschuss",
+        "ausschusssitzung",
+        "beirat",
+        "bürgerfragestunde",
+        "buergerfragestunde",
+        "fraktion",
+        "infostand",
+        "kreistag",
+        "mitgliederversammlung",
+        "ortsbeirat",
+        "parteitag",
+        "ratssitzung",
+        "ratsinformationssystem",
+        "seniorenbeirat",
+        "seniorenvertretung",
+        "sitzung",
+        "sprechstunde",
+        "sprechtag",
+        "stadtrat",
+        "stadtverordnete",
+        "tagesordnung",
+        "telefon-hotline bürgermeister",
+        "telefon-hotline buergermeister",
+        "verwaltungsrat",
+        "wahlkampf",
+        "wahlstand",
     }
     routine_phrase_bits = {
-        "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
-        "frauentreff", "handarbeitstreff", "frühstückstreff", "fruehstueckstreff", "frühstückszeit",
-        "fruehstueckszeit", "frauenfrühstück", "frauenfruehstueck", "häkel-treff", "haekel-treff", "kindertreff", "offener treff",
-        "offener puzzle-treff", "offenes ohr", "klaaferei", "seniorencafe", "seniorencafé",
-        "seniorennachmittag", "seniorengymnastik", "spielezeit", "stammtisch", "stricken und klönen",
-        "stricken und kloenen", "treffen der bad honnefer funkamateure",
-        "treffen pflegender angehöriger", "treffen pflegender angehoeriger",
+        "regelmäßig",
+        "regelmaessig",
+        "wöchentlich",
+        "woechentlich",
+        "wiederkehrend",
+        "frauentreff",
+        "handarbeitstreff",
+        "frühstückstreff",
+        "fruehstueckstreff",
+        "frühstückszeit",
+        "fruehstueckszeit",
+        "frauenfrühstück",
+        "frauenfruehstueck",
+        "häkel-treff",
+        "haekel-treff",
+        "kindertreff",
+        "offener treff",
+        "offener puzzle-treff",
+        "offenes ohr",
+        "klaaferei",
+        "seniorencafe",
+        "seniorencafé",
+        "seniorennachmittag",
+        "seniorengymnastik",
+        "spielezeit",
+        "stammtisch",
+        "stricken und klönen",
+        "stricken und kloenen",
+        "treffen der bad honnefer funkamateure",
+        "treffen pflegender angehöriger",
+        "treffen pflegender angehoeriger",
         "veranstaltung der senioreninformation",
     }
     cultural_event_bits = {
-        "ausstellung", "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt",
-        "lesung", "lesekreis", "lesezirkel", "live-musik", "museum", "theater", "vernissage", "wanderung",
-        "tag der offenen tür", "tag der offenen tuer",
+        "ausstellung",
+        "festival",
+        "flohmarkt",
+        "kabarett",
+        "konzert",
+        "kunstmarkt",
+        "lesung",
+        "lesekreis",
+        "lesezirkel",
+        "live-musik",
+        "museum",
+        "theater",
+        "vernissage",
+        "wanderung",
+        "tag der offenen tür",
+        "tag der offenen tuer",
     }
     recurring_destination_bits = {
         # These remain useful public activities even when an official calendar
         # describes their cadence or stores them below a recurring-event URL.
-        "feierabendtour", "repair café", "repair cafe", "repaircafé", "repaircafe",
+        "feierabendtour",
+        "repair café",
+        "repair cafe",
+        "repaircafé",
+        "repaircafe",
         # A named one-off programme; do not let incidental prose about the
         # organizer's regular group turn it into a routine meetup.
         "kristallklangschalenreise",
@@ -1679,21 +1832,25 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
     # Seniorenbeirat"). Scanning the description dropped public events — a
     # sports course, a summer festival — for the body that helped host them.
     governance_text = f"{title} {category} {venue} {link}"
-    if ("cinema-special" not in category
-            and any(bit in governance_text for bit in routine_or_political_bits)
-            and not destination_market
-            and not any(bit in title_desc_text for bit in cultural_event_bits)):
+    if (
+        "cinema-special" not in category
+        and any(bit in governance_text for bit in routine_or_political_bits)
+        and not destination_market
+        and not any(bit in title_desc_text for bit in cultural_event_bits)
+    ):
         matched = next(bit for bit in routine_or_political_bits if bit in governance_text)
         return (
             "civic.governance",
             "routine political or administrative meeting is outside the editorial scope",
             (matched,),
         )
-    if ("cinema-special" not in category
-            and any(bit in text for bit in routine_phrase_bits)
-            and not destination_market
-            and not any(bit in title for bit in recurring_destination_bits)
-            and not any(bit in title_desc_text for bit in cultural_event_bits)):
+    if (
+        "cinema-special" not in category
+        and any(bit in text for bit in routine_phrase_bits)
+        and not destination_market
+        and not any(bit in title for bit in recurring_destination_bits)
+        and not any(bit in title_desc_text for bit in cultural_event_bits)
+    ):
         matched = next(bit for bit in routine_phrase_bits if bit in text)
         return (
             "civic.routine-meetup",
@@ -1716,11 +1873,14 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         # therefore kept by the destination-market override below, even though
         # ``abendmarkt`` matches it as a substring. That whitelist entry is an
         # editorial decision owned elsewhere; this set does not try to override it.
-        "frischemarkt", "wochenmarkt", "bauernmarkt", "biomarkt",
-        "abendmarkt", "zwiebelmarkt",
+        "frischemarkt",
+        "wochenmarkt",
+        "bauernmarkt",
+        "biomarkt",
+        "abendmarkt",
+        "zwiebelmarkt",
     }
-    if (any(bit in text for bit in regular_low_value_bits)
-            and not destination_market):
+    if any(bit in text for bit in regular_low_value_bits) and not destination_market:
         matched = next(bit for bit in regular_low_value_bits if bit in text)
         return (
             "civic.routine-market",
@@ -1729,16 +1889,37 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         )
 
     generic_low_value_bits = {
-        "fortgeschrittene", "sprachkurs", "englischkurs",
-        "yogakurs", "offene sprechstunde", "beratung", "frauen in bewegung",
-        "gedächtnistraining", "gedaechtnistraining", "deutschkurs", "pilates-training",
-        "sitzgymnastik", "rückbildungsgymnastik", "rueckbildungsgymnastik",
-        "wirbelsäulengymnastik", "wirbelsaeulengymnastik", "patientenveranstaltung",
-        "english club am vormittag", "gymnastik mal", "yoga mit kleinkindern",
-        "feldenkrais-kurs", "gleichgewichtstraining", "seniorenyoga",
-        "umgang mit smartphone, tablet und pc", "handy-hilfe für seniorinnen und senioren",
-        "kaffeekränzchen", "seniorenkaffee", "ein nachmittag mit kaffee, kuchen",
-        "singangebot mit", "eltern-kind-spielgruppe", "strick- und häkelkurs",
+        "fortgeschrittene",
+        "sprachkurs",
+        "englischkurs",
+        "yogakurs",
+        "offene sprechstunde",
+        "beratung",
+        "frauen in bewegung",
+        "gedächtnistraining",
+        "gedaechtnistraining",
+        "deutschkurs",
+        "pilates-training",
+        "sitzgymnastik",
+        "rückbildungsgymnastik",
+        "rueckbildungsgymnastik",
+        "wirbelsäulengymnastik",
+        "wirbelsaeulengymnastik",
+        "patientenveranstaltung",
+        "english club am vormittag",
+        "gymnastik mal",
+        "yoga mit kleinkindern",
+        "feldenkrais-kurs",
+        "gleichgewichtstraining",
+        "seniorenyoga",
+        "umgang mit smartphone, tablet und pc",
+        "handy-hilfe für seniorinnen und senioren",
+        "kaffeekränzchen",
+        "seniorenkaffee",
+        "ein nachmittag mit kaffee, kuchen",
+        "singangebot mit",
+        "eltern-kind-spielgruppe",
+        "strick- und häkelkurs",
         "clubabend",
     }
     if matched := next((bit for bit in generic_low_value_bits if bit in text), ""):
@@ -1761,16 +1942,30 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
         )
 
     recurring_course_bits = {
-        "der kurs findet immer", "der kurs kostet", "kurseinheiten",
-        "anmeldungen werden unter der telefonnummer", "begegnungsstätte club",
+        "der kurs findet immer",
+        "der kurs kostet",
+        "kurseinheiten",
+        "anmeldungen werden unter der telefonnummer",
+        "begegnungsstätte club",
     }
     course_context_bits = {
-        "kurs", "training", "gymnastik", "yoga", "feldenkrais", "smartphone",
-        "tablet", "pc", "kaffee und kuchen", "singangebot", "clubabend",
+        "kurs",
+        "training",
+        "gymnastik",
+        "yoga",
+        "feldenkrais",
+        "smartphone",
+        "tablet",
+        "pc",
+        "kaffee und kuchen",
+        "singangebot",
+        "clubabend",
     }
-    if (any(bit in text for bit in recurring_course_bits)
-            and any(bit in text for bit in course_context_bits)
-            and not any(bit in content_text for bit in cultural_event_bits)):
+    if (
+        any(bit in text for bit in recurring_course_bits)
+        and any(bit in text for bit in course_context_bits)
+        and not any(bit in content_text for bit in cultural_event_bits)
+    ):
         recurring_match = next(bit for bit in recurring_course_bits if bit in text)
         context_match = next(bit for bit in course_context_bits if bit in text)
         return (
@@ -1782,30 +1977,100 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
     # Web-search results are noisy: require topical + date/event signal, since they
     # also return static venue/shop/route pages.
     if ev.get("source") in {"Exa Search", "Grok Search"}:
-        strong_signal = destination_market or any(k in text for k in [
-            "konzert", "concert", "ausstellung", "museum", "festival", "party", "dj",
-            "techno", "electronic", "führung", "tour", "theater", "comedy", "lesung",
-            "wein", "winzer", "weingut", "wanderung", "wandern", "wander", "walk",
-            "ahrtal", "ahrweiler", "stadtteilfest", "straßenfest", "strassenfest",
-            "dorffest", "kirmes", "poppelsdorf", "endenich", "beuel", "bad godesberg",
-            "siebengebirge", "königswinter", "koenigswinter", "drachenfels",
-            "petersberg", "heisterbach", "andernach", "namedy", "linz", "unkel",
-            "remagen", "rolandseck", "bad honnef", "dernau", "mayschoss", "altenahr",
-            "walporzheim", "weinprobe", "weinfest", "kottenforst", "natur", "rundgang",
-            "genussmeile", "weinmeile",
-        ])
-        explicit_local_event = any(k in text for k in [
-            "weinmeile", "genussmeile", "stadtteilfest", "straßenfest", "strassenfest",
-            "dorffest", "kirmes", "weinfest", "wirtefestival", "promenadenfest",
-        ])
-        date_signal = bool(re.search(
-            r"\b(20\d{2}|\d{1,2}\.\d{1,2}\.|\d{1,2}\s*(?:jan|feb|mär|mae|apr|mai|jun|jul|aug|sep|okt|nov|dez)|"
-            r"montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|wochenende|heute|morgen|am\s+\d)",
-            text, re.IGNORECASE,
-        ))
+        strong_signal = destination_market or any(
+            k in text
+            for k in [
+                "konzert",
+                "concert",
+                "ausstellung",
+                "museum",
+                "festival",
+                "party",
+                "dj",
+                "techno",
+                "electronic",
+                "führung",
+                "tour",
+                "theater",
+                "comedy",
+                "lesung",
+                "wein",
+                "winzer",
+                "weingut",
+                "wanderung",
+                "wandern",
+                "wander",
+                "walk",
+                "ahrtal",
+                "ahrweiler",
+                "stadtteilfest",
+                "straßenfest",
+                "strassenfest",
+                "dorffest",
+                "kirmes",
+                "poppelsdorf",
+                "endenich",
+                "beuel",
+                "bad godesberg",
+                "siebengebirge",
+                "königswinter",
+                "koenigswinter",
+                "drachenfels",
+                "petersberg",
+                "heisterbach",
+                "andernach",
+                "namedy",
+                "linz",
+                "unkel",
+                "remagen",
+                "rolandseck",
+                "bad honnef",
+                "dernau",
+                "mayschoss",
+                "altenahr",
+                "walporzheim",
+                "weinprobe",
+                "weinfest",
+                "kottenforst",
+                "natur",
+                "rundgang",
+                "genussmeile",
+                "weinmeile",
+            ]
+        )
+        explicit_local_event = any(
+            k in text
+            for k in [
+                "weinmeile",
+                "genussmeile",
+                "stadtteilfest",
+                "straßenfest",
+                "strassenfest",
+                "dorffest",
+                "kirmes",
+                "weinfest",
+                "wirtefestival",
+                "promenadenfest",
+            ]
+        )
+        date_signal = bool(
+            re.search(
+                r"\b(20\d{2}|\d{1,2}\.\d{1,2}\.|\d{1,2}\s*(?:jan|feb|mär|mae|apr|mai|jun|jul|aug|sep|okt|nov|dez)|"
+                r"montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|wochenende|heute|morgen|am\s+\d)",
+                text,
+                re.IGNORECASE,
+            )
+        )
         static_page_bits = [
-            "öffnungszeiten", "route planen", "unser sortiment", "wanderwege in der nähe",
-            "die besten", "wiki", "website", "hotels", "immobilien",
+            "öffnungszeiten",
+            "route planen",
+            "unser sortiment",
+            "wanderwege in der nähe",
+            "die besten",
+            "wiki",
+            "website",
+            "hotels",
+            "immobilien",
         ]
         if any(bit in text for bit in static_page_bits) and not explicit_local_event:
             matched = next(bit for bit in static_page_bits if bit in text)
@@ -1832,6 +2097,7 @@ def _legacy_is_junk_event(ev: dict) -> bool:
 def evaluate_event_quality(ev: dict):
     """Return the named quality decision for a candidate event."""
     from .quality import evaluate_event_quality as evaluate
+
     return evaluate(ev)
 
 
@@ -1841,6 +2107,7 @@ def is_junk_event(ev: dict) -> bool:
 
 
 # ── JSON-LD (schema.org) ────────────────────────────────────────────
+
 
 def jsonld_event_items(html: str) -> list:
     """Extract schema.org Event objects from JSON-LD blobs."""
@@ -1892,7 +2159,7 @@ def _jsonld_schedule_items(schedule) -> list:
     return []
 
 
-def _jsonld_schedule_dt(schedule: dict, date_key: str, time_key: str = "") -> Optional[datetime]:
+def _jsonld_schedule_dt(schedule: dict, date_key: str, time_key: str = "") -> datetime | None:
     """Parse a Schedule date and optional time into a naive datetime."""
     dt = parse_iso_date(schedule.get(date_key, ""))
     if not dt:
@@ -1914,7 +2181,7 @@ def _jsonld_schedule_time_text(schedule: dict) -> str:
     return start or end
 
 
-def _jsonld_accessible_for_free(value) -> Optional[bool]:
+def _jsonld_accessible_for_free(value) -> bool | None:
     """Parse schema.org Boolean values without treating arbitrary strings as true."""
     if isinstance(value, bool):
         return value
@@ -1927,7 +2194,7 @@ def _jsonld_accessible_for_free(value) -> Optional[bool]:
     return None
 
 
-def _jsonld_offer_price(offers) -> Optional[str]:
+def _jsonld_offer_price(offers) -> str | None:
     """Return a conservative schema.org Offer price as the legacy display string."""
     if isinstance(offers, dict):
         candidates = [offers]
@@ -1938,15 +2205,13 @@ def _jsonld_offer_price(offers) -> Optional[str]:
     has_explicitly_free_offer = False
     for offer in candidates:
         amount = offer.get("price")
-        if amount in (None, "") or isinstance(amount, (dict, list, bool)):
+        if amount in (None, "") or isinstance(amount, dict | list | bool):
             continue
         amount_text = clean_html(str(amount)).strip()
         if not amount_text:
             continue
         currency = offer.get("priceCurrency")
-        currency_text = (
-            "" if isinstance(currency, (dict, list)) else clean_html(str(currency or "")).strip()
-        )
+        currency_text = "" if isinstance(currency, dict | list) else clean_html(str(currency or "")).strip()
         if _FREE_PRICE_PATTERN.fullmatch(amount_text):
             has_explicitly_free_offer = True
             continue
@@ -1961,7 +2226,7 @@ def _jsonld_offer_price(offers) -> Optional[str]:
     return "kostenlos" if has_explicitly_free_offer else None
 
 
-def _jsonld_admission_price(item: dict) -> Optional[str]:
+def _jsonld_admission_price(item: dict) -> str | None:
     """Resolve structured admission, with the direct free-access flag authoritative."""
     accessible_for_free = _jsonld_accessible_for_free(item.get("isAccessibleForFree"))
     offer_price = _jsonld_offer_price(item.get("offers"))
@@ -1972,11 +2237,18 @@ def _jsonld_admission_price(item: dict) -> Optional[str]:
     return offer_price
 
 
-def events_from_jsonld(html: str, source: str, default_city: str, category: str,
-                       trust: float, default_link: str, source_id: str = "",
-                       admission: AdmissionDefault | None = None,
-                       default_category_key: str = "",
-                       category_locked: bool = False) -> list:
+def events_from_jsonld(
+    html: str,
+    source: str,
+    default_city: str,
+    category: str,
+    trust: float,
+    default_link: str,
+    source_id: str = "",
+    admission: AdmissionDefault | None = None,
+    default_category_key: str = "",
+    category_locked: bool = False,
+) -> list:
     """Build events from every schema.org Event in a page's JSON-LD."""
     events = []
     for item in jsonld_event_items(html):
@@ -1995,9 +2267,19 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                 sched_start = _jsonld_schedule_dt(schedule, "startDate", "startTime")
                 sched_end = _jsonld_schedule_dt(schedule, "endDate", "endTime") or sched_start
                 ev = make_event(
-                    title, sched_start, sched_end, venue, city, desc, link, source,
-                    category, trust, time_text=_jsonld_schedule_time_text(schedule),
-                    source_id=source_id, admission=admission,
+                    title,
+                    sched_start,
+                    sched_end,
+                    venue,
+                    city,
+                    desc,
+                    link,
+                    source,
+                    category,
+                    trust,
+                    time_text=_jsonld_schedule_time_text(schedule),
+                    source_id=source_id,
+                    admission=admission,
                     default_category_key=default_category_key,
                     category_locked=category_locked,
                 )
@@ -2012,8 +2294,18 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             continue
 
         ev = make_event(
-            title, start_dt, end_dt, venue, city, desc, link, source, category, trust,
-            source_id=source_id, admission=admission,
+            title,
+            start_dt,
+            end_dt,
+            venue,
+            city,
+            desc,
+            link,
+            source,
+            category,
+            trust,
+            source_id=source_id,
+            admission=admission,
             default_category_key=default_category_key,
             category_locked=category_locked,
         )
@@ -2029,6 +2321,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
 # Many German venues run WordPress + "The Events Calendar" (Tribe), exposing a
 # clean .ics feed at ?post_type=tribe_events&ical=1. iCal beats HTML scraping.
 
+
 def _ical_unfold(text: str) -> str:
     """RFC 5545 line unfolding: CRLF + space/tab continues the previous line."""
     return re.sub(r"\r?\n[ \t]", "", text)
@@ -2041,14 +2334,27 @@ def _ical_unescape(text: str, *, preserve_breaks: bool = False) -> str:
     keeps it; a SUMMARY or URL stays on one line.
     """
     break_replacement = "\n" if preserve_breaks else " "
-    return (text.replace("\\n", break_replacement).replace("\\N", break_replacement)
-                .replace('\\"', '"')
-                .replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")).strip()
+    return (
+        text.replace("\\n", break_replacement)
+        .replace("\\N", break_replacement)
+        .replace('\\"', '"')
+        .replace("\\,", ",")
+        .replace("\\;", ";")
+        .replace("\\\\", "\\")
+    ).strip()
 
 
-def events_from_time_listing(html: str, source: str, default_city: str, category: str,
-                             trust: float, base_url: str, min_title: int = 6,
-                             max_chars: int = 900, anchor_pattern: Optional[str] = None) -> list:
+def events_from_time_listing(
+    html: str,
+    source: str,
+    default_city: str,
+    category: str,
+    trust: float,
+    base_url: str,
+    min_title: int = 6,
+    max_chars: int = 900,
+    anchor_pattern: str | None = None,
+) -> list:
     """Scrape a server-rendered listing that pairs ``<time datetime="…">`` tags with
     nearby title links — common in TYPO3 ``tx_news`` / municipal calendars that
     expose no iCal or JSON-LD feed. Each ``<time>`` is matched to the closest
@@ -2062,18 +2368,33 @@ def events_from_time_listing(html: str, source: str, default_city: str, category
     """
     times = [(m.start(), m.group(1)) for m in re.finditer(r'<time[^>]*datetime="([^"]+)"', html)]
     pattern = anchor_pattern or r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
-    anchors = [(m.start(), m.group(1), clean_html(m.group(2)))
-               for m in re.finditer(pattern, html, re.S | re.I)]
+    anchors = [(m.start(), m.group(1), clean_html(m.group(2))) for m in re.finditer(pattern, html, re.S | re.I)]
     # A scoped title pattern already excludes nav links; only the broad default
     # needs the denylist.
-    bad = () if anchor_pattern else (
-        "drucken", "session.", "weiterlesen", "mehr ", "mehr:", "details",
-        "zum kalender", "veranstaltungsliste", "impressum", "anmelden", "suche")
+    bad = (
+        ()
+        if anchor_pattern
+        else (
+            "drucken",
+            "session.",
+            "weiterlesen",
+            "mehr ",
+            "mehr:",
+            "details",
+            "zum kalender",
+            "veranstaltungsliste",
+            "impressum",
+            "anmelden",
+            "suche",
+        )
+    )
     events, seen = [], set()
     for tp, dt in times:
-        cand = sorted((abs(ap - tp), href, t) for ap, href, t in anchors
-                      if abs(ap - tp) < max_chars and len(t) >= min_title
-                      and not any(b in t.lower() for b in bad))
+        cand = sorted(
+            (abs(ap - tp), href, t)
+            for ap, href, t in anchors
+            if abs(ap - tp) < max_chars and len(t) >= min_title and not any(b in t.lower() for b in bad)
+        )
         if not cand:
             continue
         _, href, title = cand[0]
@@ -2089,8 +2410,9 @@ def events_from_time_listing(html: str, source: str, default_city: str, category
     return events
 
 
-def events_from_ecmaps_tiles(html: str, source: str, default_city: str, category: str,
-                             trust: float, base_url: str) -> list:
+def events_from_ecmaps_tiles(
+    html: str, source: str, default_city: str, category: str, trust: float, base_url: str
+) -> list:
     """Parse destination.one / ECMaps tile listings with date, title, and venue.
 
     Used by regional tourism calendars such as Naturregion Sieg. The markup is
@@ -2098,15 +2420,16 @@ def events_from_ecmaps_tiles(html: str, source: str, default_city: str, category
     tile anchor instead of relying on line structure.
     """
     events, seen = [], set()
-    for m in re.finditer(r'<a[^>]+href="(?P<href>[^"]+)"[^>]*class="[^"]*tile__link[^"]*"[^>]*>(?P<body>.*?)</a>',
-                         html, re.S | re.I):
+    for m in re.finditer(
+        r'<a[^>]+href="(?P<href>[^"]+)"[^>]*class="[^"]*tile__link[^"]*"[^>]*>(?P<body>.*?)</a>', html, re.S | re.I
+    ):
         href = m.group("href")
         body = m.group("body")
         if "${" in href or "${" in body:
             continue
-        date_m = re.search(r'tile__label-text[^>]*>\s*(.*?)\s*</span>', body, re.S | re.I)
-        title_m = re.search(r'header__head[^>]*>\s*(.*?)\s*</p>', body, re.S | re.I)
-        venue_m = re.search(r'icontext__text[^>]*>\s*(.*?)\s*</span>', body, re.S | re.I)
+        date_m = re.search(r"tile__label-text[^>]*>\s*(.*?)\s*</span>", body, re.S | re.I)
+        title_m = re.search(r"header__head[^>]*>\s*(.*?)\s*</p>", body, re.S | re.I)
+        venue_m = re.search(r"icontext__text[^>]*>\s*(.*?)\s*</span>", body, re.S | re.I)
         if not (date_m and title_m):
             continue
         title = clean_html(title_m.group(1))
@@ -2119,8 +2442,16 @@ def events_from_ecmaps_tiles(html: str, source: str, default_city: str, category
             continue
         seen.add(key)
         ev = make_event(
-            title, start, start, venue, city, "", urllib.parse.urljoin(base_url, href),
-            source, category, trust,
+            title,
+            start,
+            start,
+            venue,
+            city,
+            "",
+            urllib.parse.urljoin(base_url, href),
+            source,
+            category,
+            trust,
         )
         if ev:
             events.append(ev)
@@ -2155,9 +2486,9 @@ def events_from_wp_event_manager_listing(html: str, source: str, category: str, 
     for m in re.finditer(r'<div class="event_listing\b(?P<body>.*?)</a>', html, re.S | re.I):
         body = m.group("body")
         href_m = re.search(r'<a[^>]+href="([^"]+)"', body, re.S | re.I)
-        title_m = re.search(r'wpem-event-title.*?<h3[^>]*>(.*?)</h3>', body, re.S | re.I)
-        date_m = re.search(r'wpem-event-date-time.*?<span[^>]*>(.*?)</span>', body, re.S | re.I)
-        loc_m = re.search(r'wpem-event-location.*?<span[^>]*>(.*?)</span>', body, re.S | re.I)
+        title_m = re.search(r"wpem-event-title.*?<h3[^>]*>(.*?)</h3>", body, re.S | re.I)
+        date_m = re.search(r"wpem-event-date-time.*?<span[^>]*>(.*?)</span>", body, re.S | re.I)
+        loc_m = re.search(r"wpem-event-location.*?<span[^>]*>(.*?)</span>", body, re.S | re.I)
         if not (href_m and title_m and date_m and loc_m):
             continue
         title = clean_html(title_m.group(1))
@@ -2171,8 +2502,17 @@ def events_from_wp_event_manager_listing(html: str, source: str, category: str, 
             continue
         seen.add(key)
         ev = make_event(
-            title, start, end, location, city, "", href_m.group(1),
-            source, category, trust, time_text=time_text,
+            title,
+            start,
+            end,
+            location,
+            city,
+            "",
+            href_m.group(1),
+            source,
+            category,
+            trust,
+            time_text=time_text,
         )
         if ev:
             events.append(ev)
@@ -2186,11 +2526,11 @@ def _ical_content_line(line: str) -> tuple:
         if char == '"':
             in_quote = not in_quote
         elif char == ":" and not in_quote:
-            return line[:idx], line[idx + 1:]
+            return line[:idx], line[idx + 1 :]
     return line, ""
 
 
-def _ical_parse_dt(value: str, property_key: str = "") -> Optional[datetime]:
+def _ical_parse_dt(value: str, property_key: str = "") -> datetime | None:
     v = (value or "").strip()
     is_utc = v.endswith("Z")
     if re.match(r"^\d{8}T\d{6}Z?$", v):
@@ -2229,9 +2569,22 @@ def _ical_attach_event_page(value: str) -> str:
     path = parsed.path or ""
     if "/kalender/" not in path:
         return ""
-    if path.rstrip("/").split("/")[-1].lower().endswith((
-        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".ics",
-    )):
+    if (
+        path.rstrip("/")
+        .split("/")[-1]
+        .lower()
+        .endswith(
+            (
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".gif",
+                ".webp",
+                ".pdf",
+                ".ics",
+            )
+        )
+    ):
         path = path.rsplit("/", 1)[0] + "/"
     elif not path.endswith("/"):
         path += "/"
@@ -2256,9 +2609,7 @@ def _ical_best_link(props: dict, feed_url: str) -> str:
     return (props.get("URL", "") or _ical_feed_page(feed_url)).strip()
 
 
-_ICAL_WEEKDAYS = {name: index for index, name in enumerate(
-    ("MO", "TU", "WE", "TH", "FR", "SA", "SU")
-)}
+_ICAL_WEEKDAYS = {name: index for index, name in enumerate(("MO", "TU", "WE", "TH", "FR", "SA", "SU"))}
 _SUPPORTED_RRULE_PARTS = {"FREQ", "INTERVAL", "BYDAY", "UNTIL", "COUNT"}
 
 
@@ -2342,13 +2693,21 @@ def _ical_recurrence_starts(
     return sorted({value for value in starts if value not in excluded}), ""
 
 
-def fetch_ical(url: str, source: str, default_city: str, category: str = "",
-               trust: float = 1.0, source_id: str = "", event_filter=None,
-               city_resolver=None, fetcher=None,
-               admission: AdmissionDefault | None = None,
-               default_category_key: str = "",
-               category_locked: bool = False,
-               empty_calendar_is_valid: bool = False) -> list:
+def fetch_ical(
+    url: str,
+    source: str,
+    default_city: str,
+    category: str = "",
+    trust: float = 1.0,
+    source_id: str = "",
+    event_filter=None,
+    city_resolver=None,
+    fetcher=None,
+    admission: AdmissionDefault | None = None,
+    default_category_key: str = "",
+    category_locked: bool = False,
+    empty_calendar_is_valid: bool = False,
+) -> list:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds).
 
     ``fetcher`` optionally replaces the plain HTTP read with a ``(url, **kwargs) ->
@@ -2356,13 +2715,15 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
     to route through the persistent TTL cache, so a repeat run costs no requests.
     """
     read = fetcher or fetch_url
-    raw = _ical_unfold(read(
-        url,
-        timeout=20,
-        accept="text/calendar,application/calendar+json;q=0.9,*/*;q=0.8",
-        sec_fetch_mode="no-cors",
-        sec_fetch_dest="empty",
-    ))
+    raw = _ical_unfold(
+        read(
+            url,
+            timeout=20,
+            accept="text/calendar,application/calendar+json;q=0.9,*/*;q=0.8",
+            sec_fetch_mode="no-cors",
+            sec_fetch_dest="empty",
+        )
+    )
     events = []
     blocks = re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S)
     for block in blocks:
@@ -2375,8 +2736,17 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                 continue
             name = key.split(";")[0].strip().upper()
             if name in (
-                "SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL",
-                "CATEGORIES", "ATTACH", "RRULE", "RDATE", "EXDATE",
+                "SUMMARY",
+                "DTSTART",
+                "DTEND",
+                "DESCRIPTION",
+                "LOCATION",
+                "URL",
+                "CATEGORIES",
+                "ATTACH",
+                "RRULE",
+                "RDATE",
+                "EXDATE",
             ):
                 props.setdefault(name, val)
                 property_keys.setdefault(name, key)
@@ -2384,9 +2754,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         if not props.get("SUMMARY"):
             continue
         start_dt = _ical_parse_dt(props.get("DTSTART", ""), property_keys.get("DTSTART", ""))
-        raw_end_dt = _ical_parse_dt(
-            props.get("DTEND", ""), property_keys.get("DTEND", "")
-        ) or start_dt
+        raw_end_dt = _ical_parse_dt(props.get("DTEND", ""), property_keys.get("DTEND", "")) or start_dt
         all_day = bool(re.match(r"^\d{8}$", props.get("DTSTART", "").strip()))
         if start_dt is None:
             continue
@@ -2419,12 +2787,15 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                 continue
             ev = make_event(
                 _ical_unescape(props["SUMMARY"]),
-                occurrence_start, occurrence_end,
+                occurrence_start,
+                occurrence_end,
                 location,
                 city,
                 _ical_unescape(props.get("DESCRIPTION", ""), preserve_breaks=True),
                 _ical_best_link(props, url),
-                source, cat, trust,
+                source,
+                cat,
+                trust,
                 all_day=all_day,
                 source_id=source_id,
                 admission=admission,
@@ -2453,7 +2824,8 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
 
 # ── Web-search helper (shared by Exa + Grok) ────────────────────────
 
-def search_result_event(title: str, link: str, desc: str, source: str, trust: float) -> Optional[dict]:
+
+def search_result_event(title: str, link: str, desc: str, source: str, trust: float) -> dict | None:
     """Convert a search result into a low-trust event, or None if out-of-window/radius/junk."""
     full_text = f"{title} {desc} {link}"
     extracted_dates = extract_dates(full_text)

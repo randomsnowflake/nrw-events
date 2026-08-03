@@ -9,7 +9,6 @@ from .. import common
 from ..health import SourceFetchResult
 from . import regional_common as rc
 
-
 _CRAFTQUELLE_URL = "https://craft-quelle.de/neue-tasting-termine/"
 _BFF_URL = "https://bff-bonn.com/kulinarische-highlights-bonn"
 _VOMFASS_URL = "https://www.vomfass.de/pages/tastings"
@@ -26,9 +25,19 @@ _CHOCO_DEALER_URL = "https://choco-dealer.com/EVENTS/"
 _VOMFASS_ALLOWED_HOSTS = ("www.vomfass.de",)
 
 _MONTHS = {
-    "januar": 1, "februar": 2, "märz": 3, "maerz": 3, "april": 4,
-    "mai": 5, "juni": 6, "juli": 7, "august": 8, "september": 9,
-    "oktober": 10, "november": 11, "dezember": 12,
+    "januar": 1,
+    "februar": 2,
+    "märz": 3,
+    "maerz": 3,
+    "april": 4,
+    "mai": 5,
+    "juni": 6,
+    "juli": 7,
+    "august": 8,
+    "september": 9,
+    "oktober": 10,
+    "november": 11,
+    "dezember": 12,
 }
 
 
@@ -38,8 +47,7 @@ def fetch_craftquelle() -> list:
         _CRAFTQUELLE_URL,
         lambda html: events_from_craftquelle(
             html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="craftquelle-bonn", timeout=20),
+            detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="craftquelle-bonn", timeout=20),
         ),
     )
 
@@ -50,19 +58,20 @@ def fetch_bff() -> list:
 
 def fetch_vomfass() -> list | SourceFetchResult:
     if common.TODAY.weekday() != 0:
-        return SourceFetchResult.scheduled_skip(
-            "weekly refresh runs on Mondays; retaining unexpired events"
-        )
+        return SourceFetchResult.scheduled_skip("weekly refresh runs on Mondays; retaining unexpired events")
     return rc.fetch_html_events(
         "vomFASS Bonn",
         _VOMFASS_URL,
         lambda html: events_from_vomfass(
             html,
             detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="vomfass-bonn", timeout=20,
+                url,
+                cache_namespace="vomfass-bonn",
+                timeout=20,
                 brightdata=True,
                 allowed_hosts=_VOMFASS_ALLOWED_HOSTS,
-                required_body_markers=("application/ld+json",)),
+                required_body_markers=("application/ld+json",),
+            ),
         ),
         fetcher=_fetch_vomfass_listing,
     )
@@ -111,8 +120,7 @@ def fetch_ludwigs() -> list:
         _LUDWIGS_URL,
         lambda html: events_from_ludwigs(
             html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="ludwigs-bonn", timeout=20),
+            detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="ludwigs-bonn", timeout=20),
         ),
     )
 
@@ -123,8 +131,7 @@ def fetch_reduettchen() -> list:
         _REDUETTCHEN_URL,
         lambda html: events_from_reduettchen(
             html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="reduettchen", timeout=20),
+            detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="reduettchen", timeout=20),
         ),
     )
 
@@ -132,19 +139,23 @@ def fetch_reduettchen() -> list:
 def fetch_street_food() -> list:
     events = []
     for page_url in (_STREET_FOOD_URL, _STREET_FOOD_SIEGBURG_URL):
-        events.extend(rc.fetch_html_events(
-            "Street Food Bonn",
-            page_url,
-            lambda html, source_url=page_url: events_from_street_food(
-                html, source_url=source_url,
-            ),
-        ))
+        events.extend(
+            rc.fetch_html_events(
+                "Street Food Bonn",
+                page_url,
+                lambda html, source_url=page_url: events_from_street_food(
+                    html,
+                    source_url=source_url,
+                ),
+            )
+        )
     return rc.dedupe(events)
 
 
 def fetch_original_street_food() -> list:
     return rc.fetch_html_events(
-        "Street Food Festival Original", _ORIGINAL_STREET_FOOD_URL,
+        "Street Food Festival Original",
+        _ORIGINAL_STREET_FOOD_URL,
         events_from_original_street_food,
     )
 
@@ -180,8 +191,16 @@ def events_from_craftquelle(html: str, detail_fetcher=None) -> list:
         if re.search(r"ausverkauft|0\s+plätze", cells[0], re.I):
             description = _append_sentence(description, "Ausverkauft.")
         ev = common.make_event(
-            title, start, end, venue, "Bonn", description, link,
-            "Craftquelle Bonn", "bier tasting braukurs genuss", 0.98,
+            title,
+            start,
+            end,
+            venue,
+            "Bonn",
+            description,
+            link,
+            "Craftquelle Bonn",
+            "bier tasting braukurs genuss",
+            0.98,
         )
         if ev:
             ev["price"] = _price(cells[3])
@@ -191,8 +210,11 @@ def events_from_craftquelle(html: str, detail_fetcher=None) -> list:
 
 def events_from_bff(html: str) -> list:
     return _events_from_schema_html(
-        html, source="BFF Bonner Schifffahrt", default_url=_BFF_URL,
-        default_city="Bonn", category="kulinarische schifffahrt dinner brunch genuss",
+        html,
+        source="BFF Bonner Schifffahrt",
+        default_url=_BFF_URL,
+        default_city="Bonn",
+        category="kulinarische schifffahrt dinner brunch genuss",
     )
 
 
@@ -219,8 +241,11 @@ def events_from_vomfass(html: str, detail_fetcher=None) -> list:
             detail = _safe_detail(detail_fetcher, link, "vomFASS Bonn")
             if detail:
                 detailed = _events_from_schema_html(
-                    detail, source="vomFASS Bonn", default_url=link,
-                    default_city="Bonn", category="tasting spirituosen wein genuss",
+                    detail,
+                    source="vomFASS Bonn",
+                    default_url=link,
+                    default_city="Bonn",
+                    category="tasting spirituosen wein genuss",
                 )
                 if detailed:
                     detailed_event = detailed[0]
@@ -229,8 +254,16 @@ def events_from_vomfass(html: str, detail_fetcher=None) -> list:
                     events.append(detailed_event)
                     continue
         ev = common.make_event(
-            title, start, end, venue, "Bonn", description, link,
-            "vomFASS Bonn", "tasting spirituosen wein genuss", 0.98,
+            title,
+            start,
+            end,
+            venue,
+            "Bonn",
+            description,
+            link,
+            "vomFASS Bonn",
+            "tasting spirituosen wein genuss",
+            0.98,
         )
         if ev:
             ev["price"] = price
@@ -262,9 +295,16 @@ def events_from_biertasting(html: str) -> list:
         start = datetime(year, month, int(day), hour, minute)
         end = start + timedelta(hours=3)
         ev = common.make_event(
-            rc.clean(title), start, end, venue, "Bonn",
-            f"Geführtes Biertasting: {rc.clean(title)}.", _BIERTASTING_URL,
-            "Biertasting Bonn", "bier tasting verkostung genuss", 0.95,
+            rc.clean(title),
+            start,
+            end,
+            venue,
+            "Bonn",
+            f"Geführtes Biertasting: {rc.clean(title)}.",
+            _BIERTASTING_URL,
+            "Biertasting Bonn",
+            "bier tasting verkostung genuss",
+            0.95,
         )
         if ev:
             ev["price"] = _price(price)
@@ -295,9 +335,16 @@ def events_from_ludwigs(html: str, detail_fetcher=None) -> list:
                 end = parsed.get("end") or start
                 description = parsed.get("description") or description
         ev = common.make_event(
-            title, start, end, "Ludwig's Restaurant, Am Bonner Bogen 1, 53227 Bonn",
-            "Bonn", description, link, "Ludwig's Bonn",
-            "restaurant dinner menü bbq wein genuss", 0.98,
+            title,
+            start,
+            end,
+            "Ludwig's Restaurant, Am Bonner Bogen 1, 53227 Bonn",
+            "Bonn",
+            description,
+            link,
+            "Ludwig's Bonn",
+            "restaurant dinner menü bbq wein genuss",
+            0.98,
         )
         if ev:
             events.append(_force_food(ev))
@@ -308,7 +355,8 @@ def events_from_reduettchen(html: str, detail_fetcher=None) -> list:
     events = []
     blocks = re.findall(
         r"<div[^>]+av_one_third[^>]*>.*?(?=<div[^>]+av_one_third|<div[^>]+av_two_third|\Z)",
-        html or "", re.S | re.I,
+        html or "",
+        re.S | re.I,
     )
     for block in blocks:
         title = rc.clean(_match(r"<h2[^>]*>(.*?)</h2>", block))
@@ -318,8 +366,14 @@ def events_from_reduettchen(html: str, detail_fetcher=None) -> list:
         dates = _exact_reduettchen_dates(text)
         if not dates:
             continue
-        href = next((item for item in re.findall(r"href=['\"]([^'\"]+)", block, re.I)
-                     if item.startswith("http") and "reduettchen.de" in item), "")
+        href = next(
+            (
+                item
+                for item in re.findall(r"href=['\"]([^'\"]+)", block, re.I)
+                if item.startswith("http") and "reduettchen.de" in item
+            ),
+            "",
+        )
         link = href or _REDUETTCHEN_URL
         description = text
         detail_data = {}
@@ -334,9 +388,16 @@ def events_from_reduettchen(html: str, detail_fetcher=None) -> list:
                 hour, minute = detail_data["time"]
                 start = start.replace(hour=hour, minute=minute)
             ev = common.make_event(
-                title, start, start, "Redüttchen, Kurfürstenallee 1, 53177 Bonn-Bad Godesberg",
-                "Bonn-Bad Godesberg", description, link, "Redüttchen",
-                "restaurant gourmet dinner wein bbq genuss", 0.98,
+                title,
+                start,
+                start,
+                "Redüttchen, Kurfürstenallee 1, 53177 Bonn-Bad Godesberg",
+                "Bonn-Bad Godesberg",
+                description,
+                link,
+                "Redüttchen",
+                "restaurant gourmet dinner wein bbq genuss",
+                0.98,
             )
             if ev:
                 ev["price"] = detail_data.get("price", "")
@@ -366,9 +427,16 @@ def events_from_street_food(html: str, *, source_url: str = _STREET_FOOD_URL) ->
         else:
             city, venue = rc.city_from_text(location, location), location
         ev = common.make_event(
-            "Street Food Festival", start, end, venue, city,
-            f"Street Food Festival in {location}.", source_url,
-            "Street Food Bonn", "street food markt festival genuss", 0.96,
+            "Street Food Festival",
+            start,
+            end,
+            venue,
+            city,
+            f"Street Food Festival in {location}.",
+            source_url,
+            "Street Food Bonn",
+            "street food markt festival genuss",
+            0.96,
             all_day=True,
         )
         if ev:
@@ -397,23 +465,30 @@ def events_from_original_street_food(html: str) -> list:
     address = location.get("address") if isinstance(location.get("address"), dict) else {}
     city = rc.clean(str(address.get("addressLocality") or "Bonn"))
     venue = ", ".join(
-        rc.clean(str(part)) for part in
-        (location.get("name"), address.get("streetAddress"), address.get("postalCode"))
+        rc.clean(str(part))
+        for part in (location.get("name"), address.get("streetAddress"), address.get("postalCode"))
         if part
     )
     if not venue:
         venue = rc.first_group_clean(
-            r"<h[1-3][^>]*>\s*LOCATION:\s*(.*?)</h[1-3]>", visible_html,
+            r"<h[1-3][^>]*>\s*LOCATION:\s*(.*?)</h[1-3]>",
+            visible_html,
         )
-    description = rc.clean(str(item.get("description") or "")) or (
-        "Das Original Street Food Festival in Bonn."
-    )
+    description = rc.clean(str(item.get("description") or "")) or ("Das Original Street Food Festival in Bonn.")
     events = []
     for start, end in _spelled_date_ranges(rc.clean(visible_html)):
         ev = common.make_event(
-            title, start, end, venue, city, description,
-            _ORIGINAL_STREET_FOOD_URL, "Street Food Festival Original",
-            "street food markt festival genuss", 0.9, all_day=True,
+            title,
+            start,
+            end,
+            venue,
+            city,
+            description,
+            _ORIGINAL_STREET_FOOD_URL,
+            "Street Food Festival Original",
+            "street food markt festival genuss",
+            0.9,
+            all_day=True,
         )
         if ev:
             events.append(_force_food(ev))
@@ -426,14 +501,13 @@ def events_from_choco_dealer(html: str) -> list:
         link = _match(r"href=['\"]([^'\"]*\bslotId=[^'\"]+)['\"]", card)
         title = rc.clean(_match(r"netzp-events-title[^'\"]*['\"][^>]*>(.*?)</div>", card))
         stamp = re.search(
-            r"(\d{1,2})\.(\d{1,2})\.(\d{2}),\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})", card,
+            r"(\d{1,2})\.(\d{1,2})\.(\d{2}),\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})",
+            card,
         )
         if not (link and title and stamp):
             continue
         absolute_link = rc.abs_url(_CHOCO_DEALER_URL, link)
-        booking_path = urllib.parse.unquote(
-            urllib.parse.urlsplit(absolute_link).path
-        ).replace("-", " ")
+        booking_path = urllib.parse.unquote(urllib.parse.urlsplit(absolute_link).path).replace("-", " ")
         if "tasting" not in title.casefold():
             tasting_kind = _match(
                 r"\b((?:wein\s+)?schokoladen\s+tasting)\b",
@@ -451,13 +525,21 @@ def events_from_choco_dealer(html: str) -> list:
         venue_match = re.search(r"<b(?:\s[^>]*)?>(.*?)</b>\s*\|\s*([^<]*)", card, re.S)
         venue = ", ".join(rc.clean(part) for part in venue_match.groups()) if venue_match else ""
         description = re.sub(
-            r"\s*\.{3}$", "",
+            r"\s*\.{3}$",
+            "",
             rc.clean(_match(r"card-text lead[^'\"]*['\"][^>]*>(.*?)</div>", card)),
         )
         ev = common.make_event(
-            title, start, rc.with_time(start, end_time), venue, "Bonn-Bad Godesberg",
-            description, absolute_link, "Choco Dealer",
-            "schokolade tasting verkostung genuss", 0.97,
+            title,
+            start,
+            rc.with_time(start, end_time),
+            venue,
+            "Bonn-Bad Godesberg",
+            description,
+            absolute_link,
+            "Choco Dealer",
+            "schokolade tasting verkostung genuss",
+            0.97,
         )
         if ev:
             events.append(_force_food(ev))
@@ -490,8 +572,7 @@ def _without_scripts(html: str) -> str:
     return re.sub(r"<script\b.*?</script>", " ", html or "", flags=re.S | re.I)
 
 
-def _events_from_schema_html(html: str, *, source: str, default_url: str,
-                             default_city: str, category: str) -> list:
+def _events_from_schema_html(html: str, *, source: str, default_url: str, default_city: str, category: str) -> list:
     events = []
     seen = set()
     for item in _deep_jsonld_events(html):
@@ -533,9 +614,17 @@ def _events_from_schema_html(html: str, *, source: str, default_url: str,
             continue
         seen.add(key)
         ev = common.make_event(
-            str(item.get("name") or ""), start,
+            str(item.get("name") or ""),
+            start,
             _parse_schema_date(item.get("endDate")) or start,
-            venue, city, description, link, source, category, 0.99, coords=coords,
+            venue,
+            city,
+            description,
+            link,
+            source,
+            category,
+            0.99,
+            coords=coords,
         )
         if ev:
             amount = offers.get("price")
@@ -570,7 +659,8 @@ def _deep_jsonld_events(html: str) -> list:
 
     for raw in re.findall(
         r"<script[^>]+type=['\"]application/ld\+json['\"][^>]*>(.*?)</script>",
-        html or "", re.S | re.I,
+        html or "",
+        re.S | re.I,
     ):
         try:
             walk(json.loads(raw.strip()))
@@ -605,7 +695,8 @@ def _ludwigs_detail(html: str, fallback_date: datetime) -> dict:
     text = rc.clean(main)
     timing = re.search(
         r"Am\s+(\d{1,2}\.\d{1,2}\.20\d{2})\s+ab\s+(\d{1,2})(?::(\d{2}))?\s+Uhr",
-        text, re.I,
+        text,
+        re.I,
     )
     start = fallback_date
     if timing:
@@ -621,7 +712,9 @@ def _reduettchen_detail(html: str) -> dict:
     text = rc.clean(html)
     time_match = re.search(r"(?:Beginn|Start)\s*:?[\s]*(\d{1,2})(?::(\d{2}))?\s*Uhr", text, re.I)
     price_match = re.search(
-        r"(?:Preis\s*:?\s*)?(\d+(?:[,.]\d+)?)\s*(?:€|Euro|pro Person)", text, re.I,
+        r"(?:Preis\s*:?\s*)?(\d+(?:[,.]\d+)?)\s*(?:€|Euro|pro Person)",
+        text,
+        re.I,
     )
     description = _between(text, "Gourmet BBQ", "Kurfürstenallee 1") or text
     return {
@@ -634,7 +727,8 @@ def _reduettchen_detail(html: str) -> dict:
 def _exact_reduettchen_dates(text: str) -> list:
     dates = []
     paired = re.search(
-        r"(\d{1,2})\.\s*&\s*(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})", text,
+        r"(\d{1,2})\.\s*&\s*(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})",
+        text,
     )
     if paired:
         first, second, month_name, year = paired.groups()
@@ -677,12 +771,14 @@ def _date_from_href(href: str):
 
 
 def _force_food(event: dict) -> dict:
-    event.update({
-        "category_key": "food",
-        "category_label": "Food & Genuss",
-        "category_confidence": 1.0,
-        "category_reason": "source:curated-food-calendar",
-    })
+    event.update(
+        {
+            "category_key": "food",
+            "category_label": "Food & Genuss",
+            "category_confidence": 1.0,
+            "category_reason": "source:curated-food-calendar",
+        }
+    )
     return event
 
 
@@ -707,10 +803,7 @@ def _price(text: str) -> str:
 
 
 def _offer_price(amount, currency) -> str:
-    if isinstance(amount, float):
-        value = f"{amount:.2f}"
-    else:
-        value = str(amount)
+    value = f"{amount:.2f}" if isinstance(amount, float) else str(amount)
     return f"{value.replace('.', ',')} {currency or ''}".strip()
 
 
@@ -720,8 +813,15 @@ def _food_description(text: str) -> str:
 
 
 def _in_window(date_value: datetime) -> bool:
-    return common.TODAY <= date_value <= common.END_DATE.replace(
-        hour=23, minute=59, second=59, microsecond=999999,
+    return (
+        common.TODAY
+        <= date_value
+        <= common.END_DATE.replace(
+            hour=23,
+            minute=59,
+            second=59,
+            microsecond=999999,
+        )
     )
 
 
@@ -737,7 +837,7 @@ def _between(text: str, start: str, end: str) -> str:
         return ""
     begin += len(start)
     finish = lowered.find(end.lower(), begin) if end else -1
-    return text[begin:finish if finish >= 0 else None].strip()
+    return text[begin : finish if finish >= 0 else None].strip()
 
 
 def _match(pattern: str, text: str) -> str:

@@ -15,36 +15,45 @@ _LOHMAR_CALENDAR_URL = urllib.parse.urljoin(
 
 def fetch() -> list:
     events = []
-    events.extend(rc.fetch_html_events(
-        "Swisttal",
-        "https://www.swisttal.de/veranstaltungen/",
-        _events_from_swisttal,
-    ))
+    events.extend(
+        rc.fetch_html_events(
+            "Swisttal",
+            "https://www.swisttal.de/veranstaltungen/",
+            _events_from_swisttal,
+        )
+    )
     events.extend(_fetch_alfter())
-    events.extend(rc.fetch_html_events(
-        "Lohmar",
-        _LOHMAR_CALENDAR_URL,
-        lambda html: _events_from_lohmar(
-            html,
-            detail_fetcher=lambda link: common.fetch_detail_url(
-                link, cache_namespace="lohmar", timeout=15),
-        ),
-    ))
-    events.extend(rc.fetch_html_events(
-        "Bornheim",
-        "https://www.bornheim.de/veranstaltungskalender",
-        _events_from_bornheim,
-    ))
-    events.extend(rc.fetch_html_events(
-        "Eitorf",
-        "https://www.eitorf.de/veranstaltungen/",
-        lambda html: _events_from_eitorf_cards(html, "https://www.eitorf.de"),
-    ))
-    events.extend(rc.fetch_html_events(
-        "Bröltal / Ruppichteroth",
-        "https://www.broeltal.de/aktuelles/termine.html",
-        lambda html: _events_from_broeltal(html, "https://www.broeltal.de"),
-    ))
+    events.extend(
+        rc.fetch_html_events(
+            "Lohmar",
+            _LOHMAR_CALENDAR_URL,
+            lambda html: _events_from_lohmar(
+                html,
+                detail_fetcher=lambda link: common.fetch_detail_url(link, cache_namespace="lohmar", timeout=15),
+            ),
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Bornheim",
+            "https://www.bornheim.de/veranstaltungskalender",
+            _events_from_bornheim,
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Eitorf",
+            "https://www.eitorf.de/veranstaltungen/",
+            lambda html: _events_from_eitorf_cards(html, "https://www.eitorf.de"),
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Bröltal / Ruppichteroth",
+            "https://www.broeltal.de/aktuelles/termine.html",
+            lambda html: _events_from_broeltal(html, "https://www.broeltal.de"),
+        )
+    )
     return rc.dedupe(events)
 
 
@@ -99,7 +108,7 @@ def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
         link = rc.abs_url(_LOHMAR_BASE_URL, title_match.group(1))
         time_text = rc.time_text(rc.clean(time_match.group(2)))
         venue_match = re.search(
-            r'Veranstaltungsort:\s*(.*?)(?:</div>|<br\s*/?>)',
+            r"Veranstaltungsort:\s*(.*?)(?:</div>|<br\s*/?>)",
             block,
             re.S | re.I,
         )
@@ -112,15 +121,13 @@ def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
         )
         teaser_html = teaser_match.group(1) if teaser_match else ""
         teaser_html = re.sub(
-            r'<a\b[^>]*>\s*(?:mehr|details?)\s*</a>',
+            r"<a\b[^>]*>\s*(?:mehr|details?)\s*</a>",
             "",
             teaser_html,
             flags=re.S | re.I,
         )
         description = common.concise_description(rc.clean(teaser_html))
-        teaser_is_title = (
-            description.casefold().strip(" .") == title.casefold().strip(" .")
-        )
+        teaser_is_title = description.casefold().strip(" .") == title.casefold().strip(" .")
         start = common.parse_iso_date(time_match.group(1))
         if (not description or teaser_is_title) and common.window_contains(start):
             description = _lohmar_detail_description(link, detail_fetcher)
@@ -209,7 +216,7 @@ def _events_from_bornheim(html: str) -> list:
         if 'class="event-teaser"' not in part:
             continue
         dates = re.findall(r'date-card-btn-date">([^<]+)', part, re.S | re.I)
-        title = re.search(r'<p>([^<]{4,160})</p>', part, re.S | re.I)
+        title = re.search(r"<p>([^<]{4,160})</p>", part, re.S | re.I)
         href = re.search(r'<a[^>]+href="([^"]*/veranstaltung/veranstaltung/[^"]+)"', part, re.S | re.I)
         cat = " ".join(rc.clean(x) for x in re.findall(r'<span class="eventcategory">(.*?)</span>', part, re.S | re.I))
         if not dates:
@@ -281,12 +288,13 @@ def _eitorf_venue(place: str, text: str) -> str:
 
 def _events_from_broeltal(html: str, base: str) -> list:
     events = []
-    blocks = re.findall(r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>',
-                        html, re.S | re.I)
+    blocks = re.findall(
+        r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>', html, re.S | re.I
+    )
     for href, body in blocks:
         text = rc.clean(body)
         start, end = rc.range_dates(text)
-        title = re.search(r'<h[1-6][^>]*>(.*?)</h[1-6]>', body, re.S | re.I)
+        title = re.search(r"<h[1-6][^>]*>(.*?)</h[1-6]>", body, re.S | re.I)
         title_text = rc.clean(title.group(1)) if title else re.sub(r"\d{1,2}\.\d{1,2}\..*", "", text).strip()
         if not (start and title_text):
             continue

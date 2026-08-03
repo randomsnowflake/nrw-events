@@ -56,9 +56,7 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertEqual(common.parse_date("3. Januar"), datetime(2027, 1, 3))
 
     def test_runtime_window_uses_the_berlin_calendar_day(self):
-        window = EventWindow.from_days(
-            2, datetime(2026, 7, 18, 23, 30, tzinfo=timezone.utc)
-        )
+        window = EventWindow.from_days(2, datetime(2026, 7, 18, 23, 30, tzinfo=timezone.utc))
         self.assertEqual(window.start, datetime(2026, 7, 19))
         self.assertEqual(window.end, datetime(2026, 7, 20))
 
@@ -71,24 +69,30 @@ class HardeningRegressionTests(unittest.TestCase):
         )
 
     def test_window_includes_the_last_day_and_rejects_end_only_records(self):
-        with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), mock.patch.object(
-            common, "END_DATE", datetime(2026, 7, 20)
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 7, 19)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 7, 20)),
         ):
             self.assertTrue(common.window_contains(datetime(2026, 7, 20, 23, 59)))
             self.assertIsNone(
                 common.make_event(
-                    "End only", None, datetime(2026, 7, 20), "", "Bonn", "",
-                    "https://example.test/end-only", "Test", "concert",
+                    "End only",
+                    None,
+                    datetime(2026, 7, 20),
+                    "",
+                    "Bonn",
+                    "",
+                    "https://example.test/end-only",
+                    "Test",
+                    "concert",
                 )
             )
 
     def test_time_listing_resolves_root_relative_links(self):
-        html = (
-            '<time datetime="2026-07-20T19:00:00">20.07.</time>'
-            '<a href="/events/jazzabend">Jazzabend im Park</a>'
-        )
-        with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), mock.patch.object(
-            common, "END_DATE", datetime(2026, 7, 21)
+        html = '<time datetime="2026-07-20T19:00:00">20.07.</time><a href="/events/jazzabend">Jazzabend im Park</a>'
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 7, 19)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 7, 21)),
         ):
             events = common.events_from_time_listing(
                 html, "Test", "Bonn", "concert", 1.0, "https://example.test/calendar/"
@@ -100,20 +104,24 @@ class HardeningRegressionTests(unittest.TestCase):
         headers = Message()
         headers["Content-Type"] = "text/html"
         response.headers = headers
-        with mock.patch.object(common.urllib.request, "urlopen", return_value=response):
-            with self.assertRaises(common.UnexpectedContentTypeError):
-                common.fetch_url(
-                    "https://example.test/data",
-                    expected_content_types=("application/json",),
-                )
+        with (
+            mock.patch.object(common.urllib.request, "urlopen", return_value=response),
+            self.assertRaises(common.UnexpectedContentTypeError),
+        ):
+            common.fetch_url(
+                "https://example.test/data",
+                expected_content_types=("application/json",),
+            )
         response.close.assert_called_once()
 
     def test_throttle_reservations_are_independent_per_host_bucket(self):
         delays = {"a.test": 2.0, "b.test": 2.0}
-        with mock.patch.object(common, "_HOST_THROTTLE_SECONDS_BY_SUFFIX", delays), \
-                mock.patch.object(common, "_HOST_LAST_FETCH_AT", {}), \
-                mock.patch.object(common.time, "monotonic", side_effect=[10.0, 10.0, 10.0]), \
-                mock.patch.object(common.time, "sleep") as sleep:
+        with (
+            mock.patch.object(common, "_HOST_THROTTLE_SECONDS_BY_SUFFIX", delays),
+            mock.patch.object(common, "_HOST_LAST_FETCH_AT", {}),
+            mock.patch.object(common.time, "monotonic", side_effect=[10.0, 10.0, 10.0]),
+            mock.patch.object(common.time, "sleep") as sleep,
+        ):
             common._throttle_before_request("https://a.test/one")
             common._throttle_before_request("https://a.test/two")
             common._throttle_before_request("https://b.test/one")
@@ -159,10 +167,12 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertTrue(second_entered.is_set())
 
     def test_retry_sleep_never_runs_past_the_request_budget(self):
-        with mock.patch.object(common.time, "perf_counter", return_value=100.0), \
-                mock.patch.object(common.time, "sleep") as sleep:
-            with self.assertRaisesRegex(TimeoutError, "budget exhausted"):
-                common._sleep_for_retry(3.0, 102.0)
+        with (
+            mock.patch.object(common.time, "perf_counter", return_value=100.0),
+            mock.patch.object(common.time, "sleep") as sleep,
+            self.assertRaisesRegex(TimeoutError, "budget exhausted"),
+        ):
+            common._sleep_for_retry(3.0, 102.0)
         sleep.assert_not_called()
 
     def test_socket_timeout_shrinks_to_the_remaining_budget(self):
@@ -190,13 +200,18 @@ class HardeningRegressionTests(unittest.TestCase):
         result.endpoint.assert_called_once_with("https://progress.test/events", status=200)
 
     def test_live_memory_cache_rechecks_ttl_and_flushes_once(self):
-        with tempfile.TemporaryDirectory() as cache_dir, mock.patch.dict(
-            os.environ,
-            {"NRW_EVENTS_CACHE_DIR": cache_dir, "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "1"},
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            mock.patch.dict(
+                os.environ,
+                {"NRW_EVENTS_CACHE_DIR": cache_dir, "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "1"},
+            ),
         ):
             common._DETAIL_PAGE_CACHE_STATES.clear()
-            with mock.patch.object(common.time, "time", return_value=100.0) as clock, \
-                    mock.patch.object(common, "fetch_url", side_effect=["old", "new"]) as fetch:
+            with (
+                mock.patch.object(common.time, "time", return_value=100.0) as clock,
+                mock.patch.object(common, "fetch_url", side_effect=["old", "new"]) as fetch,
+            ):
                 self.assertEqual(
                     common.fetch_detail_url("https://example.test/detail", cache_namespace="ttl"),
                     "old",
@@ -208,8 +223,10 @@ class HardeningRegressionTests(unittest.TestCase):
                 )
             self.assertEqual(fetch.call_count, 2)
 
-            with mock.patch.object(common, "_persist_detail_page_cache") as persist, \
-                    mock.patch.object(common, "fetch_url", side_effect=["a", "b"]):
+            with (
+                mock.patch.object(common, "_persist_detail_page_cache") as persist,
+                mock.patch.object(common, "fetch_url", side_effect=["a", "b"]),
+            ):
                 common.fetch_detail_url("https://example.test/a", cache_namespace="batch")
                 common.fetch_detail_url("https://example.test/b", cache_namespace="batch")
                 persist.assert_not_called()
@@ -228,12 +245,12 @@ EXDATE:20260720T180000
 RDATE:20260724T180000
 END:VEVENT
 END:VCALENDAR"""
-        with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), mock.patch.object(
-            common, "END_DATE", datetime(2026, 7, 25)
-        ), mock.patch.object(common, "fetch_url", return_value=payload):
-            events = common.fetch_ical(
-                "https://example.test/events.ics", "Test", "Bonn", "concert"
-            )
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 7, 19)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 7, 25)),
+            mock.patch.object(common, "fetch_url", return_value=payload),
+        ):
+            events = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn", "concert")
         self.assertEqual(
             [event["start_date"] for event in events],
             ["2026-07-19", "2026-07-21", "2026-07-22", "2026-07-24"],
@@ -247,18 +264,21 @@ DTSTART:20260719T180000
 RRULE:FREQ=YEARLY
 END:VEVENT
 END:VCALENDAR"""
-        with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), mock.patch.object(
-            common, "END_DATE", datetime(2026, 7, 25)
-        ), mock.patch.object(common, "fetch_url", return_value=payload), mock.patch.object(
-            common, "log_source_error"
-        ) as warning:
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 7, 19)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 7, 25)),
+            mock.patch.object(common, "fetch_url", return_value=payload),
+            mock.patch.object(common, "log_source_error") as warning,
+        ):
             common.fetch_ical("https://example.test/events.ics", "Test", "Bonn", "concert")
         self.assertIn("unsupported RRULE frequency", str(warning.call_args.args[1]))
 
     def test_class_scoped_parser_treats_void_elements_as_non_nesting(self):
-        parser = regional_common.ClassScopedTextParser({
-            "copy": lambda _tag, attrs: attrs.get("class") == "copy",
-        })
+        parser = regional_common.ClassScopedTextParser(
+            {
+                "copy": lambda _tag, attrs: attrs.get("class") == "copy",
+            }
+        )
         parser.feed('<div class="copy">Before<hr>After<br>Still here</div><p>Outside</p>')
         self.assertEqual(parser.text("copy"), "Before After Still here")
 
@@ -268,11 +288,14 @@ END:VCALENDAR"""
             previous = os.getcwd()
             try:
                 os.chdir(tmpdir)
-                with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(
-                    Path,
-                    "is_file",
-                    autospec=True,
-                    side_effect=lambda path: path == Path(tmpdir, ".env"),
+                with (
+                    mock.patch.dict(os.environ, {}, clear=True),
+                    mock.patch.object(
+                        Path,
+                        "is_file",
+                        autospec=True,
+                        side_effect=lambda path: path == Path(tmpdir, ".env"),
+                    ),
                 ):
                     self.assertIsNone(config.load_env_file())
                     self.assertEqual(config.runtime_config().days_ahead, 3)
@@ -296,9 +319,8 @@ END:VCALENDAR"""
         self.assertIsNone(dates.parse_date("not a date"))
 
     def test_offline_suite_blocks_direct_socket_connections(self):
-        with socket.socket() as candidate:
-            with self.assertRaisesRegex(AssertionError, "offline test suite"):
-                candidate.connect(("127.0.0.1", 9))
+        with socket.socket() as candidate, self.assertRaisesRegex(AssertionError, "offline test suite"):
+            candidate.connect(("127.0.0.1", 9))
 
 
 if __name__ == "__main__":

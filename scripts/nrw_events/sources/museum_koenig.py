@@ -13,12 +13,15 @@ _PRIMARY_SOURCE_SCORE_FLOOR = 0.45
 
 
 def _card_blocks(html: str) -> list[str]:
-    starts = [match.start() for match in re.finditer(
-        r'<li\b[^>]*class="[^"]*\be-lib-event-calendar__list-item\b[^"]*"',
-        html or "",
-        re.I,
-    )]
-    return [html[start:end] for start, end in zip(starts, starts[1:] + [len(html)])]
+    starts = [
+        match.start()
+        for match in re.finditer(
+            r'<li\b[^>]*class="[^"]*\be-lib-event-calendar__list-item\b[^"]*"',
+            html or "",
+            re.I,
+        )
+    ]
+    return [html[start:end] for start, end in zip(starts, starts[1:] + [len(html)], strict=False)]
 
 
 def _detail_description(html: str, _event: dict) -> dict:
@@ -50,10 +53,7 @@ def _detail_description(html: str, _event: dict) -> dict:
 
 
 def _merge_detail(event: dict, context: dict) -> dict:
-    if (
-        event.get("venue", "").casefold() == "externe veranstaltung"
-        and context.get("venue")
-    ):
+    if event.get("venue", "").casefold() == "externe veranstaltung" and context.get("venue"):
         event["venue"] = context["venue"]
     return event
 
@@ -82,17 +82,22 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
         )
         location_text = rc.clean(location_match.group(1) if location_match else "")
         location = location_text.rsplit(",", 1)[-1].strip() if "," in location_text else ""
-        tags = [rc.clean(tag) for tag in re.findall(
-            r'class="[^"]*\be-lib-cards__tag\b[^"]*"[^>]*>(.*?)</span>',
-            card,
-            re.S | re.I,
-        )]
-        free = bool(re.search(r'kostenfrei|kostenlos', card, re.I))
+        tags = [
+            rc.clean(tag)
+            for tag in re.findall(
+                r'class="[^"]*\be-lib-cards__tag\b[^"]*"[^>]*>(.*?)</span>',
+                card,
+                re.S | re.I,
+            )
+        ]
+        free = bool(re.search(r"kostenfrei|kostenlos", card, re.I))
         description_parts = [tag for tag in tags if tag]
         if location:
             description_parts.append(f"Treffpunkt: {location}.")
         if free:
-            description_parts.append("Das Angebot ist als kostenlos gekennzeichnet; Museumseintritt kann zusätzlich anfallen.")
+            description_parts.append(
+                "Das Angebot ist als kostenlos gekennzeichnet; Museumseintritt kann zusätzlich anfallen."
+            )
         description = " ".join(description_parts) or "Veranstaltung im Museum Koenig Bonn."
         link = rc.abs_url(_URL, title_match.group(1))
         venue = "Externe Veranstaltung" if location.casefold() == "externe veranstaltung" else _VENUE
@@ -128,9 +133,8 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
             merge_context=_merge_detail,
         )
         for event in events:
-            if (
-                "regulärer Museumseintritt ist erforderlich" in event["description"]
-                or re.search(r"Nichtmitglieder.*(?:Euro|€)", event["description"], re.I)
+            if "regulärer Museumseintritt ist erforderlich" in event["description"] or re.search(
+                r"Nichtmitglieder.*(?:Euro|€)", event["description"], re.I
             ):
                 event["price"] = ""
             else:

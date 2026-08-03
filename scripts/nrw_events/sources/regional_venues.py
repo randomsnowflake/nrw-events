@@ -9,36 +9,45 @@ from . import regional_common as rc
 
 def fetch() -> list:
     events = []
-    events.extend(rc.fetch_html_events(
-        "Rhein Sieg Forum",
-        "https://www.rhein-sieg-forum.de/de/programm",
-        _events_from_rhein_sieg_forum,
-    ))
-    events.extend(rc.fetch_html_events(
-        "Rheinbach",
-        "https://www.rheinbach.de/veranstaltungen",
-        lambda html: _events_from_rheinbach(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="rheinbach", timeout=15),
-        ),
-    ))
-    events.extend(rc.fetch_html_events(
-        "Arp Museum",
-        "https://arpmuseum.org/veranstaltungen.html",
-        _events_from_arp,
-    ))
+    events.extend(
+        rc.fetch_html_events(
+            "Rhein Sieg Forum",
+            "https://www.rhein-sieg-forum.de/de/programm",
+            _events_from_rhein_sieg_forum,
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Rheinbach",
+            "https://www.rheinbach.de/veranstaltungen",
+            lambda html: _events_from_rheinbach(
+                html,
+                detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="rheinbach", timeout=15),
+            ),
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Arp Museum",
+            "https://arpmuseum.org/veranstaltungen.html",
+            _events_from_arp,
+        )
+    )
     clickaround_url = "https://events.click-around.systems/core/19b47bb1-7fba-40a0-a4a8-8d35589b4fce/events/standard/de"
-    events.extend(rc.fetch_html_events(
-        "Andernach",
-        clickaround_url,
-        lambda html: _events_from_clickaround(html, clickaround_url),
-    ))
-    events.extend(rc.fetch_html_events(
-        "LVR-LandesMuseum",
-        "https://landesmuseum-bonn.lvr.de/de/veranstaltungen/veranstaltungen_2/alleveranstaltungen.html",
-        _events_from_lvr,
-    ))
+    events.extend(
+        rc.fetch_html_events(
+            "Andernach",
+            clickaround_url,
+            lambda html: _events_from_clickaround(html, clickaround_url),
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "LVR-LandesMuseum",
+            "https://landesmuseum-bonn.lvr.de/de/veranstaltungen/veranstaltungen_2/alleveranstaltungen.html",
+            _events_from_lvr,
+        )
+    )
     return rc.dedupe(events)
 
 
@@ -48,7 +57,7 @@ def _events_from_rhein_sieg_forum(html: str) -> list:
         if 'class="listteaser-link"' not in block:
             continue
         href = re.search(r'href="([^"]+)"', block, re.I)
-        date = re.search(r'(\d{1,2}\.\s*[A-Za-zäöüÄÖÜ]+\s*20\d{2})', rc.clean(block), re.I)
+        date = re.search(r"(\d{1,2}\.\s*[A-Za-zäöüÄÖÜ]+\s*20\d{2})", rc.clean(block), re.I)
         title_text = _rhein_sieg_forum_title(block, href.group(1) if href else "")
         if not (date and title_text):
             continue
@@ -80,8 +89,11 @@ def _rhein_sieg_forum_title(block: str, href: str) -> str:
 
 def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
     events = []
-    for block in re.findall(r'<div class="row event-item.*?(?=<div class="row event-item|<button class="event-more-button")',
-                            html, re.S | re.I):
+    for block in re.findall(
+        r'<div class="row event-item.*?(?=<div class="row event-item|<button class="event-more-button")',
+        html,
+        re.S | re.I,
+    ):
         date_text = _rheinbach_date(block)
         href = re.search(r'<a[^>]+href="([^"]*/veranstaltungen/veranstaltung/[^"]+)"', block, re.S | re.I)
         title_match = re.search(
@@ -97,10 +109,7 @@ def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
         time_text = _rheinbach_field(block, "div", "time")
         categories = _rheinbach_categories(block)
         start = rc.parse_dt(date_text)
-        detail_copy = (
-            _rheinbach_detail_copy(link, detail_fetcher)
-            if common.window_contains(start) else ""
-        )
+        detail_copy = _rheinbach_detail_copy(link, detail_fetcher) if common.window_contains(start) else ""
         description = detail_copy or _rheinbach_fallback_description(
             title,
             date_text,
@@ -128,11 +137,14 @@ def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
 
 
 def _rheinbach_date(block: str) -> str:
-    dates = [rc.clean(value) for value in re.findall(
-        r'<p[^>]*class="[^"]*\bdate\b[^"]*"[^>]*>(.*?)</p>',
-        block,
-        re.S | re.I,
-    )]
+    dates = [
+        rc.clean(value)
+        for value in re.findall(
+            r'<p[^>]*class="[^"]*\bdate\b[^"]*"[^>]*>(.*?)</p>',
+            block,
+            re.S | re.I,
+        )
+    ]
     return next((value for value in dates if re.search(r"\b20\d{2}\b", value)), "")
 
 
@@ -187,11 +199,7 @@ def _rheinbach_fallback_description(
     venue: str,
     categories: list[str],
 ) -> str:
-    relevant_categories = [
-        category
-        for category in categories
-        if category.casefold() not in {"allgemein", "rheinbach"}
-    ]
+    relevant_categories = [category for category in categories if category.casefold() not in {"allgemein", "rheinbach"}]
     normalized_categories = {category.casefold() for category in relevant_categories}
     if {"sport", "aktiv"}.issubset(normalized_categories):
         introduction = f"„{title}“ ist ein Sport- und Aktivangebot in Rheinbach"
@@ -221,7 +229,8 @@ def _rheinbach_join(values: list[str]) -> str:
 def _events_from_arp(html: str) -> list:
     events = []
     blocks = re.findall(
-        r'<a href="([^"]*/veranstaltungen/detail/[^"]+)">(.*?)(?=<a href="[^"]*/veranstaltungen/detail/|</ul>|</section>)',
+        r'<a href="([^"]*/veranstaltungen/detail/[^"]+)">(.*?)'
+        r'(?=<a href="[^"]*/veranstaltungen/detail/|</ul>|</section>)',
         html,
         re.S | re.I,
     )
@@ -267,7 +276,7 @@ def _clickaround_events_for_date(chunk: str, current_date, base: str) -> list:
     for item in re.findall(r'<div class="item">(.*?)</div>\s*</div>', chunk, re.S | re.I):
         link = re.search(r'href="([^"]+)"[^>]+aria-label="Mehr Infos - ([^"]+)"', item, re.S | re.I)
         venue = re.search(
-            r'<b>(?:Veranstaltungsort|Adresse):</b>\s*([^<]+)',
+            r"<b>(?:Veranstaltungsort|Adresse):</b>\s*([^<]+)",
             item,
             re.S | re.I,
         )
@@ -293,7 +302,7 @@ def _clickaround_events_for_date(chunk: str, current_date, base: str) -> list:
 def _events_from_lvr(html: str) -> list:
     events = []
     for body in re.split(r'(?=<div class="event filter-element)', html):
-        if 'data-filter-list=' not in body:
+        if "data-filter-list=" not in body:
             continue
         ev = _event_from_lvr_body(body)
         if ev:

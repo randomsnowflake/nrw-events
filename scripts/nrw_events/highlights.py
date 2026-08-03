@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Iterable, Mapping
-
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 SCHEMA_VERSION = "1.0"
 MAX_PER_VENUE = 2
@@ -30,7 +30,10 @@ def _rank(event: Mapping[str, Any]) -> tuple[float, float, str, str]:
 
 
 def build_highlights(
-    events: Iterable[Mapping[str, Any]], *, run_id: str, generated_at: str,
+    events: Iterable[Mapping[str, Any]],
+    *,
+    run_id: str,
+    generated_at: str,
 ) -> dict[str, Any]:
     """Select diverse events without network or LLM access."""
     all_rows = [dict(event) for event in events]
@@ -54,17 +57,19 @@ def build_highlights(
         choices = [event for event in selected if event.get("category_key") == category][:3]
         if not choices:
             choices = [event for event in ranked if event.get("category_key") == category][:3]
-        categories.append({
-            "key": category,
-            "selectedEventIds": [_planner_id(canonical_index[event["event_id"]]) for event in choices],
-            "selected": [
-                {
-                    "eventId": event["event_id"],
-                    "score": round(float(event.get("score") or 0) + float(event.get("priority_bonus") or 0), 3),
-                }
-                for event in choices
-            ],
-        })
+        categories.append(
+            {
+                "key": category,
+                "selectedEventIds": [_planner_id(canonical_index[event["event_id"]]) for event in choices],
+                "selected": [
+                    {
+                        "eventId": event["event_id"],
+                        "score": round(float(event.get("score") or 0) + float(event.get("priority_bonus") or 0), 3),
+                    }
+                    for event in choices
+                ],
+            }
+        )
     return {
         "schemaVersion": SCHEMA_VERSION,
         "run_id": run_id,

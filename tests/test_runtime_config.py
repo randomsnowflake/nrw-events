@@ -6,9 +6,9 @@ from pathlib import Path
 from unittest import mock
 
 from nrw_events import common, config
+from nrw_events.health import SourceResult, SourceStatus
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
-from nrw_events.health import SourceResult, SourceStatus
 
 
 class RuntimeConfigTests(unittest.TestCase):
@@ -19,6 +19,7 @@ class RuntimeConfigTests(unittest.TestCase):
         second = RunContext(settings, EventWindow.from_days(2, datetime(2026, 2, 1)), "b", logger)
         self.assertEqual(first.window.start.strftime("%Y-%m-%d"), "2026-01-01")
         self.assertEqual(second.window.start.strftime("%Y-%m-%d"), "2026-02-01")
+
     def test_env_file_is_loaded_before_http_runtime_configuration(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             env_file = Path(tmpdir) / "settings.env"
@@ -32,11 +33,15 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(common._HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"], 4.5)
 
     def test_parallelism_and_timeout_budgets_are_configurable(self):
-        with mock.patch.dict(os.environ, {
-            "NRW_EVENTS_SOURCE_WORKERS": "20",
-            "NRW_EVENTS_SOURCE_TIMEOUT_SECONDS": "90",
-            "NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS": "30",
-        }, clear=True):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NRW_EVENTS_SOURCE_WORKERS": "20",
+                "NRW_EVENTS_SOURCE_TIMEOUT_SECONDS": "90",
+                "NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS": "30",
+            },
+            clear=True,
+        ):
             settings = config.runtime_config()
 
         self.assertEqual(settings.source_workers, 20)
@@ -44,18 +49,24 @@ class RuntimeConfigTests(unittest.TestCase):
         self.assertEqual(settings.http_request_budget_seconds, 30)
 
     def test_invalid_runtime_setting_is_actionable(self):
-        with mock.patch.dict(os.environ, {"NRW_EVENTS_SCORE_FLOOR": "not-a-number"}, clear=True):
-            with self.assertRaisesRegex(ValueError, "NRW_EVENTS_SCORE_FLOOR"):
-                config.runtime_config()
+        with (
+            mock.patch.dict(os.environ, {"NRW_EVENTS_SCORE_FLOOR": "not-a-number"}, clear=True),
+            self.assertRaisesRegex(ValueError, "NRW_EVENTS_SCORE_FLOOR"),
+        ):
+            config.runtime_config()
 
     def test_days_are_bounded(self):
         with self.assertRaisesRegex(ValueError, "days_ahead"):
             config.runtime_config(91)
 
     def test_previous_snapshot_path_is_configurable(self):
-        with mock.patch.dict(os.environ, {
-            "NRW_EVENTS_PREVIOUS_META_JSON": "/var/cache/nrw-events/last-good.json",
-        }, clear=True):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NRW_EVENTS_PREVIOUS_META_JSON": "/var/cache/nrw-events/last-good.json",
+            },
+            clear=True,
+        ):
             self.assertEqual(
                 config.runtime_config().previous_meta_json,
                 "/var/cache/nrw-events/last-good.json",

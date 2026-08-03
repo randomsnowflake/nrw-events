@@ -83,21 +83,29 @@ class NightlifeSourceTests(unittest.TestCase):
         def row(event_id, item, description):
             return (
                 f'<tr><td id="event-row-{event_id}"><script type="application/ld+json">'
-                f'{json.dumps(item)}</script><li><span><i aria-hidden>info</i>'
-                f'<span>{description}</span></span></li></td></tr>'
+                f"{json.dumps(item)}</script><li><span><i aria-hidden>info</i>"
+                f"<span>{description}</span></span></li></td></tr>"
             )
 
         base = {
-            "@type": "MusicEvent", "startDate": "2026-07-23T17:45:00+02:00",
-            "endDate": "2026-07-24T02:00:00+02:00", "eventStatus": "EventScheduled",
-            "location": {"name": "KD Anleger", "address": {"addressLocality": "Bonn"},
-                         "geo": {"latitude": "50.735345", "longitude": "7.107923"}},
+            "@type": "MusicEvent",
+            "startDate": "2026-07-23T17:45:00+02:00",
+            "endDate": "2026-07-24T02:00:00+02:00",
+            "eventStatus": "EventScheduled",
+            "location": {
+                "name": "KD Anleger",
+                "address": {"addressLocality": "Bonn"},
+                "geo": {"latitude": "50.735345", "longitude": "7.107923"},
+            },
             "offers": {"price": 30, "availability": "InStock"},
             "url": "https://afterjobparty.ticket.io/hBG9DqSM/",
         }
         html = row("voucher", {**base, "name": "GUTSCHEINE AfterJobParty Bonn"}, "Gutschein")
-        html += row("party", {**base, "name": "AfterJob IBIZA auf dem Rhein mit MOGUAI"},
-                    "Party auf dem Rhein mit MOGUAI, Drinks und AfterJob-Resident DJ.")
+        html += row(
+            "party",
+            {**base, "name": "AfterJob IBIZA auf dem Rhein mit MOGUAI"},
+            "Party auf dem Rhein mit MOGUAI, Drinks und AfterJob-Resident DJ.",
+        )
         events = afterjobparty._events_from_listing(html)
         self.assertEqual(len(events), 1)
         self.assertIn("MOGUAI", events[0]["description"])
@@ -120,28 +128,40 @@ class NightlifeSourceTests(unittest.TestCase):
         }
         html = (
             '<tr><td id="event-row-party"><script type="application/ld+json">'
-            f'{json.dumps(item)}</script><li><span><i aria-hidden>info</i>'
-            '<span>Wiesn-Party mit DJ und Oktoberfestband.</span>'
-            '</span></li></td></tr>'
+            f"{json.dumps(item)}</script><li><span><i aria-hidden>info</i>"
+            "<span>Wiesn-Party mit DJ und Oktoberfestband.</span>"
+            "</span></li></td></tr>"
         )
 
         events = afterjobparty._events_from_listing(html)
 
-        self.assertEqual(
-            events[0]["title"], "AfterJob Wiesn-Party in der Bayernfesthalle"
-        )
+        self.assertEqual(events[0]["title"], "AfterJob Wiesn-Party in der Bayernfesthalle")
         self.assert_canonical(events[0])
 
     def test_rheinevents_parses_next_data_and_converts_utc_to_local_time(self):
-        payload = {"props": {"pageProps": {"sellerPage": {"events": [{
-            "name": "Barfuss am Strand Summer Closing",
-            "start": "2026-09-06T12:00:00.000Z", "end": "2026-09-06T20:00:00.000Z",
-            "locationName": "Bikini Beach", "locationCity": "Bonn",
-            "locationStreet": "Karl-Duwe-Straße 1", "locationPostal": "53227",
-            "url": "barfuss-am-strand-season-closing-dhpmfm",
-            "startingPrice": 22, "saleStatus": "onSale",
-            "slogan": "w/ Felix Kröcher, Format :B und Wankelmut",
-        }]}}}}
+        payload = {
+            "props": {
+                "pageProps": {
+                    "sellerPage": {
+                        "events": [
+                            {
+                                "name": "Barfuss am Strand Summer Closing",
+                                "start": "2026-09-06T12:00:00.000Z",
+                                "end": "2026-09-06T20:00:00.000Z",
+                                "locationName": "Bikini Beach",
+                                "locationCity": "Bonn",
+                                "locationStreet": "Karl-Duwe-Straße 1",
+                                "locationPostal": "53227",
+                                "url": "barfuss-am-strand-season-closing-dhpmfm",
+                                "startingPrice": 22,
+                                "saleStatus": "onSale",
+                                "slogan": "w/ Felix Kröcher, Format :B und Wankelmut",
+                            }
+                        ]
+                    }
+                }
+            }
+        }
         html = f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script>'
         events = rheinevents._events_from_listing(html)
         self.assertEqual(len(events), 1)
@@ -158,22 +178,27 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assert_canonical(events[0])
 
     def test_salsa_in_bonn_keeps_public_dances_and_filters_meetings(self):
-        payload = {"events": [
-            {
-                "title": "Tanzen in der Weingalerie",
-                "start_date": "2026-08-03 18:00:00", "end_date": "2026-08-03 23:00:00",
-                "url": "https://www.salsainbonn.de/event/tanzen-in-der-weingalerie-3/",
-                "description": "<p>Salsa-Musik und gemeinsames Tanzen in der Bonngasse.</p>",
-                "cost": "Eintritt frei",
-                "venue": {"venue": "Weingalerie Bonn", "city": "Bonn"},
-            },
-            {
-                "title": "Mitgliederversammlung Salsa in Bonn",
-                "start_date": "2026-08-04 18:00:00", "end_date": "2026-08-04 20:00:00",
-                "url": "https://www.salsainbonn.de/event/versammlung/",
-                "description": "Vereinsversammlung", "venue": {"city": "Bonn"},
-            },
-        ]}
+        payload = {
+            "events": [
+                {
+                    "title": "Tanzen in der Weingalerie",
+                    "start_date": "2026-08-03 18:00:00",
+                    "end_date": "2026-08-03 23:00:00",
+                    "url": "https://www.salsainbonn.de/event/tanzen-in-der-weingalerie-3/",
+                    "description": "<p>Salsa-Musik und gemeinsames Tanzen in der Bonngasse.</p>",
+                    "cost": "Eintritt frei",
+                    "venue": {"venue": "Weingalerie Bonn", "city": "Bonn"},
+                },
+                {
+                    "title": "Mitgliederversammlung Salsa in Bonn",
+                    "start_date": "2026-08-04 18:00:00",
+                    "end_date": "2026-08-04 20:00:00",
+                    "url": "https://www.salsainbonn.de/event/versammlung/",
+                    "description": "Vereinsversammlung",
+                    "venue": {"city": "Bonn"},
+                },
+            ]
+        }
         events = salsainbonn._events_from_payload(payload)
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["time"], "18:00–23:00")

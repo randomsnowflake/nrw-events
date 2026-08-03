@@ -37,10 +37,16 @@ class BonnTheaterSourceTests(unittest.TestCase):
 
     def test_kleines_theater_fetches_each_month_and_deduplicates_overlap(self):
         sample = common.make_event(
-            "Der Tatortreiniger", datetime(2026, 9, 4, 19, 30), None,
-            "Kleines Theater", "Bonn", "Eine Theaterkomödie.",
+            "Der Tatortreiniger",
+            datetime(2026, 9, 4, 19, 30),
+            None,
+            "Kleines Theater",
+            "Bonn",
+            "Eine Theaterkomödie.",
             "https://kleinestheater.eu/event/der-tatortreiniger/",
-            "Kleines Theater Bad Godesberg", "theater bühne", source_id="kleines-theater",
+            "Kleines Theater Bad Godesberg",
+            "theater bühne",
+            source_id="kleines-theater",
         )
         with patch.object(common, "fetch_ical", return_value=[sample]) as fetch_ical:
             events = kleines_theater.fetch()
@@ -48,39 +54,38 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertEqual(fetch_ical.call_count, 6)
         self.assertIn("tribe-bar-date=2026-07-01", fetch_ical.call_args_list[0].args[0])
         self.assertIn("tribe-bar-date=2026-12-01", fetch_ical.call_args_list[-1].args[0])
-        self.assertTrue(all(
-            call.kwargs["source_id"] == "kleines-theater"
-            for call in fetch_ical.call_args_list
-        ))
+        self.assertTrue(all(call.kwargs["source_id"] == "kleines-theater" for call in fetch_ical.call_args_list))
         self.assert_canonical(events[0], "kleines-theater")
 
     def test_kleines_theater_keeps_plays_out_of_outdoor_sports_and_concert(self):
-        events = kleines_theater._correct_stage_formats([
-            {
-                "title": "MARILYN & ICH – Komödie",
-                "description": "Open-Air-Aufführung im Garten.",
-                "category": "theater bühne",
-                "category_key": "outdoor",
-            },
-            {
-                "title": "MACBETH – William Shakespeare",
-                "description": "Ein erbitterter Kampf um die Krone.",
-                "category": "theater bühne",
-                "category_key": "sports",
-            },
-            {
-                "title": "2:22 Uhr – eine Geistergeschichte",
-                "description": "Mystery Thriller auf der Bühne.",
-                "category": "theater bühne",
-                "category_key": "concert",
-            },
-            {
-                "title": "MUSIK unter der ZEDER – The Rhythm Section Band",
-                "description": "Live im Kleinen Theater.",
-                "category": "theater bühne",
-                "category_key": "stage",
-            },
-        ])
+        events = kleines_theater._correct_stage_formats(
+            [
+                {
+                    "title": "MARILYN & ICH – Komödie",
+                    "description": "Open-Air-Aufführung im Garten.",
+                    "category": "theater bühne",
+                    "category_key": "outdoor",
+                },
+                {
+                    "title": "MACBETH – William Shakespeare",
+                    "description": "Ein erbitterter Kampf um die Krone.",
+                    "category": "theater bühne",
+                    "category_key": "sports",
+                },
+                {
+                    "title": "2:22 Uhr – eine Geistergeschichte",
+                    "description": "Mystery Thriller auf der Bühne.",
+                    "category": "theater bühne",
+                    "category_key": "concert",
+                },
+                {
+                    "title": "MUSIK unter der ZEDER – The Rhythm Section Band",
+                    "description": "Live im Kleinen Theater.",
+                    "category": "theater bühne",
+                    "category_key": "stage",
+                },
+            ]
+        )
 
         self.assertEqual(
             [event["category_key"] for event in events],
@@ -88,21 +93,27 @@ class BonnTheaterSourceTests(unittest.TestCase):
         )
 
     def test_theater_bonn_uses_ticket_link_and_factual_description(self):
-        payload = [{
-            "id": 42,
-            "title": "Die Zauberflöte",
-            "date_full": "04.09.2026",
-            "date_time": "19:30 Uhr",
-            "description": "",
-            "status": "",
-            "categories": [{"name": "Oper"}],
-            "tags": [{"name": "Oper"}, {"name": "Opernhaus"}],
-            "genre_names": ["Oper"],
-            "ticket": {"url": "https://tickets.theater-bonn.de/42", "ticket_info": "Tickets verfügbar"},
-        }, {
-            "id": 43, "title": "Abgesagt", "date_full": "05.09.2026",
-            "date_time": "20:00 Uhr", "status": "abgesagt",
-        }]
+        payload = [
+            {
+                "id": 42,
+                "title": "Die Zauberflöte",
+                "date_full": "04.09.2026",
+                "date_time": "19:30 Uhr",
+                "description": "",
+                "status": "",
+                "categories": [{"name": "Oper"}],
+                "tags": [{"name": "Oper"}, {"name": "Opernhaus"}],
+                "genre_names": ["Oper"],
+                "ticket": {"url": "https://tickets.theater-bonn.de/42", "ticket_info": "Tickets verfügbar"},
+            },
+            {
+                "id": 43,
+                "title": "Abgesagt",
+                "date_full": "05.09.2026",
+                "date_time": "20:00 Uhr",
+                "status": "abgesagt",
+            },
+        ]
         events = theater_bonn.events_from_payload(payload)
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["venue"], "Opernhaus")
@@ -180,7 +191,7 @@ class BonnTheaterSourceTests(unittest.TestCase):
           <td>Performance / Tanztheater</td>
           <td><a href="https://tickets.example/radioballett">Tickets</a></td>
         </tr></table>
-        """
+        """  # noqa: E501
         events = theater_im_ballsaal.events_from_html(
             html, lambda _url: "Eine choreografische Performance für das Publikum."
         )

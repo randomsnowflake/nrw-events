@@ -4,6 +4,7 @@ from datetime import datetime
 
 from nrw_events import common
 from nrw_events.validation import canonicalize_event
+
 from tests.helpers import patch_window
 
 
@@ -82,14 +83,34 @@ class JsonLdScheduleTests(unittest.TestCase):
             "startDate": "2026-04-18",
             "endDate": "2026-10-17",
             "eventSchedule": [
-                {"@type": "Schedule", "startDate": "2026-04-18", "endDate": "2026-04-18", "startTime": "08:00", "endTime": "18:00"},
-                {"@type": "Schedule", "startDate": "2026-06-20", "endDate": "2026-06-20", "startTime": "08:00", "endTime": "18:00"},
-                {"@type": "Schedule", "startDate": "2026-07-18", "endDate": "2026-07-18", "startTime": "08:00", "endTime": "18:00"},
+                {
+                    "@type": "Schedule",
+                    "startDate": "2026-04-18",
+                    "endDate": "2026-04-18",
+                    "startTime": "08:00",
+                    "endTime": "18:00",
+                },
+                {
+                    "@type": "Schedule",
+                    "startDate": "2026-06-20",
+                    "endDate": "2026-06-20",
+                    "startTime": "08:00",
+                    "endTime": "18:00",
+                },
+                {
+                    "@type": "Schedule",
+                    "startDate": "2026-07-18",
+                    "endDate": "2026-07-18",
+                    "startTime": "08:00",
+                    "endTime": "18:00",
+                },
             ],
         }
         html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
 
-        events = common.events_from_jsonld(html, "Rheinauen-Flohmarkt", "Bonn", "markt flohmarkt outdoor", 1.0, payload["url"])
+        events = common.events_from_jsonld(
+            html, "Rheinauen-Flohmarkt", "Bonn", "markt flohmarkt outdoor", 1.0, payload["url"]
+        )
 
         self.assertEqual(
             [ev["date"] for ev in events],

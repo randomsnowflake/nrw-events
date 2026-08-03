@@ -1,9 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from nrw_events.sources import siegburg
-from nrw_events.sources import SOURCES
-
+from nrw_events.sources import SOURCES, siegburg
 
 DETAIL_LINK = (
     "https://events.siegburg.de/Veranstaltungen/"
@@ -37,8 +35,7 @@ DETAIL_HTML = """
 
 class SiegburgDetailEnrichmentTests(unittest.TestCase):
     def setUp(self):
-        self.cache_env = patch.dict(
-            "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
+        self.cache_env = patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.cache_env.start()
         siegburg.common._reset_detail_page_cache()
 
@@ -70,8 +67,10 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
             {"title": "Yoga und Klang", "link": "https://example.test/yoga", "description": "Feed copy"},
         ]
 
-        with patch.object(siegburg.common, "fetch_ical", return_value=events), \
-                patch.object(siegburg.common, "fetch_url", return_value=DETAIL_HTML) as fetch_detail:
+        with (
+            patch.object(siegburg.common, "fetch_ical", return_value=events),
+            patch.object(siegburg.common, "fetch_url", return_value=DETAIL_HTML) as fetch_detail,
+        ):
             enriched = siegburg.fetch()
 
         # Subtitle and body are separate blocks on the page and stay separate
@@ -89,9 +88,11 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
     def test_detail_failure_keeps_ical_events_available(self):
         events = [{"title": "Gedenkstätten", "link": DETAIL_LINK, "description": ""}]
 
-        with patch.object(siegburg.common, "fetch_ical", return_value=events), \
-                patch.object(siegburg.common, "fetch_url", side_effect=TimeoutError("detail timeout")), \
-                patch.object(siegburg.common, "log_source_error") as log_error:
+        with (
+            patch.object(siegburg.common, "fetch_ical", return_value=events),
+            patch.object(siegburg.common, "fetch_url", side_effect=TimeoutError("detail timeout")),
+            patch.object(siegburg.common, "log_source_error") as log_error,
+        ):
             result = siegburg.fetch()
 
         self.assertIn("findet", result[0]["description"])

@@ -29,9 +29,15 @@ class BonnFoodSourceTests(unittest.TestCase):
 
     def test_all_primary_sources_are_individually_registered(self):
         expected = {
-            "Craftquelle Bonn", "BFF Bonner Schifffahrt", "vomFASS Bonn",
-            "Biertasting Bonn", "Ludwig's Bonn", "Redüttchen", "Street Food Bonn",
-            "Street Food Festival Original", "Choco Dealer",
+            "Craftquelle Bonn",
+            "BFF Bonner Schifffahrt",
+            "vomFASS Bonn",
+            "Biertasting Bonn",
+            "Ludwig's Bonn",
+            "Redüttchen",
+            "Street Food Bonn",
+            "Street Food Festival Original",
+            "Choco Dealer",
         }
         self.assertTrue(expected.issubset(CUSTOM_SOURCES))
 
@@ -58,15 +64,31 @@ class BonnFoodSourceTests(unittest.TestCase):
     def test_bff_finds_events_nested_inside_jsonld(self):
         item = {
             "@context": "https://schema.org",
-            "mainEntity": {"items": [{
-                "@type": "Event", "name": "Grillabend auf dem Rhein",
-                "startDate": "2026-09-04T19:00:00+02:00",
-                "endDate": "2026-09-04T22:00:00+02:00",
-                "description": "Grillabend mit Buffet auf dem Rhein.",
-                "location": {"@type": "Place", "name": "Bonn Alter Zoll",
-                             "address": {"streetAddress": "Brassertufer", "postalCode": "53111", "addressLocality": "Bonn"}},
-                "offers": {"price": 24.7, "priceCurrency": "EUR", "url": "https://shop.bff-bonn.com/grillabend"},
-            }]},
+            "mainEntity": {
+                "items": [
+                    {
+                        "@type": "Event",
+                        "name": "Grillabend auf dem Rhein",
+                        "startDate": "2026-09-04T19:00:00+02:00",
+                        "endDate": "2026-09-04T22:00:00+02:00",
+                        "description": "Grillabend mit Buffet auf dem Rhein.",
+                        "location": {
+                            "@type": "Place",
+                            "name": "Bonn Alter Zoll",
+                            "address": {
+                                "streetAddress": "Brassertufer",
+                                "postalCode": "53111",
+                                "addressLocality": "Bonn",
+                            },
+                        },
+                        "offers": {
+                            "price": 24.7,
+                            "priceCurrency": "EUR",
+                            "url": "https://shop.bff-bonn.com/grillabend",
+                        },
+                    }
+                ]
+            },
         }
         html = f'<script type="application/ld+json">{json.dumps(item)}</script>'
         events = bonn_food.events_from_bff(html)
@@ -82,13 +104,18 @@ class BonnFoodSourceTests(unittest.TestCase):
           <div class="ef-card__price">€99,95 p. P.</div></article>
         <article data-event-card data-city="jena" data-partner="vomfass-jena" data-date="2026-09-12">
           <h3 class="ef-card__title"><a href="/pages/tasting-events/gin-jena">Gin Tasting Jena</a></h3></article>
-        """
+        """  # noqa: E501
         detail_item = {
-            "@type": "FoodEvent", "name": "Gin Tasting",
-            "startDate": "2026-09-11T19:30:00+0200", "endDate": "2026-09-11T21:30:00+0200",
+            "@type": "FoodEvent",
+            "name": "Gin Tasting",
+            "startDate": "2026-09-11T19:30:00+0200",
+            "endDate": "2026-09-11T21:30:00+0200",
             "description": "Geführtes Gin-Tasting mit verschiedenen Longdrinks.",
             "url": "https://www.vomfass.de/pages/tasting-events/gin-bonn",
-            "location": {"name": "vomFASS Bonn", "address": {"streetAddress": "Friedrichstraße 49", "postalCode": "53111", "addressLocality": "Bonn"}},
+            "location": {
+                "name": "vomFASS Bonn",
+                "address": {"streetAddress": "Friedrichstraße 49", "postalCode": "53111", "addressLocality": "Bonn"},
+            },
         }
         detail = f'<script type="application/ld+json">{json.dumps(detail_item)}</script>'
         events = bonn_food.events_from_vomfass(listing, lambda _url: detail)
@@ -115,17 +142,20 @@ class BonnFoodSourceTests(unittest.TestCase):
             <div class="ef-card__price">€99,95 p. P.</div>
           </article>
         </div>
-        """
+        """  # noqa: E501
         common.TODAY = datetime(2026, 7, 20)
-        with patch.object(
-            common,
-            "fetch_url_with_brightdata",
-            side_effect=[first_page, second_page],
-        ) as listing_fetch, patch.object(
-            common,
-            "fetch_detail_url",
-            return_value="",
-        ) as detail_fetch:
+        with (
+            patch.object(
+                common,
+                "fetch_url_with_brightdata",
+                side_effect=[first_page, second_page],
+            ) as listing_fetch,
+            patch.object(
+                common,
+                "fetch_detail_url",
+                return_value="",
+            ) as detail_fetch,
+        ):
             events = bonn_food.fetch_vomfass()
 
         self.assert_food_events(events, 1)
@@ -181,7 +211,7 @@ class BonnFoodSourceTests(unittest.TestCase):
         <div class="card no-r"><div class="card-media"><a href="/veranstaltungen/termin/2026/09/wine-dine"></a></div>
         <div class="card-body"><p class="small mb-1">22. September</p><h3>Wine &amp; Dine</h3>
         <p>Vier Gänge und passende Weine.</p><a href="/veranstaltungen/termin/2026/09/wine-dine">Mehr erfahren</a></div></div>
-        """
+        """  # noqa: E501
         detail = """<main><h1>Wine &amp; Dine</h1><p>Spitzenküche und ausgewählte Weine treffen aufeinander.</p>
         <p>Erleben Sie am 22.09.2026 ab 18 Uhr einen außergewöhnlichen Genussabend.</p></main>"""
         events = bonn_food.events_from_ludwigs(listing, lambda _url: detail)
@@ -228,7 +258,9 @@ class BonnFoodSourceTests(unittest.TestCase):
         <h2>Veranstalter</h2><p>WEvent UG (haftungsbeschränkt)</p>
         """
         with patch.object(
-            common, "fetch_url", side_effect=[bonn_page, siegburg_page],
+            common,
+            "fetch_url",
+            side_effect=[bonn_page, siegburg_page],
         ) as fetch:
             events = bonn_food.fetch_street_food()
 
@@ -239,17 +271,13 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assert_food_events(events, 2)
         self.assertEqual(
             [(event["date"], event["city"]) for event in events],
-            [("2026-08-28", "Bonn-Bad Godesberg"),
-             ("2026-10-16", "Troisdorf")],
+            [("2026-08-28", "Bonn-Bad Godesberg"), ("2026-10-16", "Troisdorf")],
         )
         self.assertEqual(
             [event["end_date"] for event in events],
             ["2026-08-30", "2026-10-18"],
         )
-        self.assertTrue(all(
-            event["link"] == "https://www.street-food-bonn.de/"
-            for event in events
-        ))
+        self.assertTrue(all(event["link"] == "https://www.street-food-bonn.de/" for event in events))
 
     def test_street_food_keeps_bonn_events_when_siegburg_page_fails(self):
         bonn_page = """
@@ -257,9 +285,14 @@ class BonnFoodSourceTests(unittest.TestCase):
         <p>28. - 30.08.2026 Street Food Festival - Bonn Bad Godesberg</p>
         <h2>Veranstalter</h2>
         """
-        with patch.object(
-            common, "fetch_url", side_effect=[bonn_page, TimeoutError("offline")],
-        ), patch.object(common, "log_source_error") as log_error:
+        with (
+            patch.object(
+                common,
+                "fetch_url",
+                side_effect=[bonn_page, TimeoutError("offline")],
+            ),
+            patch.object(common, "log_source_error") as log_error,
+        ):
             events = bonn_food.fetch_street_food()
 
         self.assert_food_events(events, 1)
@@ -280,24 +313,32 @@ class BonnFoodSourceTests(unittest.TestCase):
 
         self.assert_food_events(events, 1)
         self.assertEqual(events[0]["city"], "Siegburg")
-        self.assertEqual(
-            events[0]["link"], "https://www.streetfood-siegburg.de/"
-        )
+        self.assertEqual(events[0]["link"], "https://www.streetfood-siegburg.de/")
 
     def test_original_street_food_takes_dates_from_html_not_stale_jsonld(self):
         item = {
-            "@context": "http://schema.org", "@type": "FoodEvent",
+            "@context": "http://schema.org",
+            "@type": "FoodEvent",
             "name": "Street Food Festival Bonn",
-            "startDate": "2025-10-02T4:00PM", "endDate": "2025-10-05T08:00PM",
+            "startDate": "2025-10-02T4:00PM",
+            "endDate": "2025-10-05T08:00PM",
             "description": "Das Original Street Food Festival am Bonn Beueler Rheinufer.",
-            "location": {"@type": "Place", "name": "Rheinufer Bonn-Beuel", "address": {
-                "@type": "PostalAddress", "streetAddress": "Rheinaustraße",
-                "addressLocality": "Bonn", "postalCode": "53225", "addressCountry": "DE"}},
+            "location": {
+                "@type": "Place",
+                "name": "Rheinufer Bonn-Beuel",
+                "address": {
+                    "@type": "PostalAddress",
+                    "streetAddress": "Rheinaustraße",
+                    "addressLocality": "Bonn",
+                    "postalCode": "53225",
+                    "addressCountry": "DE",
+                },
+            },
         }
         html = (
             f'<script type="application/ld+json">{json.dumps(item)}</script>'
             '<h3 style="text-align:center;">01. - 04. Oktober 2026</h3>'
-            '<h3>Do. 01.10. 16:00 – 22:00 Uhr</h3>'
+            "<h3>Do. 01.10. 16:00 – 22:00 Uhr</h3>"
         )
         events = bonn_food.events_from_original_street_food(html)
         self.assert_food_events(events, 1)
@@ -311,7 +352,8 @@ class BonnFoodSourceTests(unittest.TestCase):
 
     def test_original_street_food_publishes_nothing_without_a_readable_html_date(self):
         item = {
-            "@type": "FoodEvent", "name": "Street Food Festival Bonn",
+            "@type": "FoodEvent",
+            "name": "Street Food Festival Bonn",
             "startDate": "2025-10-02T4:00PM",
             "location": {"@type": "Place", "name": "Rheinufer Bonn-Beuel"},
         }

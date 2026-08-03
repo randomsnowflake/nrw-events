@@ -26,12 +26,10 @@ class RichTextStructureTests(unittest.TestCase):
         """h1/h2 belong to the page; event copy starts at h3."""
         for level in ("h1", "h2", "h3"):
             with self.subTest(level=level):
-                self.assertEqual(
-                    richtext.sanitize_rich_text(f"<{level}>Titel</{level}>"), "<h3>Titel</h3>")
+                self.assertEqual(richtext.sanitize_rich_text(f"<{level}>Titel</{level}>"), "<h3>Titel</h3>")
         for level in ("h4", "h5", "h6"):
             with self.subTest(level=level):
-                self.assertEqual(
-                    richtext.sanitize_rich_text(f"<{level}>Titel</{level}>"), "<h4>Titel</h4>")
+                self.assertEqual(richtext.sanitize_rich_text(f"<{level}>Titel</{level}>"), "<h4>Titel</h4>")
 
     def test_bold_line_becomes_a_heading_but_a_bold_sentence_or_date_does_not(self):
         self.assertEqual(
@@ -77,7 +75,7 @@ class RichTextSafetyTests(unittest.TestCase):
             '<p onclick="evil()">Text</p>',
             '<p class="x" style="color:red" data-x="1">Text</p>',
             '<a href="javascript:bad()">Text</a>',
-            '<img src=x onerror=alert(1)>Text',
+            "<img src=x onerror=alert(1)>Text",
         ):
             with self.subTest(source=source):
                 rendered = richtext.sanitize_rich_text(source)
@@ -85,8 +83,7 @@ class RichTextSafetyTests(unittest.TestCase):
                 self.assertIn("Text", rendered)
 
     def test_script_and_style_contents_are_dropped_entirely(self):
-        rendered = richtext.sanitize_rich_text(
-            "<p>Vorher</p><script>alert(1)</script><style>p{}</style><p>Nachher</p>")
+        rendered = richtext.sanitize_rich_text("<p>Vorher</p><script>alert(1)</script><style>p{}</style><p>Nachher</p>")
 
         self.assertEqual(rendered, "<p>Vorher</p><p>Nachher</p>")
 
@@ -112,7 +109,8 @@ class RichTextSafetyTests(unittest.TestCase):
 
     def test_sanitizing_its_own_output_changes_nothing(self):
         once = richtext.sanitize_rich_text(
-            "<div><h2>Titel</h2><p>Text <b>fett</b></p><ul><li>A</li><li>B</li></ul></div>")
+            "<div><h2>Titel</h2><p>Text <b>fett</b></p><ul><li>A</li><li>B</li></ul></div>"
+        )
 
         self.assertEqual(richtext.sanitize_rich_text(once), once)
 

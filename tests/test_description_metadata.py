@@ -58,17 +58,29 @@ class DescriptionMetadataTests(unittest.TestCase):
 
     def test_make_event_marks_generated_and_scraped_descriptions(self):
         start = common.TODAY + timedelta(days=1)
-        generated = common.factual_event_description(
-            "Testtermin", date_value=start, venue="Testhalle", city="Bonn"
-        )
+        generated = common.factual_event_description("Testtermin", date_value=start, venue="Testhalle", city="Bonn")
 
         generated_event = common.make_event(
-            "Testtermin", start, None, "Testhalle", "Bonn", generated,
-            "https://example.test/generated", "Test", "Kultur",
+            "Testtermin",
+            start,
+            None,
+            "Testhalle",
+            "Bonn",
+            generated,
+            "https://example.test/generated",
+            "Test",
+            "Kultur",
         )
         scraped_event = common.make_event(
-            "Testtermin", start, None, "Testhalle", "Bonn", "Originaltext der Quelle.",
-            "https://example.test/scraped", "Test", "Kultur",
+            "Testtermin",
+            start,
+            None,
+            "Testhalle",
+            "Bonn",
+            "Originaltext der Quelle.",
+            "https://example.test/scraped",
+            "Test",
+            "Kultur",
         )
 
         self.assertEqual(generated_event["description_source"], "generated")
@@ -77,9 +89,15 @@ class DescriptionMetadataTests(unittest.TestCase):
     def test_canonical_model_preserves_and_validates_description_source(self):
         start = common.TODAY + timedelta(days=1)
         event = common.make_event(
-            "Testtermin", start, None, "Testhalle", "Bonn",
+            "Testtermin",
+            start,
+            None,
+            "Testhalle",
+            "Bonn",
             common.factual_event_description("Testtermin", date_value=start),
-            "https://example.test/event", "Test", "Kultur",
+            "https://example.test/event",
+            "Test",
+            "Kultur",
         )
 
         canonical = canonicalize_event(event)
@@ -89,7 +107,6 @@ class DescriptionMetadataTests(unittest.TestCase):
         invalid = dict(event, description_source="invented")
         with self.assertRaisesRegex(EventValidationError, "description_source_invalid"):
             canonicalize_event(invalid)
-
 
 
 class DescriptionParagraphTests(unittest.TestCase):

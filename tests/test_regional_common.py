@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import regional_common
+
 from tests.helpers import patch_window
 
 
@@ -26,11 +27,12 @@ class RegionalCommonHealthTests(unittest.TestCase):
             )
             return [event] if event else []
 
-        with patch.object(common, "fetch_url", return_value="<html></html>"), \
-             patch.object(common, "_record_endpoint") as record_endpoint, \
-             patch.object(common, "log_source_error") as log_source_error:
-            events = regional_common.fetch_html_events(
-                "Seasonal calendar", "https://example.test/events", parser)
+        with (
+            patch.object(common, "fetch_url", return_value="<html></html>"),
+            patch.object(common, "_record_endpoint") as record_endpoint,
+            patch.object(common, "log_source_error") as log_source_error,
+        ):
+            events = regional_common.fetch_html_events("Seasonal calendar", "https://example.test/events", parser)
 
         self.assertEqual(len(events), 1)
         log_source_error.assert_not_called()
@@ -71,11 +73,14 @@ class RegionalCommonHealthTests(unittest.TestCase):
         fetch_detail.assert_not_called()
 
     def test_no_parser_candidates_still_reports_layout_drift(self):
-        with patch.object(common, "fetch_url", return_value="<html>changed layout</html>"), \
-             patch.object(common, "_record_endpoint") as record_endpoint, \
-             patch.object(common, "log_source_error") as log_source_error:
+        with (
+            patch.object(common, "fetch_url", return_value="<html>changed layout</html>"),
+            patch.object(common, "_record_endpoint") as record_endpoint,
+            patch.object(common, "log_source_error") as log_source_error,
+        ):
             events = regional_common.fetch_html_events(
-                "Broken calendar", "https://example.test/events", lambda _html: [])
+                "Broken calendar", "https://example.test/events", lambda _html: []
+            )
 
         self.assertEqual(events, [])
         record_endpoint.assert_called_once_with(

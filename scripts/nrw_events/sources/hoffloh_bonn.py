@@ -6,7 +6,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "HofFloh Bonn"
 _SOURCE_ID = "hoffloh-bonn"
 _API_URL = (
@@ -74,13 +73,15 @@ def fetch() -> list:
     while page <= total_pages and page <= 20:
         url = _API_URL.format(page=page)
         try:
-            payload = json.loads(common.fetch_url(
-                url,
-                timeout=20,
-                accept="application/json,*/*;q=0.8",
-                sec_fetch_mode="cors",
-                sec_fetch_dest="empty",
-            ))
+            payload = json.loads(
+                common.fetch_url(
+                    url,
+                    timeout=20,
+                    accept="application/json,*/*;q=0.8",
+                    sec_fetch_mode="cors",
+                    sec_fetch_dest="empty",
+                )
+            )
             if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
                 raise rc.ParserEmptyError("HofFloh API contract changed")
             parsed = _events_from_payload(payload)

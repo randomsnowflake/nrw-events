@@ -5,7 +5,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.grote-hiller.de"
 _URLS = (
     f"{_BASE_URL}/troedelmaerkte/",
@@ -41,7 +40,7 @@ def _events_from_listing(html: str, page_url: str) -> list:
         date_match = re.search(r"<mark\b[^>]*>(.*?)</mark>", block, re.S | re.I)
         title_match = re.search(r'<h3[^>]+class="[^"]*\bh2\b[^"]*"[^>]*>(.*?)</h3>', block, re.S | re.I)
         location_match = re.search(
-            r'<img[^>]+marker-1\.svg[^>]*>\s*<span[^>]*>(.*?)</span>',
+            r"<img[^>]+marker-1\.svg[^>]*>\s*<span[^>]*>(.*?)</span>",
             block,
             re.S | re.I,
         )

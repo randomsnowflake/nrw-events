@@ -9,6 +9,7 @@ from nrw_events.sources import (
     haus_der_geschichte,
     museum_koenig,
 )
+
 from tests.helpers import patch_window
 
 
@@ -43,10 +44,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
         )
         self.assertTrue(all(event["price"] == "kostenlos" for event in sunday))
         self.assertTrue(all("Anmeldung erforderlich" in event["description"] for event in sunday))
-        self.assertTrue(all(
-            event["source_id"] == "haus-der-geschichte-begleitungen"
-            for event in sunday
-        ))
+        self.assertTrue(all(event["source_id"] == "haus-der-geschichte-begleitungen" for event in sunday))
         self.assertTrue(all(event["score"] >= 0.4 for event in sunday))
 
     def test_haus_der_geschichte_embedded_family_tours_are_searchable_occurrences(self):
@@ -88,9 +86,10 @@ class BonnMuseumSourceTests(unittest.TestCase):
           <div class="calendar-bodycopy"><p>Familienprogramm im Museum.</p></div>
         </div>
         """
-        with patch("nrw_events.common.fetch_url", side_effect=[calendar, RuntimeError("guided tours unavailable")]), patch(
-            "nrw_events.common.log_source_error"
-        ) as log_error:
+        with (
+            patch("nrw_events.common.fetch_url", side_effect=[calendar, RuntimeError("guided tours unavailable")]),
+            patch("nrw_events.common.log_source_error") as log_error,
+        ):
             events = haus_der_geschichte.fetch()
 
         self.assertEqual([event["title"] for event in events], ["Offenes Atelier"])
@@ -110,7 +109,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
           <h2 class="e-lib-event-calendar__list-item-title"><a href="/de/veranstaltungen/familienfuehrung.html">Öffentliche Familienführung</a></h2>
           <span class="e-lib-cards__tag">Führung</span><span class="e-lib-cards__tag">Für Familien</span>
         </li>
-        """
+        """  # noqa: E501
 
         events = museum_koenig.events_from_html(html)
 
@@ -139,7 +138,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
           <h2 class="e-lib-event-calendar__list-item-title"><a href="/de/veranstaltungen/waldspaziergang.html">Waldspaziergang Kunst und Biologie</a></h2>
           <span class="e-lib-cards__tag">Exkursion</span>
         </li>
-        """
+        """  # noqa: E501
         detail = """
         <main><p>Ein Waldspaziergang mit Kunst und Biologie.</p>
         <div class="e-list__item-keyword"><p>Treffpunkt</p></div>
@@ -163,7 +162,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
           <i class="icon-pin"></i><p>Deutsches Museum Bonn</p>
           <i class="icon-clock"></i><time datetime="2026-08-22 13:00">22. August 2026, 13:00 bis 14:00 Uhr</time>
         </article>
-        """
+        """  # noqa: E501
 
         events = deutsches_museum_bonn.events_from_html(html)
 
@@ -181,7 +180,7 @@ class BonnMuseumSourceTests(unittest.TestCase):
         <section><h2>Kosten</h2><li>Der Eintritt ist frei.</li>
         <span>Nur nach Anmeldung für Mitglieder des Deutschen Museums.</span></section>
         <div class="event-detail-text"><p>Die Führung erklärt anschaulich den Einsatz von KI in der Teilchenphysik.</p></div>
-        """
+        """  # noqa: E501
 
         parsed = deutsches_museum_bonn._detail_description(detail, {})
 
@@ -208,19 +207,22 @@ class BonnMuseumSourceTests(unittest.TestCase):
           <h3 class="events-teaser__content-title"><a href="/bonn/programm/veranstaltung/test"><span>Testführung</span></a></h3>
           <p>Eine öffentliche Führung.</p><time datetime="2026-08-22 13:00">13:00 bis 14:00 Uhr</time>
         </article>
-        """
+        """  # noqa: E501
         with patch("nrw_events.common.fetch_url", side_effect=[page, cards]) as fetch:
             events = deutsches_museum_bonn.fetch()
 
         self.assertEqual(len(events), 1)
-        self.assertEqual(fetch.call_args_list[1].args[0], "https://www.deutsches-museum.de/bonn/programm/ems/indices.html?x=1&y=2")
+        self.assertEqual(
+            fetch.call_args_list[1].args[0], "https://www.deutsches-museum.de/bonn/programm/ems/indices.html?x=1&y=2"
+        )
 
     def test_deutsches_museum_fetch_reports_structural_parser_drift(self):
         page = '<div data-ajaxUri="/bonn/programm/ems/indices.html?x=1" data-ajax-indices></div>'
         cards = '<article class="events-teaser__content"><h3>Redesigned card</h3></article>'
-        with patch("nrw_events.common.fetch_url", side_effect=[page, cards]), patch(
-            "nrw_events.common.log_source_error"
-        ) as log_error:
+        with (
+            patch("nrw_events.common.fetch_url", side_effect=[page, cards]),
+            patch("nrw_events.common.log_source_error") as log_error,
+        ):
             events = deutsches_museum_bonn.fetch()
 
         self.assertEqual(events, [])
@@ -271,17 +273,31 @@ class BonnMuseumSourceTests(unittest.TestCase):
     def test_dedup_does_not_turn_free_tour_plus_paid_entry_into_free_admission(self):
         direct = common.make_event(
             "Öffentliche Familienführung",
-            datetime(2026, 8, 2, 14), None, "Museum Koenig Bonn", "Bonn",
+            datetime(2026, 8, 2, 14),
+            None,
+            "Museum Koenig Bonn",
+            "Bonn",
             "Teilnahme an der Führung ohne Aufpreis; Museumseintritt fällt zusätzlich an.",
             "https://bonn.leibniz-lib.de/de/veranstaltungen/familienfuehrung.html",
-            "Museum Koenig Bonn", "Führung Museum", 1.0, "14:00", all_day=False,
+            "Museum Koenig Bonn",
+            "Führung Museum",
+            1.0,
+            "14:00",
+            all_day=False,
         )
         municipal = common.make_event(
             "Öffentliche Familienführung",
-            datetime(2026, 8, 2, 14), None, "Museum Koenig Bonn", "Bonn",
+            datetime(2026, 8, 2, 14),
+            None,
+            "Museum Koenig Bonn",
+            "Bonn",
             "Kostenlose Führung für Familien.",
             "https://www.bonn.de/veranstaltungskalender/familienfuehrung.php",
-            "Bonn.de Events", "Führung", 0.95, "14:00", all_day=False,
+            "Bonn.de Events",
+            "Führung",
+            0.95,
+            "14:00",
+            all_day=False,
         )
 
         event = report.deduplicate([municipal, direct])[0]

@@ -11,9 +11,15 @@ from . import regional_common as rc
 
 _SOURCE = "ionas4 regional"
 _DETAIL_QUERY = {"i4xpath": "69646770502a424b29235b33", "h": "1", "h_": "1"}
-_DETAIL_CITIES = frozenset({
-    "Bad Honnef", "Grafschaft", "Sinzig", "Rösrath", "Ruppichteroth",
-})
+_DETAIL_CITIES = frozenset(
+    {
+        "Bad Honnef",
+        "Grafschaft",
+        "Sinzig",
+        "Rösrath",
+        "Ruppichteroth",
+    }
+)
 
 _CALENDARS = [
     (
@@ -55,21 +61,25 @@ def fetch() -> list:
         source_id = normalize_source_id(f"ionas4-{city}")
         try:
             hostname = urllib.parse.urlsplit(url).hostname or ""
-            items = json.loads(http.fetch_url_with_brightdata_fallback(
-                url,
-                timeout=25,
-                allowed_hosts=(hostname,),
-                fallback_statuses=(408, 429, 500, 502, 503, 504),
-                fallback_on_timeout=True,
-                accept="application/json,*/*;q=0.8",
-                sec_fetch_mode="cors",
-                sec_fetch_dest="empty",
-            ))
+            items = json.loads(
+                http.fetch_url_with_brightdata_fallback(
+                    url,
+                    timeout=25,
+                    allowed_hosts=(hostname,),
+                    fallback_statuses=(408, 429, 500, 502, 503, 504),
+                    fallback_on_timeout=True,
+                    accept="application/json,*/*;q=0.8",
+                    sec_fetch_mode="cors",
+                    sec_fetch_dest="empty",
+                )
+            )
             if isinstance(items, list):
                 detail_fetcher = _detail_fetcher_for_city(city)
-                events.extend(_events_from_items(
-                    items, city, calendar_url, trust, detail_fetcher=detail_fetcher,
-                    source_id=source_id))
+                events.extend(
+                    _events_from_items(
+                        items, city, calendar_url, trust, detail_fetcher=detail_fetcher, source_id=source_id
+                    )
+                )
         except Exception as e:
             common.log_source_error(f"{_SOURCE} ({city})", e, source_id=source_id)
     return rc.dedupe(events)
@@ -87,21 +97,24 @@ def _detail_fetcher_for_city(city: str):
 
 def _detail_url(calendar_url: str, item: dict) -> str:
     query = dict(_DETAIL_QUERY)
-    query.update({
-        "start": str(item.get("start") or "")[:10],
-        "eventId": str(item.get("id") or ""),
-    })
+    query.update(
+        {
+            "start": str(item.get("start") or "")[:10],
+            "eventId": str(item.get("id") or ""),
+        }
+    )
     return f"{calendar_url.rstrip('/')}/event-list.html?{urllib.parse.urlencode(query)}"
 
 
 def _detail_context(html: str) -> dict:
-    parser = rc.ClassScopedTextParser({
-        "description": lambda _tag, attrs: "tvm-event--description" in (attrs.get("class") or "").split(),
-        "location": lambda _tag, attrs: "tvm-event--location" in (attrs.get("class") or "").split(),
-    })
+    parser = rc.ClassScopedTextParser(
+        {
+            "description": lambda _tag, attrs: "tvm-event--description" in (attrs.get("class") or "").split(),
+            "location": lambda _tag, attrs: "tvm-event--location" in (attrs.get("class") or "").split(),
+        }
+    )
     parser.feed(html or "")
-    link = re.search(
-        r'navigator\.clipboard\.writeText\(\s*["\']([^"\']+)', html or "", re.S | re.I)
+    link = re.search(r'navigator\.clipboard\.writeText\(\s*["\']([^"\']+)', html or "", re.S | re.I)
     return {
         # Handed over untrimmed, with its paragraphs: ``make_event`` infers
         # admission from the text it is given and only then shortens it for
@@ -128,14 +141,19 @@ def _time_text(item: dict, start, end) -> str:
 def _fallback_description(event: dict) -> str:
     start = common.parse_iso_date(event.get("start_date", ""))
     return common.factual_event_description(
-        event.get("title", ""), date_value=start or event.get("date", ""),
-        time_text=event.get("time", ""), venue=event.get("venue", ""),
-        city=event.get("city", ""), calendar_name=event.get("city", ""),
+        event.get("title", ""),
+        date_value=start or event.get("date", ""),
+        time_text=event.get("time", ""),
+        venue=event.get("venue", ""),
+        city=event.get("city", ""),
+        calendar_name=event.get("city", ""),
     )
 
 
 def _description_is_only_title(description: str, title: str) -> bool:
-    normalize = lambda value: re.sub(r"[^\w]+", " ", value or "").strip().casefold()
+    def normalize(value):
+        return re.sub(r"[^\w]+", " ", value or "").strip().casefold()
+
     return bool(title) and normalize(description) == normalize(title)
 
 
@@ -150,20 +168,22 @@ def _description_with_context(event: dict) -> str:
     return description
 
 
-def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
-                       detail_fetcher=None, source_id: str = "") -> list:
+def _events_from_items(
+    items: list, city: str, calendar_url: str, trust: float, detail_fetcher=None, source_id: str = ""
+) -> list:
     events = []
     for item in items:
         start = common.parse_iso_date(item.get("start", ""))
         end = common.parse_iso_date(item.get("end", "")) or start
         raw_all_day = item.get("allDay")
         item_all_day = (
-            raw_all_day if isinstance(raw_all_day, bool)
+            raw_all_day
+            if isinstance(raw_all_day, bool)
             else str(raw_all_day).strip().casefold() == "true"
-            if raw_all_day is not None else None
+            if raw_all_day is not None
+            else None
         )
-        if (item_all_day is True and start and end and end > start
-                and not (end.hour or end.minute or end.second)):
+        if item_all_day is True and start and end and end > start and not (end.hour or end.minute or end.second):
             # IONAS/FullCalendar represents all-day end dates exclusively.
             # Without this correction a weekend event ending Sunday appears as
             # "ongoing" on Monday and survives the report window incorrectly.
@@ -174,12 +194,14 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
         loc = item.get("location") or {}
         cat = item.get("category") or {}
         tag_text = " ".join(t.get("name", "") for t in item.get("tags") or [] if isinstance(t, dict))
-        category = " ".join([
-            cat.get("name", "") if isinstance(cat, dict) else "",
-            tag_text,
-            city,
-            "kommunal lokal markt kultur",
-        ])
+        category = " ".join(
+            [
+                cat.get("name", "") if isinstance(cat, dict) else "",
+                tag_text,
+                city,
+                "kommunal lokal markt kultur",
+            ]
+        )
         should_enrich = common.event_in_window_and_radius(start, end, city)
         context = {}
         if should_enrich and detail_fetcher and item.get("id"):
@@ -187,15 +209,14 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
                 context = _detail_context(detail_fetcher(_detail_url(calendar_url, item)))
             except Exception as exc:
                 common.log_source_error(
-                    f"{_SOURCE} ({city}) detail", exc,
+                    f"{_SOURCE} ({city}) detail",
+                    exc,
                     source_id=f"{source_id}-detail",
                 )
 
         description = context.get("description") or tag_text
         venue = context.get("venue") or loc.get("name") or ""
-        raw_link = (context.get("link")
-                    or common.normalize_url(item.get("website") or "")
-                    or calendar_url)
+        raw_link = context.get("link") or common.normalize_url(item.get("website") or "") or calendar_url
         link = rc.abs_url(calendar_url, raw_link)
         event = common.make_event(
             item.get("title") or "",

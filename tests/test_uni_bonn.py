@@ -3,14 +3,11 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import common
-from nrw_events.sources import SOURCES, SOURCE_IDS, uni_bonn
+from nrw_events.sources import SOURCE_IDS, SOURCES, uni_bonn
+
 from tests.helpers import patch_window
 
-
-CHOIR_URL = (
-    "https://www.uni-bonn.de/de/veranstaltungen/"
-    "sommerkonzert-internationaler-chor-1"
-)
+CHOIR_URL = "https://www.uni-bonn.de/de/veranstaltungen/sommerkonzert-internationaler-chor-1"
 ICAL = f"""BEGIN:VCALENDAR
 VERSION:2.0
 X-WR-TIMEZONE:Europe/Berlin
@@ -30,7 +27,7 @@ DESCRIPTION:Broken Plone end date
 URL:https://www.uni-bonn.de/de/veranstaltungen/corrupt
 END:VEVENT
 END:VCALENDAR
-"""
+"""  # noqa: E501
 DETAIL_HTML = """
 <div id="event-wrapper">
   <div class="content-item">
@@ -64,8 +61,10 @@ class UniBonnSourceTests(unittest.TestCase):
                 return DETAIL_HTML
             raise AssertionError(f"unexpected URL {url}")
 
-        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}), \
-                patch.object(common, "fetch_url", side_effect=fake_fetch):
+        with (
+            patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}),
+            patch.object(common, "fetch_url", side_effect=fake_fetch),
+        ):
             events = uni_bonn.fetch()
 
         self.assertEqual(len(events), 1)
@@ -91,12 +90,14 @@ class UniBonnSourceTests(unittest.TestCase):
     def test_detail_failure_keeps_complete_ical_record(self):
         with patch.object(common, "log_source_error"):
             events = uni_bonn._enrich_details(
-                [{
-                    "title": "Campus event",
-                    "description": "Description from iCal",
-                    "venue": "",
-                    "link": "https://www.uni-bonn.de/de/veranstaltungen/campus-event",
-                }],
+                [
+                    {
+                        "title": "Campus event",
+                        "description": "Description from iCal",
+                        "venue": "",
+                        "link": "https://www.uni-bonn.de/de/veranstaltungen/campus-event",
+                    }
+                ],
                 detail_fetcher=lambda _url: (_ for _ in ()).throw(TimeoutError("detail timeout")),
             )
 
@@ -116,16 +117,20 @@ class UniBonnSourceTests(unittest.TestCase):
     def test_long_duration_is_only_kept_for_exhibitions(self):
         start = datetime(2026, 6, 18, 18)
 
-        self.assertFalse(uni_bonn._valid_duration(
-            {"SUMMARY": "Juneteenth Lecture", "DESCRIPTION": "Public lecture"},
-            start,
-            datetime(2026, 12, 6, 21, 30),
-        ))
-        self.assertTrue(uni_bonn._valid_duration(
-            {"SUMMARY": "Kunstkammer", "DESCRIPTION": "Neue Sonderausstellung"},
-            start,
-            datetime(2027, 5, 27),
-        ))
+        self.assertFalse(
+            uni_bonn._valid_duration(
+                {"SUMMARY": "Juneteenth Lecture", "DESCRIPTION": "Public lecture"},
+                start,
+                datetime(2026, 12, 6, 21, 30),
+            )
+        )
+        self.assertTrue(
+            uni_bonn._valid_duration(
+                {"SUMMARY": "Kunstkammer", "DESCRIPTION": "Neue Sonderausstellung"},
+                start,
+                datetime(2027, 5, 27),
+            )
+        )
 
     def test_detail_context_deduplicates_identical_venue_and_room(self):
         html = """

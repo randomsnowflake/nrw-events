@@ -9,39 +9,49 @@ from . import regional_common as rc
 
 def fetch() -> list:
     events = []
-    events.extend(rc.fetch_html_events(
-        "Kunstmuseum Bonn",
-        "https://www.kunstmuseum-bonn.de/de/besuch/kalender/",
-        lambda html: _events_from_kunstmuseum_bonn(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="kunstmuseum-bonn", timeout=20),
-        ),
-    ))
-    events.extend(rc.fetch_html_events(
-        "Sankt Augustin",
-        "https://www.sankt-augustin.de/veranstaltungen/",
-        _events_from_sankt_augustin,
-    ))
-    events.extend(rc.fetch_html_events(
-        "Pantheon Bonn",
-        "https://www.pantheon.de/programm/",
-        _events_from_pantheon,
-    ))
-    events.extend(rc.fetch_html_events(
-        "Haus der Springmaus",
-        "https://www.springmaus-theater.de/events.html?s=all",
-        _events_from_springmaus,
-    ))
-    events.extend(rc.fetch_html_events(
-        "Brückenforum Bonn",
-        "https://www.brueckenforum.de/alle-events/",
-        lambda html: _events_from_brueckenforum(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="brueckenforum-bonn", timeout=20),
-        ),
-    ))
+    events.extend(
+        rc.fetch_html_events(
+            "Kunstmuseum Bonn",
+            "https://www.kunstmuseum-bonn.de/de/besuch/kalender/",
+            lambda html: _events_from_kunstmuseum_bonn(
+                html,
+                detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="kunstmuseum-bonn", timeout=20),
+            ),
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Sankt Augustin",
+            "https://www.sankt-augustin.de/veranstaltungen/",
+            _events_from_sankt_augustin,
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Pantheon Bonn",
+            "https://www.pantheon.de/programm/",
+            _events_from_pantheon,
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Haus der Springmaus",
+            "https://www.springmaus-theater.de/events.html?s=all",
+            _events_from_springmaus,
+        )
+    )
+    events.extend(
+        rc.fetch_html_events(
+            "Brückenforum Bonn",
+            "https://www.brueckenforum.de/alle-events/",
+            lambda html: _events_from_brueckenforum(
+                html,
+                detail_fetcher=lambda url: common.fetch_detail_url(
+                    url, cache_namespace="brueckenforum-bonn", timeout=20
+                ),
+            ),
+        )
+    )
     return rc.dedupe(events)
 
 
@@ -51,8 +61,7 @@ def _kunstmuseum_detail_description(html: str) -> str:
         html or "",
         re.S | re.I,
     )
-    return common.concise_description(
-        rc.clean(body.group(1) if body else ""), max_chars=360)
+    return common.concise_description(rc.clean(body.group(1) if body else ""), max_chars=360)
 
 
 def _kunstmuseum_fallback_description(title: str, format_text: str, start) -> str:
@@ -65,8 +74,7 @@ def _kunstmuseum_fallback_description(title: str, format_text: str, start) -> st
 
 def _events_from_kunstmuseum_bonn(html: str, detail_fetcher=None) -> list:
     events = []
-    for block in re.findall(r'<a href="(?P<href>[^"]+/de/besuch/kalender/[^"]+/)">(.*?)</a>',
-                            html, re.S | re.I):
+    for block in re.findall(r'<a href="(?P<href>[^"]+/de/besuch/kalender/[^"]+/)">(.*?)</a>', html, re.S | re.I):
         href, body = block
         date_m = re.search(r'class="teaser-date">\s*(.*?)\s*</p>', body, re.S | re.I)
         title_m = re.search(r'class="teaser-title">\s*(.*?)\s*</h4>', body, re.S | re.I)
@@ -103,12 +111,12 @@ def _events_from_kunstmuseum_bonn(html: str, detail_fetcher=None) -> list:
 
 def _events_from_sankt_augustin(html: str) -> list:
     events = []
-    for article in re.findall(r'<article class="[^"]*mec-event-article[^"]*".*?</article>',
-                              html, re.S | re.I):
-        title_m = re.search(r'<h3 class="mec-event-title">.*?<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
-                            article, re.S | re.I)
+    for article in re.findall(r'<article class="[^"]*mec-event-article[^"]*".*?</article>', html, re.S | re.I):
+        title_m = re.search(
+            r'<h3 class="mec-event-title">.*?<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', article, re.S | re.I
+        )
         desc_m = re.search(r'<div class="mec-event-description">(.*?)</div>', article, re.S | re.I)
-        date_m = re.search(r'occurrence=(\d{4}-\d{2}-\d{2})', article, re.S | re.I)
+        date_m = re.search(r"occurrence=(\d{4}-\d{2}-\d{2})", article, re.S | re.I)
         label_m = re.search(r'class="mec-start-date-label"[^>]*>(.*?)</span>', article, re.S | re.I)
         start_m = re.search(r'class="mec-start-time">\s*(\d{1,2}:\d{2})\s*</span>', article, re.S | re.I)
         end_m = re.search(r'class="mec-end-time">\s*(\d{1,2}:\d{2})\s*</span>', article, re.S | re.I)
@@ -118,12 +126,20 @@ def _events_from_sankt_augustin(html: str) -> list:
             continue
         start = _date_from_occurrence_or_label(date_m.group(1) if date_m else "", label_m.group(1) if label_m else "")
         start = _with_hhmm(start, start_m.group(1) if start_m else "")
-        end = _with_hhmm(_date_from_occurrence_or_label(date_m.group(1) if date_m else "", label_m.group(1) if label_m else ""),
-                         end_m.group(1) if end_m else "")
-        venue = rc.clean(" ".join(x for x in [
-            venue_m.group(1) if venue_m else "",
-            address_m.group(1) if address_m else "",
-        ] if x))
+        end = _with_hhmm(
+            _date_from_occurrence_or_label(date_m.group(1) if date_m else "", label_m.group(1) if label_m else ""),
+            end_m.group(1) if end_m else "",
+        )
+        venue = rc.clean(
+            " ".join(
+                x
+                for x in [
+                    venue_m.group(1) if venue_m else "",
+                    address_m.group(1) if address_m else "",
+                ]
+                if x
+            )
+        )
         ev = common.make_event(
             rc.clean(title_m.group(2)),
             start,
@@ -185,8 +201,9 @@ def _events_from_pantheon(html: str) -> list:
 
 def _events_from_springmaus(html: str) -> list:
     events = []
-    for block in re.findall(r'<div class="[^"]*bg-\[#aba199\][\s\S]*?(?=<div class="[^"]*bg-\[#aba199\]|</main>|$)',
-                            html, re.I):
+    for block in re.findall(
+        r'<div class="[^"]*bg-\[#aba199\][\s\S]*?(?=<div class="[^"]*bg-\[#aba199\]|</main>|$)', html, re.I
+    ):
         date_link = re.search(r'<a class="flex[^"]*" href="([^"]+)">(.*?)</a>', block, re.S | re.I)
         title_m = re.search(r'<h3[^>]*>\s*<a href="([^"]+)">(.*?)</a>\s*</h3>', block, re.S | re.I)
         price_m = re.search(r'<div class="leading-tight">\s*(.*?)\s*</div>', block, re.S | re.I)
@@ -237,25 +254,21 @@ def _brueckenforum_detail_context(html: str) -> dict:
     time_text = ""
     if time_match and len(time_match.groups()) == 4:
         start_hour, start_minute, end_hour, end_minute = time_match.groups()
-        time_text = (
-            f"{int(start_hour):02d}:{start_minute or '00'}–"
-            f"{int(end_hour):02d}:{end_minute or '00'}"
-        )
+        time_text = f"{int(start_hour):02d}:{start_minute or '00'}–{int(end_hour):02d}:{end_minute or '00'}"
     elif time_match:
         start_hour, start_minute = time_match.groups()
         time_text = f"{int(start_hour):02d}:{start_minute}"
 
-    visitor_free = bool(re.search(
-        r"Eintritt\s+für\s+Besucher\s*:\s*Kostenlos", text, re.I))
+    visitor_free = bool(re.search(r"Eintritt\s+für\s+Besucher\s*:\s*Kostenlos", text, re.I))
     price_match = re.search(r"\bEintritt\s+(\d+(?:[,.]\d+)?)\s*€", text, re.I)
-    price = "kostenlos" if visitor_free else (
-        f"{price_match.group(1).replace(',', '.')} €" if price_match else ""
+    price = "kostenlos" if visitor_free else (f"{price_match.group(1).replace(',', '.')} €" if price_match else "")
+    is_rathaus_market = bool(
+        re.search(
+            r"(?:Floh|Trödelmarkt).*Rathausplatz|Beueler\s+Rathausplatz",
+            text,
+            re.I,
+        )
     )
-    is_rathaus_market = bool(re.search(
-        r"(?:Floh|Trödelmarkt).*Rathausplatz|Beueler\s+Rathausplatz",
-        text,
-        re.I,
-    ))
     description_candidates = []
     for value in re.findall(r"<div\b[^>]*>(.*?)</div>", body, re.S | re.I):
         cleaned = rc.clean(value)
@@ -279,10 +292,9 @@ def _brueckenforum_detail_context(html: str) -> dict:
 
 def _events_from_brueckenforum(html: str, detail_fetcher=None) -> list:
     events = []
-    for block in re.findall(r'<div class="event-single">(.*?)</div>\s*</div>\s*</div>',
-                            html, re.S | re.I):
+    for block in re.findall(r'<div class="event-single">(.*?)</div>\s*</div>\s*</div>', html, re.S | re.I):
         category_m = re.search(r'class="event-headline[^"]*"[^>]*>(.*?)</h3>', block, re.S | re.I)
-        title_m = re.search(r'<h4>\s*(.*?)\s*</h4>', block, re.S | re.I)
+        title_m = re.search(r"<h4>\s*(.*?)\s*</h4>", block, re.S | re.I)
         date_m = re.search(r'<span class="date">\s*(\d{1,2}/\d{1,2}/20\d{2})\s*</span>', block, re.S | re.I)
         href_m = re.search(r'<a href="([^"]+/events/[^"]+/)"', block, re.S | re.I)
         if not (category_m and title_m and date_m):
@@ -293,11 +305,13 @@ def _events_from_brueckenforum(html: str, detail_fetcher=None) -> list:
         start = _parse_slash_date(date_m.group(1))
         link = href_m.group(1) if href_m else "https://www.brueckenforum.de/alle-events/"
         detail = {}
-        is_market = bool(re.search(
-            r"floh|trödel|troedel",
-            rc.clean(title_m.group(1)),
-            re.I,
-        ))
+        is_market = bool(
+            re.search(
+                r"floh|trödel|troedel",
+                rc.clean(title_m.group(1)),
+                re.I,
+            )
+        )
         if detail_fetcher and is_market and common.window_contains(start):
             try:
                 detail = _brueckenforum_detail_context(detail_fetcher(link))
@@ -364,5 +378,5 @@ def _parse_springmaus_dt(text: str):
 
 
 def _first_program_year(html: str, fallback: int) -> int:
-    m = re.search(r'/programm/\?date=(20\d{2})-\d{2}', html)
+    m = re.search(r"/programm/\?date=(20\d{2})-\d{2}", html)
     return int(m.group(1)) if m else fallback

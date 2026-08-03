@@ -9,15 +9,15 @@ second, an identifying User-Agent, and a persistent local cache.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import re
 import time
 import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
 
 USER_AGENT = "veranstaltungen-bonn-venue-research/1.0 (https://www.veranstaltungen-bonn.de/kontakt/)"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
@@ -34,7 +34,24 @@ def normalized(value: str) -> str:
 
 
 def tokens(value: str) -> set[str]:
-    ignored = {"am", "an", "auf", "bei", "der", "die", "das", "den", "des", "im", "in", "und", "von", "vor", "zum", "zur"}
+    ignored = {
+        "am",
+        "an",
+        "auf",
+        "bei",
+        "der",
+        "die",
+        "das",
+        "den",
+        "des",
+        "im",
+        "in",
+        "und",
+        "von",
+        "vor",
+        "zum",
+        "zur",
+    }
     return {part for part in normalized(value).split() if len(part) > 1 and part not in ignored}
 
 
@@ -69,9 +86,26 @@ def place_names(result: dict) -> list[str]:
 def city_compatible(city: str, result: dict) -> bool:
     expected = tokens(city.replace("Bonn-", "Bonn "))
     address = result.get("address") or {}
-    actual = tokens(" ".join([str(result.get("display_name") or ""), *(str(address.get(field) or "") for field in (
-        "city", "town", "village", "municipality", "city_district", "suburb", "county", "state_district",
-    ))]))
+    actual = tokens(
+        " ".join(
+            [
+                str(result.get("display_name") or ""),
+                *(
+                    str(address.get(field) or "")
+                    for field in (
+                        "city",
+                        "town",
+                        "village",
+                        "municipality",
+                        "city_district",
+                        "suburb",
+                        "county",
+                        "state_district",
+                    )
+                ),
+            ]
+        )
+    )
     if "bonn" in expected and "bonn" in actual:
         return True
     return bool(expected & actual)
@@ -80,7 +114,7 @@ def city_compatible(city: str, result: dict) -> bool:
 def candidate_score(group: dict, result: dict) -> tuple[int, list[str]]:
     reasons: list[str] = []
     score = 0
-    address = (result.get("address") or {})
+    address = result.get("address") or {}
     input_addresses = group.get("addresses") or []
     input_postcodes = {postcode(value) for value in input_addresses} - {""}
     result_postcode = postcode(str(address.get("postcode") or ""))
@@ -111,7 +145,9 @@ def candidate_score(group: dict, result: dict) -> tuple[int, list[str]]:
     input_street_tokens -= tokens(group["city"])
     result_street_tokens = tokens(str(address.get("road") or ""))
     if input_street_tokens and result_street_tokens:
-        street_overlap = len(input_street_tokens & result_street_tokens) / min(len(input_street_tokens), len(result_street_tokens))
+        street_overlap = len(input_street_tokens & result_street_tokens) / min(
+            len(input_street_tokens), len(result_street_tokens)
+        )
         if street_overlap >= 0.8:
             score += 3
             reasons.append("street-match")
@@ -139,8 +175,11 @@ def candidate_score(group: dict, result: dict) -> tuple[int, list[str]]:
             best_overlap = max(best_overlap, intersection / len(expected_tokens | actual_tokens))
             best_containment = max(best_containment, intersection / min(len(expected_tokens), len(actual_tokens)))
             actual_compact = normalized(name).replace(" ", "")
-            if len(expected_tokens) >= 2 and len(actual_tokens) >= 2 and min(len(expected_compact), len(actual_compact)) >= 6 and (
-                expected_compact in actual_compact or actual_compact in expected_compact
+            if (
+                len(expected_tokens) >= 2
+                and len(actual_tokens) >= 2
+                and min(len(expected_compact), len(actual_compact)) >= 6
+                and (expected_compact in actual_compact or actual_compact in expected_compact)
             ):
                 best_containment = 1.0
                 best_intersection = max(best_intersection, 2)
@@ -178,15 +217,17 @@ def queries_for(group: dict) -> list[str]:
 
 
 def fetch(query: str) -> list[dict]:
-    params = urllib.parse.urlencode({
-        "q": query,
-        "format": "jsonv2",
-        "limit": 5,
-        "addressdetails": 1,
-        "namedetails": 1,
-        "extratags": 1,
-        "countrycodes": "de",
-    })
+    params = urllib.parse.urlencode(
+        {
+            "q": query,
+            "format": "jsonv2",
+            "limit": 5,
+            "addressdetails": 1,
+            "namedetails": 1,
+            "extratags": 1,
+            "countrycodes": "de",
+        }
+    )
     request = urllib.request.Request(f"{NOMINATIM_URL}?{params}", headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
@@ -210,7 +251,14 @@ def photon_result(feature: dict) -> dict:
         "country": properties.get("country"),
     }
     osm_type = {"N": "node", "W": "way", "R": "relation"}.get(str(properties.get("osm_type") or "").upper(), "")
-    display_parts = [properties.get("name"), properties.get("street"), properties.get("city"), properties.get("district"), properties.get("state"), properties.get("country")]
+    display_parts = [
+        properties.get("name"),
+        properties.get("street"),
+        properties.get("city"),
+        properties.get("district"),
+        properties.get("state"),
+        properties.get("country"),
+    ]
     return {
         "name": properties.get("name") or "",
         "display_name": ", ".join(str(part) for part in display_parts if part),
@@ -261,7 +309,9 @@ def main() -> int:
     cached_photon_queries = photon_cache.setdefault("queries", {})
     proposals = []
     last_request_at = 0.0
-    candidates = [candidate for candidate in audit.get("candidates", []) if candidate.get("classification") == "candidate"][: args.limit]
+    candidates = [
+        candidate for candidate in audit.get("candidates", []) if candidate.get("classification") == "candidate"
+    ][: args.limit]
 
     for position, group in enumerate(candidates, 1):
         queries = queries_for(group)
@@ -275,7 +325,11 @@ def main() -> int:
                 cached_queries[query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "results": fetch(query)}
                 last_request_at = time.monotonic()
             except (urllib.error.URLError, TimeoutError) as error:
-                cached_queries[query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "error": str(error), "results": []}
+                cached_queries[query] = {
+                    "fetchedAt": datetime.now(timezone.utc).isoformat(),
+                    "error": str(error),
+                    "results": [],
+                }
                 last_request_at = time.monotonic()
             atomic_write(args.cache, cache)
 
@@ -286,7 +340,12 @@ def main() -> int:
                 ranked.append((score, reasons, result, query))
         ranked.sort(key=lambda item: item[0], reverse=True)
         best = ranked[0] if ranked else None
-        accepted = bool(best and best[0] >= 9 and (not group.get("addresses") or "postcode-conflict" not in best[1]) and "city-conflict" not in best[1])
+        accepted = bool(
+            best
+            and best[0] >= 9
+            and (not group.get("addresses") or "postcode-conflict" not in best[1])
+            and "city-conflict" not in best[1]
+        )
         photon_query = queries[0]
         if not accepted:
             if photon_query not in cached_photon_queries:
@@ -294,10 +353,17 @@ def main() -> int:
                 if delay > 0:
                     time.sleep(delay)
                 try:
-                    cached_photon_queries[photon_query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "results": fetch_photon(photon_query)}
+                    cached_photon_queries[photon_query] = {
+                        "fetchedAt": datetime.now(timezone.utc).isoformat(),
+                        "results": fetch_photon(photon_query),
+                    }
                     last_request_at = time.monotonic()
                 except (urllib.error.URLError, TimeoutError) as error:
-                    cached_photon_queries[photon_query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "error": str(error), "results": []}
+                    cached_photon_queries[photon_query] = {
+                        "fetchedAt": datetime.now(timezone.utc).isoformat(),
+                        "error": str(error),
+                        "results": [],
+                    }
                     last_request_at = time.monotonic()
                 atomic_write(args.photon_cache, photon_cache)
             for result in cached_photon_queries[photon_query].get("results", []):
@@ -305,12 +371,19 @@ def main() -> int:
                 ranked.append((score, reasons, result, photon_query))
             ranked.sort(key=lambda item: item[0], reverse=True)
             best = ranked[0] if ranked else None
-            accepted = bool(best and best[0] >= 9 and (not group.get("addresses") or "postcode-conflict" not in best[1]) and "city-conflict" not in best[1])
+            accepted = bool(
+                best
+                and best[0] >= 9
+                and (not group.get("addresses") or "postcode-conflict" not in best[1])
+                and "city-conflict" not in best[1]
+            )
         proposal = {
             **group,
             "queries": queries,
             "matchedQuery": best[3] if best else None,
-            "provider": "photon" if best and best[2] in cached_photon_queries.get(photon_query, {}).get("results", []) else "nominatim",
+            "provider": "photon"
+            if best and best[2] in cached_photon_queries.get(photon_query, {}).get("results", [])
+            else "nominatim",
             "status": "strong-candidate" if accepted else "needs-review",
             "score": best[0] if best else None,
             "reasons": best[1] if best else ["no-result"],
@@ -331,7 +404,11 @@ def main() -> int:
             }
         proposals.append(proposal)
         if position % 25 == 0:
-            print(f"processed {position}/{len(candidates)}; strong={sum(item['status'] == 'strong-candidate' for item in proposals)}", flush=True)
+            strong_count = sum(item["status"] == "strong-candidate" for item in proposals)
+            print(
+                f"processed {position}/{len(candidates)}; strong={strong_count}",
+                flush=True,
+            )
 
     output = {
         "generatedAt": datetime.now(timezone.utc).isoformat(),

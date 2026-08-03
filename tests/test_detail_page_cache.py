@@ -43,8 +43,10 @@ class DetailPageCacheTests(unittest.TestCase):
 
     def test_zero_ttl_disables_memory_and_disk_caching(self):
         url = "https://example.org/events/detail/uncached"
-        with patch.dict(os.environ, {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}), \
-                patch.object(common, "fetch_url", side_effect=["first", "second"]) as fetch:
+        with (
+            patch.dict(os.environ, {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}),
+            patch.object(common, "fetch_url", side_effect=["first", "second"]) as fetch,
+        ):
             self.assertEqual(common.fetch_detail_url(url, cache_namespace="example"), "first")
             self.assertEqual(common.fetch_detail_url(url, cache_namespace="example"), "second")
 

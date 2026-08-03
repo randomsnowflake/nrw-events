@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from nrw_events.quality import evaluate_event_quality
 from nrw_events.sources import SOURCES, bonn_literature
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 # Trimmed from https://www.parkbuchhandlung.de/veranstaltungen/. The listing
 # repeats every card in an archive block further down the page; the duplicate
@@ -41,7 +41,7 @@ PARK_HTML = """
       Gianrico Carofiglio &raquo;Der Horizont der Nacht&laquo;</a>
   </h5></div>
 </div>
-"""
+"""  # noqa: E501
 
 PARK_DETAIL_HTML = """
 <div class="mkdf-event-header-time">17:00</div>
@@ -71,22 +71,15 @@ class BonnLiteratureSourceTests(unittest.TestCase):
             bonn_literature._normalize_title("MADAME NIELSEN »DAS ZEITGEISTERHAUS«MIT DANIEL"),
             "MADAME NIELSEN »DAS ZEITGEISTERHAUS« MIT DANIEL",
         )
-        self.assertEqual(
-            bonn_literature._normalize_title("Rhein­hotel Dreesen"), "Rheinhotel Dreesen"
-        )
+        self.assertEqual(bonn_literature._normalize_title("Rhein­hotel Dreesen"), "Rheinhotel Dreesen")
 
     def test_known_series_prefixes_are_separated_from_event_titles(self):
         cases = {
-            "WORTREICHLUKAS RIETZSCHEL »SANDITZ«":
-                "WORTREICH LUKAS RIETZSCHEL »SANDITZ«",
-            "LESEZIRKELNORBERT SCHEUER »HOLUNDERHOLZ«":
-                "LESEZIRKEL NORBERT SCHEUER »HOLUNDERHOLZ«",
-            "LESUNG UND PERFORMANCEMADAME NIELSEN »DAS ZEITGEISTERHAUS«":
-                "LESUNG UND PERFORMANCE MADAME NIELSEN »DAS ZEITGEISTERHAUS«",
-            "CUT-UPCollagen und Texte gemeinsam gestalten":
-                "CUT-UP Collagen und Texte gemeinsam gestalten",
-            "TSCHECHIENMIT Dora Kaprálová":
-                "TSCHECHIEN MIT Dora Kaprálová",
+            "WORTREICHLUKAS RIETZSCHEL »SANDITZ«": "WORTREICH LUKAS RIETZSCHEL »SANDITZ«",
+            "LESEZIRKELNORBERT SCHEUER »HOLUNDERHOLZ«": "LESEZIRKEL NORBERT SCHEUER »HOLUNDERHOLZ«",
+            "LESUNG UND PERFORMANCEMADAME NIELSEN »DAS ZEITGEISTERHAUS«": "LESUNG UND PERFORMANCE MADAME NIELSEN »DAS ZEITGEISTERHAUS«",  # noqa: E501
+            "CUT-UPCollagen und Texte gemeinsam gestalten": "CUT-UP Collagen und Texte gemeinsam gestalten",
+            "TSCHECHIENMIT Dora Kaprálová": "TSCHECHIEN MIT Dora Kaprálová",
         }
         for raw, expected in cases.items():
             with self.subTest(raw=raw):
@@ -99,9 +92,7 @@ class BonnLiteratureSourceTests(unittest.TestCase):
             "LESEZIRKEL DAVID SZALAY »WAS NICHT GESAGT WERDEN KANN«",
             "LESEZIRKELNORBERT SCHEUER »HOLUNDERHOLZ«",
         ):
-            decision = evaluate_event_quality(
-                {"title": title, "venue": "The Art of Books", "description": ""}
-            )
+            decision = evaluate_event_quality({"title": title, "venue": "The Art of Books", "description": ""})
             self.assertFalse(decision.should_drop, title)
 
     def test_parkbuchhandlung_parses_cards_and_collapses_repeats(self):
@@ -114,9 +105,7 @@ class BonnLiteratureSourceTests(unittest.TestCase):
         self.assertEqual(carofiglio["venue"], "Rheinhotel Dreesen")
         self.assertEqual(carofiglio["city"], "Bonn-Bad Godesberg")
         self.assertEqual(carofiglio["category_key"], "talk")
-        self.assertEqual(
-            carofiglio["link"], "https://www.parkbuchhandlung.de/event/gianrico-carofiglio/"
-        )
+        self.assertEqual(carofiglio["link"], "https://www.parkbuchhandlung.de/event/gianrico-carofiglio/")
         self.assertTrue(carofiglio["description"])
         self.assertEqual(by_date["2026-09-20"]["venue"], "Schauspielhaus Bonn (Foyer)")
 
@@ -128,12 +117,18 @@ class BonnLiteratureSourceTests(unittest.TestCase):
         self.assertEqual([event["start_date"] for event in events], ["2026-09-20"])
 
     def test_literaturhaus_wrapper_normalizes_titles_and_fills_descriptions(self):
-        raw = [{
-            "title": "Lukas Rietzschel»Sanditz«", "description": "",
-            "start_date": "2026-09-17", "date": "2026-09-17", "time": "19:00",
-            "venue": "Haus der Geschichte", "city": "Bonn",
-            "source": "Literaturhaus Bonn",
-        }]
+        raw = [
+            {
+                "title": "Lukas Rietzschel»Sanditz«",
+                "description": "",
+                "start_date": "2026-09-17",
+                "date": "2026-09-17",
+                "time": "19:00",
+                "venue": "Haus der Geschichte",
+                "city": "Bonn",
+                "source": "Literaturhaus Bonn",
+            }
+        ]
         with patch.object(bonn_literature.common, "fetch_ical", return_value=raw):
             events = bonn_literature.fetch_literaturhaus()
 
@@ -155,16 +150,20 @@ class BonnLiteratureSourceTests(unittest.TestCase):
                 self.assertEqual(event["category_key"], expected)
 
     def test_literaturhaus_uses_documented_departure_point_as_venue(self):
-        raw = [{
-            "title": "FAHRT ZUR FRANKFURTER BUCHMESSE",
-            "description": (
-                "Gemeinsame Busfahrt. Abfahrt um 8 Uhr ab Haus der Bildung, "
-                "Ecke Bottlerplatz 1, Bonn."
-            ),
-            "start_date": "2026-10-10", "date": "2026-10-10",
-            "time": "08:00–20:00", "venue": "", "city": "Bonn",
-            "source": "Literaturhaus Bonn",
-        }]
+        raw = [
+            {
+                "title": "FAHRT ZUR FRANKFURTER BUCHMESSE",
+                "description": (
+                    "Gemeinsame Busfahrt. Abfahrt um 8 Uhr ab Haus der Bildung, Ecke Bottlerplatz 1, Bonn."
+                ),
+                "start_date": "2026-10-10",
+                "date": "2026-10-10",
+                "time": "08:00–20:00",
+                "venue": "",
+                "city": "Bonn",
+                "source": "Literaturhaus Bonn",
+            }
+        ]
         with patch.object(bonn_literature.common, "fetch_ical", return_value=raw):
             events = bonn_literature.fetch_literaturhaus()
 
@@ -179,8 +178,7 @@ class BonnLiteratureSourceTests(unittest.TestCase):
         events = bonn_literature.events_from_parkbuchhandlung_html(html)
 
         event = next(
-            item for item in events
-            if item["title"] == "Leibspeisen. Eine kulinarische Biografie Deutschlands"
+            item for item in events if item["title"] == "Leibspeisen. Eine kulinarische Biografie Deutschlands"
         )
         self.assertEqual(event["category_key"], "talk")
 
@@ -202,13 +200,9 @@ class BonnLiteratureSourceTests(unittest.TestCase):
             calls.append(url)
             return PARK_DETAIL_HTML
 
-        events = bonn_literature.events_from_parkbuchhandlung_html(
-            PARK_HTML, detail_fetcher
-        )
+        events = bonn_literature.events_from_parkbuchhandlung_html(PARK_HTML, detail_fetcher)
 
-        carofiglio = next(
-            event for event in events if "Carofiglio" in event["title"]
-        )
+        carofiglio = next(event for event in events if "Carofiglio" in event["title"])
         self.assertEqual(carofiglio["time"], "17:00")
         self.assertEqual(carofiglio["price"], "18 €")
         self.assertFalse(carofiglio["all_day"])

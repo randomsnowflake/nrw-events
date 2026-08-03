@@ -13,6 +13,7 @@ from nrw_events.sources import (
     requested_venues,
     ruhrguide,
 )
+
 from tests.helpers import patch_window
 
 
@@ -30,7 +31,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 
         self.assertEqual(events, [])
         self.assertEqual(fetcher.call_count, len(regional_ionas4._CALENDARS))
-        for call, (_, url, _, _) in zip(fetcher.call_args_list, regional_ionas4._CALENDARS):
+        for call, (_, url, _, _) in zip(fetcher.call_args_list, regional_ionas4._CALENDARS, strict=False):
             self.assertEqual(call.args, (url,))
             self.assertEqual(
                 call.kwargs["allowed_hosts"],
@@ -40,16 +41,18 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
             self.assertEqual(call.kwargs["fallback_statuses"], (408, 429, 500, 502, 503, 504))
 
     def test_ionas4_uses_detail_description_location_and_direct_link(self):
-        items = [{
-            "id": "9697:0",
-            "start": "2026-07-18T18:00",
-            "end": "2026-07-18T00:00",
-            "title": "Der Ahrweinbau im Fokus",
-            "website": "",
-            "category": {"name": "Veranstaltung"},
-            "tags": [],
-            "location": {"name": None},
-        }]
+        items = [
+            {
+                "id": "9697:0",
+                "start": "2026-07-18T18:00",
+                "end": "2026-07-18T00:00",
+                "title": "Der Ahrweinbau im Fokus",
+                "website": "",
+                "category": {"name": "Veranstaltung"},
+                "tags": [],
+                "location": {"name": None},
+            }
+        ]
         detail_html = """
 <div class="integration-details__field tvm-event--description">
   <p>Bildvortrag über Geschichte, Gegenwart und Zukunft des Ahrweinbaus.</p>
@@ -86,16 +89,18 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 
     def test_ionas4_resolves_relative_detail_links_against_the_calendar_origin(self):
         events = regional_ionas4._events_from_items(
-            [{
-                "id": "29905:0",
-                "start": "2026-07-21T18:00",
-                "end": "2026-07-21T20:00",
-                "title": "Heizungsgespräche",
-                "website": "",
-                "category": {"name": "Klimaschutz"},
-                "tags": [],
-                "location": {"name": "Rathaus"},
-            }],
+            [
+                {
+                    "id": "29905:0",
+                    "start": "2026-07-21T18:00",
+                    "end": "2026-07-21T20:00",
+                    "title": "Heizungsgespräche",
+                    "website": "",
+                    "category": {"name": "Klimaschutz"},
+                    "tags": [],
+                    "location": {"name": "Rathaus"},
+                }
+            ],
             "Bad Honnef",
             "https://meinbadhonnef.de/kalender/veranstaltungen/",
             0.98,
@@ -114,17 +119,19 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
     def test_ionas4_treats_all_day_midnight_end_as_exclusive(self):
         requested = []
         events = regional_ionas4._events_from_items(
-            [{
-                "id": "83656:0",
-                "start": "2026-07-11T00:00",
-                "end": "2026-07-13T00:00",
-                "allDay": True,
-                "title": "Blaulichtfest in Ringen",
-                "website": "",
-                "category": {"name": "Fest"},
-                "tags": [],
-                "location": {"name": "Feuerwehrhaus Ringen"},
-            }],
+            [
+                {
+                    "id": "83656:0",
+                    "start": "2026-07-11T00:00",
+                    "end": "2026-07-13T00:00",
+                    "allDay": True,
+                    "title": "Blaulichtfest in Ringen",
+                    "website": "",
+                    "category": {"name": "Fest"},
+                    "tags": [],
+                    "location": {"name": "Feuerwehrhaus Ringen"},
+                }
+            ],
             "Grafschaft",
             "https://www.gemeinde-grafschaft.de/kalender/kalendergrafschaft/",
             0.9,
@@ -136,16 +143,18 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertEqual(requested, [])
 
     def test_ionas4_replaces_a_description_that_only_repeats_the_title(self):
-        items = [{
-            "id": "83680:0",
-            "start": "2026-07-26",
-            "end": "2026-07-26",
-            "title": "Sportwoche 2026",
-            "website": "",
-            "category": {"name": "Sport"},
-            "tags": [{"name": "Sportwoche 2026"}],
-            "location": {"name": "Sportplatz Leimersdorf"},
-        }]
+        items = [
+            {
+                "id": "83680:0",
+                "start": "2026-07-26",
+                "end": "2026-07-26",
+                "title": "Sportwoche 2026",
+                "website": "",
+                "category": {"name": "Sport"},
+                "tags": [{"name": "Sportwoche 2026"}],
+                "location": {"name": "Sportplatz Leimersdorf"},
+            }
+        ]
 
         events = regional_ionas4._events_from_items(
             items,
@@ -161,16 +170,18 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("Sportplatz Leimersdorf", events[0]["description"])
 
     def test_ionas4_preserves_a_short_fact_and_adds_event_context(self):
-        items = [{
-            "id": "83680:0",
-            "start": "2026-07-26",
-            "end": "2026-07-26",
-            "title": "Sportwoche 2026",
-            "website": "",
-            "category": {"name": "Sport"},
-            "tags": [],
-            "location": {"name": "Sportplatz Leimersdorf"},
-        }]
+        items = [
+            {
+                "id": "83680:0",
+                "start": "2026-07-26",
+                "end": "2026-07-26",
+                "title": "Sportwoche 2026",
+                "website": "",
+                "category": {"name": "Sport"},
+                "tags": [],
+                "location": {"name": "Sportplatz Leimersdorf"},
+            }
+        ]
         detail_html = """
 <div class="integration-details__field tvm-event--description">Eintritt frei</div>
 <div class="integration-details__field tvm-event--location">Sportplatz Leimersdorf</div>
@@ -303,15 +314,17 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("Kunstmuseum Bonn", events[0]["description"])
 
     def test_ruhrguide_uses_event_jsonld_description(self):
-        events = [{
-            "title": "Conni – Das Musical!",
-            "start_date": "2026-07-19",
-            "time": "15:00",
-            "venue": "Theater am Tanzbrunnen, Köln",
-            "city": "Köln",
-            "link": "https://www.ruhr-guide.de/veranstaltung/conni-das-musical/",
-            "description": "",
-        }]
+        events = [
+            {
+                "title": "Conni – Das Musical!",
+                "start_date": "2026-07-19",
+                "time": "15:00",
+                "venue": "Theater am Tanzbrunnen, Köln",
+                "city": "Köln",
+                "link": "https://www.ruhr-guide.de/veranstaltung/conni-das-musical/",
+                "description": "",
+            }
+        ]
         detail_html = """
 <script type="application/ld+json">
 {
@@ -321,7 +334,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
   "startDate": "2026-07-19T15:00:00"
 }
 </script>
-"""
+"""  # noqa: E501
 
         enriched = ruhrguide._enrich_missing_descriptions(
             events,
@@ -331,15 +344,17 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("Publikum wird Teil der Inszenierung", enriched[0]["description"])
 
     def test_ruhrguide_detail_failure_still_returns_useful_text(self):
-        events = [{
-            "title": "Conni – Das Musical!",
-            "start_date": "2026-07-19",
-            "time": "15:00",
-            "venue": "Theater am Tanzbrunnen, Köln",
-            "city": "Köln",
-            "link": "https://www.ruhr-guide.de/veranstaltung/conni-das-musical/",
-            "description": "",
-        }]
+        events = [
+            {
+                "title": "Conni – Das Musical!",
+                "start_date": "2026-07-19",
+                "time": "15:00",
+                "venue": "Theater am Tanzbrunnen, Köln",
+                "city": "Köln",
+                "link": "https://www.ruhr-guide.de/veranstaltung/conni-das-musical/",
+                "description": "",
+            }
+        ]
 
         enriched = ruhrguide._enrich_missing_descriptions(
             events,
@@ -363,7 +378,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
     <div class="teasertext"><p>auf dem Linzer Marktplatz</p></div>
   </div>
 </div>
-"""
+"""  # noqa: E501
         detail_html = """
 <div class="container descriptionbox">
   <h1>Strünzer Strand</h1>
@@ -398,7 +413,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
   <pubDate>Thu, 16 Jul 2026 22:00:00 +0000</pubDate>
   <description>17. Juli 2026 - 0:00 &lt;br/&gt;Weinhaus zur Traube &lt;br/&gt;Lühlingsgasse 5 &lt;br/&gt;Unkel</description>
 </item>
-""")
+""")  # noqa: E501
 
         event = regional_feeds._event_from_unkel_item(item)
 

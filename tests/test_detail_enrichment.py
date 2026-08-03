@@ -55,8 +55,8 @@ class DetailEnrichmentTests(unittest.TestCase):
 
     def test_richer_detail_replaces_teaser_and_explicit_price_is_reclassified(self):
         context = {
-            "description": "Eine deutlich längere, vollständige Beschreibung mit allen wichtigen Hinweisen für den Besuch.",
-            "description_html": "<p>Eine deutlich längere, vollständige Beschreibung mit allen wichtigen Hinweisen für den Besuch.</p>",
+            "description": "Eine deutlich längere, vollständige Beschreibung mit allen wichtigen Hinweisen für den Besuch.",  # noqa: E501
+            "description_html": "<p>Eine deutlich längere, vollständige Beschreibung mit allen wichtigen Hinweisen für den Besuch.</p>",  # noqa: E501
             "price": "12 Euro",
             "venue": "",
             "venue_address": "Eifelwall 5 50674 Köln",
@@ -74,7 +74,7 @@ class DetailEnrichmentTests(unittest.TestCase):
         unique = self.event()
         shared_one = self.event(title="Termin eins", link="https://events.example.net/kalender/")
         shared_two = self.event(title="Termin zwei", link="https://events.example.net/kalender/")
-        document = '<div itemprop="description"><p>Eine vollständige und wesentlich längere Beschreibung der Veranstaltung.</p></div>'
+        document = '<div itemprop="description"><p>Eine vollständige und wesentlich längere Beschreibung der Veranstaltung.</p></div>'  # noqa: E501
 
         with patch.object(detail_enrichment.common, "fetch_detail_url", return_value=document) as fetch:
             enriched = detail_enrichment.enrich_events([unique, shared_one, shared_two])
@@ -145,7 +145,8 @@ class DetailEnrichmentTests(unittest.TestCase):
         """
 
         context = detail_enrichment.extract_detail_context(
-            document, self.event(title="Wein-Entdecker-Tour"),
+            document,
+            self.event(title="Wein-Entdecker-Tour"),
         )
 
         self.assertIn("Rebsorten", context["description"])

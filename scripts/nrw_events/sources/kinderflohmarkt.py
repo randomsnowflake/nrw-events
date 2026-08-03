@@ -3,7 +3,6 @@
 from .. import common
 from . import regional_common as rc
 
-
 _URL = "https://kinderflohmarkt.com/de/bonn/"
 _CITY_ALIASES = {
     "plittersdorf": "Bonn-Plittersdorf",

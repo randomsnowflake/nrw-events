@@ -41,10 +41,24 @@ _CITY_HINTS = {
 }
 
 _VENUE_HINTS = [
-    "Münsterplatz", "Marktplatz", "Bonner Marktplatz", "Pantheon", "Telekom Dome",
-    "Rheinaue", "Bundeskunsthalle", "Kunstmuseum", "Brotfabrik", "Harmonie",
-    "GOP", "Katharinenhof", "Mühlenbachhalle", "Stadthalle", "Dorfplatz",
-    "Sportpark Nord", "Siegburger Marktplatz", "Eitorfer Marktplatz",
+    "Münsterplatz",
+    "Marktplatz",
+    "Bonner Marktplatz",
+    "Pantheon",
+    "Telekom Dome",
+    "Rheinaue",
+    "Bundeskunsthalle",
+    "Kunstmuseum",
+    "Brotfabrik",
+    "Harmonie",
+    "GOP",
+    "Katharinenhof",
+    "Mühlenbachhalle",
+    "Stadthalle",
+    "Dorfplatz",
+    "Sportpark Nord",
+    "Siegburger Marktplatz",
+    "Eitorfer Marktplatz",
 ]
 
 _ANCHOR_LINK_RE = re.compile(r'<a\b[^>]*\bhref=["\']([^"\']+)["\']', re.I)
@@ -65,9 +79,7 @@ _SAME_MONTH_RANGE_SUFFIX_RE = re.compile(
     r"(?P<end_day>\d{1,2})\.(?P<month>\d{1,2})\.(?P<year>20\d{2})\s*$",
     re.I,
 )
-_SINGLE_DATE_SUFFIX_RE = re.compile(
-    r"\s+-\s+(?P<day>\d{1,2})\.(?P<month>\d{1,2})\.(?P<year>20\d{2})\s*$"
-)
+_SINGLE_DATE_SUFFIX_RE = re.compile(r"\s+-\s+(?P<day>\d{1,2})\.(?P<month>\d{1,2})\.(?P<year>20\d{2})\s*$")
 
 
 def _hinted_city(text: str) -> str | None:
@@ -112,31 +124,19 @@ def _split_title_dates(raw_title: str):
         end_year = int(match.group("end_year"))
         start_month = int(match.group("start_month"))
         end_month = int(match.group("end_month"))
-        start_year = int(match.group("start_year") or (
-            end_year - 1 if start_month > end_month else end_year
-        ))
-        start = common.parse_date(
-            f'{match.group("start_day")}.{start_month}.{start_year}'
-        )
-        end = common.parse_date(
-            f'{match.group("end_day")}.{end_month}.{end_year}'
-        )
-        return raw_title[:match.start()].strip() or raw_title, start, end
+        start_year = int(match.group("start_year") or (end_year - 1 if start_month > end_month else end_year))
+        start = common.parse_date(f"{match.group('start_day')}.{start_month}.{start_year}")
+        end = common.parse_date(f"{match.group('end_day')}.{end_month}.{end_year}")
+        return raw_title[: match.start()].strip() or raw_title, start, end
 
     if match := _SAME_MONTH_RANGE_SUFFIX_RE.search(raw_title):
-        start = common.parse_date(
-            f'{match.group("start_day")}.{match.group("month")}.{match.group("year")}'
-        )
-        end = common.parse_date(
-            f'{match.group("end_day")}.{match.group("month")}.{match.group("year")}'
-        )
-        return raw_title[:match.start()].strip() or raw_title, start, end
+        start = common.parse_date(f"{match.group('start_day')}.{match.group('month')}.{match.group('year')}")
+        end = common.parse_date(f"{match.group('end_day')}.{match.group('month')}.{match.group('year')}")
+        return raw_title[: match.start()].strip() or raw_title, start, end
 
     if match := _SINGLE_DATE_SUFFIX_RE.search(raw_title):
-        start = common.parse_date(
-            f'{match.group("day")}.{match.group("month")}.{match.group("year")}'
-        )
-        return raw_title[:match.start()].strip() or raw_title, start, None
+        start = common.parse_date(f"{match.group('day')}.{match.group('month')}.{match.group('year')}")
+        return raw_title[: match.start()].strip() or raw_title, start, None
 
     return raw_title, common.parse_date(raw_title), None
 
@@ -160,7 +160,7 @@ def _best_event_link(raw_description: str) -> str:
 
     description = common.clean_html(raw_description)
     for match in _BARE_DOMAIN_RE.finditer(description):
-        raw_link = match.group(1).rstrip(".,;:!?)]}\"")
+        raw_link = match.group(1).rstrip('.,;:!?)]}"')
         if not raw_link.startswith(("http://", "https://")):
             raw_link = "https://" + raw_link
         if link := _external_web_link(raw_link):
@@ -195,9 +195,7 @@ def fetch() -> list:
         text = f"{title} {desc}"
         city = _city_for(text)
         venue = _venue_for(text, city)
-        category = "Sport" if re.search(
-            r"\b(?:Sport\w*|Bewegung|Fechten|Turnen|Segeln)\b", text, re.I
-        ) else "Event"
+        category = "Sport" if re.search(r"\b(?:Sport\w*|Bewegung|Fechten|Turnen|Segeln)\b", text, re.I) else "Event"
         time_text = ""
         m = re.search(r"\b(?:um|ab)\s+(\d{1,2})\s*Uhr\b", desc, re.I)
         if m:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-
 _DATE_TOKEN = re.compile(r"(?<!\d)(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2}|20\d{2})(?!\d)")
 _DATE_SUFFIX = re.compile(
     r"\s*(?:[,;|]|\s[-–—]\s)\s*(?:(?:am|vom)\s+)?"
@@ -16,11 +15,39 @@ _DATE_SUFFIX = re.compile(
 )
 _INCOMPLETE_WORD_ENDING = re.compile(r"\b(?:u|un|und)\s*$", re.IGNORECASE)
 _ELLIPSIS_ENDING = re.compile(r"(?:\.{3}|…)\s*$")
-_SMALL_GERMAN_WORDS = frozenset({
-    "am", "an", "auf", "aus", "bei", "bis", "das", "der", "des", "die", "ein",
-    "eine", "einer", "eines", "für", "fuer", "im", "in", "mit", "nach", "oder",
-    "ohne", "und", "vom", "von", "vor", "zu", "zum", "zur",
-})
+_SMALL_GERMAN_WORDS = frozenset(
+    {
+        "am",
+        "an",
+        "auf",
+        "aus",
+        "bei",
+        "bis",
+        "das",
+        "der",
+        "des",
+        "die",
+        "ein",
+        "eine",
+        "einer",
+        "eines",
+        "für",
+        "fuer",
+        "im",
+        "in",
+        "mit",
+        "nach",
+        "oder",
+        "ohne",
+        "und",
+        "vom",
+        "von",
+        "vor",
+        "zu",
+        "zum",
+        "zur",
+    }
+)
 _KNOWN_ACRONYMS = frozenset({"AI", "ARD", "DJ", "KI", "LVR", "NRW", "VHS", "WDR", "ZDF"})
 
 
@@ -42,7 +69,7 @@ def _strip_redundant_date_suffix(title: str, start: datetime | None, end: dateti
         structured.add(end.strftime("%Y-%m-%d"))
     if not dates or not dates.issubset(structured) or start.strftime("%Y-%m-%d") not in dates:
         return title
-    return title[:suffix.start()].rstrip(" ,;|–—-")
+    return title[: suffix.start()].rstrip(" ,;|–—-")
 
 
 def _title_case_word(word: str, *, first: bool) -> str:
@@ -54,7 +81,7 @@ def _title_case_word(word: str, *, first: bool) -> str:
     lowered = bare.casefold()
     replacement = lowered if not first and lowered in _SMALL_GERMAN_WORDS else lowered[:1].upper() + lowered[1:]
     start = word.find(bare)
-    return word[:start] + replacement + word[start + len(bare):]
+    return word[:start] + replacement + word[start + len(bare) :]
 
 
 def _normalize_all_caps(title: str) -> str:

@@ -6,14 +6,10 @@ from datetime import datetime, timedelta
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Bonner Weihnachtsmarkt"
 _MAIN_URL = "https://bonnerweihnachtsmarkt.de/view/all/"
 _DATES_URL = "https://bonnerweihnachtsmarkt.de/termine/"
-_VENUE = (
-    "Münsterplatz, Bottlerplatz, Friedensplatz, Windeckstraße, Vivatsgasse, "
-    "Poststraße und Remigiusplatz"
-)
+_VENUE = "Münsterplatz, Bottlerplatz, Friedensplatz, Windeckstraße, Vivatsgasse, Poststraße und Remigiusplatz"
 
 
 def _daily_events(
@@ -73,8 +69,7 @@ def _events_from_pages(main_html: str, dates_html: str, *, strict: bool = False)
         re.I,
     )
     main_venue = all(
-        name.casefold() in main_text.casefold()
-        for name in ("Münster", "Bottler", "Friedensplatz", "Remigiusplatz")
+        name.casefold() in main_text.casefold() for name in ("Münster", "Bottler", "Friedensplatz", "Remigiusplatz")
     )
     kings_range = re.search(
         r"27\.12\.(20\d{2})\s+bis\s+06\.01\.(20\d{2})",
@@ -87,12 +82,9 @@ def _events_from_pages(main_html: str, dates_html: str, *, strict: bool = False)
         re.I,
     )
     kings_hours = all(
-        pattern in dates_text
-        for pattern in ("12 bis 20 Uhr", "12 bis 21 Uhr", "Silvester: 11 bis 17 Uhr")
+        pattern in dates_text for pattern in ("12 bis 20 Uhr", "12 bis 21 Uhr", "Silvester: 11 bis 17 Uhr")
     )
-    valid = all(
-        (main_range, main_hours, main_closed, main_venue, kings_range, kings_closed, kings_hours)
-    )
+    valid = all((main_range, main_hours, main_closed, main_venue, kings_range, kings_closed, kings_hours))
     if not valid:
         if strict:
             raise rc.ParserEmptyError("Bonner Christmas-market date/hour contract changed")
@@ -110,19 +102,20 @@ def _events_from_pages(main_html: str, dates_html: str, *, strict: bool = False)
         hours=lambda day: (12, 20 if day.date() == datetime(year, 12, 23).date() else 21),
     )
     kings_start_year, kings_end_year = map(int, kings_range.groups())
-    events.extend(_daily_events(
-        "Bonner Dreikönigsmarkt",
-        datetime(kings_start_year, 12, 27),
-        datetime(kings_end_year, 1, 6),
-        venue="Remigiusplatz",
-        link=_DATES_URL,
-        source_id="bonner-dreikoenigsmarkt",
-        closed={datetime(int(kings_closed.group(1)), 1, 1).date()},
-        hours=lambda day: (
-            (11, 17) if (day.month, day.day) == (12, 31)
-            else (12, 21 if day.weekday() in {4, 5} else 20)
-        ),
-    ))
+    events.extend(
+        _daily_events(
+            "Bonner Dreikönigsmarkt",
+            datetime(kings_start_year, 12, 27),
+            datetime(kings_end_year, 1, 6),
+            venue="Remigiusplatz",
+            link=_DATES_URL,
+            source_id="bonner-dreikoenigsmarkt",
+            closed={datetime(int(kings_closed.group(1)), 1, 1).date()},
+            hours=lambda day: (
+                (11, 17) if (day.month, day.day) == (12, 31) else (12, 21 if day.weekday() in {4, 5} else 20)
+            ),
+        )
+    )
     return rc.dedupe(events)
 
 

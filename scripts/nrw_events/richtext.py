@@ -21,12 +21,22 @@ from html.parser import HTMLParser
 # its h1/h2, and event copy that competes with them breaks the document outline.
 _TAG_MAP = {
     "p": "p",
-    "h1": "h3", "h2": "h3", "h3": "h3",
-    "h4": "h4", "h5": "h4", "h6": "h4",
-    "ul": "ul", "ol": "ol", "li": "li",
-    "strong": "strong", "b": "strong",
-    "em": "em", "i": "em",
-    "blockquote": "p", "dd": "p", "dt": "p",
+    "h1": "h3",
+    "h2": "h3",
+    "h3": "h3",
+    "h4": "h4",
+    "h5": "h4",
+    "h6": "h4",
+    "ul": "ul",
+    "ol": "ol",
+    "li": "li",
+    "strong": "strong",
+    "b": "strong",
+    "em": "em",
+    "i": "em",
+    "blockquote": "p",
+    "dd": "p",
+    "dt": "p",
     "br": "br",
 }
 _VOID = {"br"}
@@ -132,7 +142,7 @@ def _tidy(html: str) -> str:
     return html.strip()
 
 
-_BOLD_ONLY_PARAGRAPH = re.compile(r"<p><strong>([^<]{1,%d})</strong></p>" % _PSEUDO_HEADING_MAX_CHARS)
+_BOLD_ONLY_PARAGRAPH = re.compile(rf"<p><strong>([^<]{{1,{_PSEUDO_HEADING_MAX_CHARS}}})</strong></p>")
 
 
 def _promote_pseudo_headings(html: str) -> str:
@@ -202,8 +212,7 @@ def from_plain_text(text: str) -> str:
     """
     paragraphs = [block.strip() for block in re.split(r"\n{2,}", text or "") if block.strip()]
     return "".join(
-        "<p>" + "<br>".join(escape(line, quote=False) for line in block.split("\n")) + "</p>"
-        for block in paragraphs
+        "<p>" + "<br>".join(escape(line, quote=False) for line in block.split("\n")) + "</p>" for block in paragraphs
     )
 
 

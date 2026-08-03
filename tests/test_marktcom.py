@@ -12,6 +12,7 @@ from unittest import mock
 from nrw_events import common, report
 from nrw_events.health import SourceResult, SourceStatus
 from nrw_events.sources import SOURCES, marktcom
+
 from tests.helpers import patch_window
 
 
@@ -27,17 +28,16 @@ def _advert_block():
     )
 
 
-def _event_block(slug, event_name, postal, city, organizer, date, category_id,
-                 description="Beschreibung des Marktes."):
+def _event_block(slug, event_name, postal, city, organizer, date, category_id, description="Beschreibung des Marktes."):
     return (
         "<li class='p-2'><div class='row'><div class='col'><div class='row'>"
         "<div class='col-md-9 col-lg-9'>"
-        f"<div class='eventname schmucklink'><a style=\"\" href=\"/veranstaltung/{slug}\">"
+        f'<div class=\'eventname schmucklink\'><a style="" href="/veranstaltung/{slug}">'
         f"{event_name}</a></div>"
         f"<div class='d-md-none'>{postal} {city}</div>"
         f"<p class='cat'>{organizer}</p>"
         f"<p class='description d-none d-md-block'>{description}"
-        f"<a href=\"/veranstaltung/{slug}\">[mehr]</a></p>"
+        f'<a href="/veranstaltung/{slug}">[mehr]</a></p>'
         "</div><div class='col-12'>"
         f"<div class='badge badge-pill badge-primary'><i class='far fa-calendar'></i>{date}</div>"
         "<div class='badge badge-pill mt-1' style='background-image:"
@@ -48,19 +48,35 @@ def _event_block(slug, event_name, postal, city, organizer, date, category_id,
 
 
 FIXTURE = _listing(
-    _event_block("hit-markt-in-53757-sankt-augustin", "Hit-Markt", "53757",
-                 "Sankt Augustin", "Geide-Märkte", "26.07.2026", 42),
+    _event_block(
+        "hit-markt-in-53757-sankt-augustin", "Hit-Markt", "53757", "Sankt Augustin", "Geide-Märkte", "26.07.2026", 42
+    ),
     _advert_block(),
-    _event_block("pferderennbahn-in-50737-koeln", "Pferderennbahn Parkplatz", "50737",
-                 "Köln", "Trödelfabrik Köln", "29.07.2026", 42),
-    _event_block("antik-troedelmarkt-in-53177-bonn", "Antik- und Trödelmarkt Bad Godesberg",
-                 "53177", "Bonn", "Marktveranstaltungen Nikolopoulos", "02.08.2026", 42),
-    _event_block("antikmarkt-in-53111-bonn", "Friedensplatz", "53111", "Bonn",
-                 "Rhein-Antik Höderath", "16.08.2026", 42),
-    _event_block("wochenmarkt-in-53111-bonn", "Marktplatz", "53111", "Bonn",
-                 "Stadt Bonn", "03.08.2026", 31),
-    _event_block("troedel-in-99999-hintertupfingen", "Festplatz", "99999",
-                 "Hintertupfingen", "Irgendwer", "04.08.2026", 42),
+    _event_block(
+        "pferderennbahn-in-50737-koeln",
+        "Pferderennbahn Parkplatz",
+        "50737",
+        "Köln",
+        "Trödelfabrik Köln",
+        "29.07.2026",
+        42,
+    ),
+    _event_block(
+        "antik-troedelmarkt-in-53177-bonn",
+        "Antik- und Trödelmarkt Bad Godesberg",
+        "53177",
+        "Bonn",
+        "Marktveranstaltungen Nikolopoulos",
+        "02.08.2026",
+        42,
+    ),
+    _event_block(
+        "antikmarkt-in-53111-bonn", "Friedensplatz", "53111", "Bonn", "Rhein-Antik Höderath", "16.08.2026", 42
+    ),
+    _event_block("wochenmarkt-in-53111-bonn", "Marktplatz", "53111", "Bonn", "Stadt Bonn", "03.08.2026", 31),
+    _event_block(
+        "troedel-in-99999-hintertupfingen", "Festplatz", "99999", "Hintertupfingen", "Irgendwer", "04.08.2026", 42
+    ),
 )
 
 
@@ -102,18 +118,22 @@ class MarktcomSourceTests(unittest.TestCase):
         """A directory copy of a first-party organizer adds no coverage."""
         venues = {event.get("venue") for event in self._events()}
 
-        self.assertNotIn("Hit-Markt", venues)       # Geide-Märkte
-        self.assertNotIn("Friedensplatz", venues)   # Rhein Antik
+        self.assertNotIn("Hit-Markt", venues)  # Geide-Märkte
+        self.assertNotIn("Friedensplatz", venues)  # Rhein Antik
 
     def test_every_skip_marker_is_matched_case_and_spacing_insensitively(self):
-        for organizer in ("GEIDE-MÄRKTE", "Grote  &  Hiller", "cölln konzept",
-                          "Rhein-Antik Höderath", "Lampert Märkte GmbH"):
+        for organizer in (
+            "GEIDE-MÄRKTE",
+            "Grote  &  Hiller",
+            "cölln konzept",
+            "Rhein-Antik Höderath",
+            "Lampert Märkte GmbH",
+        ):
             with self.subTest(organizer=organizer):
                 self.assertTrue(marktcom._is_integrated_organizer(organizer))
 
     def test_new_organizers_are_kept(self):
-        for organizer in ("Marktveranstaltungen Nikolopoulos", "Trödelfabrik Bonn",
-                          "Stadt Neuwied"):
+        for organizer in ("Marktveranstaltungen Nikolopoulos", "Trödelfabrik Bonn", "Stadt Neuwied"):
             with self.subTest(organizer=organizer):
                 self.assertFalse(marktcom._is_integrated_organizer(organizer))
 
@@ -177,18 +197,23 @@ class MarktcomSourceTests(unittest.TestCase):
                 self.assertNotIn("Beschreibung des Marktes", event["title"])
 
     def test_truncated_listing_title_is_completed_from_the_detail_heading(self):
-        html = _listing(_event_block(
-            "neuss-kaufland-parkplatz-in-41462-neuss",
-            "Neuss, Kaufland Parkplatz, Bataverstr. 93 / überdachte Flächen mit ...",
-            "41462", "Neuss", "Veranstaltungsbüro Stefan", "23.08.2026", 1,
-        ))
-        detail = (
-            "<h1>Neuss, Kaufland Parkplatz, Bataverstr. 93 / überdachte Flächen "
-            "mit Pkw am Stand vorhanden!</h1>"
+        html = _listing(
+            _event_block(
+                "neuss-kaufland-parkplatz-in-41462-neuss",
+                "Neuss, Kaufland Parkplatz, Bataverstr. 93 / überdachte Flächen mit ...",
+                "41462",
+                "Neuss",
+                "Veranstaltungsbüro Stefan",
+                "23.08.2026",
+                1,
+            )
         )
+        detail = "<h1>Neuss, Kaufland Parkplatz, Bataverstr. 93 / überdachte Flächen mit Pkw am Stand vorhanden!</h1>"
 
         [event] = marktcom.events_from_listing(
-            html, 1, detail_fetcher=lambda _url: detail,
+            html,
+            1,
+            detail_fetcher=lambda _url: detail,
         )
 
         self.assertNotIn("...", event["title"])
@@ -223,8 +248,8 @@ class MarktcomPaginationTests(unittest.TestCase):
 
     def test_pagination_stops_once_a_page_starts_after_the_window(self):
         beyond = _listing(
-            _event_block("x-in-50737-koeln", "Platz", "50737", "Köln",
-                         "Melan macht Märkte", "01.10.2026", 42))
+            _event_block("x-in-50737-koeln", "Platz", "50737", "Köln", "Melan macht Märkte", "01.10.2026", 42)
+        )
 
         self.assertTrue(marktcom._page_starts_after_window(beyond))
         self.assertFalse(marktcom._page_starts_after_window(FIXTURE))
@@ -239,8 +264,10 @@ class MarktcomPaginationTests(unittest.TestCase):
         result = SourceResult("marktcom")
         html = _listing(_advert_block())
 
-        with mock.patch.object(common, "fetch_url", return_value=html), \
-                mock.patch.object(common, "_SOURCE_CONTEXT") as context:
+        with (
+            mock.patch.object(common, "fetch_url", return_value=html),
+            mock.patch.object(common, "_SOURCE_CONTEXT") as context,
+        ):
             context.result = result
             events = marktcom._fetch_category(42)
 
@@ -248,12 +275,7 @@ class MarktcomPaginationTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
         self.assertTrue(result.endpoints)
-        self.assertFalse(
-            any(
-                endpoint.get("parser_empty") is True
-                for endpoint in result.endpoints.values()
-            )
-        )
+        self.assertFalse(any(endpoint.get("parser_empty") is True for endpoint in result.endpoints.values()))
 
 
 if __name__ == "__main__":

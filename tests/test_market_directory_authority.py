@@ -14,24 +14,38 @@ from datetime import datetime
 from nrw_events import core, report
 from nrw_events.health import SourceResult
 from nrw_events.sources import search
+
 from tests.helpers import patch_window
 
 
-def _market(source, score, link, *, title="Trödelmarkt beim KAUFLAND",
-            price="", time="11:00–17:00"):
+def _market(source, score, link, *, title="Trödelmarkt beim KAUFLAND", price="", time="11:00–17:00"):
     return {
         "title": title,
-        "start_date": "2026-08-09", "end_date": "2026-08-09", "date": "2026-08-09",
-        "city": "Siegburg", "venue": "Wilhelm-Ostwald-Straße 1",
-        "score": score, "source": source, "description": "", "price": price,
-        "link": link, "time": time, "start_at": "", "end_at": "",
+        "start_date": "2026-08-09",
+        "end_date": "2026-08-09",
+        "date": "2026-08-09",
+        "city": "Siegburg",
+        "venue": "Wilhelm-Ostwald-Straße 1",
+        "score": score,
+        "source": source,
+        "description": "",
+        "price": price,
+        "link": link,
+        "time": time,
+        "start_at": "",
+        "end_at": "",
     }
 
 
 class MarketDirectoryAuthorityTests(unittest.TestCase):
     def test_directory_records_rank_below_direct_organizers(self):
-        for directory in ("marktcom", "krencky24", "meine-flohmarkt-termine",
-                          "meine-kunsthandwerker-termine", "flohmap"):
+        for directory in (
+            "marktcom",
+            "krencky24",
+            "meine-flohmarkt-termine",
+            "meine-kunsthandwerker-termine",
+            "flohmap",
+        ):
             with self.subTest(directory=directory):
                 self.assertLess(
                     report.source_authority(directory),
@@ -48,9 +62,12 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
         """A directory must not publish its own link over the organizer's."""
         events = [
             _market("marktcom", 1.0, "https://www.marktcom.de/veranstaltung/12345"),
-            _market("Grote & Hiller", 0.5,
-                    "https://www.grote-hiller.de/unsere-maerkte/siegburg-troedelmarkt/",
-                    price="Eintritt frei"),
+            _market(
+                "Grote & Hiller",
+                0.5,
+                "https://www.grote-hiller.de/unsere-maerkte/siegburg-troedelmarkt/",
+                price="Eintritt frei",
+            ),
         ]
 
         deduped = report.deduplicate(events)
@@ -66,8 +83,13 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
         """Losing authority must not mean losing usable detail."""
         events = [
             _market("Grote & Hiller", 0.9, "https://www.grote-hiller.de/markt/", time=""),
-            _market("marktcom", 0.4, "https://www.marktcom.de/veranstaltung/12345",
-                    price="Eintritt frei", time="11:00–17:00"),
+            _market(
+                "marktcom",
+                0.4,
+                "https://www.marktcom.de/veranstaltung/12345",
+                price="Eintritt frei",
+                time="11:00–17:00",
+            ),
         ]
 
         deduped = report.deduplicate(events)
@@ -137,8 +159,7 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
         events = [
             _market("krencky24", 0.9, "https://krencky24.de/a.html"),
             _market("meine-flohmarkt-termine", 0.9, "https://meine-flohmarkt-termine.de/b"),
-            _market("meine-kunsthandwerker-termine", 0.9,
-                    "https://meine-kunsthandwerker-termine.de/c"),
+            _market("meine-kunsthandwerker-termine", 0.9, "https://meine-kunsthandwerker-termine.de/c"),
         ]
 
         self.assertEqual(len(report.deduplicate(events)), 1)
@@ -153,17 +174,27 @@ class ProduceMarketExclusionTests(unittest.TestCase):
     @staticmethod
     def _event(title):
         return {
-            "title": title, "description": "", "venue": "Marktplatz",
-            "city": "Bonn", "link": "https://example.test/event",
-            "date": "2026-08-08", "start_date": "2026-08-08",
-            "end_date": "2026-08-08", "category": "market", "source": "Test",
+            "title": title,
+            "description": "",
+            "venue": "Marktplatz",
+            "city": "Bonn",
+            "link": "https://example.test/event",
+            "date": "2026-08-08",
+            "start_date": "2026-08-08",
+            "end_date": "2026-08-08",
+            "category": "market",
+            "source": "Test",
         }
 
     def test_produce_and_evening_markets_are_dropped(self):
-        for title in ("Wochenmarkt am Münsterplatz", "Frischemarkt Beuel",
-                      "Bauernmarkt Wachtberg", "Biomarkt Bonn",
-                      "Abendmarkt auf dem Fischerplatz",
-                      "Zwibbelsmaat Zwiebelmarkt Bad Breisig"):
+        for title in (
+            "Wochenmarkt am Münsterplatz",
+            "Frischemarkt Beuel",
+            "Bauernmarkt Wachtberg",
+            "Biomarkt Bonn",
+            "Abendmarkt auf dem Fischerplatz",
+            "Zwibbelsmaat Zwiebelmarkt Bad Breisig",
+        ):
             with self.subTest(title=title):
                 self.assertTrue(core.is_junk_event(self._event(title)))
 
@@ -177,10 +208,14 @@ class ProduceMarketExclusionTests(unittest.TestCase):
         self.assertFalse(core.is_junk_event(self._event("Feierabendmarkt Bad Neuenahr")))
 
     def test_wanted_second_hand_formats_survive(self):
-        for title in ("Trödelmarkt beim KAUFLAND", "Antikmarkt Bonn",
-                      "Antik- und Krammarkt Ahrweiler",
-                      "Hofflohmarkt Bonn-Friesdorf", "Nachtflohmarkt Fabrik45",
-                      "Flohmarkt Kölner Altstadt"):
+        for title in (
+            "Trödelmarkt beim KAUFLAND",
+            "Antikmarkt Bonn",
+            "Antik- und Krammarkt Ahrweiler",
+            "Hofflohmarkt Bonn-Friesdorf",
+            "Nachtflohmarkt Fabrik45",
+            "Flohmarkt Kölner Altstadt",
+        ):
             with self.subTest(title=title):
                 self.assertFalse(core.is_junk_event(self._event(title)))
 

@@ -12,34 +12,44 @@ from unittest import mock
 
 from nrw_events import common
 from nrw_events.health import SourceResult, SourceStatus
-from nrw_events.sources import SOURCES, coelln_antik_design as cad
+from nrw_events.sources import SOURCES
+from nrw_events.sources import coelln_antik_design as cad
+
 from tests.helpers import patch_window
 
 
 def _section(name, detail, *dates):
     items = "".join(f"<li>{date}</li>" for date in dates)
     return (
-        f'<p><span style="color: #800000;"><strong>{name}<br /></strong>'
-        f"{detail}</span></p><ul>{items}<li> </li></ul>"
+        f'<p><span style="color: #800000;"><strong>{name}<br /></strong>{detail}</span></p><ul>{items}<li> </li></ul>'
     )
 
 
 FIXTURE = (
     '<div class="entry-content">'
-    + _section("Antik- und Designmarkt in der Kölner Flora",
-               "Am Botanischen Garten 1a 50375 Köln, 11 &#8211; 18 Uhr, Eintritt  6 EUR",
-               "Sonntag 15. März 2026", "Sonntag 20. September 2026")
-    + _section("Antik-Designmarkt im Kölner Gürzenich",
-               "Martinstraße 27-38 50667 Köln, 11 &#8211; 18 Uhr, Eintritt 6 EUR",
-               "Sonntag 15. November 2026", "Sonntag 27. Dezember 222026")
-    + _section("Antik- und Designmarkt auf dem Kölner Neumarkt",
-               "50667 Köln, 11 &#8211; 18",
-               "Freitag 20. +  Samstag 21. + Sonntag 22. März 2026")
-    + _section("Lifestyle-Markt Kölner Rheinauhafen",
-               "50678 Köln von 11 &#8211; 18",
-               "Ostersonntag  05. April und Ostermontag 06. April 2026")
-    + _section("Markt im Nirgendwo", "99999 Hintertupfingen, 11 &#8211; 18",
-               "Sonntag 12. Juli 2026")
+    + _section(
+        "Antik- und Designmarkt in der Kölner Flora",
+        "Am Botanischen Garten 1a 50375 Köln, 11 &#8211; 18 Uhr, Eintritt  6 EUR",
+        "Sonntag 15. März 2026",
+        "Sonntag 20. September 2026",
+    )
+    + _section(
+        "Antik-Designmarkt im Kölner Gürzenich",
+        "Martinstraße 27-38 50667 Köln, 11 &#8211; 18 Uhr, Eintritt 6 EUR",
+        "Sonntag 15. November 2026",
+        "Sonntag 27. Dezember 222026",
+    )
+    + _section(
+        "Antik- und Designmarkt auf dem Kölner Neumarkt",
+        "50667 Köln, 11 &#8211; 18",
+        "Freitag 20. +  Samstag 21. + Sonntag 22. März 2026",
+    )
+    + _section(
+        "Lifestyle-Markt Kölner Rheinauhafen",
+        "50678 Köln von 11 &#8211; 18",
+        "Ostersonntag  05. April und Ostermontag 06. April 2026",
+    )
+    + _section("Markt im Nirgendwo", "99999 Hintertupfingen, 11 &#8211; 18", "Sonntag 12. Juli 2026")
     + "</div><!-- .entry-content -->"
 )
 
@@ -71,8 +81,7 @@ class CoellnAntikDesignTests(unittest.TestCase):
         self.assertEqual(event["time"], "11:00–18:00")
 
     def test_hour_range_helper_rejects_impossible_hours(self):
-        self.assertEqual(cad._hour_range("Martinstraße 27-38, 11 – 18 Uhr"),
-                         "11:00–18:00")
+        self.assertEqual(cad._hour_range("Martinstraße 27-38, 11 – 18 Uhr"), "11:00–18:00")
         self.assertEqual(cad._hour_range("Hausnummer 27-38"), "")
         self.assertEqual(cad._hour_range("kein Zeitbereich"), "")
 
@@ -122,8 +131,7 @@ class CoellnAntikDesignTests(unittest.TestCase):
         cities = {event["city"] for event in self._events()}
 
         self.assertNotIn("Hintertupfingen", cities)
-        self.assertNotIn("Markt im Nirgendwo",
-                         {event["title"] for event in self._events()})
+        self.assertNotIn("Markt im Nirgendwo", {event["title"] for event in self._events()})
 
     def test_blank_list_items_are_ignored(self):
         self.assertTrue(all(event["start_date"] for event in self._events()))
@@ -141,12 +149,7 @@ class CoellnAntikDesignTests(unittest.TestCase):
         self.assertEqual(multi_day["end_at"], "2026-03-22T18:00+01:00")
 
     def test_events_use_a_stable_source_id(self):
-        self.assertTrue(
-            all(
-                event["source_id"] == "coelln-antik-design"
-                for event in self._events()
-            )
-        )
+        self.assertTrue(all(event["source_id"] == "coelln-antik-design" for event in self._events()))
 
 
 if __name__ == "__main__":

@@ -69,35 +69,60 @@ _SOURCE_CATEGORY_MAP = {
 }
 _ALLOW = set(_SOURCE_CATEGORY_MAP) | {"Führungen/Rundgänge/Touren"}
 _FREE_ACTIVITY_ALLOW = {
-    "Aktion/Workshop", "Bonn-Information", "Familien/Kinder", "Ferienaktion",
-    "Kinder (0 bis 5 Jahre)", "Kinder (5 bis 12 Jahre)", "Kultur", "Sport",
+    "Aktion/Workshop",
+    "Bonn-Information",
+    "Familien/Kinder",
+    "Ferienaktion",
+    "Kinder (0 bis 5 Jahre)",
+    "Kinder (5 bis 12 Jahre)",
+    "Kultur",
+    "Sport",
     "Tourismus",
 }
 _FREE_EVENT_SCORE_FLOOR = 0.45
 _BLOCK = {
-    "Sprechstunde", "Sitzung", "Sitzungstermine Ausschüsse", "Sitzungstermine Bezirksvertretung",
-    "Informations-Veranstaltung", "Tagungen/Kongresse", "Stadtverwaltung",
+    "Sprechstunde",
+    "Sitzung",
+    "Sitzungstermine Ausschüsse",
+    "Sitzungstermine Bezirksvertretung",
+    "Informations-Veranstaltung",
+    "Tagungen/Kongresse",
+    "Stadtverwaltung",
     # Bonn singularised its labels; keep both spellings blocked so the rename
     # cannot quietly turn professional training into importable events.
-    "Fortbildungen", "Fortbildung",
-    "Beratung", "Spendenaktion", "Online-Veranstaltung", "Bürger*innenbeteiligung",
-    "Next Stop Job", "Bürger*innensprechstunde OB Déus",
+    "Fortbildungen",
+    "Fortbildung",
+    "Beratung",
+    "Spendenaktion",
+    "Online-Veranstaltung",
+    "Bürger*innenbeteiligung",
+    "Next Stop Job",
+    "Bürger*innensprechstunde OB Déus",
 }
 _KNOWN_SOURCE_CATEGORIES = (
-    _ALLOW | _FREE_ACTIVITY_ALLOW | _BLOCK | {
-        "Bonn", "Kostenlos",
+    _ALLOW
+    | _FREE_ACTIVITY_ALLOW
+    | _BLOCK
+    | {
+        "Bonn",
+        "Kostenlos",
         # Section/navigation labels can appear in teaser markup, but are not
         # event topics and must not make those cards importable.
-        "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt.",
+        "Ausgehen. Erleben.",
+        "Veranstaltungen. Kalender.",
+        "Barrierefreie Stadt.",
     }
 )
 
 _venue_points_cache = None
+
+
 def _env_number(name: str, default: float) -> float:
     try:
         return max(float(os.environ.get(name, str(default))), 0)
     except (TypeError, ValueError):
         return default
+
 
 def _reset_detail_context_cache() -> None:
     """Compatibility hook for isolated tests using the shared raw-page cache."""
@@ -117,7 +142,7 @@ def _loads_event_items(raw: str):
         match = re.search(r"(?<=\})(?:\r?\n)?\[\d{4}-\d{2}-\d{2}T", raw)
         if not (raw.lstrip().startswith("[") and match):
             raise
-        return json.loads(raw[:match.start()] + "]")
+        return json.loads(raw[: match.start()] + "]")
 
 
 def _venue_points() -> dict:
@@ -128,13 +153,15 @@ def _venue_points() -> dict:
     pts: dict = {}
     for url in _VENUE_GEOJSON_URLS:
         try:
-            data = json.loads(common.fetch_url(
-                url,
-                timeout=15,
-                accept="application/geo+json,application/json,*/*;q=0.8",
-                sec_fetch_mode="cors",
-                sec_fetch_dest="empty",
-            ))
+            data = json.loads(
+                common.fetch_url(
+                    url,
+                    timeout=15,
+                    accept="application/geo+json,application/json,*/*;q=0.8",
+                    sec_fetch_mode="cors",
+                    sec_fetch_dest="empty",
+                )
+            )
         except Exception as e:
             common.log_source_error("Bonn venue GeoJSON", e)
             continue
@@ -174,11 +201,10 @@ def _concise_detail_description(value: str) -> str:
     room = max(max_chars - 1, 1)
     candidate = cleaned[:room].rstrip()
     sentence_ends = [
-        match.end() for match in re.finditer(r'[.!?](?:["”’)]*)', candidate)
-        if match.end() >= max_chars * 0.45
+        match.end() for match in re.finditer(r'[.!?](?:["”’)]*)', candidate) if match.end() >= max_chars * 0.45
     ]
     if sentence_ends:
-        shortened = candidate[:sentence_ends[-1]].rstrip()
+        shortened = candidate[: sentence_ends[-1]].rstrip()
     else:
         shortened = candidate.rsplit(" ", 1)[0].rstrip(" ,;:") or candidate
     return f"{shortened}…"
@@ -259,11 +285,7 @@ def _join_detail_paragraphs(parts: list[str]) -> list[str]:
         if not text or _is_detail_logistics(text):
             index += 1
             continue
-        is_heading = (
-            not text.startswith("• ")
-            and len(text) <= 60
-            and not re.search(r'\.["”’)]*$', text)
-        )
+        is_heading = not text.startswith("• ") and len(text) <= 60 and not re.search(r'\.["”’)]*$', text)
         if is_heading and index + 1 < len(parts):
             following = re.sub(r"\s+", " ", parts[index + 1]).strip()
             if following and not _is_detail_logistics(following):
@@ -493,13 +515,15 @@ def fetch_events() -> list:
 def fetch_events_json(source: str = "Bonn.de Events") -> list:
     """Legacy JSON fallback → dated, activity-only, venue-pinned events."""
     try:
-        items = _loads_event_items(common.fetch_url(
-            _EVENTS_JSON_URL,
-            timeout=25,
-            accept="application/json,*/*;q=0.8",
-            sec_fetch_mode="cors",
-            sec_fetch_dest="empty",
-        ))
+        items = _loads_event_items(
+            common.fetch_url(
+                _EVENTS_JSON_URL,
+                timeout=25,
+                accept="application/json,*/*;q=0.8",
+                sec_fetch_mode="cors",
+                sec_fetch_dest="empty",
+            )
+        )
     except Exception as e:
         fallback = _fetch_rss_events(source)
         if fallback:
@@ -522,7 +546,8 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
         unknown = _unknown_source_categories(tags)
         unknown_categories.update(unknown)
         price = common.infer_free_admission_price(
-            item.get("title", ""), item.get("description", ""),
+            item.get("title", ""),
+            item.get("description", ""),
             "kostenlos" if "Kostenlos" in tags else "",
         )
         free_allow = (tags & _FREE_ACTIVITY_ALLOW) if price else set()
@@ -547,9 +572,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             location_address = location_address or detail_context.get("venue_address", "")
         parts = [p.strip() for p in location_address.split(",") if p.strip()]
         town = re.sub(r"^\d{4,5}\s*", "", parts[-1]).strip() if parts else detail_context.get("city", "")
-        city = common.refine_city_from_text(
-            town or "Bonn", " ".join((title, venue, description))
-        )
+        city = common.refine_city_from_text(town or "Bonn", " ".join((title, venue, description)))
 
         # Only the time string and the venue-coordinate pin are Bonn-specific;
         # make_event owns the window/radius/date/dict/junk machinery.
@@ -561,9 +584,18 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
 
         category_tags = allow or free_allow
         ev = common.make_event(
-            title, start_dt, end_dt, venue, city, description, link,
-            source, ", ".join(sorted(category_tags)), time_text=time_text,
-            coords=points.get(venue.lower()))
+            title,
+            start_dt,
+            end_dt,
+            venue,
+            city,
+            description,
+            link,
+            source,
+            ", ".join(sorted(category_tags)),
+            time_text=time_text,
+            coords=points.get(venue.lower()),
+        )
         if ev:
             # Detail-page location data is enrichment, not a new occurrence.
             # Lock even an originally empty listing venue so a newly discovered
@@ -574,7 +606,9 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
                 ev["venue_address"] = location_address
             ev = _apply_detail_location(ev, detail_context)
             ev["description"] = common.concise_description(description, max_chars=0)
-            ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
+            ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(
+                ev["description"]
+            )
             ev = _apply_source_category_mapping(ev, tags)
             if free_allow and not allow:
                 ev = _apply_free_category_override(ev, tags)
@@ -593,12 +627,11 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
 
 _HTML_URL = "https://www.bonn.de/bonn-erleben/ausgehen-und-erleben/veranstaltungskalender.php"
 _SPORTS_URL = "https://www.bonn.de/bonn-erleben/aktiv-und-unterwegs/sportveranstaltungen.php"
-_RSS_URL = (_HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit")
+_RSS_URL = _HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit"
 # Annual press release. The slug embeds the year; we build it dynamically so the
 # source keeps working in future years with no code change (no dates hardcoded).
 _PRESS_URL_TEMPLATE = (
-    "https://www.bonn.de/pressemitteilungen/dezember/"
-    "abwechslungsreiches-veranstaltungsjahr-{year}-in-bonn.php"
+    "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-{year}-in-bonn.php"
 )
 
 
@@ -633,15 +666,15 @@ def _split_tags(value: str) -> set:
 def _is_sparse_listing_description(description: str, title: str) -> bool:
     normalized = re.sub(r"[^\wäöüß]+", " ", description or "", flags=re.I).strip().lower()
     normalized_title = re.sub(r"[^\wäöüß]+", " ", title or "", flags=re.I).strip().lower()
-    normalized_display_title = re.sub(
-        r"[^\wäöüß]+", " ", _clean_free_title_prefix(title), flags=re.I
-    ).strip().lower()
+    normalized_display_title = re.sub(r"[^\wäöüß]+", " ", _clean_free_title_prefix(title), flags=re.I).strip().lower()
     if not normalized or normalized in {normalized_title, normalized_display_title}:
         return True
-    return bool(re.fullmatch(
-        r"(?:zur )?anmeldung(?: erforderlich| erbeten)?|weitere informationen|mehr erfahren",
-        normalized,
-    ))
+    return bool(
+        re.fullmatch(
+            r"(?:zur )?anmeldung(?: erforderlich| erbeten)?|weitere informationen|mehr erfahren",
+            normalized,
+        )
+    )
 
 
 def _listing_events_from_html(html: str, source: str, *, free_only: bool = False) -> list:
@@ -679,8 +712,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
             re.S | re.I,
         )
         has_in_window_occurrence = any(
-            common.window_contains(common.parse_date(date_text))
-            for date_text, _ in date_matches
+            common.window_contains(common.parse_date(date_text)) for date_text, _ in date_matches
         )
         description = listing_description
         classification_description = listing_description
@@ -697,9 +729,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 # page cannot make a valid listed event disappear below the score
                 # floor (for example Nachtwache or Das Stadtspiel).
                 classification_description = raw_title
-        city = common.refine_city_from_text(
-            city, " ".join((title, venue, listing_description, description))
-        )
+        city = common.refine_city_from_text(city, " ".join((title, venue, listing_description, description)))
         for date_text, time_raw in date_matches:
             start = common.parse_date(date_text)
             time_text = common.clean_html(time_raw)
@@ -715,8 +745,17 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 continue
             seen.add(key)
             ev = common.make_event(
-                title, start, start, venue, city, classification_description, link,
-                source, ", ".join(sorted(tags | ({"Kostenlos"} if free_only else set()))), trust=0.86, time_text=time_text,
+                title,
+                start,
+                start,
+                venue,
+                city,
+                classification_description,
+                link,
+                source,
+                ", ".join(sorted(tags | ({"Kostenlos"} if free_only else set()))),
+                trust=0.86,
+                time_text=time_text,
             )
             if ev:
                 ev["identity_venue"] = ""
@@ -725,9 +764,12 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:
                     ev["description"] = common.concise_description(description, max_chars=0)
-                ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
+                ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(
+                    ev["description"]
+                )
                 price = common.infer_free_admission_price(
-                    raw_title, description,
+                    raw_title,
+                    description,
                     "kostenlos" if free_only or "Kostenlos" in tags else "",
                 )
                 if price:
@@ -769,7 +811,9 @@ def _fetch_calendar_listing_events(source: str = "Bonn.de Events") -> list:
         try:
             events = _merge_fallback_events(
                 events,
-                _calendar_listing_events_from_html(common.fetch_url(_calendar_search_url(page, free_only=False), timeout=25), source),
+                _calendar_listing_events_from_html(
+                    common.fetch_url(_calendar_search_url(page, free_only=False), timeout=25), source
+                ),
             )
         except Exception as e:
             common.log_source_error(f"{source} calendar listing fallback page {page}", e)
@@ -796,7 +840,9 @@ def _fetch_free_calendar_events(source: str = "Bonn.de Events") -> list:
         try:
             events = _merge_fallback_events(
                 events,
-                _free_listing_events_from_html(common.fetch_url(_calendar_search_url(page, free_only=True), timeout=25), source),
+                _free_listing_events_from_html(
+                    common.fetch_url(_calendar_search_url(page, free_only=True), timeout=25), source
+                ),
             )
         except Exception as e:
             common.log_source_error(f"{source} free calendar fallback page {page}", e)
@@ -827,7 +873,8 @@ def events_from_sport_teasers(html: str) -> list:
         for date_text, time_raw in re.findall(
             r'<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
             r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?',
-            body, re.S | re.I,
+            body,
+            re.S | re.I,
         ):
             start = common.parse_date(date_text)
             time_text = _parse_sport_time(common.clean_html(time_raw))
@@ -839,10 +886,17 @@ def events_from_sport_teasers(html: str) -> list:
                 continue
             seen.add(key)
             ev = common.make_event(
-                title, start, start, "", "Bonn",
-                common.factual_event_description(
-                    title, date_value=start, time_text=time_text, city="Bonn"),
-                link, source, category, trust=0.8, time_text=time_text,
+                title,
+                start,
+                start,
+                "",
+                "Bonn",
+                common.factual_event_description(title, date_value=start, time_text=time_text, city="Bonn"),
+                link,
+                source,
+                category,
+                trust=0.8,
+                time_text=time_text,
             )
             if ev:
                 events.append(ev)
@@ -860,13 +914,16 @@ def fetch_sports() -> list:
 
 def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
     import xml.etree.ElementTree as ET
+
     try:
-        root = ET.fromstring(common.fetch_url(
-            _RSS_URL,
-            accept="application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
-            sec_fetch_mode="no-cors",
-            sec_fetch_dest="empty",
-        ))
+        root = ET.fromstring(
+            common.fetch_url(
+                _RSS_URL,
+                accept="application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
+                sec_fetch_mode="no-cors",
+                sec_fetch_dest="empty",
+            )
+        )
         events = []
         for item in root.findall(".//item"):
             title = (item.findtext("title") or "").strip()
@@ -906,9 +963,7 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
                         trust=0.76,
                     )
                     if enriched:
-                        enriched["description"] = common.concise_description(
-                            detail_description, max_chars=0
-                        )
+                        enriched["description"] = common.concise_description(detail_description, max_chars=0)
                         ev = enriched
             if ev:
                 price = common.infer_free_admission_price(title, desc)
@@ -922,10 +977,7 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
 
 
 def _merge_fallback_events(primary: list, fallback: list) -> list:
-    seen = {
-        (event.get("link") or "", event.get("title") or "", event.get("date") or "")
-        for event in primary
-    }
+    seen = {(event.get("link") or "", event.get("title") or "", event.get("date") or "") for event in primary}
     merged = list(primary)
     for event in fallback:
         key = (event.get("link") or "", event.get("title") or "", event.get("date") or "")
@@ -954,7 +1006,7 @@ def _press_event_title(text: str) -> str:
 
 def _press_event_venue(text: str, title: str) -> str:
     """Keep the official location text between the title and first date."""
-    remainder = text[len(title):].lstrip(" ,")
+    remainder = text[len(title) :].lstrip(" ,")
     date_start = re.search(
         r"\b\d{1,2}\.\s*(?:(?:bis|und)\s*\d{1,2}\.\s*)?"
         r"(?:Januar|Februar|März|April|Mai|Juni|Juli|August|"
@@ -964,7 +1016,7 @@ def _press_event_venue(text: str, title: str) -> str:
     )
     if not date_start:
         return ""
-    return remainder[:date_start.start()].strip(" ,")
+    return remainder[: date_start.start()].strip(" ,")
 
 
 def _press_date_ranges(text: str, default_year: int) -> list[tuple[datetime, datetime]]:
@@ -1064,9 +1116,7 @@ def fetch_press_festivals() -> list:
             if len(text) < 6:
                 continue
             in_window = [
-                (start, end)
-                for start, end in _press_date_ranges(text, year)
-                if common.window_contains(start, end)
+                (start, end) for start, end in _press_date_ranges(text, year) if common.window_contains(start, end)
             ]
             if not in_window:
                 continue
@@ -1077,8 +1127,16 @@ def fetch_press_festivals() -> list:
             city = common.guess_city_from_text(text) or "Bonn"
             for start, end in in_window:
                 ev = common.make_event(
-                    title, start, end, venue, city, text[:240], url, source,
-                    "stadtteilfest market kirmes outdoor local", 1.0,
+                    title,
+                    start,
+                    end,
+                    venue,
+                    city,
+                    text[:240],
+                    url,
+                    source,
+                    "stadtteilfest market kirmes outdoor local",
+                    1.0,
                 )
                 if ev:
                     events.append(ev)

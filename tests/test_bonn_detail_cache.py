@@ -6,13 +6,10 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import bonn
+
 from tests.helpers import patch_window
 
-
-DETAIL_LINK = (
-    "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
-    "hauptkalender/extern/seelenklaenge.php"
-)
+DETAIL_LINK = "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/seelenklaenge.php"
 
 
 def detail_html(description: str = "Ein Konzert mit berührenden Klängen.") -> str:
@@ -21,7 +18,7 @@ def detail_html(description: str = "Ein Konzert mit berührenden Klängen.") -> 
 <script type="application/ld+json">
 {{"@type":"Event","location":{{"@type":"Place","name":"Collegium Leoninum","address":{{"@type":"PostalAddress","streetAddress":"Noeggerathstraße 34","postalCode":"53111","addressLocality":"Bonn"}}}}}}
 </script>
-"""
+"""  # noqa: E501
 
 
 class BonnDetailEnrichmentTests(unittest.TestCase):
@@ -221,11 +218,9 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
   <p>Die junge Pianistin erhielt früh ihren ersten Klavierunterricht. Heute tritt sie bei internationalen Wettbewerben und Festivals auf.</p>
   <p>Ein weiterer sehr langer Absatz, der nicht mehr Teil des kompakten Exports sein soll.</p>
 </div>
-"""
+"""  # noqa: E501
 
-        with patch.dict(
-            "os.environ", {"NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS": "260"}
-        ):
+        with patch.dict("os.environ", {"NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS": "260"}):
             description = bonn._parse_detail_context(html)["description"]
 
         self.assertIn("Die junge Pianistin", description)
@@ -245,21 +240,22 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
 </div>
 """
 
-        with patch.dict(
-            "os.environ", {"NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS": "180"}
-        ):
+        with patch.dict("os.environ", {"NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS": "180"}):
             description = bonn._parse_detail_context(html)["description"]
 
         self.assertNotIn("Was erwartet euch?…", description)
         self.assertTrue(description.endswith(("lüften.", "Rätsel.", "lüften.…", "Rätsel.…")))
 
     def test_persistent_cache_avoids_detail_request_on_a_later_run(self):
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ",
-            {
-                "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
-            },
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict(
+                "os.environ",
+                {
+                    "NRW_EVENTS_CACHE_DIR": cache_dir,
+                    "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
+                },
+            ),
         ):
             with patch.object(common, "fetch_url", return_value=detail_html()) as fetch_url:
                 first = bonn._fetch_detail_context(DETAIL_LINK)
@@ -274,12 +270,15 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         fetch_url.assert_not_called()
 
     def test_persistent_cache_avoids_repeating_successful_empty_detail_page(self):
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ",
-            {
-                "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
-            },
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict(
+                "os.environ",
+                {
+                    "NRW_EVENTS_CACHE_DIR": cache_dir,
+                    "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
+                },
+            ),
         ):
             with patch.object(common, "fetch_url", return_value="<main>No event metadata</main>") as fetch_url:
                 first = bonn._fetch_detail_context(DETAIL_LINK)
@@ -305,12 +304,15 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         fetch_url.assert_not_called()
 
     def test_persistent_cache_throttles_failed_detail_page_for_24_hours(self):
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ",
-            {
-                "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
-            },
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict(
+                "os.environ",
+                {
+                    "NRW_EVENTS_CACHE_DIR": cache_dir,
+                    "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
+                },
+            ),
         ):
             with patch.object(common, "fetch_url", side_effect=TimeoutError("temporary")):
                 self.assertEqual(bonn._fetch_detail_context(DETAIL_LINK), {})
@@ -323,34 +325,42 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(cached_failure["venue"], "")
 
     def test_expired_persistent_cache_is_refreshed(self):
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ",
-            {
-                "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "1",
-            },
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict(
+                "os.environ",
+                {
+                    "NRW_EVENTS_CACHE_DIR": cache_dir,
+                    "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "1",
+                },
+            ),
         ):
-            with patch.object(common.time, "time", return_value=1_000), patch.object(
-                common, "fetch_url", return_value=detail_html("Alte Beschreibung.")
+            with (
+                patch.object(common.time, "time", return_value=1_000),
+                patch.object(common, "fetch_url", return_value=detail_html("Alte Beschreibung.")),
             ):
                 bonn._fetch_detail_context(DETAIL_LINK)
 
             bonn._reset_detail_context_cache()
-            with patch.object(common.time, "time", return_value=4_601), patch.object(
-                common, "fetch_url", return_value=detail_html("Neue Beschreibung.")
-            ) as fetch_url:
+            with (
+                patch.object(common.time, "time", return_value=4_601),
+                patch.object(common, "fetch_url", return_value=detail_html("Neue Beschreibung.")) as fetch_url,
+            ):
                 refreshed = bonn._fetch_detail_context(DETAIL_LINK)
 
         self.assertEqual(fetch_url.call_count, 1)
         self.assertEqual(refreshed["description"], "Neue Beschreibung.")
 
     def test_malformed_cache_payload_fails_soft_and_refetches(self):
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ",
-            {
-                "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
-            },
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict(
+                "os.environ",
+                {
+                    "NRW_EVENTS_CACHE_DIR": cache_dir,
+                    "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
+                },
+            ),
         ):
             Path(cache_dir, "detail-pages-bonn-detail-v1.json").write_text("[]")
             with patch.object(common, "fetch_url", return_value=detail_html()) as fetch_url:

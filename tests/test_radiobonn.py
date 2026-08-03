@@ -1,7 +1,6 @@
 import unittest
 
-from nrw_events.sources import radiobonn
-from nrw_events.sources import SOURCES
+from nrw_events.sources import SOURCES, radiobonn
 
 
 class RadioBonnLocationTests(unittest.TestCase):
@@ -17,10 +16,7 @@ class RadioBonnLocationTests(unittest.TestCase):
         self.assertEqual(radiobonn._city_for(text), "Königswinter")
 
     def test_meeting_point_wins_over_organizer_location(self):
-        text = (
-            "Führung der VHS Bornheim/Alfter. Treffpunkt ist am Legionslager "
-            "in der Graurheindorfer Straße in Bonn."
-        )
+        text = "Führung der VHS Bornheim/Alfter. Treffpunkt ist am Legionslager in der Graurheindorfer Straße in Bonn."
         self.assertEqual(radiobonn._city_for(text), "Bonn")
 
     def test_configured_meeting_point_city_wins_over_hinted_organizer_location(self):
@@ -53,27 +49,21 @@ class RadioBonnLocationTests(unittest.TestCase):
         self.assertEqual(radiobonn._best_event_link(description), radiobonn.URL)
 
     def test_parses_same_month_multi_day_range(self):
-        title, start, end = radiobonn._split_title_dates(
-            "Birker Kirmes - 10. - 12.07.2026"
-        )
+        title, start, end = radiobonn._split_title_dates("Birker Kirmes - 10. - 12.07.2026")
 
         self.assertEqual(title, "Birker Kirmes")
         self.assertEqual(start.strftime("%Y-%m-%d"), "2026-07-10")
         self.assertEqual(end.strftime("%Y-%m-%d"), "2026-07-12")
 
     def test_parses_compact_ampersand_range(self):
-        title, start, end = radiobonn._split_title_dates(
-            "Sommerfest - 04. & 05.07.2026"
-        )
+        title, start, end = radiobonn._split_title_dates("Sommerfest - 04. & 05.07.2026")
 
         self.assertEqual(title, "Sommerfest")
         self.assertEqual(start.strftime("%Y-%m-%d"), "2026-07-04")
         self.assertEqual(end.strftime("%Y-%m-%d"), "2026-07-05")
 
     def test_parses_cross_month_range(self):
-        title, start, end = radiobonn._split_title_dates(
-            "Wintermarkt - 31.12. - 02.01.2027"
-        )
+        title, start, end = radiobonn._split_title_dates("Wintermarkt - 31.12. - 02.01.2027")
 
         self.assertEqual(title, "Wintermarkt")
         self.assertEqual(start.strftime("%Y-%m-%d"), "2026-12-31")

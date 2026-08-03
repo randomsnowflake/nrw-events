@@ -11,6 +11,7 @@ from nrw_events.sources import (
     hofflohmaerkte,
     kinderflohmarkt,
 )
+
 from tests.helpers import patch_window
 
 

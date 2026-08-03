@@ -49,12 +49,17 @@ class CliTests(unittest.TestCase):
 
     def test_filters_apply_category_free_radius_and_evening_semantics(self):
         today = datetime(2026, 7, 31)
-        result = runner.ImportResult((
-            event("Free market", "2026-07-31", time="18:00", category="market", distance=5, free=True),
-            event("Paid market", "2026-07-31", time="19:00", category="market", distance=5),
-            event("Far concert", "2026-07-31", time="20:00", category="concert", distance=30, free=True),
-            event("Morning market", "2026-07-31", time="10:00", category="market", distance=5, free=True),
-        ), {}, 4, "healthy")
+        result = runner.ImportResult(
+            (
+                event("Free market", "2026-07-31", time="18:00", category="market", distance=5, free=True),
+                event("Paid market", "2026-07-31", time="19:00", category="market", distance=5),
+                event("Far concert", "2026-07-31", time="20:00", category="concert", distance=30, free=True),
+                event("Morning market", "2026-07-31", time="10:00", category="market", distance=5, free=True),
+            ),
+            {},
+            4,
+            "healthy",
+        )
         settings = config.RuntimeConfig(
             radius_km=15,
             categories=("market",),
@@ -71,12 +76,21 @@ class CliTests(unittest.TestCase):
             return runner.ImportResult((event("Machine readable", date),), {}, 1, "healthy")
 
         stdout = io.StringIO()
-        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.dict(os.environ, {
-            "NRW_EVENTS_ENV_FILE": os.path.join(tmpdir, "missing.env"),
-            "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
-            "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
-        }, clear=True), mock.patch.object(runner, "run_import", side_effect=fake_import), \
-                mock.patch.object(runner, "publish_snapshot") as publish, contextlib.redirect_stdout(stdout):
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            mock.patch.dict(
+                os.environ,
+                {
+                    "NRW_EVENTS_ENV_FILE": os.path.join(tmpdir, "missing.env"),
+                    "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
+                    "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
+                },
+                clear=True,
+            ),
+            mock.patch.object(runner, "run_import", side_effect=fake_import),
+            mock.patch.object(runner, "publish_snapshot") as publish,
+            contextlib.redirect_stdout(stdout),
+        ):
             exit_code = runner.cli(["nrw-events", "heute", "--json"])
 
             self.assertFalse(os.path.exists(os.path.join(tmpdir, "events.json")))
@@ -87,14 +101,25 @@ class CliTests(unittest.TestCase):
         publish.assert_not_called()
 
     def test_cli_flags_override_environment(self):
-        with mock.patch.dict(os.environ, {
-            "NRW_EVENTS_RADIUS_KM": "75",
-            "NRW_EVENTS_CATEGORIES": "concert",
-            "NRW_EVENTS_FREE_ONLY": "0",
-        }, clear=True):
-            _, _, overrides = runner._parse_cli([
-                "nrw-events", "--umkreis", "15km", "--kategorie", "markt,festival", "--kostenlos",
-            ])
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NRW_EVENTS_RADIUS_KM": "75",
+                "NRW_EVENTS_CATEGORIES": "concert",
+                "NRW_EVENTS_FREE_ONLY": "0",
+            },
+            clear=True,
+        ):
+            _, _, overrides = runner._parse_cli(
+                [
+                    "nrw-events",
+                    "--umkreis",
+                    "15km",
+                    "--kategorie",
+                    "markt,festival",
+                    "--kostenlos",
+                ]
+            )
 
         self.assertEqual(overrides["radius_km"], 15)
         self.assertEqual(overrides["categories"], ("market", "festival"))

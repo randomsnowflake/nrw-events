@@ -18,11 +18,11 @@ def fetch() -> list:
     try:
         html = common.fetch_url(_URL, timeout=25)
         events = common.events_from_wp_event_manager_listing(
-            html, source, "ruhr-guide nrw ruhrgebiet event konzert kultur ausstellung", 0.65)
+            html, source, "ruhr-guide nrw ruhrgebiet event konzert kultur ausstellung", 0.65
+        )
         return _enrich_missing_descriptions(
             events,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="ruhrguide", timeout=20),
+            detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="ruhrguide", timeout=20),
         )
     except Exception as e:
         common.log_source_error(source, e)
@@ -43,15 +43,17 @@ def _detail_description(html: str) -> str:
         html or "",
         re.S | re.I,
     )
-    return common.concise_description(
-        common.clean_html(metadata.group(1) if metadata else ""), max_chars=360)
+    return common.concise_description(common.clean_html(metadata.group(1) if metadata else ""), max_chars=360)
 
 
 def _fallback_description(event: dict) -> str:
     start = common.parse_iso_date(event.get("start_date") or "")
     return common.factual_event_description(
-        event.get("title", ""), date_value=start, time_text=event.get("time", ""),
-        venue=event.get("venue", ""), city=event.get("city", ""),
+        event.get("title", ""),
+        date_value=start,
+        time_text=event.get("time", ""),
+        venue=event.get("venue", ""),
+        city=event.get("city", ""),
     )
 
 

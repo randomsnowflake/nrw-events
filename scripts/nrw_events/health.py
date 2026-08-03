@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from .models import RawEvent
 
@@ -22,7 +22,7 @@ class SourceStatus(str, Enum):
 @dataclass(frozen=True, slots=True)
 class EndpointOutcome:
     url: str
-    status: Optional[int] = None
+    status: int | None = None
     error_type: str = ""
     error: str = ""
 
@@ -38,24 +38,25 @@ class SourceFetchResult:
     endpoints: tuple[EndpointOutcome, ...] = ()
 
     @classmethod
-    def success(cls, events: list[RawEvent]) -> "SourceFetchResult":
+    def success(cls, events: list[RawEvent]) -> SourceFetchResult:
         return cls(tuple(events), SourceStatus.HEALTHY if events else SourceStatus.HEALTHY_EMPTY)
 
     @classmethod
-    def partial(cls, events: list[RawEvent], *warnings: str,
-                endpoints: tuple[EndpointOutcome, ...] = ()) -> "SourceFetchResult":
+    def partial(
+        cls, events: list[RawEvent], *warnings: str, endpoints: tuple[EndpointOutcome, ...] = ()
+    ) -> SourceFetchResult:
         return cls(tuple(events), SourceStatus.DEGRADED, warnings=warnings, endpoints=endpoints)
 
     @classmethod
-    def disabled(cls, reason: str) -> "SourceFetchResult":
+    def disabled(cls, reason: str) -> SourceFetchResult:
         return cls(status=SourceStatus.DISABLED, disabled_reason=reason)
 
     @classmethod
-    def scheduled_skip(cls, reason: str) -> "SourceFetchResult":
+    def scheduled_skip(cls, reason: str) -> SourceFetchResult:
         return cls(status=SourceStatus.SCHEDULED_SKIP, disabled_reason=reason)
 
     @classmethod
-    def parser_empty(cls, warning: str = "parser returned no records") -> "SourceFetchResult":
+    def parser_empty(cls, warning: str = "parser returned no records") -> SourceFetchResult:
         return cls(status=SourceStatus.PARSER_EMPTY, warnings=(warning,))
 
 
@@ -78,7 +79,7 @@ class SourceResult:
     cancelled_events: list[dict[str, Any]] = field(default_factory=list)
     announced_events: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[dict[str, str]] = field(default_factory=list)
-    error: Optional[dict[str, str]] = None
+    error: dict[str, str] | None = None
     status_reason: str = ""
 
     def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> None:
@@ -107,10 +108,7 @@ class SourceResult:
         self.accepted_event_count = len(events)
         if self.status in {SourceStatus.DISABLED, SourceStatus.SCHEDULED_SKIP}:
             return
-        parser_empty = any(
-            endpoint.get("parser_empty") is True
-            for endpoint in self.endpoints.values()
-        )
+        parser_empty = any(endpoint.get("parser_empty") is True for endpoint in self.endpoints.values())
         if self.error:
             self.status = SourceStatus.FAILED
         elif parser_empty and not events:
@@ -143,8 +141,7 @@ class SourceResult:
             "cancelled_event_count": len(self.cancelled_events),
             "announced_event_count": len(self.announced_events),
             "cancelled_rate": (
-                round(len(self.cancelled_events) / self.raw_event_count, 4)
-                if self.raw_event_count else 0.0
+                round(len(self.cancelled_events) / self.raw_event_count, 4) if self.raw_event_count else 0.0
             ),
             "warnings": self.warnings,
             "error": self.error,

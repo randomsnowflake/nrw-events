@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+import json
+import re
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from datetime import date, timedelta
 from hashlib import sha256
-import json
 from pathlib import Path
-import re
 from statistics import median
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .identity import event_id
 from .normalization import comparison_text
-
 
 LEDGER_SCHEMA_VERSION = 1
 
@@ -64,19 +64,26 @@ def _parse_dates(values: Iterable[str]) -> list[date]:
 def _cadence(dates: list[date]) -> tuple[str, str, int | None]:
     if len(dates) < 3:
         return "irregular", "", None
-    gaps = [(right - left).days for left, right in zip(dates, dates[1:])]
+    gaps = [(right - left).days for left, right in zip(dates, dates[1:], strict=False)]
     typical = round(median(gaps))
     cadence = (
-        "weekly" if 6 <= typical <= 8 else
-        "biweekly" if 12 <= typical <= 16 else
-        "monthly" if 26 <= typical <= 32 else
-        "irregular"
+        "weekly"
+        if 6 <= typical <= 8
+        else "biweekly"
+        if 12 <= typical <= 16
+        else "monthly"
+        if 26 <= typical <= 32
+        else "irregular"
     )
     pattern = ""
     if len({value.weekday() for value in dates}) == 1:
         weekday = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")[dates[0].weekday()]
         ordinals = {(value.day - 1) // 7 + 1 for value in dates}
-        pattern = f"{('first', 'second', 'third', 'fourth', 'fifth')[next(iter(ordinals)) - 1]}_{weekday}" if len(ordinals) == 1 else weekday
+        pattern = (
+            f"{('first', 'second', 'third', 'fourth', 'fifth')[next(iter(ordinals)) - 1]}_{weekday}"
+            if len(ordinals) == 1
+            else weekday
+        )
     return cadence, pattern, typical
 
 
@@ -95,15 +102,17 @@ def _runs(series_id: str, dates: list[date], today: date) -> list[dict[str, Any]
     for group in groups:
         cadence, pattern, group_typical = _cadence(group)
         complete = group[-1] < today and bool(group_typical and (today - group[-1]).days > group_typical * 2)
-        result.append({
-            "run_id": f"{series_id}-{group[0].isoformat()}",
-            "start_date": group[0].isoformat(),
-            "end_date": group[-1].isoformat(),
-            "cadence": cadence,
-            "cadence_pattern": pattern,
-            "occurrence_count": len(group),
-            "is_complete": complete,
-        })
+        result.append(
+            {
+                "run_id": f"{series_id}-{group[0].isoformat()}",
+                "start_date": group[0].isoformat(),
+                "end_date": group[-1].isoformat(),
+                "cadence": cadence,
+                "cadence_pattern": pattern,
+                "occurrence_count": len(group),
+                "is_complete": complete,
+            }
+        )
     return result
 
 
@@ -127,10 +136,7 @@ def enrich_events(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Attach series/run IDs and return metadata plus an updated durable ledger."""
     rows = [dict(event) for event in events]
-    stored = {
-        key: dict(value) for key, value in (ledger.get("series") or {}).items()
-        if isinstance(value, dict)
-    }
+    stored = {key: dict(value) for key, value in (ledger.get("series") or {}).items() if isinstance(value, dict)}
     current_groups: dict[str, list[dict[str, Any]]] = {}
     for event in rows:
         key = _series_key(event)
@@ -138,17 +144,20 @@ def enrich_events(
             continue
         series_id = _identifier(key)
         current_groups.setdefault(series_id, []).append(event)
-        record = stored.setdefault(series_id, {
-            "series_id": series_id,
-            "title": str(event.get("series_title") or event.get("title") or ""),
-            "venue": str(event.get("venue") or ""),
-            "canonical_venue_id": str(event.get("venue_id") or ""),
-            "city": str(event.get("city") or ""),
-            "category_key": str(event.get("category_key") or "other"),
-            "first_seen": generated_at,
-            "occurrences": {},
-            "announced_dates": [],
-        })
+        record = stored.setdefault(
+            series_id,
+            {
+                "series_id": series_id,
+                "title": str(event.get("series_title") or event.get("title") or ""),
+                "venue": str(event.get("venue") or ""),
+                "canonical_venue_id": str(event.get("venue_id") or ""),
+                "city": str(event.get("city") or ""),
+                "category_key": str(event.get("category_key") or "other"),
+                "first_seen": generated_at,
+                "occurrences": {},
+                "announced_dates": [],
+            },
+        )
         occurrences = record.setdefault("occurrences", {})
         occurrences[event_id(event)] = str(event.get("start_date") or event.get("date") or "")
         record["last_seen"] = generated_at
@@ -171,8 +180,7 @@ def enrich_events(
         record = stored.get(series_id)
         if record is not None:
             record["announced_dates"] = [
-                value for value in record.get("announced_dates") or []
-                if value != announced_date
+                value for value in record.get("announced_dates") or [] if value != announced_date
             ]
 
     for event in announced_rows:
@@ -187,17 +195,20 @@ def enrich_events(
         series_id = _identifier(key)
         if (series_id, announced_date) in cancelled_announcements:
             continue
-        record = stored.setdefault(series_id, {
-            "series_id": series_id,
-            "title": str(event.get("series_title") or event.get("title") or ""),
-            "venue": str(event.get("venue") or ""),
-            "canonical_venue_id": str(event.get("venue_id") or ""),
-            "city": str(event.get("city") or ""),
-            "category_key": str(event.get("category_key") or "other"),
-            "first_seen": generated_at,
-            "occurrences": {},
-            "announced_dates": [],
-        })
+        record = stored.setdefault(
+            series_id,
+            {
+                "series_id": series_id,
+                "title": str(event.get("series_title") or event.get("title") or ""),
+                "venue": str(event.get("venue") or ""),
+                "canonical_venue_id": str(event.get("venue_id") or ""),
+                "city": str(event.get("city") or ""),
+                "category_key": str(event.get("category_key") or "other"),
+                "first_seen": generated_at,
+                "occurrences": {},
+                "announced_dates": [],
+            },
+        )
         announced = record.setdefault("announced_dates", [])
         if announced_date not in announced:
             announced.append(announced_date)

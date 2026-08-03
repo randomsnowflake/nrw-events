@@ -43,7 +43,8 @@ def _exhibition_cards(html: str) -> list:
         # button. Ticket-shop and image links are nearby but not event details.
         more = re.search(
             r'<a[^>]+href="([^"]+)"[^>]*aria-label="[^"]*exhibition page with further information[^"]*"',
-            section, re.S | re.I,
+            section,
+            re.S | re.I,
         )
         if more:
             href = more.group(1)
@@ -140,13 +141,17 @@ def _card_times(date_text: str) -> tuple[int, int, int, int] | None:
     if not match:
         return None
     return (
-        int(match.group(1)), int(match.group(2) or 0),
-        int(match.group(3)), int(match.group(4) or 0),
+        int(match.group(1)),
+        int(match.group(2) or 0),
+        int(match.group(3)),
+        int(match.group(4) or 0),
     )
 
 
 def _series_key(event: dict) -> tuple[str, str]:
-    normalize = lambda value: re.sub(r"[^a-zäöüß0-9]", "", (value or "").casefold())
+    def normalize(value):
+        return re.sub(r"[^a-zäöüß0-9]", "", (value or "").casefold())
+
     return normalize(event.get("title", "")), normalize(event.get("description", ""))
 
 
@@ -158,7 +163,8 @@ def _events_from_search_results(content: str, source: str = "Bundeskunsthalle") 
             continue
         date_match = re.search(
             r'<span[^>]+class="[^"]*events__card__date[^"]*"[^>]*>(.*?)</span>',
-            heading.group(2), re.S | re.I,
+            heading.group(2),
+            re.S | re.I,
         )
         if not date_match:
             continue
@@ -167,18 +173,21 @@ def _events_from_search_results(content: str, source: str = "Bundeskunsthalle") 
         if not common.window_contains(start):
             continue
 
-        title = common.clean_html(re.sub(
-            r'<span[^>]+class="[^"]*events__card__date[^"]*"[^>]*>.*?</span>',
-            "", heading.group(2), flags=re.S | re.I,
-        ))
+        title = common.clean_html(
+            re.sub(
+                r'<span[^>]+class="[^"]*events__card__date[^"]*"[^>]*>.*?</span>',
+                "",
+                heading.group(2),
+                flags=re.S | re.I,
+            )
+        )
         if not title:
             continue
         link = common.urllib.parse.urljoin(_EVENTS_URL, unescape(heading.group(1)))
-        paragraphs = [
-            common.clean_html(value) for value in re.findall(r"<p[^>]*>(.*?)</p>", article, re.S | re.I)
-        ]
-        description = max((value for value in paragraphs if value and "Zur Veranstaltung" not in value),
-                          key=len, default="")
+        paragraphs = [common.clean_html(value) for value in re.findall(r"<p[^>]*>(.*?)</p>", article, re.S | re.I)]
+        description = max(
+            (value for value in paragraphs if value and "Zur Veranstaltung" not in value), key=len, default=""
+        )
 
         end = start
         time_text = ""
@@ -190,8 +199,16 @@ def _events_from_search_results(content: str, source: str = "Bundeskunsthalle") 
             time_text = f"{start_hour:02d}:{start_minute:02d}–{end_hour:02d}:{end_minute:02d}"
 
         event = common.make_event(
-            title, start, end, "Bundeskunsthalle", "Bonn", description, link,
-            source, f"Bundeskunsthalle Kultur Veranstaltung {title}", trust=1.0,
+            title,
+            start,
+            end,
+            "Bundeskunsthalle",
+            "Bonn",
+            description,
+            link,
+            source,
+            f"Bundeskunsthalle Kultur Veranstaltung {title}",
+            trust=1.0,
             time_text=time_text,
         )
         if not event:
@@ -242,10 +259,16 @@ def _fetch_exhibitions(source: str) -> list:
         # Treat as an exhibition spanning [start, end]; make_event keeps it if the
         # span overlaps the window. Open-start exhibitions use TODAY as start.
         ev = common.make_event(
-            title, start_dt or common.TODAY, end_dt,
-            "Bundeskunsthalle", "Bonn",
-            "Museum Mile, Helmut-Kohl-Allee 4", link,
-            source, "exhibition museum art", 1.0,
+            title,
+            start_dt or common.TODAY,
+            end_dt,
+            "Bundeskunsthalle",
+            "Bonn",
+            "Museum Mile, Helmut-Kohl-Allee 4",
+            link,
+            source,
+            "exhibition museum art",
+            1.0,
         )
         if ev:
             events.append(ev)

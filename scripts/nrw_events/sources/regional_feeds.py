@@ -34,13 +34,15 @@ def _fetch_neunkirchen_seelscheid() -> list:
 
 def _fetch_unkel_rss() -> list:
     try:
-        root = ET.fromstring(common.fetch_url(
-            _UNKEL_RSS,
-            timeout=25,
-            accept="application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
-            sec_fetch_mode="no-cors",
-            sec_fetch_dest="empty",
-        ))
+        root = ET.fromstring(
+            common.fetch_url(
+                _UNKEL_RSS,
+                timeout=25,
+                accept="application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
+                sec_fetch_mode="no-cors",
+                sec_fetch_dest="empty",
+            )
+        )
     except Exception as e:
         common.log_source_error("VG Unkel", e)
         return []
@@ -58,8 +60,9 @@ def _event_from_unkel_item(item):
     link = _UNKEL_EVENTS_URL
     desc = item.findtext("description") or ""
     text = rc.clean(desc)
-    if not any(place in f"{title} {text} {link}".lower()
-               for place in ("unkel", "rheinbreitbach", "bruchhausen", "erpel")):
+    if not any(
+        place in f"{title} {text} {link}".lower() for place in ("unkel", "rheinbreitbach", "bruchhausen", "erpel")
+    ):
         return None
 
     start = rc.parse_dt(text)

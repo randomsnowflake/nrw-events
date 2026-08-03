@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .core import _legacy_junk_decision
 
@@ -28,13 +29,33 @@ class QualityDecision:
 
 
 REQUIRED_PUBLICATION_FIELDS = (
-    "title", "source", "start_date", "end_date", "date", "city", "link",
-    "score", "status", "timezone", "category_key", "category_label",
-    "category_confidence", "category_reason", "all_day", "location_confidence",
+    "title",
+    "source",
+    "start_date",
+    "end_date",
+    "date",
+    "city",
+    "link",
+    "score",
+    "status",
+    "timezone",
+    "category_key",
+    "category_label",
+    "category_confidence",
+    "category_reason",
+    "all_day",
+    "location_confidence",
 )
 OPTIONAL_CONTENT_FIELDS = (
-    "time", "time_note", "venue", "venue_id", "venue_address",
-    "venue_district", "venue_type", "description", "price",
+    "time",
+    "time_note",
+    "venue",
+    "venue_id",
+    "venue_address",
+    "venue_district",
+    "venue_type",
+    "description",
+    "price",
 )
 
 # Warning-only gates. They deliberately require a meaningful sample so a single
@@ -68,14 +89,8 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
 
     def source_metrics(source_rows: list[Mapping[str, Any]]) -> dict[str, Any]:
         count = len(source_rows)
-        low_confidence = sum(
-            float(event.get("category_confidence") or 0) < 0.6
-            for event in source_rows
-        )
-        unresolved = sum(
-            event.get("location_confidence") == "unresolved"
-            for event in source_rows
-        )
+        low_confidence = sum(float(event.get("category_confidence") or 0) < 0.6 for event in source_rows)
+        unresolved = sum(event.get("location_confidence") == "unresolved" for event in source_rows)
         missing_venue = sum(not present(event, "venue") for event in source_rows)
         registered_venue = sum(present(event, "venue_id") for event in source_rows)
         venue_address = sum(present(event, "venue_address") for event in source_rows)
@@ -93,27 +108,20 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
             "venue_address_rate": round(venue_address / count, 4) if count else 0.0,
         }
 
-    by_source = {
-        source: source_metrics(source_rows)
-        for source, source_rows in sorted(sources.items())
-    }
+    by_source = {source: source_metrics(source_rows) for source, source_rows in sorted(sources.items())}
     return {
         "event_count": len(rows),
         "missing_required_fields": {
-            field: sum(not present(event, field) for event in rows)
-            for field in REQUIRED_PUBLICATION_FIELDS
+            field: sum(not present(event, field) for event in rows) for field in REQUIRED_PUBLICATION_FIELDS
         },
         "optional_field_coverage": {
-            field: sum(present(event, field) for event in rows)
-            for field in OPTIONAL_CONTENT_FIELDS
+            field: sum(present(event, field) for event in rows) for field in OPTIONAL_CONTENT_FIELDS
         },
         "registered_venue_count": sum(present(event, "venue_id") for event in rows),
         "venue_address_count": sum(present(event, "venue_address") for event in rows),
         "category_counts": dict(sorted(category_counts.items())),
         "uncategorized_count": category_counts.get("other", 0),
-        "uncategorized_rate": (
-            round(category_counts.get("other", 0) / len(rows), 4) if rows else 0.0
-        ),
+        "uncategorized_rate": (round(category_counts.get("other", 0) / len(rows), 4) if rows else 0.0),
         "by_source": by_source,
     }
 
@@ -128,21 +136,21 @@ def quality_gate_warnings(
     uncategorized = int(metrics.get("uncategorized_count") or 0)
     uncategorized_rate = float(metrics.get("uncategorized_rate") or 0)
     uncategorized_threshold = QUALITY_GATE_THRESHOLDS["uncategorized_rate"]
-    if (event_count >= QUALITY_GATE_MIN_EVENTS
-            and uncategorized_rate > uncategorized_threshold):
-        warnings.append({
-            "source": "all",
-            "error_type": "QualityGateWarning",
-            "error": (
-                "published events remain uncategorized: "
-                f"{uncategorized}/{event_count} ({uncategorized_rate:.1%})"
-            ),
-            "rule_id": "quality.uncategorized-rate",
-            "count": uncategorized,
-            "event_count": event_count,
-            "rate": round(uncategorized_rate, 4),
-            "threshold": uncategorized_threshold,
-        })
+    if event_count >= QUALITY_GATE_MIN_EVENTS and uncategorized_rate > uncategorized_threshold:
+        warnings.append(
+            {
+                "source": "all",
+                "error_type": "QualityGateWarning",
+                "error": (
+                    f"published events remain uncategorized: {uncategorized}/{event_count} ({uncategorized_rate:.1%})"
+                ),
+                "rule_id": "quality.uncategorized-rate",
+                "count": uncategorized,
+                "event_count": event_count,
+                "rate": round(uncategorized_rate, 4),
+                "threshold": uncategorized_threshold,
+            }
+        )
     rate_rules = (
         (
             "low_confidence_rate",
@@ -173,24 +181,22 @@ def quality_gate_warnings(
             if rate <= threshold:
                 continue
             affected = int(source_metrics.get(count_key) or 0)
-            warnings.append({
-                "source": source,
-                "error_type": "QualityGateWarning",
-                "error": f"{description}: {affected}/{count} ({rate:.1%})",
-                "rule_id": rule_id,
-                "count": affected,
-                "event_count": count,
-                "rate": rate,
-                "threshold": threshold,
-            })
+            warnings.append(
+                {
+                    "source": source,
+                    "error_type": "QualityGateWarning",
+                    "error": f"{description}: {affected}/{count} ({rate:.1%})",
+                    "rule_id": rule_id,
+                    "count": affected,
+                    "event_count": count,
+                    "rate": rate,
+                    "threshold": threshold,
+                }
+            )
 
     for source, result in sorted(source_results.items()):
         reasons = result.get("rejection_reasons") or {}
-        quality_drops = sum(
-            int(count)
-            for reason, count in reasons.items()
-            if str(reason).startswith("quality:")
-        )
+        quality_drops = sum(int(count) for reason, count in reasons.items() if str(reason).startswith("quality:"))
         accepted = int(result.get("accepted_event_count") or 0)
         candidates = accepted + quality_drops
         if candidates < QUALITY_GATE_MIN_EVENTS:
@@ -199,19 +205,20 @@ def quality_gate_warnings(
         threshold = QUALITY_GATE_THRESHOLDS["drop_rate"]
         if rate <= threshold:
             continue
-        warnings.append({
-            "source": source,
-            "error_type": "QualityGateWarning",
-            "error": (
-                "editorial quality rules dropped "
-                f"{quality_drops}/{candidates} in-window candidates ({rate:.1%})"
-            ),
-            "rule_id": "quality.drop-rate",
-            "count": quality_drops,
-            "event_count": candidates,
-            "rate": round(rate, 4),
-            "threshold": threshold,
-        })
+        warnings.append(
+            {
+                "source": source,
+                "error_type": "QualityGateWarning",
+                "error": (
+                    f"editorial quality rules dropped {quality_drops}/{candidates} in-window candidates ({rate:.1%})"
+                ),
+                "rule_id": "quality.drop-rate",
+                "count": quality_drops,
+                "event_count": candidates,
+                "rate": round(rate, 4),
+                "threshold": threshold,
+            }
+        )
     return warnings
 
 
@@ -383,5 +390,4 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     if legacy := _legacy_junk_decision(dict(event)):
         rule_id, reason, matched_terms = legacy
         return QualityDecision(QualityAction.DROP, rule_id, reason, matched_terms)
-    return QualityDecision(QualityAction.KEEP, "quality.accepted",
-                           "event passed all editorial quality rules")
+    return QualityDecision(QualityAction.KEEP, "quality.accepted", "event passed all editorial quality rules")

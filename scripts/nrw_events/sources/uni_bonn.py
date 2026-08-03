@@ -7,9 +7,9 @@ venue, room, and price fields. Detail responses use the shared persistent TTL
 cache and failures degrade to the still-useful iCal record.
 """
 
+import re
 from datetime import timedelta
 from html.parser import HTMLParser
-import re
 
 from .. import category_taxonomy, common
 from . import regional_common as rc
@@ -21,10 +21,24 @@ _CACHE_NAMESPACE = "uni-bonn-detail"
 _MAX_DURATION = timedelta(days=366 * 5)
 _ORDINARY_EVENT_MAX_DURATION = timedelta(days=31)
 _LONG_RUNNING_RE = re.compile(r"\b(?:ausstellung|exhibition|museum|kunstkammer)\b", re.I)
-_VOID_TAGS = frozenset({
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-    "meta", "param", "source", "track", "wbr",
-})
+_VOID_TAGS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
 
 
 class _ContentItemParser(HTMLParser):
@@ -87,10 +101,7 @@ def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
     venue_parts = []
     for part in (parser.fields.get("ort", ""), parser.fields.get("raum", "")):
         key = re.sub(r"\s*\([^)]*\)", "", part).strip(" ,").casefold()
-        existing_keys = {
-            re.sub(r"\s*\([^)]*\)", "", value).strip(" ,").casefold()
-            for value in venue_parts
-        }
+        existing_keys = {re.sub(r"\s*\([^)]*\)", "", value).strip(" ,").casefold() for value in venue_parts}
         if part and key not in existing_keys:
             venue_parts.append(part)
     return {
@@ -116,14 +127,16 @@ def _merge_context(event: dict, context: dict) -> dict:
     if context.get("price"):
         raw_price = context["price"][:160]
         inferred_price = common.infer_free_admission_price(
-            enriched.get("title", ""), enriched.get("description", ""), context["price"],
+            enriched.get("title", ""),
+            enriched.get("description", ""),
+            context["price"],
         )
         paid_amounts = [
-            float(value.replace(",", "."))
-            for value in re.findall(r"(\d+(?:[,.]\d+)?)\s*(?:€|Euro\b)", raw_price, re.I)
+            float(value.replace(",", ".")) for value in re.findall(r"(\d+(?:[,.]\d+)?)\s*(?:€|Euro\b)", raw_price, re.I)
         ]
         enriched["price"] = (
-            raw_price if inferred_price == "kostenlos" and any(amount > 0 for amount in paid_amounts)
+            raw_price
+            if inferred_price == "kostenlos" and any(amount > 0 for amount in paid_amounts)
             else inferred_price or raw_price
         )
     return enriched

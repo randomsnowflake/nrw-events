@@ -7,11 +7,12 @@ not have to duplicate category rules in TypeScript.
 
 from __future__ import annotations
 
-import re
 import json
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, TypedDict
+from typing import TypedDict
 
 from .models import normalize_source_id
 
@@ -91,7 +92,7 @@ def configure_fallback_cache(path: str = "") -> None:
         confidence = raw.get("confidence", 0.9)
         if key not in CATEGORY_BY_KEY or key == "other":
             raise ValueError(f"category fallback cache contains invalid category {key!r}")
-        if not isinstance(confidence, (int, float)) or not HEURISTIC_CONFIDENCE_THRESHOLD <= confidence <= 1:
+        if not isinstance(confidence, int | float) or not HEURISTIC_CONFIDENCE_THRESHOLD <= confidence <= 1:
             raise ValueError("category fallback cache confidence must be between 0.5 and 1.0")
         category = CATEGORY_BY_KEY[key]
         loaded[cache_key] = {
@@ -163,27 +164,72 @@ FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 LOW_VALUE_TITLE_CONTEXT = (
-    suffix_word("treff"), prefix_word("frühstück"), prefix_word("fruehstueck"),
-    prefix_word("senioren"), suffix_word("cafe"), suffix_word("café"),
-    "sprachkurs", "deutschkurs", "english club", "sprechstunde", "beratung",
-    "rat", "sitzung", "ausschuss", "verwaltungsrat", "netzwerktreffen",
-    "kaffeenachmittag", "mittagstisch",
+    suffix_word("treff"),
+    prefix_word("frühstück"),
+    prefix_word("fruehstueck"),
+    prefix_word("senioren"),
+    suffix_word("cafe"),
+    suffix_word("café"),
+    "sprachkurs",
+    "deutschkurs",
+    "english club",
+    "sprechstunde",
+    "beratung",
+    "rat",
+    "sitzung",
+    "ausschuss",
+    "verwaltungsrat",
+    "netzwerktreffen",
+    "kaffeenachmittag",
+    "mittagstisch",
 )
 
 DESTINATION_TITLE_CONTEXT = (
-    "festival", "flohmarkt", "konzert", "theater", "kino", "ausstellung", "vernissage",
-    "führung", "fuehrung", "tour", "soundwalk", "tag der offenen tür", "tag der offenen tuer",
-    "repair café", "repair cafe", "reparatur-café", "reparatur-cafe", "biker-treffen",
+    "festival",
+    "flohmarkt",
+    "konzert",
+    "theater",
+    "kino",
+    "ausstellung",
+    "vernissage",
+    "führung",
+    "fuehrung",
+    "tour",
+    "soundwalk",
+    "tag der offenen tür",
+    "tag der offenen tuer",
+    "repair café",
+    "repair cafe",
+    "reparatur-café",
+    "reparatur-cafe",
+    "biker-treffen",
 )
 
 STRONG_MARKET_TITLE_CONTEXT = (
-    "flohmarkt", "trödelmarkt", "troedelmarkt", "antikmarkt", "basar",
-    "feierabendmarkt", "jahrmarkt", "krammarkt", "viehmarkt",
-    "designmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt",
-    "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt",
-    "fruehlingsmarkt", "martinimarkt", "töpfermarkt", "toepfermarkt",
+    "flohmarkt",
+    "trödelmarkt",
+    "troedelmarkt",
+    "antikmarkt",
+    "basar",
+    "feierabendmarkt",
+    "jahrmarkt",
+    "krammarkt",
+    "viehmarkt",
+    "designmarkt",
+    "weihnachtsmarkt",
+    "adventsmarkt",
+    "nikolausmarkt",
+    "dreikönigsmarkt",
+    "dreikoenigsmarkt",
+    "herbstmarkt",
+    "frühlingsmarkt",
+    "fruehlingsmarkt",
+    "martinimarkt",
+    "töpfermarkt",
+    "toepfermarkt",
     "kunsthandwerkermarkt",
-    "schallplattenbörse", "schallplattenboerse",
+    "schallplattenbörse",
+    "schallplattenboerse",
     "fashion, family & kids markt",
 )
 
@@ -192,29 +238,380 @@ STRONG_MARKET_TITLE_CONTEXT = (
 # should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
 # is a flea market first, not a generic family event.
 RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "kindersachen flohmarkt", suffix_word("trödel"), suffix_word("troedel"), "wochenmarkt", "freitagsmarkt", "frischemarkt", "feierabendmarkt", "jahrmarkt", "krammarkt", "viehmarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "designmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt", "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt", "fruehlingsmarkt", "martinimarkt", "töpfermarkt", "toepfermarkt", "kunsthandwerkermarkt", "schallplattenbörse", "schallplattenboerse", "kindersachenbasar", "kinderbasar", "fashion, family & kids markt", word("market"), Keyword("markt", title_only=True, word=True), Keyword("basar", title_only=True, word_suffix=True), Keyword("antik", title_only=True, word=True))),
-    Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", prefix_word("kulinar"), "genuss", prefix_word("schlemmer"), "grillen", "dîner", "diner en blanc", "wine", "winzer", "weinprobe", "weinfest", prefix_word("weinmoment"), "weinlounge", "biergarten", "tasting", word("wein"), word("bier"))),
+    Rule(
+        "market",
+        14,
+        (
+            "flohmarkt",
+            "kindersachen flohmarkt",
+            suffix_word("trödel"),
+            suffix_word("troedel"),
+            "wochenmarkt",
+            "freitagsmarkt",
+            "frischemarkt",
+            "feierabendmarkt",
+            "jahrmarkt",
+            "krammarkt",
+            "viehmarkt",
+            "stoffmarkt",
+            "büchermarkt",
+            "buechermarkt",
+            "kunstmarkt",
+            "designmarkt",
+            "spezialmarkt",
+            "antikmarkt",
+            "kreativmarkt",
+            "lebenskunstmarkt",
+            "weihnachtsmarkt",
+            "adventsmarkt",
+            "nikolausmarkt",
+            "dreikönigsmarkt",
+            "dreikoenigsmarkt",
+            "herbstmarkt",
+            "frühlingsmarkt",
+            "fruehlingsmarkt",
+            "martinimarkt",
+            "töpfermarkt",
+            "toepfermarkt",
+            "kunsthandwerkermarkt",
+            "schallplattenbörse",
+            "schallplattenboerse",
+            "kindersachenbasar",
+            "kinderbasar",
+            "fashion, family & kids markt",
+            word("market"),
+            Keyword("markt", title_only=True, word=True),
+            Keyword("basar", title_only=True, word_suffix=True),
+            Keyword("antik", title_only=True, word=True),
+        ),
+    ),
+    Rule(
+        "food",
+        13,
+        (
+            "streetfood-festival",
+            "streetfood",
+            "street food",
+            "foodtruck",
+            prefix_word("kulinar"),
+            "genuss",
+            prefix_word("schlemmer"),
+            "grillen",
+            "dîner",
+            "diner en blanc",
+            "wine",
+            "winzer",
+            "weinprobe",
+            "weinfest",
+            prefix_word("weinmoment"),
+            "weinlounge",
+            "biergarten",
+            "tasting",
+            word("wein"),
+            word("bier"),
+        ),
+    ),
     Rule(
         "kids",
         12,
         (
-            "kinder", "kids", "familie", "family", "jugend", "familienprogramm", prefix_word("familienbegleitung"),
-            "mitmach", "märchen", "maerchen", "puppentheater", "puppenspiel", "kinderbühne", "kinderbuehne", "kasper", "vorlesen", "lese-abenteuer",
-            "sommerleseclub", "lesesommer", "vorlesesommer", "vorlesehund",
-            "feriencamp", suffix_word("ferienaktion"), "ferienprogramm",
-            "ferienspaß", "ferienspass", "kuscheltierübernachtung",
-            "bambini", "krabbel", "lego", "zauberwürfel", "zauberwuerfel",
-            "storytime", "martinszug", word("dino"),
+            "kinder",
+            "kids",
+            "familie",
+            "family",
+            "jugend",
+            "familienprogramm",
+            prefix_word("familienbegleitung"),
+            "mitmach",
+            "märchen",
+            "maerchen",
+            "puppentheater",
+            "puppenspiel",
+            "kinderbühne",
+            "kinderbuehne",
+            "kasper",
+            "vorlesen",
+            "lese-abenteuer",
+            "sommerleseclub",
+            "lesesommer",
+            "vorlesesommer",
+            "vorlesehund",
+            "feriencamp",
+            suffix_word("ferienaktion"),
+            "ferienprogramm",
+            "ferienspaß",
+            "ferienspass",
+            "kuscheltierübernachtung",
+            "bambini",
+            "krabbel",
+            "lego",
+            "zauberwürfel",
+            "zauberwuerfel",
+            "storytime",
+            "martinszug",
+            word("dino"),
         ),
     ),
-    Rule("workshop", 11, ("workshop", compound_word("workshop"), "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "summer school", "zeichnen lernen", "gag-schreiben", Keyword("repair", title_only=True, word_prefix=True), "reparatur-café", "reparatur-cafe", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "schmücken", "schmuecken", "keramik", "malen", prefix_word("kreativ"), "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quiltingtreff", "quilten")),
-    Rule("talk", 10, ("lesung", compound_word("lesung"), "lesekreis", "lesezirkel", "buchtreff", prefix_word("buchvorstellung"), "vorlesung", "vortrag", "lecture", prefix_word("diskussion"), "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", prefix_word("philosophisch"), "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("forum"), word("talk"), Keyword("info", title_only=True, word=True), title_only("meetup"), title_only("community meeting"))),
-    Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwoche", "sportwochenende", "tennis", "volleyball", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "radlertreff", "fahrrad", "rennrad", "rennradeln", "stadtradeln", "radeln", "pedelec", "paddeln", "klettern", "schwimmen", "boule", "schach", "schachxperten")),
-    Rule("cinema", 8, ("kino", compound_word("film"), word("film", weak=True), "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
-    Rule("concert", 7, (suffix_word("konzert"), "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", prefix_word("klavier"), "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
-    Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro", weak=True), word("party"), "afterjobparty", "landjugendparty", "treckerparty", "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
-    Rule("stage", 5, ("theater", compound_word("theater"), "bühne", "buehne", "kabarett", "comedy", "comedian", "kleinkunst", "stand-up", "standup", "satire", "impro", "improtheater", "improvisationstheater", "variete", "varieté", "revue", "poetry slam", "poetryslam", "lachen", "zirkus", "cirque", word("tanz"), word("dance"), "musical", "show", word("performance"), word("oper"), word("stage"), word("slam"))),
-    Rule("exhibition", 4, ("ausstellung", compound_word("ausstellung"), "exhibition", "museum", "galerie", "gallery", "kunst", "karikatur", "vernissage", "atelier", "installation")),
+    Rule(
+        "workshop",
+        11,
+        (
+            "workshop",
+            compound_word("workshop"),
+            "werkstatt",
+            "digitale werkstatt",
+            "kurs",
+            "seminar",
+            "training",
+            "summer school",
+            "zeichnen lernen",
+            "gag-schreiben",
+            Keyword("repair", title_only=True, word_prefix=True),
+            "reparatur-café",
+            "reparatur-cafe",
+            "sprechstunde",
+            "weiterbildung",
+            "bildungsurlaub",
+            "vhs",
+            "bastel",
+            "schmücken",
+            "schmuecken",
+            "keramik",
+            "malen",
+            prefix_word("kreativ"),
+            "kunstprojekt",
+            "brotbacken",
+            "backkurs",
+            "hilfestellung",
+            "onleihe",
+            "e-medien",
+            "emedien",
+            "libby",
+            "makerspace",
+            "3d-druck",
+            "lasercutter",
+            "quilting",
+            "quiltingtreff",
+            "quilten",
+        ),
+    ),
+    Rule(
+        "talk",
+        10,
+        (
+            "lesung",
+            compound_word("lesung"),
+            "lesekreis",
+            "lesezirkel",
+            "buchtreff",
+            prefix_word("buchvorstellung"),
+            "vorlesung",
+            "vortrag",
+            "lecture",
+            prefix_word("diskussion"),
+            "tagung",
+            "kongress",
+            "konferenz",
+            "conference",
+            "symposium",
+            "podium",
+            "patiententag",
+            "bürgerinformation",
+            "buergerinformation",
+            "literatur",
+            word("speaker"),
+            word("speakers"),
+            word("liest"),
+            word("bildung"),
+            "informationsveranstaltung",
+            "präventionsabend",
+            "praeventionsabend",
+            prefix_word("philosophisch"),
+            "künstliche intelligenz",
+            "kuenstliche intelligenz",
+            word("ki"),
+            "chatgpt",
+            "canva",
+            "digital",
+            "hackerspace",
+            "digi:snack",
+            "cloud tech",
+            "azure",
+            "gespräch",
+            "gespraech",
+            "politik",
+            word("forum"),
+            word("talk"),
+            Keyword("info", title_only=True, word=True),
+            title_only("meetup"),
+            title_only("community meeting"),
+        ),
+    ),
+    Rule(
+        "sports",
+        9,
+        (
+            word("sport"),
+            "sportveranstaltung",
+            "sportwoche",
+            "sportwochenende",
+            "tennis",
+            "volleyball",
+            "lauf",
+            "joggen",
+            "running",
+            "rennen",
+            "marathon",
+            "handball",
+            "final4",
+            "yoga",
+            "fitness",
+            "tanzen",
+            "tanzkurs",
+            "radtour",
+            "radlertreff",
+            "fahrrad",
+            "rennrad",
+            "rennradeln",
+            "stadtradeln",
+            "radeln",
+            "pedelec",
+            "paddeln",
+            "klettern",
+            "schwimmen",
+            "boule",
+            "schach",
+            "schachxperten",
+        ),
+    ),
+    Rule(
+        "cinema",
+        8,
+        (
+            "kino",
+            compound_word("film"),
+            word("film", weak=True),
+            "movie",
+            "cinema",
+            "open-air kino",
+            "open air kino",
+            "filmabend",
+            "screening",
+        ),
+    ),
+    Rule(
+        "concert",
+        7,
+        (
+            suffix_word("konzert"),
+            "concert",
+            "livemusik",
+            "live-musik",
+            "live musik",
+            "livekonzert",
+            "live-konzert",
+            "live-band",
+            "live band",
+            "release show",
+            "musik",
+            "music",
+            "jazz",
+            "samba",
+            "forro",
+            "forró",
+            "orchester",
+            "sinfonie",
+            "symphon",
+            prefix_word("klavier"),
+            "recital",
+            "dirigent",
+            "flöte",
+            "floete",
+            "singen",
+            word("chor"),
+            word("band"),
+            word("swing"),
+        ),
+    ),
+    Rule(
+        "nightlife",
+        6,
+        (
+            word("techno"),
+            word("electronic"),
+            word("elektro", weak=True),
+            word("party"),
+            "afterjobparty",
+            "landjugendparty",
+            "treckerparty",
+            "clubnacht",
+            "clubabend",
+            "club party",
+            word("dj"),
+            word("nightlife"),
+            word("rave"),
+            word("disco"),
+            word("beats"),
+            word("lounge"),
+            word("barhopping"),
+            word("speeddating"),
+            word("singles"),
+            Keyword("bar", title_only=True, word=True),
+        ),
+    ),
+    Rule(
+        "stage",
+        5,
+        (
+            "theater",
+            compound_word("theater"),
+            "bühne",
+            "buehne",
+            "kabarett",
+            "comedy",
+            "comedian",
+            "kleinkunst",
+            "stand-up",
+            "standup",
+            "satire",
+            "impro",
+            "improtheater",
+            "improvisationstheater",
+            "variete",
+            "varieté",
+            "revue",
+            "poetry slam",
+            "poetryslam",
+            "lachen",
+            "zirkus",
+            "cirque",
+            word("tanz"),
+            word("dance"),
+            "musical",
+            "show",
+            word("performance"),
+            word("oper"),
+            word("stage"),
+            word("slam"),
+        ),
+    ),
+    Rule(
+        "exhibition",
+        4,
+        (
+            "ausstellung",
+            compound_word("ausstellung"),
+            "exhibition",
+            "museum",
+            "galerie",
+            "gallery",
+            "kunst",
+            "karikatur",
+            "vernissage",
+            "atelier",
+            "installation",
+        ),
+    ),
     Rule(
         "activities",
         3,
@@ -253,8 +650,64 @@ RULES: tuple[Rule, ...] = (
             title_only("clean-up"),
         ),
     ),
-    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", prefix_word("führung"), prefix_word("fuehrung"), "tour", "feierabendtour", "blick hinter die kulissen", prefix_word("wander"), "spaziergang", "rundgang", "rundfahrt", "herbstfahrt", "natur", suffix_word("garten", weak=True), "exkursion", "ausflug", "hohes venn", suffix_word("park"), "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
-    Rule("festival", 1, (suffix_word("fest"), "festival", "journalismusfestival", Keyword("kirmes", word_suffix=True), "kerb", "meile", "karneval", "weihnachtsfeier", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "tag des offenen denkmals", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
+    Rule(
+        "outdoor",
+        2,
+        (
+            "outdoor",
+            "draußen",
+            "draussen",
+            "garden party",
+            prefix_word("führung"),
+            prefix_word("fuehrung"),
+            "tour",
+            "feierabendtour",
+            "blick hinter die kulissen",
+            prefix_word("wander"),
+            "spaziergang",
+            "rundgang",
+            "rundfahrt",
+            "herbstfahrt",
+            "natur",
+            suffix_word("garten", weak=True),
+            "exkursion",
+            "ausflug",
+            "hohes venn",
+            suffix_word("park"),
+            "streuobst",
+            "wildkräuter",
+            "wildkraeuter",
+            "straßenbäume",
+            "strassenbaeume",
+            "stolpersteine",
+            "freiluga",
+            "festungstage",
+        ),
+    ),
+    Rule(
+        "festival",
+        1,
+        (
+            suffix_word("fest"),
+            "festival",
+            "journalismusfestival",
+            Keyword("kirmes", word_suffix=True),
+            "kerb",
+            "meile",
+            "karneval",
+            "weihnachtsfeier",
+            "public viewing",
+            "convention",
+            "sommernacht",
+            "tag der offenen tür",
+            "tag der offenen tuer",
+            "tag des offenen denkmals",
+            "stadtteilfest",
+            "straßenfest",
+            "strassenfest",
+            "dorffest",
+        ),
+    ),
 )
 
 _NON_WORD = r"[^\wäöüÄÖÜß]"
@@ -283,10 +736,7 @@ def _contains_word_prefix(text: str, needle: str) -> bool:
 
 def _contains_compound_word(text: str, needle: str) -> bool:
     normalized_needle = normalize_text(needle)
-    return any(
-        normalized_needle in token and token != normalized_needle
-        for token in re.findall(r"[\wäöüÄÖÜß]+", text)
-    )
+    return any(normalized_needle in token and token != normalized_needle for token in re.findall(r"[\wäöüÄÖÜß]+", text))
 
 
 def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
@@ -342,12 +792,8 @@ def _forced_title_format(title_text: str) -> str:
     return ""
 
 
-_GUIDED_TOUR_TITLE_PATTERN = re.compile(
-    r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b"
-)
-_INDOOR_MUSEUM_CONTEXT_PATTERN = re.compile(
-    r"\b(?:\w*museum\w*|bundeskunsthalle|ausstellungshaus)\b"
-)
+_GUIDED_TOUR_TITLE_PATTERN = re.compile(r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b")
+_INDOOR_MUSEUM_CONTEXT_PATTERN = re.compile(r"\b(?:\w*museum\w*|bundeskunsthalle|ausstellungshaus)\b")
 _OUTDOOR_GUIDED_TOUR_PATTERN = re.compile(
     r"\b(?:stadt(?:rundgang|führung|fuehrung)|für entdecker|fuer entdecker|"
     r"botanisch\w*|garten\w*|park\w*|rund um|außenbereich|aussenbereich|"
@@ -367,7 +813,8 @@ def _is_indoor_museum_guided_tour(
         return False
     return bool(
         _INDOOR_MUSEUM_CONTEXT_PATTERN.search(venue_text)
-        or source_text in {
+        or source_text
+        in {
             "bundeskunsthalle",
             "deutsches museum bonn",
             "lvr-landesmuseum bonn",
@@ -501,8 +948,7 @@ def _contextual_event_format(
         return ("exhibition", "format:artistic-installation", 0.9)
 
     concert_context = (
-        _contains_any(content, (r"\btribute\b",))
-        and _contains_any(content, (r"\blive\b", r"\bband\b", r"\bmusik\b"))
+        _contains_any(content, (r"\btribute\b",)) and _contains_any(content, (r"\blive\b", r"\bband\b", r"\bmusik\b"))
     ) or (
         _match_count(
             content,
@@ -610,7 +1056,6 @@ def categorize_event(
     venue_text = normalize_text(venue)
     source_text = normalize_text(source)
 
-
     # Explicit sport and guided-listening formats in the title outrank broader
     # programme context such as "Ferienspaß" or "künstlerische Intervention".
     explicit_title_format = _forced_title_format(title_text)
@@ -624,9 +1069,11 @@ def categorize_event(
             "reason": f"forced:{key}-title-format",
         }
 
-    if ("cinema-special" not in hint_text
-            and any(_matches(title_text, bit, is_title=True) for bit in LOW_VALUE_TITLE_CONTEXT)
-            and not any(_matches(title_text, bit, is_title=True) for bit in DESTINATION_TITLE_CONTEXT)):
+    if (
+        "cinema-special" not in hint_text
+        and any(_matches(title_text, bit, is_title=True) for bit in LOW_VALUE_TITLE_CONTEXT)
+        and not any(_matches(title_text, bit, is_title=True) for bit in DESTINATION_TITLE_CONTEXT)
+    ):
         # Municipal sources often attach broad all-purpose category bags like
         # "Kultur Konzert" to routine meetups/courses. For those low-value title
         # shapes, only classify from the actual title/description.
@@ -644,10 +1091,7 @@ def categorize_event(
 
     # A focused exhibition tag corroborated by an explicit description is more
     # reliable than an incidental conceptual word such as "Natur" in the title.
-    if (
-        hint_category_keys == {"exhibition"}
-        and _contains_word(description_text, "ausstellung")
-    ):
+    if hint_category_keys == {"exhibition"} and _contains_word(description_text, "ausstellung"):
         category = CATEGORY_BY_KEY["exhibition"]
         return {
             "key": category["key"],
@@ -656,10 +1100,7 @@ def categorize_event(
             "reason": "forced:exhibition-source-content-consensus",
         }
 
-    if (
-        hint_category_keys == {"exhibition"}
-        and _GUIDED_TOUR_TITLE_PATTERN.search(title_text)
-    ):
+    if hint_category_keys == {"exhibition"} and _GUIDED_TOUR_TITLE_PATTERN.search(title_text):
         category = CATEGORY_BY_KEY["exhibition"]
         return {
             "key": category["key"],
@@ -733,18 +1174,11 @@ def categorize_event(
         hint_keywords = _matched_keywords(hint_text, rule.keywords, is_title=False)
         if not _has_enough_evidence(title_keywords + description_keywords + hint_keywords):
             continue
-        title_matches = [
-            keyword if isinstance(keyword, str) else keyword.value
-            for keyword in title_keywords
-        ]
+        title_matches = [keyword if isinstance(keyword, str) else keyword.value for keyword in title_keywords]
         description_matches = [
-            keyword if isinstance(keyword, str) else keyword.value
-            for keyword in description_keywords
+            keyword if isinstance(keyword, str) else keyword.value for keyword in description_keywords
         ]
-        hint_matches = [
-            keyword if isinstance(keyword, str) else keyword.value
-            for keyword in hint_keywords
-        ]
+        hint_matches = [keyword if isinstance(keyword, str) else keyword.value for keyword in hint_keywords]
         score = 3 * len(title_matches)
         # A description corroborates an intent, but repeated synonyms must not
         # snowball past an explicit title format.

@@ -23,6 +23,8 @@ _BASE = "https://www.meckenheim.de"
 _TITLE = r'result-list_object-title[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
 _CATEGORY = "lokal veranstaltung markt kultur outdoor"
 _TRUST = 0.9
+
+
 def _reset_detail_context_cache() -> None:
     """Compatibility hook for isolated tests using the shared raw-page cache."""
     common._reset_detail_page_cache("meckenheim-detail")
@@ -33,7 +35,8 @@ def _field_values(html: str) -> dict:
     for label_html, value_html in re.findall(
         r'<dt[^>]+class="[^"]*object-data_field[^"]*"[^>]*>(.*?)</dt>\s*'
         r'<dd[^>]+class="[^"]*object-data_value[^"]*"[^>]*>(.*?)</dd>',
-        html or "", re.S | re.I,
+        html or "",
+        re.S | re.I,
     ):
         label = common.clean_html(label_html).rstrip(":").casefold()
         values[label] = value_html
@@ -42,7 +45,9 @@ def _field_values(html: str) -> dict:
 
 def _detail_description(html: str) -> str:
     meta = re.search(
-        r'<meta\s+name="description"\s+content="([^"]*)"', html or "", re.I,
+        r'<meta\s+name="description"\s+content="([^"]*)"',
+        html or "",
+        re.I,
     )
     if meta and common.clean_html(unescape(meta.group(1))):
         return common.concise_description(unescape(meta.group(1)))
@@ -62,7 +67,7 @@ def _detail_description(html: str) -> str:
 
 
 def _detail_venue(raw: str) -> str:
-    heading = re.search(r'result-list_object-title[^>]*>\s*<a[^>]*>(.*?)</a>', raw or "", re.S | re.I)
+    heading = re.search(r"result-list_object-title[^>]*>\s*<a[^>]*>(.*?)</a>", raw or "", re.S | re.I)
     value = heading.group(1) if heading else raw
     value = re.sub(r'<span[^>]+class="[^"]*sr-only[^"]*"[^>]*>.*?</span>', " ", value, flags=re.S | re.I)
     return common.clean_html(value)
@@ -81,9 +86,13 @@ def _parse_detail_context(html: str) -> dict:
 
 def _fetch_detail_context(link: str) -> dict:
     try:
-        return _parse_detail_context(common.fetch_detail_url(
-            link, cache_namespace="meckenheim-detail", timeout=20,
-        ))
+        return _parse_detail_context(
+            common.fetch_detail_url(
+                link,
+                cache_namespace="meckenheim-detail",
+                timeout=20,
+            )
+        )
     except Exception as exc:
         common.log_source_error("Meckenheim detail", exc)
         return {}
@@ -113,20 +122,30 @@ def _enrich_event(event: dict) -> dict:
     time_text = context.get("time", "") or event.get("time", "")
     start, end = _event_datetimes(event, time_text)
     enriched = common.make_event(
-        event.get("title", ""), start, end,
+        event.get("title", ""),
+        start,
+        end,
         context.get("venue", "") or event.get("venue", ""),
         context.get("city", "") or event.get("city", "Meckenheim"),
         context.get("description", "") or event.get("description", ""),
-        event.get("link", ""), "Meckenheim", _CATEGORY, _TRUST,
+        event.get("link", ""),
+        "Meckenheim",
+        _CATEGORY,
+        _TRUST,
         time_text=time_text,
     )
     if not enriched:
         return event
     price = context.get("price", "")
     if price:
-        enriched["price"] = common.infer_free_admission_price(
-            enriched["title"], enriched["description"], price,
-        ) or price
+        enriched["price"] = (
+            common.infer_free_admission_price(
+                enriched["title"],
+                enriched["description"],
+                price,
+            )
+            or price
+        )
     return enriched
 
 
@@ -135,8 +154,8 @@ def fetch() -> list:
     try:
         html = common.fetch_url(_URL, timeout=20)
         events = common.events_from_time_listing(
-            html, source, "Meckenheim", _CATEGORY, _TRUST,
-            _BASE, min_title=3, max_chars=1500, anchor_pattern=_TITLE)
+            html, source, "Meckenheim", _CATEGORY, _TRUST, _BASE, min_title=3, max_chars=1500, anchor_pattern=_TITLE
+        )
         return [_enrich_event(event) for event in events]
     except Exception as e:
         common.log_source_error(source, e)

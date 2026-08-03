@@ -6,7 +6,6 @@ from unittest.mock import patch
 from nrw_events import common
 from nrw_events.sources import SOURCES, bonn_districts
 
-
 BEUEL_HTML = """
 <div class="yel"><a href="/events/#31.07.2026"><span class="title">Green Juice Festival 2026</span><br>
 <b>Fr. 31.07. – 01.08. 23:59</b> | in 17 Tagen | <a href="/map/?q=Park Neu-Vilich">Park Neu-Vilich</a><br>
@@ -50,7 +49,7 @@ HOLZLAR_HTML = """
   </ul></div>
   <a href="https://bv-holzlar.de/veranstaltung/martinszug-holzlar/">Mehr erfahren</a>
 </div>
-"""
+"""  # noqa: E501
 
 
 class BonnDistrictSourceTests(unittest.TestCase):
@@ -74,9 +73,15 @@ class BonnDistrictSourceTests(unittest.TestCase):
 
     def test_new_districts_have_resolvable_coordinates(self):
         for city in (
-            "Bonn-Beuel", "Bonn-Bad Godesberg", "Bonn-Duisdorf",
-            "Bonn-Oberkassel", "Bonn-Pützchen", "Bonn-Roleber",
-            "Bonn-Vilich", "Bonn-Vilich-Müldorf", "Bonn-Holzlar",
+            "Bonn-Beuel",
+            "Bonn-Bad Godesberg",
+            "Bonn-Duisdorf",
+            "Bonn-Oberkassel",
+            "Bonn-Pützchen",
+            "Bonn-Roleber",
+            "Bonn-Vilich",
+            "Bonn-Vilich-Müldorf",
+            "Bonn-Holzlar",
         ):
             coordinates, confidence, source = common.resolve_location(city)
             self.assertIsNotNone(coordinates, city)
@@ -110,9 +115,7 @@ class BonnDistrictSourceTests(unittest.TestCase):
 
     def test_bonn_district_refinement_prefers_specific_configured_place(self):
         self.assertEqual(
-            common.refine_city_from_text(
-                "Bonn-Beuel", "Spielplatz Bonn Beuel, Vilich-Müldorf"
-            ),
+            common.refine_city_from_text("Bonn-Beuel", "Spielplatz Bonn Beuel, Vilich-Müldorf"),
             "Bonn-Vilich-Müldorf",
         )
         self.assertEqual(
@@ -126,8 +129,7 @@ class BonnDistrictSourceTests(unittest.TestCase):
 
     def test_bad_godesberg_combines_calendar_date_with_detail_copy(self):
         descriptions = {
-            "https://bad-godesberg.info/veranstaltungen_st/familien-flohmarkt":
-                "Auf der Rigal'schen Wiese wird nach Herzenslust getrödelt."
+            "https://bad-godesberg.info/veranstaltungen_st/familien-flohmarkt": "Auf der Rigal'schen Wiese wird nach Herzenslust getrödelt."  # noqa: E501
         }
         events = bonn_districts.events_from_bad_godesberg_html(BAD_GODESBERG_HTML, descriptions)
 
@@ -137,13 +139,17 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertIn("Herzenslust", events[0]["description"])
 
     def test_hardtberg_rest_parser_keeps_event_time_and_excerpt(self):
-        raw = json.dumps([{
-            "date": "2026-07-19T17:00:00",
-            "link": "https://www.hardtbergkultur.de/2026/07/19/farbspuren/",
-            "title": {"rendered": "Vernissage FARBspuren"},
-            "excerpt": {"rendered": "<p>Eine vielfältige Auswahl neuer Arbeiten.</p>"},
-            "content": {"rendered": ""},
-        }])
+        raw = json.dumps(
+            [
+                {
+                    "date": "2026-07-19T17:00:00",
+                    "link": "https://www.hardtbergkultur.de/2026/07/19/farbspuren/",
+                    "title": {"rendered": "Vernissage FARBspuren"},
+                    "excerpt": {"rendered": "<p>Eine vielfältige Auswahl neuer Arbeiten.</p>"},
+                    "content": {"rendered": ""},
+                }
+            ]
+        )
         events = bonn_districts.events_from_hardtberg_json(raw)
 
         self.assertEqual(len(events), 1)
@@ -153,8 +159,12 @@ class BonnDistrictSourceTests(unittest.TestCase):
 
     def test_ical_wrappers_guarantee_a_description(self):
         empty_event = {
-            "title": "Wochenmarkt", "description": "", "start_date": "2026-07-14",
-            "time": "15:00", "venue": "Mühlenbachhalle", "city": "Bonn-Vilich-Müldorf",
+            "title": "Wochenmarkt",
+            "description": "",
+            "start_date": "2026-07-14",
+            "time": "15:00",
+            "venue": "Mühlenbachhalle",
+            "city": "Bonn-Vilich-Müldorf",
         }
         with patch.object(bonn_districts.common, "fetch_ical", return_value=[empty_event]):
             events = bonn_districts.fetch_vilich_mueldorf()
@@ -164,25 +174,29 @@ class BonnDistrictSourceTests(unittest.TestCase):
 
     def test_roleber_replaces_low_signal_registration_copy(self):
         event = {
-            "title": "Sommer: Fußballcamp", "description": "featured by Stegis Kicker",
-            "start_date": "2026-07-27", "time": "08:00–16:00", "venue": "",
-            "city": "Bonn-Roleber", "link": "https://bsvroleber.de/event/sommer-fussballcamp/",
+            "title": "Sommer: Fußballcamp",
+            "description": "featured by Stegis Kicker",
+            "start_date": "2026-07-27",
+            "time": "08:00–16:00",
+            "venue": "",
+            "city": "Bonn-Roleber",
+            "link": "https://bsvroleber.de/event/sommer-fussballcamp/",
             "score": 0.23,
         }
-        with patch.object(bonn_districts.common, "fetch_ical", return_value=[event]), \
-                patch.object(bonn_districts.common, "fetch_detail_url", return_value=""):
+        with (
+            patch.object(bonn_districts.common, "fetch_ical", return_value=[event]),
+            patch.object(bonn_districts.common, "fetch_detail_url", return_value=""),
+        ):
             events = bonn_districts.fetch_roleber()
 
         self.assertIn("findet", events[0]["description"])
         self.assertIn("Bonn-Roleber", events[0]["description"])
         self.assertEqual(events[0]["score"], 0.45)
 
-
     def test_holzlar_parses_single_days_and_ranges_with_german_months(self):
         events = bonn_districts.events_from_holzlar_html(HOLZLAR_HTML)
 
-        self.assertEqual([event["title"] for event in events],
-                         ["BV Kohlkaul: Weinfest", "Martinszug Holzlar"])
+        self.assertEqual([event["title"] for event in events], ["BV Kohlkaul: Weinfest", "Martinszug Holzlar"])
         self.assertEqual(events[0]["start_date"], "2026-08-14")
         self.assertEqual(events[0]["end_date"], "2026-08-15")
         self.assertEqual(events[1]["start_date"], "2026-11-04")
@@ -191,8 +205,7 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events[1]["city"], "Bonn-Holzlar")
         self.assertEqual(events[0]["category_key"], "food")
         self.assertEqual(events[1]["category_key"], "kids")
-        self.assertEqual(events[1]["link"],
-                         "https://bv-holzlar.de/veranstaltung/martinszug-holzlar/")
+        self.assertEqual(events[1]["link"], "https://bv-holzlar.de/veranstaltung/martinszug-holzlar/")
         self.assertTrue(all(event["description"] for event in events))
 
     def test_holzlar_range_across_a_month_boundary_keeps_start_before_end(self):
@@ -205,6 +218,7 @@ class BonnDistrictSourceTests(unittest.TestCase):
         html = HOLZLAR_HTML.replace("August", "").replace("2026", "", 1)
 
         self.assertEqual(len(bonn_districts.events_from_holzlar_html(html)), 1)
+
     def test_bonn_postcodes_resolve_the_outer_stadtbezirke(self):
         for venue, expected in (
             ("Siegburger Str. 42, 53229 Bonn", "Bonn-Beuel"),
@@ -212,8 +226,16 @@ class BonnDistrictSourceTests(unittest.TestCase):
             ("Stadthalle, 53123 Bonn", "Bonn-Hardtberg"),
         ):
             event = common.make_event(
-                "Testtermin", datetime(2026, 9, 1), None, venue, "Bonn",
-                "Beschreibung", "https://example.test/e", "Testquelle", "kultur", 1.0,
+                "Testtermin",
+                datetime(2026, 9, 1),
+                None,
+                venue,
+                "Bonn",
+                "Beschreibung",
+                "https://example.test/e",
+                "Testquelle",
+                "kultur",
+                1.0,
             )
             with self.subTest(venue=venue):
                 self.assertEqual(event["city"], expected)
@@ -228,16 +250,32 @@ class BonnDistrictSourceTests(unittest.TestCase):
             "Max7 Zentrum, Oxfordstr. 6",
         ):
             event = common.make_event(
-                "Testtermin", datetime(2026, 9, 1), None, venue, "Bonn",
-                "Beschreibung", "https://example.test/e", "Testquelle", "kultur", 1.0,
+                "Testtermin",
+                datetime(2026, 9, 1),
+                None,
+                venue,
+                "Bonn",
+                "Beschreibung",
+                "https://example.test/e",
+                "Testquelle",
+                "kultur",
+                1.0,
             )
             with self.subTest(venue=venue):
                 self.assertEqual(event["city"], "Bonn")
 
     def test_non_bonn_cities_are_never_rewritten(self):
         event = common.make_event(
-            "Testtermin", datetime(2026, 9, 1), None, "Marktplatz, 53721 Siegburg",
-            "Siegburg", "Beschreibung", "https://example.test/e", "Testquelle", "kultur", 1.0,
+            "Testtermin",
+            datetime(2026, 9, 1),
+            None,
+            "Marktplatz, 53721 Siegburg",
+            "Siegburg",
+            "Beschreibung",
+            "https://example.test/e",
+            "Testquelle",
+            "kultur",
+            1.0,
         )
 
         self.assertEqual(event["city"], "Siegburg")

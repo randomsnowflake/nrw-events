@@ -11,7 +11,12 @@ from ..health import SourceFetchResult
 
 
 def fetch() -> SourceFetchResult:
-    return SourceFetchResult.success(common.fetch_ical(
-        "https://www.harmonie-bonn.de/?post_type=tribe_events&ical=1",
-        "Harmonie Bonn", "Bonn", "concert", 1.0,
-    ))
+    return SourceFetchResult.success(
+        common.fetch_ical(
+            "https://www.harmonie-bonn.de/?post_type=tribe_events&ical=1",
+            "Harmonie Bonn",
+            "Bonn",
+            "concert",
+            1.0,
+        )
+    )

@@ -17,22 +17,24 @@ def market(
     score=1.0,
     venue_id="",
 ):
-    return canonicalize_event({
-        "title": title,
-        "source": source,
-        "start_date": date,
-        "end_date": end_date or date,
-        "date": date,
-        "venue": venue,
-        "venue_id": venue_id,
-        "city": city,
-        "link": link,
-        "description": description,
-        "category": "markt flohmarkt trödelmarkt",
-        "category_key": "market",
-        "category_label": "Märkte & Flohmärkte",
-        "score": score,
-    })
+    return canonicalize_event(
+        {
+            "title": title,
+            "source": source,
+            "start_date": date,
+            "end_date": end_date or date,
+            "date": date,
+            "venue": venue,
+            "venue_id": venue_id,
+            "city": city,
+            "link": link,
+            "description": description,
+            "category": "markt flohmarkt trödelmarkt",
+            "category_key": "market",
+            "category_label": "Märkte & Flohmärkte",
+            "score": score,
+        }
+    )
 
 
 class MarketDuplicateRegressionTests(unittest.TestCase):

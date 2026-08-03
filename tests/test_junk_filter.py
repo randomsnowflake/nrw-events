@@ -8,6 +8,7 @@ from nrw_events.quality import (
     quality_gate_warnings,
     summarize_event_quality,
 )
+
 from tests.helpers import patch_window
 
 
@@ -25,16 +26,34 @@ def event(title, description="", category="", source="Test"):
 
 class JunkFilterTests(unittest.TestCase):
     def test_quality_summary_exposes_longitudinal_completeness_metrics(self):
-        metrics = summarize_event_quality([{
-            "title": "Event", "source": "Test", "start_date": "2026-06-12",
-            "end_date": "2026-06-12", "date": "2026-06-12", "city": "Bonn",
-            "link": "https://example.test", "score": 1.0, "status": "scheduled",
-            "timezone": "Europe/Berlin", "category_key": "other",
-            "category_label": "Sonstiges", "category_confidence": 0.0,
-            "category_reason": "other:no-match", "all_day": True,
-            "location_confidence": "known_city", "time": "", "venue": "Bonn",
-            "venue_id": "", "venue_address": "", "description": "", "price": "",
-        }])
+        metrics = summarize_event_quality(
+            [
+                {
+                    "title": "Event",
+                    "source": "Test",
+                    "start_date": "2026-06-12",
+                    "end_date": "2026-06-12",
+                    "date": "2026-06-12",
+                    "city": "Bonn",
+                    "link": "https://example.test",
+                    "score": 1.0,
+                    "status": "scheduled",
+                    "timezone": "Europe/Berlin",
+                    "category_key": "other",
+                    "category_label": "Sonstiges",
+                    "category_confidence": 0.0,
+                    "category_reason": "other:no-match",
+                    "all_day": True,
+                    "location_confidence": "known_city",
+                    "time": "",
+                    "venue": "Bonn",
+                    "venue_id": "",
+                    "venue_address": "",
+                    "description": "",
+                    "price": "",
+                }
+            ]
+        )
 
         self.assertEqual(metrics["event_count"], 1)
         self.assertEqual(sum(metrics["missing_required_fields"].values()), 0)
@@ -50,35 +69,44 @@ class JunkFilterTests(unittest.TestCase):
     def test_quality_summary_separates_source_problem_rates_without_gating(self):
         rows = [
             {
-                "source": "Sparse Feed", "category_confidence": 0.4,
-                "location_confidence": "unresolved", "venue": "",
+                "source": "Sparse Feed",
+                "category_confidence": 0.4,
+                "location_confidence": "unresolved",
+                "venue": "",
             },
             {
-                "source": "Sparse Feed", "category_confidence": 0.8,
-                "location_confidence": "known_city", "venue": "Rathaus",
+                "source": "Sparse Feed",
+                "category_confidence": 0.8,
+                "location_confidence": "known_city",
+                "venue": "Rathaus",
             },
             {
-                "source": "Healthy Feed", "category_confidence": 1.0,
-                "location_confidence": "exact", "venue": "Theater",
+                "source": "Healthy Feed",
+                "category_confidence": 1.0,
+                "location_confidence": "exact",
+                "venue": "Theater",
             },
         ]
 
         metrics = summarize_event_quality(rows)
 
         self.assertEqual(metrics["event_count"], 3)
-        self.assertEqual(metrics["by_source"]["Sparse Feed"], {
-            "event_count": 2,
-            "low_confidence_count": 1,
-            "low_confidence_rate": 0.5,
-            "unresolved_location_count": 1,
-            "unresolved_location_rate": 0.5,
-            "missing_venue_count": 1,
-            "missing_venue_rate": 0.5,
-            "registered_venue_count": 0,
-            "registered_venue_rate": 0.0,
-            "venue_address_count": 0,
-            "venue_address_rate": 0.0,
-        })
+        self.assertEqual(
+            metrics["by_source"]["Sparse Feed"],
+            {
+                "event_count": 2,
+                "low_confidence_count": 1,
+                "low_confidence_rate": 0.5,
+                "unresolved_location_count": 1,
+                "unresolved_location_rate": 0.5,
+                "missing_venue_count": 1,
+                "missing_venue_rate": 0.5,
+                "registered_venue_count": 0,
+                "registered_venue_rate": 0.0,
+                "venue_address_count": 0,
+                "venue_address_rate": 0.0,
+            },
+        )
         self.assertEqual(metrics["by_source"]["Healthy Feed"]["low_confidence_rate"], 0.0)
 
     def test_quality_decisions_are_machine_readable(self):
@@ -93,8 +121,7 @@ class JunkFilterTests(unittest.TestCase):
             (event("Interkultureller Frauentreff"), "civic.routine-meetup"),
             (event("Wochenmarkt Bonn"), "civic.routine-market"),
             (event("Deutschkurs für Männer"), "civic.course"),
-            ({**event("Static listing"), "link": "https://eventim.de/city/bonn"},
-             "metadata.directory-link"),
+            ({**event("Static listing"), "link": "https://eventim.de/city/bonn"}, "metadata.directory-link"),
         )
 
         for candidate, expected_rule in cases:
@@ -131,17 +158,28 @@ class JunkFilterTests(unittest.TestCase):
                 self.assertEqual(decision.rule_id, "civic.governance")
 
     def test_quality_gates_warn_only_for_material_source_rates(self):
-        metrics = summarize_event_quality([
-            {"source": "Weak Source", "category_key": "workshop",
-             "category_confidence": 0.2,
-             "location_confidence": "unresolved", "venue": ""}
-            for _ in range(10)
-        ] + [
-            {"source": "Healthy Source", "category_key": "stage",
-             "category_confidence": 1.0,
-             "location_confidence": "exact", "venue": "Theater"}
-            for _ in range(10)
-        ])
+        metrics = summarize_event_quality(
+            [
+                {
+                    "source": "Weak Source",
+                    "category_key": "workshop",
+                    "category_confidence": 0.2,
+                    "location_confidence": "unresolved",
+                    "venue": "",
+                }
+                for _ in range(10)
+            ]
+            + [
+                {
+                    "source": "Healthy Source",
+                    "category_key": "stage",
+                    "category_confidence": 1.0,
+                    "location_confidence": "exact",
+                    "venue": "Theater",
+                }
+                for _ in range(10)
+            ]
+        )
         source_results = {
             "Weak Runner": {
                 "accepted_event_count": 4,
@@ -164,24 +202,17 @@ class JunkFilterTests(unittest.TestCase):
                 "quality.drop-rate",
             },
         )
-        self.assertEqual({warning["source"] for warning in warnings},
-                         {"Weak Source", "Weak Runner"})
+        self.assertEqual({warning["source"] for warning in warnings}, {"Weak Source", "Weak Runner"})
 
     def test_uncategorized_gate_uses_documented_global_threshold(self):
-        metrics = summarize_event_quality([
-            {"source": "Mixed", "category_key": "other"}
-            for _ in range(7)
-        ] + [
-            {"source": "Mixed", "category_key": "stage"}
-            for _ in range(93)
-        ])
+        metrics = summarize_event_quality(
+            [{"source": "Mixed", "category_key": "other"} for _ in range(7)]
+            + [{"source": "Mixed", "category_key": "stage"} for _ in range(93)]
+        )
 
         warnings = quality_gate_warnings(metrics, {})
 
-        warning = next(
-            item for item in warnings
-            if item["rule_id"] == "quality.uncategorized-rate"
-        )
+        warning = next(item for item in warnings if item["rule_id"] == "quality.uncategorized-rate")
         self.assertEqual(warning["source"], "all")
         self.assertEqual(warning["rate"], 0.07)
         self.assertEqual(warning["threshold"], 0.06)
@@ -201,10 +232,12 @@ class JunkFilterTests(unittest.TestCase):
                 self.assertTrue(decision.matched_terms)
 
     def test_advertising_words_away_from_content_start_do_not_trigger_marker_rule(self):
-        decision = evaluate_event_quality({
-            "title": "Diskussion über Advertorials",
-            "description": "Eine Führung mit anschließender Diskussion über Sponsored Content.",
-        })
+        decision = evaluate_event_quality(
+            {
+                "title": "Diskussion über Advertorials",
+                "description": "Eine Führung mit anschließender Diskussion über Sponsored Content.",
+            }
+        )
 
         self.assertNotEqual(decision.rule_id, "editorial.advertising-marker")
 
@@ -330,10 +363,14 @@ class JunkFilterTests(unittest.TestCase):
 
         for title, description in cases:
             with self.subTest(title=title):
-                self.assertFalse(common.is_junk_event({
-                    **event(title, description=description),
-                    "link": "https://example.test/wiederkehrende-termine/activity/",
-                }))
+                self.assertFalse(
+                    common.is_junk_event(
+                        {
+                            **event(title, description=description),
+                            "link": "https://example.test/wiederkehrende-termine/activity/",
+                        }
+                    )
+                )
 
     def test_routine_meetups_stay_blocked_beside_destination_exceptions(self):
         cases = [
@@ -344,10 +381,14 @@ class JunkFilterTests(unittest.TestCase):
 
         for title, description in cases:
             with self.subTest(title=title):
-                self.assertTrue(common.is_junk_event({
-                    **event(title, description=description),
-                    "link": "https://example.test/wiederkehrende-termine/meeting/",
-                }))
+                self.assertTrue(
+                    common.is_junk_event(
+                        {
+                            **event(title, description=description),
+                            "link": "https://example.test/wiederkehrende-termine/meeting/",
+                        }
+                    )
+                )
 
     def test_recurring_destination_markets_survive_routine_filter(self):
         cases = [
@@ -368,11 +409,15 @@ class JunkFilterTests(unittest.TestCase):
 
         for title, description in cases:
             with self.subTest(title=title):
-                self.assertFalse(common.is_junk_event(event(
-                    title,
-                    description=description,
-                    category="markt",
-                )))
+                self.assertFalse(
+                    common.is_junk_event(
+                        event(
+                            title,
+                            description=description,
+                            category="markt",
+                        )
+                    )
+                )
 
     def test_recurring_routine_markets_and_sales_remain_blocked(self):
         cases = [
@@ -388,11 +433,15 @@ class JunkFilterTests(unittest.TestCase):
 
         for title, description in cases:
             with self.subTest(title=title):
-                self.assertTrue(common.is_junk_event(event(
-                    title,
-                    description=description,
-                    category="markt",
-                )))
+                self.assertTrue(
+                    common.is_junk_event(
+                        event(
+                            title,
+                            description=description,
+                            category="markt",
+                        )
+                    )
+                )
 
     def test_search_gate_accepts_dated_destination_markets_but_not_static_shops(self):
         for title in (
@@ -402,26 +451,38 @@ class JunkFilterTests(unittest.TestCase):
             "Antikmarkt Bonn am 16.08.2026",
         ):
             with self.subTest(title=title):
-                self.assertFalse(common.is_junk_event(event(
-                    title,
-                    description="Konkreter Termin in Bonn",
-                    category="markt",
-                    source="Exa Search",
-                )))
+                self.assertFalse(
+                    common.is_junk_event(
+                        event(
+                            title,
+                            description="Konkreter Termin in Bonn",
+                            category="markt",
+                            source="Exa Search",
+                        )
+                    )
+                )
 
-        self.assertTrue(common.is_junk_event(event(
-            "Antikmarkt-Shop Bonn",
-            description="Öffnungszeiten und unser Sortiment",
-            category="markt",
-            source="Grok Search",
-        )))
+        self.assertTrue(
+            common.is_junk_event(
+                event(
+                    "Antikmarkt-Shop Bonn",
+                    description="Öffnungszeiten und unser Sortiment",
+                    category="markt",
+                    source="Grok Search",
+                )
+            )
+        )
 
     def test_keeps_french_music_descriptions_out_of_language_course_filter(self):
-        self.assertFalse(common.is_junk_event(event(
-            "Mirecourtplatz-Konzert",
-            description="Mitsingkonzert mit französischen Chansons und kölschen Hits.",
-            category="Musik/Konzert",
-        )))
+        self.assertFalse(
+            common.is_junk_event(
+                event(
+                    "Mirecourtplatz-Konzert",
+                    description="Mitsingkonzert mit französischen Chansons und kölschen Hits.",
+                    category="Musik/Konzert",
+                )
+            )
+        )
 
     def test_blocks_political_admin_unless_it_is_a_destination_event(self):
         self.assertTrue(common.is_junk_event(event("Fraktionssitzung der Ratsfraktion")))
@@ -429,30 +490,46 @@ class JunkFilterTests(unittest.TestCase):
         self.assertTrue(common.is_junk_event(event("Wahlkampf-Infostand am Marktplatz")))
         self.assertTrue(common.is_junk_event(event("Rat (öffentliche Sitzung)", category="Konzert")))
         self.assertTrue(common.is_junk_event(event("Verwaltungsrat GKU", category="Konzert")))
-        self.assertTrue(common.is_junk_event({
-            **event("Ratssitzung im Ratssaal"),
-            "venue": "Stadtmuseum Bonn",
-            "link": "https://example.test/museum/ratssitzung",
-        }))
+        self.assertTrue(
+            common.is_junk_event(
+                {
+                    **event("Ratssitzung im Ratssaal"),
+                    "venue": "Stadtmuseum Bonn",
+                    "link": "https://example.test/museum/ratssitzung",
+                }
+            )
+        )
         self.assertFalse(common.is_junk_event(event("Tag der offenen Tür im Stadtratssaal")))
-        self.assertFalse(common.is_junk_event(event(
-            "Ausstellung: Geschichte des Stadtrats",
-            description="Museumsausstellung über Ratssitzung und Stadtverordnete",
-            category="Ausstellung Museum",
-        )))
-        self.assertFalse(common.is_junk_event(event(
-            "Ratssitzung im Wandel der Zeit",
-            description="Sonderführung durch das Museum zur Geschichte kommunaler Politik",
-            category="Museum",
-        )))
+        self.assertFalse(
+            common.is_junk_event(
+                event(
+                    "Ausstellung: Geschichte des Stadtrats",
+                    description="Museumsausstellung über Ratssitzung und Stadtverordnete",
+                    category="Ausstellung Museum",
+                )
+            )
+        )
+        self.assertFalse(
+            common.is_junk_event(
+                event(
+                    "Ratssitzung im Wandel der Zeit",
+                    description="Sonderführung durch das Museum zur Geschichte kommunaler Politik",
+                    category="Museum",
+                )
+            )
+        )
 
     def test_keeps_cultural_stammtisch_events(self):
         self.assertTrue(common.is_junk_event(event("Offener Stammtisch im Bürgerzentrum")))
-        self.assertFalse(common.is_junk_event(event(
-            "Literarischer Stammtisch mit Lesung",
-            description="Lesung und Gespräch im Literaturhaus",
-            category="Lesung",
-        )))
+        self.assertFalse(
+            common.is_junk_event(
+                event(
+                    "Literarischer Stammtisch mit Lesung",
+                    description="Lesung und Gespräch im Literaturhaus",
+                    category="Lesung",
+                )
+            )
+        )
 
     def test_blocks_abi_and_graduation_balls(self):
         blocked_titles = [
@@ -485,11 +562,13 @@ class JunkFilterTests(unittest.TestCase):
                 self.assertTrue(decision.should_drop)
                 self.assertNotEqual(decision.rule_id, "legacy.editorial-policy")
 
-
     def test_standing_reading_circles_are_dropped(self):
         for title in (
-            "Literaturkreis Neubrück", "Lesekreis in Sülz", "Ehrenfelder Lesekreis",
-            "Swisttaler Lesekreis", "Lieblingsbücher – Lesezirkel in der Bücherbrücke",
+            "Literaturkreis Neubrück",
+            "Lesekreis in Sülz",
+            "Ehrenfelder Lesekreis",
+            "Swisttaler Lesekreis",
+            "Lieblingsbücher – Lesezirkel in der Bücherbrücke",
         ):
             decision = evaluate_event_quality({"title": title, "venue": "Stadtteilbibliothek"})
             with self.subTest(title=title):
@@ -497,16 +576,17 @@ class JunkFilterTests(unittest.TestCase):
                 self.assertEqual(decision.rule_id, "civic.reading-circle")
 
     def test_reading_circles_naming_the_discussed_work_are_kept(self):
-        decision = evaluate_event_quality({
-            "title": "LESEZIRKEL DAVID SZALAY »WAS NICHT GESAGT WERDEN KANN«",
-            "venue": "The Art of Books",
-        })
+        decision = evaluate_event_quality(
+            {
+                "title": "LESEZIRKEL DAVID SZALAY »WAS NICHT GESAGT WERDEN KANN«",
+                "venue": "The Art of Books",
+            }
+        )
 
         self.assertFalse(decision.should_drop)
 
     def test_online_only_sessions_are_dropped(self):
-        for venue in ("Zoom", "Zoom (Der Link wird am Tag der Veranstaltung veröffentlicht.)",
-                      "MS Teams", "online"):
+        for venue in ("Zoom", "Zoom (Der Link wird am Tag der Veranstaltung veröffentlicht.)", "MS Teams", "online"):
             decision = evaluate_event_quality({"title": "Info Wohnraum", "venue": venue})
             with self.subTest(venue=venue):
                 self.assertTrue(decision.should_drop)
@@ -515,8 +595,7 @@ class JunkFilterTests(unittest.TestCase):
     def test_physical_venues_are_not_mistaken_for_platforms(self):
         # An open-air cinema named ZOOM and a venue that merely mentions a
         # stream both keep a real address to visit.
-        for title, venue in (("ZOOM OPEN AIR 26", "Brühl"),
-                             ("Lesung", "Zoom Kulturhaus Bonn")):
+        for title, venue in (("ZOOM OPEN AIR 26", "Brühl"), ("Lesung", "Zoom Kulturhaus Bonn")):
             decision = evaluate_event_quality({"title": title, "venue": venue})
             with self.subTest(venue=venue):
                 self.assertFalse(decision.should_drop)

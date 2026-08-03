@@ -4,19 +4,22 @@ from unittest import mock
 
 from nrw_events import common, report
 from nrw_events.validation import EventValidationError, validate_event
+
 from tests.helpers import patch_window
 
 
 class DataIntegrityTests(unittest.TestCase):
     def test_validation_moves_complex_time_copy_to_note(self):
-        event = validate_event({
-            "title": "Ausstellung mit Öffnungszeiten",
-            "source": "Test",
-            "date": "2026-06-12",
-            "score": 1.0,
-            "city": "Bonn",
-            "time": "Dienstag bis Freitag, 13 bis 19 Uhr; Samstag 11 bis 18 Uhr",
-        })
+        event = validate_event(
+            {
+                "title": "Ausstellung mit Öffnungszeiten",
+                "source": "Test",
+                "date": "2026-06-12",
+                "score": 1.0,
+                "city": "Bonn",
+                "time": "Dienstag bis Freitag, 13 bis 19 Uhr; Samstag 11 bis 18 Uhr",
+            }
+        )
 
         self.assertEqual(event.time, "")
         self.assertEqual(
@@ -26,70 +29,89 @@ class DataIntegrityTests(unittest.TestCase):
         self.assertFalse(event.all_day)
 
     def test_validation_canonicalizes_hour_only_ranges(self):
-        event = validate_event({
-            "title": "Führung",
-            "source": "Test",
-            "date": "2026-06-12",
-            "score": 1.0,
-            "city": "Bonn",
-            "time": "15 bis 16 Uhr",
-        })
+        event = validate_event(
+            {
+                "title": "Führung",
+                "source": "Test",
+                "date": "2026-06-12",
+                "score": 1.0,
+                "city": "Bonn",
+                "time": "15 bis 16 Uhr",
+            }
+        )
 
         self.assertEqual(event.time, "15:00–16:00")
         self.assertEqual(event.time_note, "")
 
     def test_validation_preserves_invalid_clock_as_note(self):
-        event = validate_event({
-            "title": "Spätprogramm",
-            "source": "Test",
-            "date": "2026-06-12",
-            "score": 1.0,
-            "city": "Bonn",
-            "time": "ab 25 Uhr",
-        })
+        event = validate_event(
+            {
+                "title": "Spätprogramm",
+                "source": "Test",
+                "date": "2026-06-12",
+                "score": 1.0,
+                "city": "Bonn",
+                "time": "ab 25 Uhr",
+            }
+        )
 
         self.assertEqual(event.time, "")
         self.assertEqual(event.time_note, "ab 25 Uhr")
 
     def test_validation_does_not_classify_from_url_implementation_details(self):
-        event = validate_event({
-            "title": "Unklare Veranstaltung",
-            "source": "Test",
-            "date": "2026-06-12",
-            "score": 1.0,
-            "city": "Bonn",
-            "link": "https://example.test/museum/event",
-        })
+        event = validate_event(
+            {
+                "title": "Unklare Veranstaltung",
+                "source": "Test",
+                "date": "2026-06-12",
+                "score": 1.0,
+                "city": "Bonn",
+                "link": "https://example.test/museum/event",
+            }
+        )
         self.assertEqual(event.category_key, "other")
 
     def test_validation_infers_free_access_for_direct_dict_sources(self):
-        event = validate_event({
-            "title": "Hofflohmarkt Rondorf",
-            "source": "Hofflohmärkte Köln",
-            "date": "2026-06-12",
-            "score": 1.0,
-            "city": "Köln",
-            "description": "Hausanwohner verkaufen in ihren Höfen.",
-        })
+        event = validate_event(
+            {
+                "title": "Hofflohmarkt Rondorf",
+                "source": "Hofflohmärkte Köln",
+                "date": "2026-06-12",
+                "score": 1.0,
+                "city": "Köln",
+                "description": "Hausanwohner verkaufen in ihren Höfen.",
+            }
+        )
         self.assertEqual(event.price, "kostenlos")
 
     def test_validation_preserves_explicit_paid_price_for_implicit_free_event_type(self):
-        event = validate_event({
-            "title": "Flohmarkt Spezial",
-            "source": "Test",
-            "date": "2026-06-12",
-            "score": 1.0,
-            "city": "Bonn",
-            "price": "4 Euro",
-        })
+        event = validate_event(
+            {
+                "title": "Flohmarkt Spezial",
+                "source": "Test",
+                "date": "2026-06-12",
+                "score": 1.0,
+                "city": "Bonn",
+                "price": "4 Euro",
+            }
+        )
         self.assertEqual(event.price, "4 Euro")
 
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 30))
 
     def test_unknown_location_is_not_scored_as_bonn(self):
-        event = common.make_event("Regional event", datetime(2026, 6, 12), None, "", "Unknown region", "",
-                                  "https://example.test", "Test", "concert")
+        event = common.make_event(
+            "Regional event",
+            datetime(2026, 6, 12),
+            None,
+            "",
+            "Unknown region",
+            "",
+            "https://example.test",
+            "Test",
+            "concert",
+        )
         self.assertIsNotNone(event)
         assert event is not None
         self.assertIsNone(event["distance_km"])
@@ -97,8 +119,15 @@ class DataIntegrityTests(unittest.TestCase):
 
     def test_cancelled_phrase_is_published_with_status(self):
         event = common.make_event(
-            "Kabarettprogramm muss leider kurzfristig abgesagt werden!", datetime(2026, 6, 12), None,
-            "Venue", "Bonn", "", "https://example.test", "Test", "stage",
+            "Kabarettprogramm muss leider kurzfristig abgesagt werden!",
+            datetime(2026, 6, 12),
+            None,
+            "Venue",
+            "Bonn",
+            "",
+            "https://example.test",
+            "Test",
+            "stage",
         )
         self.assertIsNotNone(event)
         self.assertEqual(event and event["status"], "cancelled")
@@ -135,9 +164,10 @@ END:VCALENDAR"""
 VERSION:2.0
 NAME:Inactive Meetup group
 END:VCALENDAR"""
-        with mock.patch("nrw_events.common.fetch_url", return_value=ical), mock.patch(
-            "nrw_events.common._record_endpoint"
-        ) as record_endpoint:
+        with (
+            mock.patch("nrw_events.common.fetch_url", return_value=ical),
+            mock.patch("nrw_events.common._record_endpoint") as record_endpoint,
+        ):
             events = common.fetch_ical(
                 "https://example.test/events.ics",
                 "Test",
@@ -149,9 +179,10 @@ END:VCALENDAR"""
         self.assertFalse(record_endpoint.call_args.kwargs["parser_empty"])
 
     def test_empty_calendar_opt_out_does_not_hide_non_ical_parser_drift(self):
-        with mock.patch("nrw_events.common.fetch_url", return_value="<html>changed layout</html>"), mock.patch(
-            "nrw_events.common._record_endpoint"
-        ) as record_endpoint:
+        with (
+            mock.patch("nrw_events.common.fetch_url", return_value="<html>changed layout</html>"),
+            mock.patch("nrw_events.common._record_endpoint") as record_endpoint,
+        ):
             common.fetch_ical(
                 "https://example.test/events.ics",
                 "Test",
@@ -167,9 +198,10 @@ VERSION:2.0
 BEGIN:VEVENT
 SUMMARY:Truncated by the feed
 END:VCALENDAR"""
-        with mock.patch("nrw_events.common.fetch_url", return_value=ical), mock.patch(
-            "nrw_events.common._record_endpoint"
-        ) as record_endpoint:
+        with (
+            mock.patch("nrw_events.common.fetch_url", return_value=ical),
+            mock.patch("nrw_events.common._record_endpoint") as record_endpoint,
+        ):
             common.fetch_ical(
                 "https://example.test/events.ics",
                 "Test",
@@ -194,10 +226,16 @@ END:VCALENDAR"""
             validate_event({**base, "score": float("nan")})
 
     def test_validation_neutralizes_legacy_bonn_fallback_for_unknown_city(self):
-        event = validate_event({
-            "title": "Unknown city event", "date": "2026-06-12", "source": "Legacy", "score": 1.5,
-            "city": "Naturregion Sieg", "distance_km": 0,
-        })
+        event = validate_event(
+            {
+                "title": "Unknown city event",
+                "date": "2026-06-12",
+                "source": "Legacy",
+                "score": 1.5,
+                "city": "Naturregion Sieg",
+                "distance_km": 0,
+            }
+        )
         self.assertIsNone(event["distance_km"])
         self.assertEqual(event["location_confidence"], "unresolved")
         self.assertLessEqual(event["score"], 0.3)

@@ -7,7 +7,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Katharinenhof"
 _SOURCE_ID = "katharinenhof-flohmarkt"
 _URL = "https://beikircher.de/event-type/katharinenhof/"
@@ -16,10 +15,7 @@ _URL = "https://beikircher.de/event-type/katharinenhof/"
 def _schema_datetime(value: str):
     normalized = re.sub(
         r"^(20\d{2})-(\d{1,2})-(\d{1,2})(T.*)$",
-        lambda match: (
-            f"{match.group(1)}-{int(match.group(2)):02d}-"
-            f"{int(match.group(3)):02d}{match.group(4)}"
-        ),
+        lambda match: (f"{match.group(1)}-{int(match.group(2)):02d}-{int(match.group(3)):02d}{match.group(4)}"),
         value or "",
     )
     normalized = re.sub(

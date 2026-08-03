@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime
 
 from nrw_events.sources import regional_html, regional_sitekit, regional_venues
+
 from tests.helpers import patch_window
 
 
@@ -50,9 +51,7 @@ class VenueCompletenessTests(unittest.TestCase):
         </div></div>
         """
 
-        events = regional_venues._events_from_clickaround(
-            html, "https://events.example/core"
-        )
+        events = regional_venues._events_from_clickaround(html, "https://events.example/core")
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["venue"], "JUZ Live Club")

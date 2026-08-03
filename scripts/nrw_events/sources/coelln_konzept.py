@@ -7,7 +7,6 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.coelln-konzept.de/"
 _URL = rc.abs_url(_BASE_URL, "termine.php")
 _MARKET_WORDS = re.compile(r"floh|trödel|antik|mädchenkram|sammler", re.I)
@@ -75,7 +74,7 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             continue
         date_match = re.search(r'<td[^>]+class="datum"[^>]*>(.*?)</td>', row, re.S | re.I)
         market_match = re.search(
-            r'<a[^>]+class=[\'\"]linkmarkt[\'\"][^>]+href=[\'\"]([^\'\"]+)[\'\"][^>]*>(.*?)</a>',
+            r"<a[^>]+class=[\'\"]linkmarkt[\'\"][^>]+href=[\'\"]([^\'\"]+)[\'\"][^>]*>(.*?)</a>",
             row,
             re.S | re.I,
         )
@@ -92,7 +91,8 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             try:
                 detail_cache[link] = (
                     _detail_context(detail_fetcher(link))
-                    if detail_fetcher and common.window_contains(start, end) else {}
+                    if detail_fetcher and common.window_contains(start, end)
+                    else {}
                 )
             except Exception as exc:
                 common.log_source_error("Cölln Konzept detail", exc)

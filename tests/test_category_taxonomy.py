@@ -5,8 +5,8 @@ from pathlib import Path
 
 from nrw_events.category_taxonomy import (
     CATEGORIES,
-    category_cache_key,
     categorize_event,
+    category_cache_key,
     configure_fallback_cache,
 )
 
@@ -93,12 +93,17 @@ class CategoryTaxonomyTests(unittest.TestCase):
         cache_key = category_cache_key("example-source", "Jeden Dienstag: Sondertermin")
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "categories.json"
-            path.write_text(json.dumps({
-                "version": 1,
-                "entries": {
-                    cache_key: {"key": "talk", "confidence": 0.9, "reason": "editorial-review"},
-                },
-            }), encoding="utf-8")
+            path.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "entries": {
+                            cache_key: {"key": "talk", "confidence": 0.9, "reason": "editorial-review"},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
             configure_fallback_cache(str(path))
 
             result = categorize_event(
@@ -515,7 +520,12 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "Sportwochenende des SV Leimersdorf", "", "sports"),
             ("", "Gag-Schreiben", "", "workshop"),
             ("", "SchachXperten", "", "sports"),
-            ("Sonstige Veranstaltung", "Foto Club Wachtberg - Clubabend", "Im Fotoclub Wachtberg treffen sich Fotoamateure.", "activities"),
+            (
+                "Sonstige Veranstaltung",
+                "Foto Club Wachtberg - Clubabend",
+                "Im Fotoclub Wachtberg treffen sich Fotoamateure.",
+                "activities",
+            ),
             ("", 'Schumanns Carneval und von Ravel die "mirroirs"', "Klavierabend", "concert"),
             ("", "Pop-up-WeinLounge im Park", "Sommerlicher Weinausschank", "food"),
             ("concert", "Montez @ KUNST!RASEN", "", "concert"),
@@ -542,15 +552,35 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "Sommerleseclub 2026", "Anmeldung in der Stadtbücherei", "kids"),
             ("", "Lesesommer RLP", "", "kids"),
             ("Vorträge/Lesungen/Diskussionen", "Das Philosophische Café - Thema: Populismus", "", "talk"),
-            ("", "Präventionsabend: Risiken im Netz – Fake News, Cybercrime & Co.", "Für alle mit und ohne schulischen Bezug", "talk"),
+            (
+                "",
+                "Präventionsabend: Risiken im Netz – Fake News, Cybercrime & Co.",
+                "Für alle mit und ohne schulischen Bezug",
+                "talk",
+            ),
             ("", "Kaffee, Kuchen und KI", "Künstliche Intelligenz entdecken im Interim der Zentralbibliothek.", "talk"),
             ("", "NO GO – Performance im öffentlichen Raum", "Performance von Angie Hiesl und Roland Kaiser", "stage"),
             ("", "Fortis Colonia: Fort VI, Deckstein", "Kölner Festungstage", "outdoor"),
-            ("", "AI26 – The Lamarr Conference on Artificial Intelligence", "Internationale KI-Konferenz im WCCB mit Speakern aus Wissenschaft und Wirtschaft.", "talk"),
-            ("", "Um drei Ecken gedacht - Rechenschieber und Vermessung", "Sonderausstellung im Arithmeum", "exhibition"),
+            (
+                "",
+                "AI26 – The Lamarr Conference on Artificial Intelligence",
+                "Internationale KI-Konferenz im WCCB mit Speakern aus Wissenschaft und Wirtschaft.",
+                "talk",
+            ),
+            (
+                "",
+                "Um drei Ecken gedacht - Rechenschieber und Vermessung",
+                "Sonderausstellung im Arithmeum",
+                "exhibition",
+            ),
             ("", "Adenauer auf der Wolke", "Himmlische Karikaturen zum 150. Geburtstag", "exhibition"),
             ("concert", "Alien Fight Club @ Alte VHS", "Concert listing", "concert"),
-            ("Vorträge/Lesungen/Diskussionen", "Openair-Kino \u201eSpillover\u201c & Diskussion", "Filmvorführung mit Gespräch", "cinema"),
+            (
+                "Vorträge/Lesungen/Diskussionen",
+                "Openair-Kino \u201eSpillover\u201c & Diskussion",
+                "Filmvorführung mit Gespräch",
+                "cinema",
+            ),
         ]
 
         for source_category, title, description, expected in cases:
@@ -564,7 +594,12 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "Fest der Verbundenheit", "", "festival"),
             ("", "Persönliche Hilfestellung", "", "workshop"),
             ("", "Kölner Festungstage", "", "outdoor"),
-            ("kommunal kultur ausstellung konzert führung", "Frischemarkt in der Innenstadt", "Regionale Frischeprodukte", "market"),
+            (
+                "kommunal kultur ausstellung konzert führung",
+                "Frischemarkt in der Innenstadt",
+                "Regionale Frischeprodukte",
+                "market",
+            ),
             ("", "Fantomaus – Plötzlich Superheld", "Ein musikalisches Lese-Abenteuer mit Autor und Musiker.", "kids"),
             ("", "Quiltingtreff", "Nähkunst mit der Hand – gemeinsam Quilten in der Stadtteilbibliothek.", "workshop"),
             ("konzert", "Rat (öffentliche Sitzung)", "", "other"),
@@ -659,8 +694,12 @@ class CategoryTaxonomyTests(unittest.TestCase):
         # is a bookshop, not a park. Both used to match as bare substrings.
         cases = [
             ("kino film kultur", "Kinotag im Rheinforum", '"Das Dschungelbuch".', "cinema"),
-            ("lesung literatur", "Weidle stellen »Die rastlosen Jahre« vor",
-             "Veranstaltungsort: Parkbuchhandlung, Bonn-Bad Godesberg.", "talk"),
+            (
+                "lesung literatur",
+                "Weidle stellen »Die rastlosen Jahre« vor",
+                "Veranstaltungsort: Parkbuchhandlung, Bonn-Bad Godesberg.",
+                "talk",
+            ),
             # Genuine matches must survive.
             ("", "Forum Wissenschaft", "", "talk"),
             ("", "CULTRA x Stadtpark Ost", "", "outdoor"),
@@ -668,10 +707,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
         ]
         for source_category, title, description, expected in cases:
             with self.subTest(title=title):
-                self.assertEqual(
-                    categorize_event(source_category, title, description)["key"], expected
-                )
-
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
     def test_kabarett_and_comedy_remain_in_the_stage_category(self):
         cases = [
@@ -691,9 +727,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
         ]
         for source_category, title, description, expected in cases:
             with self.subTest(title=title):
-                self.assertEqual(
-                    categorize_event(source_category, title, description)["key"], expected
-                )
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
 
 
 if __name__ == "__main__":

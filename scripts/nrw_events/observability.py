@@ -9,7 +9,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 LOGGER_NAME = "nrw_events"
 _SENSITIVE = re.compile(r"([?&](?:api[_-]?key|token|key|authorization)=)[^&\s]+", re.IGNORECASE)
 
@@ -22,9 +21,7 @@ def redact(value: object) -> str:
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "timestamp": datetime.fromtimestamp(
-                record.created, timezone.utc
-            ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "timestamp": datetime.fromtimestamp(record.created, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "level": record.levelname.lower(),
             "message": redact(record.getMessage()),
             "run_id": getattr(record, "run_id", ""),
@@ -60,11 +57,23 @@ def configure_logging(run_id: str, level: str, log_path: str = "", json_log_path
     return logger
 
 
-def log(logger: logging.Logger, level: int, message: str, *, run_id: str, source: str,
-        endpoint: str = "", error_type: str = "") -> None:
-    logger.log(level, redact(message), extra={
-        "run_id": run_id,
-        "source": source,
-        "endpoint": redact(endpoint),
-        "error_type": error_type,
-    })
+def log(
+    logger: logging.Logger,
+    level: int,
+    message: str,
+    *,
+    run_id: str,
+    source: str,
+    endpoint: str = "",
+    error_type: str = "",
+) -> None:
+    logger.log(
+        level,
+        redact(message),
+        extra={
+            "run_id": run_id,
+            "source": source,
+            "endpoint": redact(endpoint),
+            "error_type": error_type,
+        },
+    )

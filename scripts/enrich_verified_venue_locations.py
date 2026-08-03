@@ -31,12 +31,15 @@ def main() -> int:
         event["venue_longitude"] = venue.venue_longitude
         if not event.get("venue_address") and venue.venue_address:
             event["venue_address"] = venue.venue_address
-        event["distance_km"] = round(common.haversine(
-            common.BONN_LAT,
-            common.BONN_LON,
-            venue.venue_latitude,
-            venue.venue_longitude,
-        ), 2)
+        event["distance_km"] = round(
+            common.haversine(
+                common.BONN_LAT,
+                common.BONN_LON,
+                venue.venue_latitude,
+                venue.venue_longitude,
+            ),
+            2,
+        )
         event["location_confidence"] = "exact"
         event["location_source"] = "venue_registry"
         enriched += 1

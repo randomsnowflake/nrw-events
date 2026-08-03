@@ -22,13 +22,11 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _URL = "https://coelln-antik-design.de/?page_id=13"
 _SOURCE = "Cölln Antik&Design"
 _SOURCE_ID = "coelln-antik-design"
 
-_ENTRY_CONTENT = re.compile(
-    r'<div class="entry-content">(.*?)</div>\s*<!--\s*\.entry-content', re.S | re.I)
+_ENTRY_CONTENT = re.compile(r'<div class="entry-content">(.*?)</div>\s*<!--\s*\.entry-content', re.S | re.I)
 _PARAGRAPH_OR_LIST = re.compile(r"<(p|ul)\b[^>]*>(.*?)</\1>", re.S | re.I)
 _LIST_ITEM = re.compile(r"<li\b[^>]*>(.*?)</li>", re.S | re.I)
 _STRONG = re.compile(r"<strong\b[^>]*>(.*?)</strong>", re.S | re.I)
@@ -40,9 +38,7 @@ _YEAR_IN_TEXT = re.compile(r"\b(\d{4,})\b")
 _POSTAL_CITY = re.compile(r"\b\d{5}\s+([A-Za-zÄÖÜäöüß][\w.\-]*(?:\s[A-ZÄÖÜ][\w.\-]*)?)")
 _PRICE = re.compile(r"Eintritt\s*([\d.,]+\s*(?:EUR|€))", re.I)
 _HOUR_RANGE = re.compile(r"\b(\d{1,2})\s*[–-]\s*(\d{1,2})\s*(?:Uhr)?")
-_NORMALIZED_HOUR_RANGE = re.compile(
-    r"^(\d{2}):(\d{2})–(\d{2}):(\d{2})$"
-)
+_NORMALIZED_HOUR_RANGE = re.compile(r"^(\d{2}):(\d{2})–(\d{2}):(\d{2})$")
 
 
 def _plausible_year(value: int) -> bool:
@@ -81,9 +77,9 @@ def _parse_date_item(text: str):
         return None, None
     year = int(raw_year)
 
-    months = [MONTH_DE[m.group(1).casefold()]
-              for m in _MONTH_IN_TEXT.finditer(text)
-              if m.group(1).casefold() in MONTH_DE]
+    months = [
+        MONTH_DE[m.group(1).casefold()] for m in _MONTH_IN_TEXT.finditer(text) if m.group(1).casefold() in MONTH_DE
+    ]
     days = [int(m.group(1)) for m in _DAY_IN_TEXT.finditer(text)]
     if not months or not days:
         return None, None
@@ -120,9 +116,7 @@ def _apply_hours(start: datetime, end: datetime | None, time_text: str):
     match = _NORMALIZED_HOUR_RANGE.fullmatch(time_text or "")
     if not match:
         return start, end
-    start_hour, start_minute, end_hour, end_minute = (
-        int(value) for value in match.groups()
-    )
+    start_hour, start_minute, end_hour, end_minute = (int(value) for value in match.groups())
     timed_start = start.replace(hour=start_hour, minute=start_minute)
     timed_end = (end or start).replace(hour=end_hour, minute=end_minute)
     return timed_start, timed_end
@@ -135,8 +129,7 @@ def events_from_page(html: str) -> list:
 
     events = []
     pending_name = pending_detail = ""
-    for tag, inner in ((m.group(1).lower(), m.group(2))
-                       for m in _PARAGRAPH_OR_LIST.finditer(content)):
+    for tag, inner in ((m.group(1).lower(), m.group(2)) for m in _PARAGRAPH_OR_LIST.finditer(content)):
         if tag == "p":
             name, detail = _market_heading(inner)
             # A paragraph without a market name is prose between sections; keep the

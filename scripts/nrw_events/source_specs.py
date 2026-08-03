@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
 import importlib
 import json
-from pathlib import Path
 import re
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import common
@@ -72,10 +72,17 @@ def _html_events(document: str, spec: SourceSpec, source_url: str) -> list[RawEv
         if not parsed:
             continue
         event = common.make_event(
-            fields.get("title", ""), parsed, None, fields.get("venue", ""),
-            fields.get("city", "") or spec.city, fields.get("description", ""),
-            fields.get("link", "") or source_url, spec.display_name,
-            spec.category_hint, spec.trust, source_id=spec.id,
+            fields.get("title", ""),
+            parsed,
+            None,
+            fields.get("venue", ""),
+            fields.get("city", "") or spec.city,
+            fields.get("description", ""),
+            fields.get("link", "") or source_url,
+            spec.display_name,
+            spec.category_hint,
+            spec.trust,
+            source_id=spec.id,
             default_category_key=spec.default_category_key,
             category_locked=spec.category_locked,
         )
@@ -93,37 +100,64 @@ def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
         urls = (*spec.urls, *spec.page_urls)
         for url in urls:
             if spec.adapter is AdapterType.ICAL:
-                events.extend(common.fetch_ical(
-                    url, spec.display_name, spec.city, spec.category_hint,
-                    spec.trust, spec.id, admission=spec.admission,
-                    default_category_key=spec.default_category_key,
-                    category_locked=spec.category_locked,
-                ))
+                events.extend(
+                    common.fetch_ical(
+                        url,
+                        spec.display_name,
+                        spec.city,
+                        spec.category_hint,
+                        spec.trust,
+                        spec.id,
+                        admission=spec.admission,
+                        default_category_key=spec.default_category_key,
+                        category_locked=spec.category_locked,
+                    )
+                )
                 continue
             document = common.fetch_url(
-                url, timeout=spec.timeout, headers=dict(spec.headers) or None,
+                url,
+                timeout=spec.timeout,
+                headers=dict(spec.headers) or None,
             )
             if spec.adapter is AdapterType.JSON_LD:
-                events.extend(common.events_from_jsonld(
-                    document, spec.display_name, spec.city, spec.category_hint,
-                    spec.trust, url, spec.id, admission=spec.admission,
-                    default_category_key=spec.default_category_key,
-                    category_locked=spec.category_locked,
-                ))
+                events.extend(
+                    common.events_from_jsonld(
+                        document,
+                        spec.display_name,
+                        spec.city,
+                        spec.category_hint,
+                        spec.trust,
+                        url,
+                        spec.id,
+                        admission=spec.admission,
+                        default_category_key=spec.default_category_key,
+                        category_locked=spec.category_locked,
+                    )
+                )
             elif spec.adapter is AdapterType.HTML:
                 events.extend(_html_events(document, spec, url))
         # Optional static detail endpoints use the shared persistent TTL cache.
         for url in spec.detail_urls:
             document = common.fetch_detail_url(
-                url, cache_namespace=f"source-spec-{spec.id}", timeout=spec.timeout,
+                url,
+                cache_namespace=f"source-spec-{spec.id}",
+                timeout=spec.timeout,
                 headers=dict(spec.headers) or None,
             )
-            events.extend(common.events_from_jsonld(
-                document, spec.display_name, spec.city, spec.category_hint,
-                spec.trust, url, spec.id, admission=spec.admission,
-                default_category_key=spec.default_category_key,
-                category_locked=spec.category_locked,
-            ))
+            events.extend(
+                common.events_from_jsonld(
+                    document,
+                    spec.display_name,
+                    spec.city,
+                    spec.category_hint,
+                    spec.trust,
+                    url,
+                    spec.id,
+                    admission=spec.admission,
+                    default_category_key=spec.default_category_key,
+                    category_locked=spec.category_locked,
+                )
+            )
         return events
 
     return fetch
@@ -167,15 +201,22 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
             raise ValueError(f"declarative source {source_id} requires urls")
         admission = raw.get("admission")
         spec = SourceSpec(
-            id=source_id, display_name=display_name, urls=urls, adapter=adapter,
-            city=str(raw.get("city") or ""), region=region,
+            id=source_id,
+            display_name=display_name,
+            urls=urls,
+            adapter=adapter,
+            city=str(raw.get("city") or ""),
+            region=region,
             category_hint=str(raw.get("category_hint") or ""),
-            trust=float(raw.get("trust", 1.0)), timeout=int(raw.get("timeout", 25)),
+            trust=float(raw.get("trust", 1.0)),
+            timeout=int(raw.get("timeout", 25)),
             headers=tuple(tuple(value) for value in raw.get("headers") or []),
             admission=AdmissionDefault(admission) if admission else None,
             default_category_key=str(raw.get("default_category_key") or ""),
             category_locked=bool(raw.get("category_locked", False)),
-            callable=callable_reference, page_urls=page_urls, detail_urls=detail_urls,
+            callable=callable_reference,
+            page_urls=page_urls,
+            detail_urls=detail_urls,
             selectors=tuple(tuple(value) for value in raw.get("selectors") or []),
         )
         ids.add(source_id)

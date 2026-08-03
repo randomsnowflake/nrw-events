@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://tickets.rheinevents.de/"
 SOURCE = "RheinEvents"
 _BERLIN = ZoneInfo("Europe/Berlin")
@@ -75,17 +74,23 @@ def _events_from_listing(html: str) -> list:
         end = _local_datetime(str(item.get("end") or "")) or start
         venue = common.clean_html(str(item.get("locationName") or ""))
         city = common.clean_html(str(item.get("locationCity") or "Bonn"))
-        description = common.factual_event_description(
-            title, date_value=start, venue=venue, city=city
-        )
+        description = common.factual_event_description(title, date_value=start, venue=venue, city=city)
         slogan = common.clean_html(str(item.get("slogan") or ""))
         if slogan:
             description = common.concise_description(f"Line-up: {slogan}. {description}")
         slug = str(item.get("url") or "").strip("/")
         link = urllib.parse.urljoin(URL, f"event/{slug}") if slug else URL
         event = common.make_event(
-            title, start, end, venue, city, description, link, SOURCE,
-            "open air electronic techno party nightlife dj concert", 0.98,
+            title,
+            start,
+            end,
+            venue,
+            city,
+            description,
+            link,
+            SOURCE,
+            "open air electronic techno party nightlife dj concert",
+            0.98,
             source_id="rheinevents",
             description_source="generated",
         )
@@ -113,9 +118,12 @@ def fetch() -> list:
             events = _events_from_listing(html)
         parser_empty = not events and metrics["out_of_window_count"] == 0
         common._record_endpoint(
-            URL, parser_type="next-data-json", candidate_count=metrics["candidate_count"],
+            URL,
+            parser_type="next-data-json",
+            candidate_count=metrics["candidate_count"],
             out_of_window_count=metrics["out_of_window_count"],
-            parsed_event_count=len(events), parser_empty=parser_empty,
+            parsed_event_count=len(events),
+            parser_empty=parser_empty,
         )
         if parser_empty:
             common.log_source_error(SOURCE, rc.ParserEmptyError("parser returned no event records"))

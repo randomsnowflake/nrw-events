@@ -110,7 +110,7 @@ class CinemaSpecialSourceTests(unittest.TestCase):
     Eine einmalige Vorstellung mit anschließendem Gespräch.
   </div></div>
 </div>
-"""
+"""  # noqa: E501
 
         events = cinema_specials._events_from_rex_filmbuehne(html)
 
@@ -249,13 +249,15 @@ Treffpunkt: Jahnschule, Herseler Str. 7, 53117 Bon</strong>n</strong></p>
         self.assert_valid_cinema_events(events)
 
     def test_kulturbad_feed_keeps_only_special_cinema_formats(self):
-        feed_events = [{
-            "title": "Open Air Kino: Kultfilm",
-            "description": "",
-            "category": "cinema-special kino film festival open air",
-            "date": "2026-07-20",
-            "source_id": "ruengsdorfer-kulturbad",
-        }]
+        feed_events = [
+            {
+                "title": "Open Air Kino: Kultfilm",
+                "description": "",
+                "category": "cinema-special kino film festival open air",
+                "date": "2026-07-20",
+                "source_id": "ruengsdorfer-kulturbad",
+            }
+        ]
         with patch("scripts.nrw_events.common.fetch_ical", return_value=feed_events) as fetch_ical:
             events = cinema_specials._fetch_kulturbad_cinema()
 

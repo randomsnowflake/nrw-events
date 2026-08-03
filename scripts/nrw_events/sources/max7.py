@@ -6,7 +6,6 @@ import urllib.parse
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://www.max7.de/tanzkurse-bonn?view=kurse&tab=2&task=display&day=0"
 SOURCE = "Tanzschule Max7"
 
@@ -60,13 +59,15 @@ def _detail_fields(html: str) -> tuple[str, str]:
 
 def _browser_safe_url(url: str) -> str:
     parts = urllib.parse.urlsplit(url)
-    return urllib.parse.urlunsplit((
-        parts.scheme,
-        parts.netloc,
-        urllib.parse.quote(parts.path, safe="/,:-"),
-        parts.query,
-        parts.fragment,
-    ))
+    return urllib.parse.urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            urllib.parse.quote(parts.path, safe="/,:-"),
+            parts.query,
+            parts.fragment,
+        )
+    )
 
 
 def _events_from_listing(html: str, detail_loader=None) -> list:
@@ -102,8 +103,17 @@ def _events_from_listing(html: str, detail_loader=None) -> list:
                     title, date_value=event_start, time_text=time_text, venue=venue, city="Bonn"
                 )
                 event = common.make_event(
-                    title, event_start, None, venue, "Bonn", description, link, SOURCE,
-                    "party nightlife salsa bachata discofox", 0.98, time_text,
+                    title,
+                    event_start,
+                    None,
+                    venue,
+                    "Bonn",
+                    description,
+                    link,
+                    SOURCE,
+                    "party nightlife salsa bachata discofox",
+                    0.98,
+                    time_text,
                     source_id="max7",
                 )
                 if event:
@@ -128,9 +138,12 @@ def fetch() -> list:
             events = _events_from_listing(html, load_detail)
         parser_empty = not events and metrics["out_of_window_count"] == 0
         common._record_endpoint(
-            URL, parser_type="html", candidate_count=metrics["candidate_count"],
+            URL,
+            parser_type="html",
+            candidate_count=metrics["candidate_count"],
             out_of_window_count=metrics["out_of_window_count"],
-            parsed_event_count=len(events), parser_empty=parser_empty,
+            parsed_event_count=len(events),
+            parser_empty=parser_empty,
         )
         if parser_empty:
             common.log_source_error(SOURCE, rc.ParserEmptyError("parser returned no party records"))

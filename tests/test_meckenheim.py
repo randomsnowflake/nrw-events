@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import meckenheim
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 DETAIL_LINK = (
     "https://www.meckenheim.de/Leben-in-Meckenheim/Veranstaltungen/"
@@ -44,29 +44,37 @@ class MeckenheimDetailTests(unittest.TestCase):
 </li>
 """
 
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}
-        ), patch.object(
-            common,
-            "fetch_url",
-            side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else DETAIL_HTML,
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict("os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}),
+            patch.object(
+                common,
+                "fetch_url",
+                side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else DETAIL_HTML,
+            ),
         ):
             events = meckenheim.fetch()
 
         self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["description"], "Wir fahren gemütlich rund um Meckenheim. Nach der Tour wird gemeinsam eingekehrt.")
+        self.assertEqual(
+            events[0]["description"],
+            "Wir fahren gemütlich rund um Meckenheim. Nach der Tour wird gemeinsam eingekehrt.",
+        )
         self.assertEqual(events[0]["venue"], "Rathaus Meckenheim")
         self.assertEqual(events[0]["time"], "18:00–21:00")
         self.assertEqual(events[0]["end_at"], "2026-07-13T21:00+02:00")
         self.assertEqual(events[0]["price"], "kostenlos")
 
     def test_persistent_cache_avoids_reloading_detail_page(self):
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ",
-            {
-                "NRW_EVENTS_CACHE_DIR": cache_dir,
-                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
-            },
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict(
+                "os.environ",
+                {
+                    "NRW_EVENTS_CACHE_DIR": cache_dir,
+                    "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "24",
+                },
+            ),
         ):
             with patch.object(common, "fetch_url", return_value=DETAIL_HTML) as fetch_url:
                 first = meckenheim._fetch_detail_context(DETAIL_LINK)
@@ -93,12 +101,14 @@ class MeckenheimDetailTests(unittest.TestCase):
 """
         detail_html = DETAIL_HTML.replace("Feierabend-Radtour", "Lieblingsbücher")
 
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}
-        ), patch.object(
-            common,
-            "fetch_url",
-            side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else detail_html,
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict("os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}),
+            patch.object(
+                common,
+                "fetch_url",
+                side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else detail_html,
+            ),
         ):
             events = meckenheim.fetch()
 
@@ -112,12 +122,14 @@ class MeckenheimDetailTests(unittest.TestCase):
 </li>
 """
 
-        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
-            "os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}
-        ), patch.object(
-            common,
-            "fetch_url",
-            side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else DETAIL_HTML,
+        with (
+            tempfile.TemporaryDirectory() as cache_dir,
+            patch.dict("os.environ", {"NRW_EVENTS_CACHE_DIR": cache_dir}),
+            patch.object(
+                common,
+                "fetch_url",
+                side_effect=lambda url, **kwargs: listing if url == meckenheim._URL else DETAIL_HTML,
+            ),
         ):
             events = meckenheim.fetch()
 

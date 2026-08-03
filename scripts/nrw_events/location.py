@@ -5,11 +5,9 @@ from __future__ import annotations
 import math
 import re
 from html import unescape
-from typing import Optional
 
 from . import config
 from .normalization import comparison_text
-
 
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
 MAX_RADIUS_KM = config.MAX_RADIUS_KM
@@ -19,10 +17,7 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Distance in km between two latitude/longitude pairs."""
     radius = 6371
     dlat, dlon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
-    a = (
-        math.sin(dlat / 2) ** 2
-        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
-    )
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
     return radius * 2 * math.asin(math.sqrt(a))
 
 
@@ -31,7 +26,7 @@ def coords_for_city(city: str) -> tuple:
     return config.VENUE_COORDS.get((city or "").lower(), (BONN_LAT, BONN_LON))
 
 
-def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optional[tuple], str, str]:
+def resolve_location(city: str, coords: tuple | None = None) -> tuple[tuple | None, str, str]:
     """Resolve an event location without silently treating unknown places as Bonn."""
     if coords is not None:
         try:
@@ -47,7 +42,7 @@ def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optiona
     return None, "unresolved", "unknown_city"
 
 
-def guess_city_from_text(text: str) -> Optional[str]:
+def guess_city_from_text(text: str) -> str | None:
     """Find a configured city in free text, preferring specific names to Bonn."""
     text_lower = re.sub(r"bundesstadt\s+bonn", " ", (text or "").lower())
     cities = sorted(config.VENUE_COORDS, key=lambda city: (city == "bonn", -len(city)))
@@ -87,10 +82,7 @@ def refine_city_from_text(city: str, text: str) -> str:
     """
     coarse = comparison_text(city)
     district_keys = [key for key in config.VENUE_COORDS if key.startswith("bonn-")]
-    district_words = {
-        key: comparison_text(key.removeprefix("bonn-"))
-        for key in district_keys
-    }
+    district_words = {key: comparison_text(key.removeprefix("bonn-")) for key in district_keys}
     if coarse != "bonn" and not coarse.startswith("bonn ") and coarse not in district_words.values():
         return city
 

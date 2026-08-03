@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from nrw_events import common, report
 from nrw_events.sources import SOURCES, geide, grote_hiller, hoffloh_bonn, okken
+
 from tests.helpers import patch_window
 
 
@@ -86,17 +87,29 @@ class BonnMarketSourceTests(unittest.TestCase):
 
     def test_hoffloh_fetches_every_api_page(self):
         first = {
-            "items": [{
-                "id": "one", "city": "Bonn", "districtName": "Friesdorf",
-                "featuredDate": "2026-08-15", "startTime": "10:00", "endTime": "16:00",
-            }],
+            "items": [
+                {
+                    "id": "one",
+                    "city": "Bonn",
+                    "districtName": "Friesdorf",
+                    "featuredDate": "2026-08-15",
+                    "startTime": "10:00",
+                    "endTime": "16:00",
+                }
+            ],
             "totalPages": 2,
         }
         second = {
-            "items": [{
-                "id": "two", "city": "Bonn", "districtName": "Küdinghoven",
-                "featuredDate": "2026-08-30", "startTime": "10:00", "endTime": "16:00",
-            }],
+            "items": [
+                {
+                    "id": "two",
+                    "city": "Bonn",
+                    "districtName": "Küdinghoven",
+                    "featuredDate": "2026-08-30",
+                    "startTime": "10:00",
+                    "endTime": "16:00",
+                }
+            ],
             "totalPages": 2,
         }
         with patch.object(common, "fetch_url", side_effect=[json.dumps(first), json.dumps(second)]) as fetch_url:
@@ -146,22 +159,24 @@ class BonnMarketSourceTests(unittest.TestCase):
             "start_at": "",
             "end_at": "",
         }
-        deduped = report.deduplicate([
-            {
-                **base,
-                "source": "Bonn.de Events",
-                "link": (
-                    "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
-                    "hauptkalender/extern/Der-MSD-Flohmarkt-in-Bonn-Beuel.php"
-                ),
-            },
-            {
-                **base,
-                "venue": "REWE Center Bonn-Beuel, Am Weidenbach 31",
-                "source": "Okken Märkte",
-                "link": "https://okkengmbh.de/flohmarkt-bonn/",
-            },
-        ])
+        deduped = report.deduplicate(
+            [
+                {
+                    **base,
+                    "source": "Bonn.de Events",
+                    "link": (
+                        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+                        "hauptkalender/extern/Der-MSD-Flohmarkt-in-Bonn-Beuel.php"
+                    ),
+                },
+                {
+                    **base,
+                    "venue": "REWE Center Bonn-Beuel, Am Weidenbach 31",
+                    "source": "Okken Märkte",
+                    "link": "https://okkengmbh.de/flohmarkt-bonn/",
+                },
+            ]
+        )
 
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["source"], "Okken Märkte")
@@ -192,56 +207,58 @@ class BonnMarketSourceTests(unittest.TestCase):
                 "link": link,
             }
 
-        deduped = report.deduplicate([
-            event(
-                "Antik- und Trödelmarkt Bad Godesberg",
-                "Bonn-Bad Godesberg",
-                "2026-08-02",
-                "Bonn district festivals",
-                "https://www.bonn.de/presse/veranstaltungsjahr",
-                score=1.3,
-            ),
-            event(
-                "Antik- und Trödelmarkt",
-                "Bad Godesberg",
-                "2026-08-02",
-                "Bad Godesberg Stadtmarketing",
-                "https://bad-godesberg.info/antikmarkt",
-                venue="Bad Godesberger Innenstadt",
-            ),
-            event(
-                "Antik-, Kunst- & Designmarkt Bonn",
-                "Bonn",
-                "2026-08-16",
-                "Bonn district festivals",
-                "https://www.bonn.de/presse/veranstaltungsjahr",
-                score=1.3,
-            ),
-            event(
-                "Antikmarkt Bonn",
-                "Bonn",
-                "2026-08-16",
-                "Cölln Konzept",
-                "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
-                venue="Friedensplatz",
-            ),
-            event(
-                "Antik- und Trödelmarkt Linz am Rhein",
-                "Linz am Rhein",
-                "2026-08-08",
-                "Linz am Rhein",
-                "https://www.linz.de/antikmarkt",
-                venue="Innenstadt Linz am Rhein",
-            ),
-            event(
-                "Antikmarkt - Linz am Rhein",
-                "Linz am Rhein",
-                "2026-08-08",
-                "Cölln Konzept",
-                "https://www.coelln-konzept.de/markt/antik_linz.html",
-                end_date="2026-08-09",
-            ),
-        ])
+        deduped = report.deduplicate(
+            [
+                event(
+                    "Antik- und Trödelmarkt Bad Godesberg",
+                    "Bonn-Bad Godesberg",
+                    "2026-08-02",
+                    "Bonn district festivals",
+                    "https://www.bonn.de/presse/veranstaltungsjahr",
+                    score=1.3,
+                ),
+                event(
+                    "Antik- und Trödelmarkt",
+                    "Bad Godesberg",
+                    "2026-08-02",
+                    "Bad Godesberg Stadtmarketing",
+                    "https://bad-godesberg.info/antikmarkt",
+                    venue="Bad Godesberger Innenstadt",
+                ),
+                event(
+                    "Antik-, Kunst- & Designmarkt Bonn",
+                    "Bonn",
+                    "2026-08-16",
+                    "Bonn district festivals",
+                    "https://www.bonn.de/presse/veranstaltungsjahr",
+                    score=1.3,
+                ),
+                event(
+                    "Antikmarkt Bonn",
+                    "Bonn",
+                    "2026-08-16",
+                    "Cölln Konzept",
+                    "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
+                    venue="Friedensplatz",
+                ),
+                event(
+                    "Antik- und Trödelmarkt Linz am Rhein",
+                    "Linz am Rhein",
+                    "2026-08-08",
+                    "Linz am Rhein",
+                    "https://www.linz.de/antikmarkt",
+                    venue="Innenstadt Linz am Rhein",
+                ),
+                event(
+                    "Antikmarkt - Linz am Rhein",
+                    "Linz am Rhein",
+                    "2026-08-08",
+                    "Cölln Konzept",
+                    "https://www.coelln-konzept.de/markt/antik_linz.html",
+                    end_date="2026-08-09",
+                ),
+            ]
+        )
 
         self.assertEqual(len(deduped), 3)
         self.assertEqual(
@@ -270,19 +287,25 @@ class BonnMarketSourceTests(unittest.TestCase):
                 **base,
                 "title": "Flohmarkt Bonn Siemensstraße",
                 "venue": "Ehemalige Biskuithalle, Siemensstraße 26",
-                "start_date": "2026-08-08", "end_date": "2026-08-08", "date": "2026-08-08",
+                "start_date": "2026-08-08",
+                "end_date": "2026-08-08",
+                "date": "2026-08-08",
             },
             {
                 **base,
                 "title": "Flohmarkt Bonn Siemensstraße",
                 "venue": "Ehemalige Biskuithalle, Siemensstraße 26",
-                "start_date": "2026-08-15", "end_date": "2026-08-15", "date": "2026-08-15",
+                "start_date": "2026-08-15",
+                "end_date": "2026-08-15",
+                "date": "2026-08-15",
             },
             {
                 **base,
                 "title": "Antik- und Trödelfabrik Bonn",
                 "venue": "Siemensstraße 25",
-                "start_date": "2026-08-08", "end_date": "2026-08-08", "date": "2026-08-08",
+                "start_date": "2026-08-08",
+                "end_date": "2026-08-08",
+                "date": "2026-08-08",
                 "source": "Other",
                 "link": "https://example.test/troedelfabrik",
             },

@@ -13,42 +13,83 @@ text is worse than an honest short description.
 
 from __future__ import annotations
 
+import os
+import re
 from collections import Counter
 from html import escape
 from html.parser import HTMLParser
-import os
-import re
 from urllib.parse import urlsplit
 
 from . import common, richtext
 
-
 _NON_DOCUMENT_SUFFIXES = (
-    ".css", ".csv", ".gif", ".ics", ".jpeg", ".jpg", ".json", ".pdf",
-    ".png", ".svg", ".webp", ".xml", ".zip",
+    ".css",
+    ".csv",
+    ".gif",
+    ".ics",
+    ".jpeg",
+    ".jpg",
+    ".json",
+    ".pdf",
+    ".png",
+    ".svg",
+    ".webp",
+    ".xml",
+    ".zip",
 )
 _SKIPPED_HOSTS = {
-    "example.com", "example.org", "example.test", "localhost",
-    "www.example.com", "www.example.org",
+    "example.com",
+    "example.org",
+    "example.test",
+    "localhost",
+    "www.example.com",
+    "www.example.org",
 }
 _CONTENT_TOKENS = {
-    "article-content", "content-detail", "detail-content", "entry-content",
-    "event-content", "event-description", "event-details", "event-text",
-    "eventdetail", "eventdescription", "events_page_detail",
-    "rich-text", "shapehub-detail-description", "tx-gbevents-pi1", "va-content",
-    "veranstaltungsbeschreibung", "veranstaltungsdetails",
+    "article-content",
+    "content-detail",
+    "detail-content",
+    "entry-content",
+    "event-content",
+    "event-description",
+    "event-details",
+    "event-text",
+    "eventdetail",
+    "eventdescription",
+    "events_page_detail",
+    "rich-text",
+    "shapehub-detail-description",
+    "tx-gbevents-pi1",
+    "va-content",
+    "veranstaltungsbeschreibung",
+    "veranstaltungsdetails",
 }
 _GENERIC_CACHE_NAMESPACE = "universal-event-details-v2"
 _VOID_TAGS = {
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-    "meta", "param", "source", "track", "wbr",
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
 }
 
 
 def enabled() -> bool:
     """Whether the shared detail pass is enabled (on by default)."""
     return os.environ.get("NRW_EVENTS_DETAIL_ENRICHMENT", "1").strip().casefold() not in {
-        "0", "false", "no", "off",
+        "0",
+        "false",
+        "no",
+        "off",
     }
 
 
@@ -230,7 +271,7 @@ def _append_supplemental_details(document: str, description_html: str) -> str:
     additions: list[str] = []
     for heading, pattern in (
         ("Hinweis", r'<span[^>]+itemprop=["\']age["\'][^>]*>(.*?)</span>'),
-        ("Anmeldung", r'<strong>\s*Anmeldung:\s*</strong>.*?<span[^>]*>(.*?)</span>'),
+        ("Anmeldung", r"<strong>\s*Anmeldung:\s*</strong>.*?<span[^>]*>(.*?)</span>"),
     ):
         match = re.search(pattern, document or "", re.I | re.S)
         value = common.clean_html(match.group(1)) if match else ""
@@ -281,22 +322,36 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
     parser = _SemanticHTML()
     parser.feed(document or "")
     description, description_html = _best_description(
-        document or "", parser, str(event.get("title") or ""),
+        document or "",
+        parser,
+        str(event.get("title") or ""),
     )
     context = {
         "description": description,
         "description_html": description_html,
-        "price": _first(parser.item_values, "price") or _visible_labeled_value(
-            document, "Preis", "Preise", "Kosten", "Eintritt",
-        ) or _template_price(document),
+        "price": _first(parser.item_values, "price")
+        or _visible_labeled_value(
+            document,
+            "Preis",
+            "Preise",
+            "Kosten",
+            "Eintritt",
+        )
+        or _template_price(document),
         # A bare itemprop=name may be the event title, organizer or venue.  It
         # is only promoted below when JSON-LD proves it belongs to location.
         "venue": "",
-        "venue_address": " ".join(filter(None, (
-            _first(parser.item_values, "streetaddress"),
-            _first(parser.item_values, "postalcode"),
-            _first(parser.item_values, "addresslocality"),
-        ))) or _visible_labeled_value(document, "Adresse", "Anschrift"),
+        "venue_address": " ".join(
+            filter(
+                None,
+                (
+                    _first(parser.item_values, "streetaddress"),
+                    _first(parser.item_values, "postalcode"),
+                    _first(parser.item_values, "addresslocality"),
+                ),
+            )
+        )
+        or _visible_labeled_value(document, "Adresse", "Anschrift"),
     }
     for item in _jsonld_candidates(document or "", str(event.get("title") or ""))[:1]:
         structured_price = common._jsonld_admission_price(item)
@@ -330,13 +385,15 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
         # sentence-safe searchable excerpt there while description_html retains
         # the complete sanitized event document for the detail page.
         enriched["description"] = common.concise_description(
-            context["description"], max_chars=8000,
+            context["description"],
+            max_chars=8000,
         )
         enriched["description_html"] = context.get("description_html", "")
         enriched["description_source"] = "scraped"
     elif (
         context.get("description_html")
-        and richtext.text_length(context["description_html"]) >= richtext.text_length(str(event.get("description_html") or ""))
+        and richtext.text_length(context["description_html"])
+        >= richtext.text_length(str(event.get("description_html") or ""))
         and richtext.describes_same_copy(context["description_html"], str(event.get("description") or ""))
     ):
         enriched["description_html"] = context["description_html"]
@@ -371,9 +428,7 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
             # they must not trigger network requests first.
             continue
     link_counts = Counter(
-        str(event.get("link") or "")
-        for event in events
-        if isinstance(event, dict) and id(event) in eligible_ids
+        str(event.get("link") or "") for event in events if isinstance(event, dict) and id(event) in eligible_ids
     )
     enriched: list[dict] = []
     for event in events:

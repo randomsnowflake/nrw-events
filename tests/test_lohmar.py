@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime
 
 from nrw_events.sources import regional_html
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LISTING_HTML = """
 <div class="article articletype-0 even">
@@ -27,7 +27,7 @@ LISTING_HTML = """
     <p>Jeden Dienstag kannst du eigene Ideen umsetzen. <a href="/details">mehr</a></p>
   </div>
 </div>
-"""
+"""  # noqa: E501
 
 
 class LohmarParserTests(unittest.TestCase):
@@ -54,9 +54,9 @@ class LohmarParserTests(unittest.TestCase):
     def test_empty_listing_teaser_uses_detail_body(self):
         listing = LISTING_HTML.replace(
             '<div class="teaser-text">\n'
-            '    <p>Entdecke die Welt des Laser-Cutting und 3D-Drucks beim Offenen Maker Treff in Lohmar!</p>\n'
+            "    <p>Entdecke die Welt des Laser-Cutting und 3D-Drucks beim Offenen Maker Treff in Lohmar!</p>\n"
             '    <p>Jeden Dienstag kannst du eigene Ideen umsetzen. <a href="/details">mehr</a></p>\n'
-            '  </div>',
+            "  </div>",
             '<div class="teaser-text"><p>Offener Maker Treff</p></div>',
         )
         detail = """
@@ -78,9 +78,9 @@ class LohmarParserTests(unittest.TestCase):
     def test_missing_detail_copy_still_produces_a_useful_description(self):
         listing = LISTING_HTML.replace(
             '<div class="teaser-text">\n'
-            '    <p>Entdecke die Welt des Laser-Cutting und 3D-Drucks beim Offenen Maker Treff in Lohmar!</p>\n'
+            "    <p>Entdecke die Welt des Laser-Cutting und 3D-Drucks beim Offenen Maker Treff in Lohmar!</p>\n"
             '    <p>Jeden Dienstag kannst du eigene Ideen umsetzen. <a href="/details">mehr</a></p>\n'
-            '  </div>',
+            "  </div>",
             '<div class="teaser-text"></div>',
         )
 

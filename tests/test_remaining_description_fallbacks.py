@@ -26,5 +26,6 @@ class RemainingDescriptionFallbackTests(unittest.TestCase):
         self.assertIn(event_date, events[0]["description"])
         self.assertIn("18:30 Uhr", events[0]["description"])
 
+
 if __name__ == "__main__":
     unittest.main()

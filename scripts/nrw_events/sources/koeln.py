@@ -22,16 +22,17 @@ def _clean_price(value: str) -> str:
 def fetch() -> list:
     source = "Köln Open Data"
     try:
-        url = ("https://www.stadt-koeln.de/externe-dienste/open-data/events-od.php"
-               f"?out=json&ndays={common.DAYS_AHEAD}")
-        data = json.loads(common.fetch_url(
-            url,
-            timeout=20,
-            accept="application/json,*/*;q=0.8",
-            sec_fetch_mode="cors",
-            sec_fetch_dest="empty",
-            expected_content_types=("application/json", "text/json"),
-        ))
+        url = f"https://www.stadt-koeln.de/externe-dienste/open-data/events-od.php?out=json&ndays={common.DAYS_AHEAD}"
+        data = json.loads(
+            common.fetch_url(
+                url,
+                timeout=20,
+                accept="application/json,*/*;q=0.8",
+                sec_fetch_mode="cors",
+                sec_fetch_dest="empty",
+                expected_content_types=("application/json", "text/json"),
+            )
+        )
         events = []
         for item in data.get("items", []):
             title = (item.get("title") or "").strip()
@@ -63,10 +64,17 @@ def fetch() -> list:
             district = item.get("stadtteil", "")
 
             event = common.make_event(
-                unescape(title), begin_dt, end_dt, unescape(venue), "Köln", unescape(desc),
-                item.get("link", ""), source, "", time_text=(
-                    unescape(re.sub(r"<[^>]+>", "", time_str).strip())[:80] if time_str else ""
-                ), coords=(lat, lon) if lat and lon else None,
+                unescape(title),
+                begin_dt,
+                end_dt,
+                unescape(venue),
+                "Köln",
+                unescape(desc),
+                item.get("link", ""),
+                source,
+                "",
+                time_text=(unescape(re.sub(r"<[^>]+>", "", time_str).strip())[:80] if time_str else ""),
+                coords=(lat, lon) if lat and lon else None,
             )
             if event:
                 event["city"] = "Köln" + (f" ({district})" if district else "")

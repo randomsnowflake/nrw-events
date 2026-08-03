@@ -49,16 +49,19 @@ def fetch_exa() -> list:
         try:
             data = common.post_json(
                 "https://api.exa.ai/search",
-                {"query": query, "numResults": 5, "type": "auto",
-                 "contents": {"text": {"maxCharacters": 500}}},
-                timeout=25, headers={"x-api-key": api_key},
+                {"query": query, "numResults": 5, "type": "auto", "contents": {"text": {"maxCharacters": 500}}},
+                timeout=25,
+                headers={"x-api-key": api_key},
                 retry_safe=True,
             )
             for result in data.get("results", []):
                 ev = common.search_result_event(
-                    result.get("title") or "", result.get("url") or "",
+                    result.get("title") or "",
+                    result.get("url") or "",
                     f"{result.get('publishedDate') or ''} {result.get('text') or result.get('summary') or ''}",
-                    source, 0.58)
+                    source,
+                    0.58,
+                )
                 if ev:
                     events.append(ev)
         except Exception as e:
@@ -86,11 +89,13 @@ def fetch_grok() -> list:
         try:
             data = common.post_json(
                 "https://api.x.ai/v1/responses",
-                {"model": "grok-4-1-fast",
-                 "input": [{"role": "developer", "content": system_prompt},
-                           {"role": "user", "content": query}],
-                 "tools": [{"type": "web_search"}]},
-                timeout=35, headers={"Authorization": f"Bearer {api_key}"},
+                {
+                    "model": "grok-4-1-fast",
+                    "input": [{"role": "developer", "content": system_prompt}, {"role": "user", "content": query}],
+                    "tools": [{"type": "web_search"}],
+                },
+                timeout=35,
+                headers={"Authorization": f"Bearer {api_key}"},
                 retry_safe=True,
             )
             text_parts = []

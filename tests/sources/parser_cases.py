@@ -3,19 +3,26 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import common
-from nrw_events.sources import SOURCES
 from nrw_events.sources import (
-    bonn, bonn_venues, bonnjetzt, bundeskunsthalle, haus_der_geschichte, koeln,
-    regional_feeds, regional_ionas4, regional_tourism, requested_venues,
+    SOURCES,
+    bonn,
+    bonn_venues,
+    bonnjetzt,
+    bundeskunsthalle,
+    haus_der_geschichte,
+    koeln,
+    regional_feeds,
+    regional_ionas4,
+    regional_tourism,
+    requested_venues,
 )
+
 from tests.helpers import patch_window
 
 
 class SourceParserTests(unittest.TestCase):
     def setUp(self):
-        self.bonn_cache_env = patch.dict(
-            "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}
-        )
+        self.bonn_cache_env = patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.bonn_cache_env.start()
         bonn._reset_detail_context_cache()
         patch_window(self, datetime(2026, 6, 9), datetime(2026, 6, 21))
@@ -23,8 +30,9 @@ class SourceParserTests(unittest.TestCase):
     def tearDown(self):
         bonn._reset_detail_context_cache()
         self.bonn_cache_env.stop()
+
     def test_bonn_events_json_tolerates_appended_server_log_noise(self):
-        raw = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
+        raw = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'  # noqa: E501
 
         events = bonn._loads_event_items(raw)
 
@@ -32,17 +40,19 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["title"], "Bonner Konzert")
 
     def test_bonn_events_json_merges_rss_when_json_is_truncated(self):
-        json_payload = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'
+        json_payload = '[{"title":"Bonner Konzert","category":["Musik/Konzert"],"startDate":"2026-06-12 20:00:00","endDate":"2026-06-12 22:00:00","locationName":"Harmonie","locationAddress":"Frongasse 28, 53121 Bonn","link":"https://www.bonn.de/event.php"}[2026-06-30T09:50:55.650330+02:00] sitekit-logger.ALERT: disk full'  # noqa: E501
         rss_payload = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel>
   <item><title>Eintritt frei: Ausstellung im Stadtmuseum</title><link>https://www.bonn.de/rss-event.php</link><pubDate>Fri, 12 Jun 2026 00:00:00 +0200</pubDate></item>
-</channel></rss>"""
+</channel></rss>"""  # noqa: E501
 
         def fake_fetch(url, *args, **kwargs):
             return rss_payload if "sp%3Aout=rss" in url else json_payload
 
-        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("nrw_events.sources.bonn._venue_points", return_value={}):
+        with (
+            patch("nrw_events.common.fetch_url", side_effect=fake_fetch),
+            patch("nrw_events.sources.bonn._venue_points", return_value={}),
+        ):
             events = bonn.fetch_events_json()
 
         self.assertEqual([event["source"] for event in events], ["Bonn.de Events", "Bonn.de Events"])
@@ -89,15 +99,20 @@ class SourceParserTests(unittest.TestCase):
             },
         ]
 
-        with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)), \
-             patch("nrw_events.sources.bonn._venue_points", return_value={}):
+        with (
+            patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)),
+            patch("nrw_events.sources.bonn._venue_points", return_value={}),
+        ):
             events = bonn.fetch_events_json()
 
-        self.assertEqual([event["title"] for event in events], [
-            "SSF Bonn Play Stations Spiel und Spaß im Sportpark Nord",
-            "Rallye im Botanischen Garten",
-            "Limes-Geburtstag",
-        ])
+        self.assertEqual(
+            [event["title"] for event in events],
+            [
+                "SSF Bonn Play Stations Spiel und Spaß im Sportpark Nord",
+                "Rallye im Botanischen Garten",
+                "Limes-Geburtstag",
+            ],
+        )
         self.assertEqual([event["price"] for event in events], ["kostenlos", "kostenlos", "kostenlos"])
         self.assertEqual(events[0]["category_key"], "sports")
         self.assertEqual(events[1]["category_key"], "kids")
@@ -128,7 +143,7 @@ class SourceParserTests(unittest.TestCase):
     <h1 class="SP-Teaser__headline">Chor und Orchester des Collegium musicum</h1>
   </a>
 </article>
-""" + "".join(
+""" + "".join(  # noqa: E501
             f"""
 <article class="SP-Teaser">
   <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/bonner-konzert-{index}.php">
@@ -137,7 +152,7 @@ class SourceParserTests(unittest.TestCase):
     <h1 class="SP-Teaser__headline">Bonner Konzert {index}</h1>
   </a>
 </article>
-"""
+"""  # noqa: E501
             for index in range(17)
         )
 
@@ -150,8 +165,10 @@ class SourceParserTests(unittest.TestCase):
                 return '<div class="SP-ArticleHeader__intro">Konzert in Bonn.</div>'
             raise AssertionError(f"unexpected URL {url}")
 
-        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("nrw_events.sources.bonn._venue_points", return_value={}):
+        with (
+            patch("nrw_events.common.fetch_url", side_effect=fake_fetch),
+            patch("nrw_events.sources.bonn._venue_points", return_value={}),
+        ):
             events = bonn.fetch_events()
 
         titles = [event["title"] for event in events]
@@ -176,21 +193,25 @@ class SourceParserTests(unittest.TestCase):
     <h1 class="SP-Teaser__headline">Eintritt frei: Free Event {index}</h1>
   </a>
 </article>
-"""
+"""  # noqa: E501
             for index in range(20)
         )
-        json_payload = __import__("json").dumps([{
-            "title": "Paid Concert",
-            "description": "Abendkonzert mit Eintritt",
-            "category": ["Musik/Konzert"],
-            "startDate": "2026-06-12 20:00:00",
-            "endDate": "2026-06-12 22:00:00",
-            "locationName": "Harmonie",
-            "locationAddress": "Frongasse 28, 53121 Bonn",
-            "link": "https://www.bonn.de/paid-concert.php",
-            "hasStartTime": True,
-            "hasEndTime": True,
-        }])
+        json_payload = __import__("json").dumps(
+            [
+                {
+                    "title": "Paid Concert",
+                    "description": "Abendkonzert mit Eintritt",
+                    "category": ["Musik/Konzert"],
+                    "startDate": "2026-06-12 20:00:00",
+                    "endDate": "2026-06-12 22:00:00",
+                    "locationName": "Harmonie",
+                    "locationAddress": "Frongasse 28, 53121 Bonn",
+                    "link": "https://www.bonn.de/paid-concert.php",
+                    "hasStartTime": True,
+                    "hasEndTime": True,
+                }
+            ]
+        )
         empty_listing_payload = '<nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>'
         empty_rss_payload = '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>'
 
@@ -207,8 +228,10 @@ class SourceParserTests(unittest.TestCase):
                 return '<div class="SP-ArticleHeader__intro">Kostenloses Event in Bonn.</div>'
             raise AssertionError(f"unexpected URL {url}")
 
-        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("nrw_events.sources.bonn._venue_points", return_value={}):
+        with (
+            patch("nrw_events.common.fetch_url", side_effect=fake_fetch),
+            patch("nrw_events.sources.bonn._venue_points", return_value={}),
+        ):
             events = bonn.fetch_events()
 
         titles = [event["title"] for event in events]
@@ -226,7 +249,7 @@ class SourceParserTests(unittest.TestCase):
     <div class="SP-Teaser__abstract">Die String Academy und das Bonner Jugendsinfonieorchester laden zum gemeinsamen Sommerkonzert ein.</div>
   </a>
 </article>
-"""
+"""  # noqa: E501
 
         events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
 
@@ -246,7 +269,7 @@ class SourceParserTests(unittest.TestCase):
 <script id="EventSerializer-1" type="application/ld+json">
 {"@context":"http://schema.org","@type":"Event","name":"Um drei Ecken gedacht","location":[{"@type":"Place","name":"Arithmeum - rechnen einst und heute","address":{"@type":"PostalAddress","addressLocality":"Bonn"}}]}
 </script>
-"""
+"""  # noqa: E501
 
         context = bonn._parse_detail_context(html)
 
@@ -309,9 +332,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["start_date"], "2026-05-02")
         self.assertEqual(events[0]["end_date"], "2026-05-02")
         self.assertEqual(events[0]["category_key"], "festival")
-        self.assertEqual(
-            events[0]["link"], "https://www.rhein-in-flammen.com/bonn/bonn.html"
-        )
+        self.assertEqual(events[0]["link"], "https://www.rhein-in-flammen.com/bonn/bonn.html")
         self.assertTrue(events[0]["description"])
 
     def test_rhein_in_flammen_ignores_navigation_without_a_date(self):
@@ -336,7 +357,7 @@ class SourceParserTests(unittest.TestCase):
   </div>
   <p class='mc-details'><a href='https://www.repaircafesbonn.de/mc-events/repair-cafe-venusberg-ippendorf/?mc_id=2171'>Weiterlesen</a></p>
 </article>
-"""
+"""  # noqa: E501
 
         events = bonn_venues.events_from_repair_cafes(html)
 
@@ -398,16 +419,20 @@ class SourceParserTests(unittest.TestCase):
 
     def test_brotfabrik_api_uses_explicit_marabu_department_as_stage_evidence(self):
         patch_window(self, datetime(2026, 9, 4), datetime(2026, 9, 4))
-        events = bonn_venues.events_from_brotfabrik_items([{
-            "Titel": "J.E.M. Neues Stück",
-            "Beschreibung": "",
-            "Ort": "Brotfabrik Bonn",
-            "Datum": "2026-09-04",
-            "Uhrzeit": "19:00:00",
-            "Url": "https://www.theater-marabu.de/stueck/j-e-m-escape-at/",
-            "Gewerk": "Marabu",
-            "Datumbis": "0000-00-00",
-        }])
+        events = bonn_venues.events_from_brotfabrik_items(
+            [
+                {
+                    "Titel": "J.E.M. Neues Stück",
+                    "Beschreibung": "",
+                    "Ort": "Brotfabrik Bonn",
+                    "Datum": "2026-09-04",
+                    "Uhrzeit": "19:00:00",
+                    "Url": "https://www.theater-marabu.de/stueck/j-e-m-escape-at/",
+                    "Gewerk": "Marabu",
+                    "Datumbis": "0000-00-00",
+                }
+            ]
+        )
 
         self.assertEqual(events[0]["category_key"], "stage")
         self.assertEqual(events[0]["category_confidence"], 1.0)
@@ -479,19 +504,21 @@ END:VCALENDAR
 
     def test_koeln_open_data_accepts_decimal_comma_coordinates(self):
         payload = {
-            "items": [{
-                "title": "Kölner Konzert",
-                "beginndatum": "2026-06-12",
-                "endedatum": "2026-06-12",
-                "latitude": "50,94701",
-                "longitude": "6,95831",
-                "veranstaltungsort": "Kölner Bühne",
-                "description": "Konzert",
-                "preis": "",
-                "uhrzeit": "20:00 Uhr",
-                "stadtteil": "Innenstadt",
-                "link": "https://example.test/koeln",
-            }]
+            "items": [
+                {
+                    "title": "Kölner Konzert",
+                    "beginndatum": "2026-06-12",
+                    "endedatum": "2026-06-12",
+                    "latitude": "50,94701",
+                    "longitude": "6,95831",
+                    "veranstaltungsort": "Kölner Bühne",
+                    "description": "Konzert",
+                    "preis": "",
+                    "uhrzeit": "20:00 Uhr",
+                    "stadtteil": "Innenstadt",
+                    "link": "https://example.test/koeln",
+                }
+            ]
         }
         with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
             events = koeln.fetch()
@@ -502,19 +529,21 @@ END:VCALENDAR
 
     def test_koeln_open_data_truncates_verbose_price_text(self):
         payload = {
-            "items": [{
-                "title": "Kinderführung im Botanischen Garten",
-                "beginndatum": "2026-06-12",
-                "endedatum": "2026-06-12",
-                "latitude": "50,94701",
-                "longitude": "6,95831",
-                "veranstaltungsort": "Botanischer Garten",
-                "description": "Führung",
-                "preis": "Die Teilnahme an der Führung kostet sieben Euro für Erwachsene und vier Euro für Kinder, Schüler*innen und Studierende, für Mitglieder des Freundeskreises, Inhaber*innen von KölnPass, Behindertenausweis und mit der Ehrenamtskarte NRW.",
-                "uhrzeit": "15:00 Uhr",
-                "stadtteil": "Innenstadt",
-                "link": "https://example.test/koeln-price",
-            }]
+            "items": [
+                {
+                    "title": "Kinderführung im Botanischen Garten",
+                    "beginndatum": "2026-06-12",
+                    "endedatum": "2026-06-12",
+                    "latitude": "50,94701",
+                    "longitude": "6,95831",
+                    "veranstaltungsort": "Botanischer Garten",
+                    "description": "Führung",
+                    "preis": "Die Teilnahme an der Führung kostet sieben Euro für Erwachsene und vier Euro für Kinder, Schüler*innen und Studierende, für Mitglieder des Freundeskreises, Inhaber*innen von KölnPass, Behindertenausweis und mit der Ehrenamtskarte NRW.",  # noqa: E501
+                    "uhrzeit": "15:00 Uhr",
+                    "stadtteil": "Innenstadt",
+                    "link": "https://example.test/koeln-price",
+                }
+            ]
         }
         with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
             events = koeln.fetch()
@@ -537,8 +566,13 @@ END:VCALENDAR
         """
 
         events = common.events_from_ecmaps_tiles(
-            html, "Naturregion Sieg", "Naturregion Sieg",
-            "natur outdoor markt kultur", 0.9, "https://naturregion-sieg.de")
+            html,
+            "Naturregion Sieg",
+            "Naturregion Sieg",
+            "natur outdoor markt kultur",
+            0.9,
+            "https://naturregion-sieg.de",
+        )
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Street Food Festival Eitorf")
@@ -567,7 +601,8 @@ END:VCALENDAR
         """
 
         events = common.events_from_wp_event_manager_listing(
-            html, "Ruhr-Guide", "events ruhrgebiet nrw konzert kultur", 0.65)
+            html, "Ruhr-Guide", "events ruhrgebiet nrw konzert kultur", 0.65
+        )
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Open Air am Rhein")
@@ -608,7 +643,7 @@ END:VCALENDAR
   <a href="/en/hujar" aria-label="This button will take you to the exhibition page with further information." class="btn">More Information</a>
   <a href="https://bundeskunsthalle.ticketfritz.de/Shop/Index/tagesticket/28596">Buy Tickets</a>
 </section>
-"""
+"""  # noqa: E501
 
         with patch("nrw_events.common.fetch_url", return_value=html):
             events = bundeskunsthalle.fetch()
@@ -624,7 +659,7 @@ END:VCALENDAR
   <h3><span>13 March to 9 August 2026</span></h3>
   <a href="/en/amazonia" aria-label="This button will take you to the exhibition page with further information.">More Information</a>
 </section>
-"""
+"""  # noqa: E501
 
         with patch("nrw_events.common.fetch_url", return_value=html):
             events = bundeskunsthalle.fetch()
@@ -663,8 +698,10 @@ END:VCALENDAR
         def fake_fetch(url, *args, **kwargs):
             return search_page if url.endswith("/veranstaltungen") else ""
 
-        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
-             patch("nrw_events.common.post_form", return_value={"data": {"content": api_content}}) as post_form:
+        with (
+            patch("nrw_events.common.fetch_url", side_effect=fake_fetch),
+            patch("nrw_events.common.post_form", return_value={"data": {"content": api_content}}) as post_form,
+        ):
             events = bundeskunsthalle.fetch()
 
         sundowner = [event for event in events if event["title"] == "Sundowner Bar"]
@@ -840,7 +877,7 @@ END:VCALENDAR
     </header></div>
   </a>
 </article></li>
-"""
+"""  # noqa: E501
 
         events = bonn.events_from_sport_teasers(html)
 
@@ -1166,7 +1203,7 @@ END:VCALENDAR
             ),
             (
                 "UMGANG MIT SMARTPHONE, TABLET UND PC",
-                "In der Begegnungsstätte CLUB gibt es heute Tipps. Anmeldungen werden unter der Telefonnummer entgegengenommen.",
+                "In der Begegnungsstätte CLUB gibt es heute Tipps. Anmeldungen werden unter der Telefonnummer entgegengenommen.",  # noqa: E501
                 "Beratung",
             ),
             (
@@ -1210,7 +1247,10 @@ END:VCALENDAR
     def test_make_event_preserves_cancelled_or_postponed_events(self):
         cases = [
             ("-ABGESAGT- Jazzabend im Pantheon", "Heute leider abgesagt"),
-            ("Veranstaltung fällt leider aus! Erleben Sie ein Stück lebendiger Geschichte", "Die historische Wassermühle öffnet ihre Tore."),
+            (
+                "Veranstaltung fällt leider aus! Erleben Sie ein Stück lebendiger Geschichte",
+                "Die historische Wassermühle öffnet ihre Tore.",
+            ),
             ("Konzert im Park", "Die Veranstaltung entfällt krankheitsbedingt."),
             ("Lesung mit Autorin", "Der Termin fällt aus und wird nachgeholt."),
             ("Lesung mit Autorin – FINDET NICHT STATT!", ""),
@@ -1338,7 +1378,7 @@ END:VCALENDAR
           <div class="mec-time-details"><span class="mec-start-time">10:00</span> - <span class="mec-end-time">11:00</span></div>
           <div class="mec-venue-details"> <span>Ballettsaal Musikschule</span></div>
         </article>
-        """
+        """  # noqa: E501
 
         events = requested_venues._events_from_sankt_augustin(html)
 
@@ -1386,7 +1426,7 @@ END:VCALENDAR
           </h3>
           <div class="leading-tight">ab 30,00 €</div>
         </div>
-        """
+        """  # noqa: E501
 
         events = requested_venues._events_from_springmaus(html)
 
@@ -1420,10 +1460,13 @@ END:VCALENDAR
 
         events = haus_der_geschichte.events_from_html(html)
 
-        self.assertEqual([event["title"] for event in events], [
-            "Begleitung durch die Dauerausstellung",
-            "Konzert im Bundesrat",
-        ])
+        self.assertEqual(
+            [event["title"] for event in events],
+            [
+                "Begleitung durch die Dauerausstellung",
+                "Konzert im Bundesrat",
+            ],
+        )
         self.assertEqual(events[0]["date"], "2026-06-20")
         self.assertEqual(events[0]["time"], "15:00")
         self.assertEqual(events[0]["venue"], "Haus der Geschichte")
@@ -1481,17 +1524,26 @@ END:VCALENDAR
 
         self.assertLessEqual(expected_sources, set(SOURCES))
 
+
 def case_class(name, predicate):
     """Build a discoverable case class from this fixture/case library."""
     selected = {
-        method_name for method_name in SourceParserTests.__dict__
+        method_name
+        for method_name in SourceParserTests.__dict__
         if method_name.startswith("test_") and predicate(method_name)
     }
-    return type(name, (SourceParserTests,), {
-        "__module__": __name__,
-        **{method_name: None for method_name in SourceParserTests.__dict__
-           if method_name.startswith("test_") and method_name not in selected},
-    })
+    return type(
+        name,
+        (SourceParserTests,),
+        {
+            "__module__": __name__,
+            **{
+                method_name: None
+                for method_name in SourceParserTests.__dict__
+                if method_name.startswith("test_") and method_name not in selected
+            },
+        },
+    )
 
 
 if __name__ == "__main__":

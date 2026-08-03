@@ -6,7 +6,6 @@ from urllib.parse import urlencode
 
 from .. import category_taxonomy, common
 
-
 _SOURCE = "Kleines Theater Bad Godesberg"
 _BASE = "https://kleinestheater.eu/events/"
 _CATEGORY = "theater bühne schauspiel musical comedy show"
@@ -54,14 +53,8 @@ def _correct_stage_formats(events: list[dict]) -> list[dict]:
         text = f"{event.get('title', '')} {event.get('description', '')}"
         key = "concert" if _CONCERT_PATTERN.search(text) else "stage"
         category = category_taxonomy.CATEGORY_BY_KEY[key]
-        context = (
-            "Konzert im Kleinen Theater."
-            if key == "concert" else
-            "Theateraufführung auf der Bühne."
-        )
-        description = common.concise_description(
-            f"{context} {event.get('description', '')}"
-        )
+        context = "Konzert im Kleinen Theater." if key == "concert" else "Theateraufführung auf der Bühne."
+        description = common.concise_description(f"{context} {event.get('description', '')}")
         event["category"] = "konzert musik" if key == "concert" else _CATEGORY
         event["description"] = description
         event["category_key"] = category["key"]
@@ -76,13 +69,20 @@ def fetch() -> list[dict]:
     for month in _month_starts():
         url = _feed_url(month)
         try:
-            events.extend(common.fetch_ical(
-                url, _SOURCE, "Bonn", _CATEGORY, _TRUST,
-                source_id="kleines-theater",
-            ))
+            events.extend(
+                common.fetch_ical(
+                    url,
+                    _SOURCE,
+                    "Bonn",
+                    _CATEGORY,
+                    _TRUST,
+                    source_id="kleines-theater",
+                )
+            )
         except Exception as exc:
             common.log_source_error(
-                f"{_SOURCE} {month:%Y-%m}", exc,
+                f"{_SOURCE} {month:%Y-%m}",
+                exc,
                 source_id="kleines-theater",
             )
     return _correct_stage_formats(_dedupe(events))

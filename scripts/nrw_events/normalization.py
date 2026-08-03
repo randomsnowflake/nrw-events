@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
 from html import unescape
-import json
 from pathlib import Path
-from typing import Mapping
 
-_GERMAN_TRANSLITERATION = str.maketrans({
-    "ä": "ae",
-    "ö": "oe",
-    "ü": "ue",
-    "ß": "ss",
-})
+_GERMAN_TRANSLITERATION = str.maketrans(
+    {
+        "ä": "ae",
+        "ö": "oe",
+        "ü": "ue",
+        "ß": "ss",
+    }
+)
 
 
 def comparison_text(value: str, *, separator: str = " ") -> str:
@@ -93,50 +95,255 @@ def _venue(
 # most frequent stable places in the current feed. Missing facts stay empty;
 # the registry never guesses coordinates or addresses from a broad category.
 VENUE_REGISTRY: tuple[VenueRecord, ...] = (
-    _venue("oper-bonn", "Oper Bonn", city="Bonn", district="Bonn", venue_type="theater", address="Am Boeselagerhof 1, 53111 Bonn", coordinates=(50.7366531557, 7.10680608)),
-    _venue("schauspielhaus-bad-godesberg", "Schauspielhaus Bad Godesberg", "Schauspielhaus", city="Bonn", district="Bonn-Bad Godesberg", venue_type="theater", address="Am Michaelshof 9, 53177 Bonn", coordinates=(50.6832698865, 7.1538043057)),
-    _venue("werkstattbuehne-bonn", "Werkstattbühne", city="Bonn", district="Bonn", venue_type="theater", address="Rheingasse 1, 53111 Bonn", coordinates=(50.7363281468, 7.1066077703)),
-    _venue("contra-kreis-theater", "Contra-Kreis-Theater", city="Bonn", district="Bonn", venue_type="theater", address="Am Hof 3-5, 53113 Bonn", coordinates=(50.7333174226, 7.1011347839)),
-    _venue("kleines-theater-bad-godesberg", "Kleines Theater Bad Godesberg", "Kleines Theater", city="Bonn", district="Bonn-Bad Godesberg", venue_type="theater", address="Koblenzer Straße 78, 53177 Bonn", coordinates=(50.6808563311, 7.1554770039)),
-    _venue("junges-theater-bonn", "Junges Theater Bonn", city="Bonn", district="Bonn-Beuel", venue_type="theater", address="Hermannstraße 50, 53225 Bonn", coordinates=(50.7364969604, 7.116846546)),
-    _venue("theater-im-ballsaal", "Theater im Ballsaal", city="Bonn", district="Bonn", venue_type="theater", address="Frongasse 9, 53121 Bonn", coordinates=(50.7274839852, 7.0746502028)),
-    _venue("theater-im-keller-bonn", "Theater im Keller (tik)", "Theater im Keller", "tik Bonn", city="Bonn", district="Bonn-Hardtberg", venue_type="theater", address="Rochusstraße 30, 53123 Bonn", coordinates=(50.7203595265, 7.0587439738)),
-    _venue("kulturzentrum-brotfabrik", "Kulturzentrum Brotfabrik", "Brotfabrik Bonn", "Brotfabrik Bühne Bonn", city="Bonn", district="Bonn-Beuel", venue_type="cultural_center", address="Kreuzstraße 16, 53225 Bonn", coordinates=(50.7409106202, 7.1236954826)),
-    _venue("euro-theater-central", "Euro Theater Central", city="Bonn", district="Bonn", venue_type="theater", address="Budapester Straße 19, 53111 Bonn", coordinates=(50.7360134126, 7.0944407837)),
-    _venue("theater-marabu", "Theater Marabu", city="Bonn", district="Bonn-Beuel", venue_type="theater", address="Kreuzstraße 16, 53225 Bonn", coordinates=(50.7410341682, 7.1240597235)),
-    _venue("pantheon-theater", "Pantheon Theater", "Pantheon", city="Bonn", district="Bonn-Beuel", venue_type="theater", address="Siegburger Straße 42, 53229 Bonn", coordinates=(50.7397197207, 7.1326091857)),
-    _venue("haus-der-springmaus", "Haus der Springmaus", city="Bonn", district="Bonn", venue_type="theater", address="Frongasse 8-10, 53121 Bonn", coordinates=(50.7273918984, 7.0744090056)),
-    _venue("kulturzentrum-tapetenfabrik", "Kulturzentrum Tapetenfabrik", city="Bonn", district="Bonn-Beuel", venue_type="cultural_center", coordinates=(50.7422640595, 7.1271582042)),
-    _venue("gop-variete-bonn", "GOP Varieté", "GOP Varieté Bonn", city="Bonn", district="Bonn", venue_type="theater", address="Karl-Carstens-Straße 1, 53113 Bonn", coordinates=(50.7189927791, 7.1220603618)),
-    _venue("malentes-theaterpalast", "Malentes Theaterpalast", city="Bonn", district="Bonn-Beuel", venue_type="theater", address="Holzlarer Weg 42, 53229 Bonn", coordinates=(50.743436371, 7.1597730589)),
-    _venue("rheinbuehne-kabarett", "Rheinbühne Kabarett", "Rheinbühne", city="Bonn", district="Bonn", venue_type="theater", address="Oxfordstraße 20-22, 53111 Bonn", coordinates=(50.7376361538, 7.0987225323)),
+    _venue(
+        "oper-bonn",
+        "Oper Bonn",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Am Boeselagerhof 1, 53111 Bonn",
+        coordinates=(50.7366531557, 7.10680608),
+    ),
+    _venue(
+        "schauspielhaus-bad-godesberg",
+        "Schauspielhaus Bad Godesberg",
+        "Schauspielhaus",
+        city="Bonn",
+        district="Bonn-Bad Godesberg",
+        venue_type="theater",
+        address="Am Michaelshof 9, 53177 Bonn",
+        coordinates=(50.6832698865, 7.1538043057),
+    ),
+    _venue(
+        "werkstattbuehne-bonn",
+        "Werkstattbühne",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Rheingasse 1, 53111 Bonn",
+        coordinates=(50.7363281468, 7.1066077703),
+    ),
+    _venue(
+        "contra-kreis-theater",
+        "Contra-Kreis-Theater",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Am Hof 3-5, 53113 Bonn",
+        coordinates=(50.7333174226, 7.1011347839),
+    ),
+    _venue(
+        "kleines-theater-bad-godesberg",
+        "Kleines Theater Bad Godesberg",
+        "Kleines Theater",
+        city="Bonn",
+        district="Bonn-Bad Godesberg",
+        venue_type="theater",
+        address="Koblenzer Straße 78, 53177 Bonn",
+        coordinates=(50.6808563311, 7.1554770039),
+    ),
+    _venue(
+        "junges-theater-bonn",
+        "Junges Theater Bonn",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="theater",
+        address="Hermannstraße 50, 53225 Bonn",
+        coordinates=(50.7364969604, 7.116846546),
+    ),
+    _venue(
+        "theater-im-ballsaal",
+        "Theater im Ballsaal",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Frongasse 9, 53121 Bonn",
+        coordinates=(50.7274839852, 7.0746502028),
+    ),
+    _venue(
+        "theater-im-keller-bonn",
+        "Theater im Keller (tik)",
+        "Theater im Keller",
+        "tik Bonn",
+        city="Bonn",
+        district="Bonn-Hardtberg",
+        venue_type="theater",
+        address="Rochusstraße 30, 53123 Bonn",
+        coordinates=(50.7203595265, 7.0587439738),
+    ),
+    _venue(
+        "kulturzentrum-brotfabrik",
+        "Kulturzentrum Brotfabrik",
+        "Brotfabrik Bonn",
+        "Brotfabrik Bühne Bonn",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="cultural_center",
+        address="Kreuzstraße 16, 53225 Bonn",
+        coordinates=(50.7409106202, 7.1236954826),
+    ),
+    _venue(
+        "euro-theater-central",
+        "Euro Theater Central",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Budapester Straße 19, 53111 Bonn",
+        coordinates=(50.7360134126, 7.0944407837),
+    ),
+    _venue(
+        "theater-marabu",
+        "Theater Marabu",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="theater",
+        address="Kreuzstraße 16, 53225 Bonn",
+        coordinates=(50.7410341682, 7.1240597235),
+    ),
+    _venue(
+        "pantheon-theater",
+        "Pantheon Theater",
+        "Pantheon",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="theater",
+        address="Siegburger Straße 42, 53229 Bonn",
+        coordinates=(50.7397197207, 7.1326091857),
+    ),
+    _venue(
+        "haus-der-springmaus",
+        "Haus der Springmaus",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Frongasse 8-10, 53121 Bonn",
+        coordinates=(50.7273918984, 7.0744090056),
+    ),
+    _venue(
+        "kulturzentrum-tapetenfabrik",
+        "Kulturzentrum Tapetenfabrik",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="cultural_center",
+        coordinates=(50.7422640595, 7.1271582042),
+    ),
+    _venue(
+        "gop-variete-bonn",
+        "GOP Varieté",
+        "GOP Varieté Bonn",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Karl-Carstens-Straße 1, 53113 Bonn",
+        coordinates=(50.7189927791, 7.1220603618),
+    ),
+    _venue(
+        "malentes-theaterpalast",
+        "Malentes Theaterpalast",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="theater",
+        address="Holzlarer Weg 42, 53229 Bonn",
+        coordinates=(50.743436371, 7.1597730589),
+    ),
+    _venue(
+        "rheinbuehne-kabarett",
+        "Rheinbühne Kabarett",
+        "Rheinbühne",
+        city="Bonn",
+        district="Bonn",
+        venue_type="theater",
+        address="Oxfordstraße 20-22, 53111 Bonn",
+        coordinates=(50.7376361538, 7.0987225323),
+    ),
     _venue("haus-der-geschichte-bonn", "Haus der Geschichte", city="Bonn", venue_type="museum"),
     _venue("arp-museum-bahnhof-rolandseck", "Arp Museum Bahnhof Rolandseck", city="Remagen", venue_type="museum"),
     _venue("stadtmuseum-siegburg", "Stadtmuseum im Kulturhaus", city="Siegburg", venue_type="museum"),
-    _venue("kunstmuseum-bonn", "Kunstmuseum Bonn", city="Bonn", venue_type="museum", address="Helmut-Kohl-Allee 2, Bonn"),
+    _venue(
+        "kunstmuseum-bonn", "Kunstmuseum Bonn", city="Bonn", venue_type="museum", address="Helmut-Kohl-Allee 2, Bonn"
+    ),
     _venue("bundeskunsthalle", "Bundeskunsthalle", city="Bonn", venue_type="museum"),
     _venue("repair-cafe-mva-bonn", "Repair Café MVA Bonn", city="Bonn", venue_type="workshop"),
     _venue("museum-koenig-bonn", "Museum Koenig Bonn", city="Bonn", venue_type="museum"),
     _venue("lvr-landesmuseum-bonn", "LVR-LandesMuseum Bonn", "LVR-LandesMuseum", city="Bonn", venue_type="museum"),
     _venue("interim-zentralbibliothek-koeln", "Interim Zentralbibliothek", city="Köln", venue_type="library"),
-    _venue("brueckenforum-bonn", "Brückenforum Bonn", "Brückenforum", city="Bonn", district="Bonn-Beuel", venue_type="event_venue"),
+    _venue(
+        "brueckenforum-bonn",
+        "Brückenforum Bonn",
+        "Brückenforum",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="event_venue",
+    ),
     _venue("arkadenhof-universitaet-bonn", "Arkadenhof Universität Bonn", city="Bonn", venue_type="university"),
     _venue("kult41", "KULT41", city="Bonn", venue_type="cultural_center"),
     _venue("selbstwerk-bonn", "Selbstwerk Bonn", city="Bonn", venue_type="workshop"),
     _venue("rex-lichtspieltheater", "Rex-Lichtspieltheater", city="Bonn", venue_type="cinema"),
-    _venue("arithmeum-bonn", "Arithmeum", "Arithmeum - rechnen einst und heute", city="Bonn", venue_type="museum", address="Lennestraße 2, 53113 Bonn"),
+    _venue(
+        "arithmeum-bonn",
+        "Arithmeum",
+        "Arithmeum - rechnen einst und heute",
+        city="Bonn",
+        venue_type="museum",
+        address="Lennestraße 2, 53113 Bonn",
+    ),
     _venue("die-werke-bonn", "Die WERKE Bonn", city="Bonn", venue_type="workshop"),
     _venue("botanische-gaerten-bonn", "Botanische Gärten Bonn", city="Bonn", venue_type="garden"),
-    _venue("rheinaue-bonn", "Rheinaue", "Freizeitpark Rheinaue", city="Bonn", venue_type="park", coordinates=(50.7106, 7.1283)),
-    _venue("haus-der-jugend-bonn", "Haus der Jugend", city="Bonn", venue_type="cultural_center", address="Reuterstraße 100, 53129 Bonn"),
-    _venue("kulturzentrum-hardtberg", "Kulturzentrum Hardtberg", "Hardtberger Kulturzentrum", "Kulturzentrum Hardtberg e.v.", city="Bonn", district="Bonn-Hardtberg", venue_type="cultural_center"),
+    _venue(
+        "rheinaue-bonn",
+        "Rheinaue",
+        "Freizeitpark Rheinaue",
+        city="Bonn",
+        venue_type="park",
+        coordinates=(50.7106, 7.1283),
+    ),
+    _venue(
+        "haus-der-jugend-bonn",
+        "Haus der Jugend",
+        city="Bonn",
+        venue_type="cultural_center",
+        address="Reuterstraße 100, 53129 Bonn",
+    ),
+    _venue(
+        "kulturzentrum-hardtberg",
+        "Kulturzentrum Hardtberg",
+        "Hardtberger Kulturzentrum",
+        "Kulturzentrum Hardtberg e.v.",
+        city="Bonn",
+        district="Bonn-Hardtberg",
+        venue_type="cultural_center",
+    ),
     _venue("museum-august-macke-haus", "Museum August Macke Haus", city="Bonn", venue_type="museum"),
     _venue("rhein-sieg-forum", "RHEIN SIEG FORUM", city="Siegburg", venue_type="event_venue"),
     _venue("stadthalle-remagen", "Stadthalle Remagen", city="Remagen", venue_type="event_venue"),
-    _venue("internationaler-club-bonn", "Internationaler Club", "International Club", city="Bonn", venue_type="university", address="Poppelsdorfer Allee 53, Bonn"),
+    _venue(
+        "internationaler-club-bonn",
+        "Internationaler Club",
+        "International Club",
+        city="Bonn",
+        venue_type="university",
+        address="Poppelsdorfer Allee 53, Bonn",
+    ),
     # Official vivenu event payload: event.location.geoCode and postal address.
-    _venue("bikini-beach-bonn", "Bikini Beach", "Bikini Beach Bonn", city="Bonn", district="Bonn-Beuel", venue_type="event_venue", address="Karl-Duwe-Straße 1, 53227 Bonn", coordinates=(50.7155999, 7.1566788)),
-    _venue("annaplatz-bad-honnef", "Annaplatz", "Anna-Platz", "Anna-Platz Rommersdorf", city="Bad Honnef", venue_type="public_space", address="Rommersdorfer Straße 90a, 53604 Bad Honnef"),
+    _venue(
+        "bikini-beach-bonn",
+        "Bikini Beach",
+        "Bikini Beach Bonn",
+        city="Bonn",
+        district="Bonn-Beuel",
+        venue_type="event_venue",
+        address="Karl-Duwe-Straße 1, 53227 Bonn",
+        coordinates=(50.7155999, 7.1566788),
+    ),
+    _venue(
+        "annaplatz-bad-honnef",
+        "Annaplatz",
+        "Anna-Platz",
+        "Anna-Platz Rommersdorf",
+        city="Bad Honnef",
+        venue_type="public_space",
+        address="Rommersdorfer Straße 90a, 53604 Bad Honnef",
+    ),
 )
 
 
@@ -153,20 +360,24 @@ for _record in VENUE_REGISTRY:
 def _load_verified_venue_locations() -> tuple[VerifiedVenueLocation, ...]:
     path = Path(__file__).with_name("verified_venue_locations.json")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return tuple(VerifiedVenueLocation(
-        city=str(item["city"]),
-        venue=str(item["venue"]),
-        address=str(item.get("address") or ""),
-        latitude=float(item["latitude"]),
-        longitude=float(item["longitude"]),
-    ) for item in payload["locations"])
+    return tuple(
+        VerifiedVenueLocation(
+            city=str(item["city"]),
+            venue=str(item["venue"]),
+            address=str(item.get("address") or ""),
+            latitude=float(item["latitude"]),
+            longitude=float(item["longitude"]),
+        )
+        for item in payload["locations"]
+    )
 
 
 VERIFIED_VENUE_LOCATIONS = _load_verified_venue_locations()
 _VERIFIED_LOCATION_BY_ALIAS: dict[str, list[VerifiedVenueLocation]] = {}
 for _location in VERIFIED_VENUE_LOCATIONS:
     _VERIFIED_LOCATION_BY_ALIAS.setdefault(
-        comparison_text(_location.venue), [],
+        comparison_text(_location.venue),
+        [],
     ).append(_location)
 
 
@@ -200,11 +411,11 @@ def _same_place(left: str, right: str) -> bool:
 def _compatible_city(left: str, right: str) -> bool:
     left_key = comparison_text(left)
     right_key = comparison_text(right)
-    return bool(left_key and right_key and (
-        left_key == right_key
-        or left_key.startswith(right_key + " ")
-        or right_key.startswith(left_key + " ")
-    ))
+    return bool(
+        left_key
+        and right_key
+        and (left_key == right_key or left_key.startswith(right_key + " ") or right_key.startswith(left_key + " "))
+    )
 
 
 def _record_for(value: str, city: str, explicit_id: str = "") -> VenueRecord | None:
@@ -218,8 +429,7 @@ def _record_for(value: str, city: str, explicit_id: str = "") -> VenueRecord | N
         record = _VENUE_BY_ALIAS.get(comparison_text(candidate))
         if not record:
             continue
-        if (not city or not record.city or _compatible_city(record.city, city)
-                or _same_place(candidate, city)):
+        if not city or not record.city or _compatible_city(record.city, city) or _same_place(candidate, city):
             return record
     return None
 
@@ -243,16 +453,12 @@ def _looks_like_address(segment: str, *, first: bool = False) -> bool:
         return True
     if not first:
         return bool(_STREET.search(segment))
-    return any(
-        re.match(r"\s*\d", segment[match.end():])
-        for match in _STREET.finditer(segment)
-    )
+    return any(re.match(r"\s*\d", segment[match.end() :]) for match in _STREET.finditer(segment))
 
 
 def _split_inline_address(segment: str) -> tuple[str, str]:
     """Split ``Venue Name Street 1`` while leaving pure addresses unnamed."""
-    candidates = [match.start() for match in _STREET.finditer(segment)
-                  if re.search(r"\d", segment[match.start():])]
+    candidates = [match.start() for match in _STREET.finditer(segment) if re.search(r"\d", segment[match.start() :])]
     postcode = _POSTCODE.search(segment)
     if postcode:
         candidates.append(postcode.start())
@@ -292,8 +498,7 @@ def _split_venue(value: str, city: str) -> tuple[str, str]:
         seen_name_segments = {comparison_text(name_segments[0])}
         for segment in name_segments[1:]:
             key = comparison_text(segment)
-            if (_ROOM_DETAIL.search(segment) or _same_place(segment, city)
-                    or not key or key in seen_name_segments):
+            if _ROOM_DETAIL.search(segment) or _same_place(segment, city) or not key or key in seen_name_segments:
                 continue
             seen_name_segments.add(key)
             unique_name_segments.append(segment)
@@ -373,9 +578,7 @@ def canonical_venue_id(event: Mapping[str, object]) -> str:
 
     title = comparison_text(str(event.get("title") or ""), separator="")
     venue = comparison_text(str(event.get("venue") or ""), separator="")
-    venue_address = comparison_text(
-        str(event.get("venue_address") or ""), separator=""
-    )
+    venue_address = comparison_text(str(event.get("venue_address") or ""), separator="")
     city = comparison_text(str(event.get("city") or ""), separator="")
     description = comparison_text(
         str(event.get("description") or ""),
@@ -385,15 +588,8 @@ def canonical_venue_id(event: Mapping[str, object]) -> str:
 
     # The Rigal'sche Wiese is inside Bad Godesberg, but it is not the generic
     # Innenstadt market area and therefore must be resolved first.
-    if (
-        (
-            city in {"bonn", "bonnbadgodesberg", "badgodesberg"}
-            or "badgodesberg" in text
-        )
-        and (
-            "rigal" in text
-            or "friedrichebertstrasse32" in text
-        )
+    if (city in {"bonn", "bonnbadgodesberg", "badgodesberg"} or "badgodesberg" in text) and (
+        "rigal" in text or "friedrichebertstrasse32" in text
     ):
         return "rigalsche-wiese-bad-godesberg"
 
@@ -419,18 +615,11 @@ def canonical_venue_id(event: Mapping[str, object]) -> str:
     if (
         city == "troisdorf"
         and "hitmarkt" in text
-        and any(
-            marker in text
-            for marker in ("rottersee", "spicherstrasse101", "hitmarkt")
-        )
+        and any(marker in text for marker in ("rottersee", "spicherstrasse101", "hitmarkt"))
     ):
         return "hit-markt-rotter-see"
 
-    if (
-        city == "linzamrhein"
-        and "antik" in title
-        and "markt" in title
-    ):
+    if city == "linzamrhein" and "antik" in title and "markt" in title:
         return "innenstadt-linz"
 
     return ""

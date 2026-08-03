@@ -18,8 +18,8 @@ def fetch_vvs() -> list:
     try:
         html = common.fetch_url(url, timeout=25)
         return common.events_from_jsonld(
-            html, source, "Königswinter",
-            "siebengebirge wanderung natur outdoor führung", 1.1, url)
+            html, source, "Königswinter", "siebengebirge wanderung natur outdoor führung", 1.1, url
+        )
     except Exception as e:
         common.log_source_error(source, e)
         return []

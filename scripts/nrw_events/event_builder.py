@@ -11,6 +11,11 @@ from .core import (
 )
 
 __all__ = [
-    "event_in_window", "event_in_window_and_radius", "event_status", "has_cancelled_status",
-    "infer_free_admission_price", "make_event", "window_contains",
+    "event_in_window",
+    "event_in_window_and_radius",
+    "event_status",
+    "has_cancelled_status",
+    "infer_free_admission_price",
+    "make_event",
+    "window_contains",
 ]

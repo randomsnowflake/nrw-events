@@ -25,7 +25,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.marktcom.de"
 _SOURCE = "marktcom"
 _SOURCE_ID = "marktcom"
@@ -59,18 +58,31 @@ WANTED_CATEGORIES = {
 # Keep this list in step with the registry: an entry for an organizer that is *not*
 # registered as its own source silently drops coverage.
 _INTEGRATED_ORGANIZERS = (
-    "geide", "grote", "hiller", "lampert", "okken", "cölln", "coelln",
-    "hofflohmärkte", "hofflohmaerkte", "hoffloh", "kinderflohmarkt",
-    "rhein antik", "rhein-antik", "brückenforum", "brueckenforum",
-    "katharinenhof", "melan", "krewelshof",
+    "geide",
+    "grote",
+    "hiller",
+    "lampert",
+    "okken",
+    "cölln",
+    "coelln",
+    "hofflohmärkte",
+    "hofflohmaerkte",
+    "hoffloh",
+    "kinderflohmarkt",
+    "rhein antik",
+    "rhein-antik",
+    "brückenforum",
+    "brueckenforum",
+    "katharinenhof",
+    "melan",
+    "krewelshof",
 )
 
 # Safety stop for pagination; reaching it is logged rather than silently truncated.
 _MAX_PAGES = 12
 
 _BLOCK_SPLIT = re.compile(r"(?=<li class='p-2'>)")
-_EVENTNAME = re.compile(
-    r"<div class='eventname[^']*'>\s*<a[^>]*href=\"([^\"]+)\"[^>]*>(.*?)</a>", re.S)
+_EVENTNAME = re.compile(r"<div class='eventname[^']*'>\s*<a[^>]*href=\"([^\"]+)\"[^>]*>(.*?)</a>", re.S)
 _POSTAL_CITY = re.compile(r"<div class='d-md-none'>\s*(\d{5})\s+([^<]+?)\s*</div>")
 _ORGANIZER = re.compile(r"<p class='cat'>\s*(.*?)\s*</p>", re.S)
 _DESCRIPTION = re.compile(r"<p class='description[^']*'>\s*(.*?)\s*</p>", re.S)
@@ -182,7 +194,8 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
         raw_description = re.sub(r"\s*\[mehr\]\s*$", "", raw_description).strip()
         title = _market_title(venue, category_label, city)
         description = raw_description or common.factual_event_description(
-            title, date_value=start, venue=venue, city=city)
+            title, date_value=start, venue=venue, city=city
+        )
         event = common.make_event(
             title,
             start,

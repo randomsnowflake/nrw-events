@@ -44,8 +44,7 @@ def _page_starts_after_window(html: str) -> bool:
     return bool(dates) and min(dates) > common.END_DATE
 
 
-def _parse_page(html: str, endpoint: str, city: str, source_id: str,
-                base_url: str, trust: float) -> list:
+def _parse_page(html: str, endpoint: str, city: str, source_id: str, base_url: str, trust: float) -> list:
     with common.capture_parser_metrics() as metrics:
         events = _events_from_teasers(html, base_url, city, trust, source_id)
     parser_empty = not events and metrics["out_of_window_count"] == 0
@@ -83,9 +82,16 @@ def _fetch_calendar(city: str, source_id: str, url: str, trust: float) -> list:
         endpoint = _page_url(url, page)
         try:
             html = common.fetch_url(endpoint, timeout=25)
-            events.extend(_parse_page(
-                html, endpoint, city, source_id, url, trust,
-            ))
+            events.extend(
+                _parse_page(
+                    html,
+                    endpoint,
+                    city,
+                    source_id,
+                    url,
+                    trust,
+                )
+            )
             if _page_starts_after_window(html):
                 break
         except Exception as exc:
@@ -108,9 +114,7 @@ def fetch() -> list:
         cache_namespace="regional-sitekit-detail",
         extract_context=lambda html, _event: _detail_context(html),
         fallback=lambda event: event.get("description", ""),
-        needs_enrichment=lambda event: (
-            not event.get("venue") or event.get("category_key") == "other"
-        ),
+        needs_enrichment=lambda event: (not event.get("venue") or event.get("category_key") == "other"),
     )
     for event in events:
         if event.get("category_key") != "other":
@@ -122,12 +126,14 @@ def fetch() -> list:
             venue=event.get("venue", ""),
             source=event.get("source", ""),
         )
-        event.update({
-            "category_key": canonical["key"],
-            "category_label": canonical["label"],
-            "category_confidence": canonical.get("confidence", 0),
-            "category_reason": canonical.get("reason", ""),
-        })
+        event.update(
+            {
+                "category_key": canonical["key"],
+                "category_label": canonical["label"],
+                "category_confidence": canonical.get("confidence", 0),
+                "category_reason": canonical.get("reason", ""),
+            }
+        )
     return events
 
 
@@ -155,7 +161,9 @@ def _detail_description(html: str) -> str:
 def _detail_rich_text(html: str) -> str:
     """The same body copy with its headings, lists and emphasis intact."""
     fragments = re.findall(
-        r'<div[^>]+class="SP-Paragraph"[^>]*>(.*?)</div>', html or "", re.S | re.I,
+        r'<div[^>]+class="SP-Paragraph"[^>]*>(.*?)</div>',
+        html or "",
+        re.S | re.I,
     )
     return richtext.sanitize_rich_text("".join(fragments))
 
@@ -192,8 +200,7 @@ def _detail_context(html: str) -> dict[str, str]:
     return context
 
 
-def _events_from_teasers(html: str, base: str, city: str, trust: float,
-                         source_id: str) -> list:
+def _events_from_teasers(html: str, base: str, city: str, trust: float, source_id: str) -> list:
     events = []
     for block in re.findall(r'<article class="SP-Teaser.*?</article>', html, re.S | re.I):
         href = re.search(r'<a[^>]+class="SP-Teaser__inner"[^>]+href="([^"]+)"', block, re.S | re.I)
@@ -229,13 +236,8 @@ def _events_from_teasers(html: str, base: str, city: str, trust: float,
                     city=city,
                     calendar_name=city,
                 )
-                separator = (
-                    " " if not description or description.endswith((".", "!", "?"))
-                    else ". "
-                )
-                ev["description"] = common.GeneratedDescription(
-                    f"{description}{separator}{fallback}".strip()
-                )
+                separator = " " if not description or description.endswith((".", "!", "?")) else ". "
+                ev["description"] = common.GeneratedDescription(f"{description}{separator}{fallback}".strip())
                 ev["description_source"] = "generated"
             events.append(ev)
     return events

@@ -57,10 +57,12 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
     event["end_date"] = end_date or start_date
     event["date"] = start_date
     event["ongoing"] = bool(event.get("ongoing", legacy_ongoing))
-    event["all_day"] = bool(event.get(
-        "all_day",
-        not event.get("start_at") and not event.get("time") and not event.get("time_note"),
-    ))
+    event["all_day"] = bool(
+        event.get(
+            "all_day",
+            not event.get("start_at") and not event.get("time") and not event.get("time_note"),
+        )
+    )
     event["timezone"] = _text(event, "timezone", 64) or "Europe/Berlin"
 
 
@@ -71,12 +73,19 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event = dict(raw_event)
     event["title"] = _text(event, "title", 500, required=True)
     event["source"] = _text(event, "source", 160, required=True)
-    event["source_id"] = normalize_source_id(
-        _text(event, "source_id", 200) or event["source"]
-    )
+    event["source_id"] = normalize_source_id(_text(event, "source_id", 200) or event["source"])
     inferred_description_source = common.description_source_for(event.get("description", ""))
-    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("description", 8000), ("description_html", 100000),
-                         ("price", 160), ("category", 500), ("link", 2048)):
+    for field, limit in (
+        ("time", 500),
+        ("time_note", 500),
+        ("venue", 300),
+        ("city", 160),
+        ("description", 8000),
+        ("description_html", 100000),
+        ("price", 160),
+        ("category", 500),
+        ("link", 2048),
+    ):
         event[field] = _text(event, field, limit)
     # Re-built from the allowed vocabulary at the canonical boundary, so a
     # source that sets this field directly cannot smuggle markup past it, and
@@ -104,19 +113,14 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["venue_address"] = venue.venue_address or explicit_venue_address
     event["venue_district"] = venue.venue_district or explicit_venue_district
     event["venue_type"] = venue.venue_type or explicit_venue_type
-    event["venue_latitude"] = (
-        venue.venue_latitude
-        if venue.venue_latitude is not None else explicit_venue_latitude
-    )
-    event["venue_longitude"] = (
-        venue.venue_longitude
-        if venue.venue_longitude is not None else explicit_venue_longitude
-    )
+    event["venue_latitude"] = venue.venue_latitude if venue.venue_latitude is not None else explicit_venue_latitude
+    event["venue_longitude"] = venue.venue_longitude if venue.venue_longitude is not None else explicit_venue_longitude
     event["venue_id"] = canonical_venue_id(event)
     canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
     event["time"] = canonical_time
     event["time_note"] = common.combine_time_notes(
-        event["time_note"], inferred_time_note,
+        event["time_note"],
+        inferred_time_note,
     )
     if len(event["time_note"]) > 500:
         raise EventValidationError("time_note_too_long")
@@ -125,9 +129,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     admission_basis = _text(event, "admission_basis", 16)
     if admission_basis not in {"", "explicit", "inferred", "implicit"}:
         raise EventValidationError("admission_basis_invalid")
-    event["description_source"] = (
-        _text(event, "description_source", 16) or inferred_description_source
-    )
+    event["description_source"] = _text(event, "description_source", 16) or inferred_description_source
     if event["description_source"] not in {"scraped", "generated"}:
         raise EventValidationError("description_source_invalid")
     inferred_free_price, inferred_admission_basis = common.infer_admission(
@@ -141,36 +143,37 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     elif admission_basis == "implicit":
         event["price"] = ""
     event["admission_basis"] = inferred_admission_basis
-    admission_text = " ".join((
-        event["title"], event["description"], event["price"],
-    )).casefold()
+    admission_text = " ".join(
+        (
+            event["title"],
+            event["description"],
+            event["price"],
+        )
+    ).casefold()
     amount_match = re.search(
         r"(?<!\d)(\d+(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b)",
         event["price"].casefold(),
     )
-    amount = (
-        float(amount_match.group(1).replace(",", "."))
-        if amount_match else None
-    )
+    amount = float(amount_match.group(1).replace(",", ".")) if amount_match else None
     normalized_price = event["price"].strip().casefold()
-    donation_suggested = bool(re.search(
-        r"\b(?:spendenbasis|spende(?:n)?\s+erbeten|hut(?:kasse|spende|spenden))\b",
-        admission_text,
-    ))
+    donation_suggested = bool(
+        re.search(
+            r"\b(?:spendenbasis|spende(?:n)?\s+erbeten|hut(?:kasse|spende|spenden))\b",
+            admission_text,
+        )
+    )
     is_free = (
         True
-        if normalized_price in {"frei", "kostenfrei", "kostenlos", "free"}
-        or amount == 0 or donation_suggested
-        else False if normalized_price or amount is not None else None
+        if normalized_price in {"frei", "kostenfrei", "kostenlos", "free"} or amount == 0 or donation_suggested
+        else False
+        if normalized_price or amount is not None
+        else None
     )
     event["admission"] = {
         "isFree": is_free,
         "amount": amount,
         "currency": "EUR",
-        "basis": (
-            "structured" if inferred_admission_basis == "explicit"
-            else inferred_admission_basis
-        ),
+        "basis": ("structured" if inferred_admission_basis == "explicit" else inferred_admission_basis),
         "note": event["price"],
         "donationSuggested": donation_suggested,
     }
@@ -249,10 +252,12 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     decision = evaluate_event_quality(event)
     if decision.should_drop:
         raise EventValidationError(f"quality:{decision.rule_id}")
-    return CanonicalEvent(**{
-        field: event.get(field, definition.default)
-        for field, definition in CanonicalEvent.__dataclass_fields__.items()
-    })
+    return CanonicalEvent(
+        **{
+            field: event.get(field, definition.default)
+            for field, definition in CanonicalEvent.__dataclass_fields__.items()
+        }
+    )
 
 
 def validate_event(raw_event: RawEvent | object) -> CanonicalEvent:

@@ -84,8 +84,7 @@ _EXCLUDED_TITLE = re.compile(
 
 
 def _listing_url(site: MecSite, category_id: int, page: int) -> str:
-    return (f"{site.base_url}/wp-json/wp/v2/mec-events"
-            f"?mec_category={category_id}&per_page={_PER_PAGE}&page={page}")
+    return f"{site.base_url}/wp-json/wp/v2/mec-events?mec_category={category_id}&per_page={_PER_PAGE}&page={page}"
 
 
 def ical_url(site: MecSite, post_id: int) -> str:
@@ -117,13 +116,13 @@ def market_candidates(items: list) -> list:
 
 def _cached_calendar_fetcher(url: str, **kwargs) -> str:
     kwargs.pop("timeout", None)
-    return common.fetch_detail_url(url, cache_namespace=_CACHE_NAMESPACE,
-                                   timeout=20, **kwargs)
+    return common.fetch_detail_url(url, cache_namespace=_CACHE_NAMESPACE, timeout=20, **kwargs)
 
 
 def _city_resolver(site: MecSite):
     def resolve(location: str) -> str:
         return rc.city_from_text(location or "", site.city) or site.city
+
     return resolve
 
 

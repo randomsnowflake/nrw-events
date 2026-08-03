@@ -4,14 +4,23 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import naturregion_sieg, regional_venues
+
 from tests.helpers import patch_window
 
 from .parser_cases import case_class
 
 BONN_MARKERS = (
-    "bonn", "brotfabrik", "pantheon", "kult41", "kunstmuseum",
-    "bundeskunsthalle", "botanical", "springmaus", "repair_cafes",
-    "brueckenforum", "vox_bona",
+    "bonn",
+    "brotfabrik",
+    "pantheon",
+    "kult41",
+    "kunstmuseum",
+    "bundeskunsthalle",
+    "botanical",
+    "springmaus",
+    "repair_cafes",
+    "brueckenforum",
+    "vox_bona",
 )
 PIPELINE_MARKERS = ("make_event", "search_fallback", "date_for_window", "ical_")
 
@@ -24,8 +33,7 @@ RegionalSourceTests = case_class(
 
 class RheinbachParserTests(unittest.TestCase):
     def setUp(self):
-        self.cache_env = patch.dict(
-            "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
+        self.cache_env = patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.cache_env.start()
         common._reset_detail_page_cache()
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
@@ -111,8 +119,7 @@ class RheinbachParserTests(unittest.TestCase):
 
 class NaturregionSiegParserTests(unittest.TestCase):
     def setUp(self):
-        self.cache_env = patch.dict(
-            "os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
+        self.cache_env = patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"})
         self.cache_env.start()
         common._reset_detail_page_cache()
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
@@ -220,8 +227,10 @@ class NaturregionSiegParserTests(unittest.TestCase):
                 return listing_html
             raise TimeoutError("detail page timed out")
 
-        with patch.object(common, "fetch_url", side_effect=fake_fetch), \
-             patch.object(common, "log_source_error") as log_error:
+        with (
+            patch.object(common, "fetch_url", side_effect=fake_fetch),
+            patch.object(common, "log_source_error") as log_error,
+        ):
             [event] = naturregion_sieg.fetch()
 
         self.assertIn("15.07.2026", event["description"])

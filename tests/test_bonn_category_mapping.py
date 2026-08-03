@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import bonn
+
 from tests.helpers import patch_window
 
 
@@ -21,11 +22,7 @@ class BonnCategoryMappingTests(unittest.TestCase):
         title: str,
         description: str = "Öffentliche Veranstaltung",
     ) -> str:
-        kicker = (
-            f'<span class="SP-Kicker__text">{category}</span>'
-            if category is not None
-            else ""
-        )
+        kicker = f'<span class="SP-Kicker__text">{category}</span>' if category is not None else ""
         return f"""
 <article class="SP-Teaser">
   <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/test.php">
@@ -108,12 +105,12 @@ class BonnCategoryMappingTests(unittest.TestCase):
         self.assertEqual(bonn._SOURCE_CATEGORY_MAP, expected)
         self.assertIn("Führungen/Rundgänge/Touren", bonn._ALLOW)
         self.assertNotIn("Führungen/Rundgänge/Touren", bonn._SOURCE_CATEGORY_MAP)
-        self.assertTrue({
-            "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt."
-        }.issubset(bonn._KNOWN_SOURCE_CATEGORIES))
-        self.assertFalse({
-            "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt."
-        } & bonn._ALLOW)
+        self.assertTrue(
+            {"Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt."}.issubset(
+                bonn._KNOWN_SOURCE_CATEGORIES
+            )
+        )
+        self.assertFalse({"Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt."} & bonn._ALLOW)
 
     def test_current_bonn_topic_categories_are_accepted_without_taxonomy_warning(self):
         categories = {
@@ -127,17 +124,12 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Markt/Messe": "market",
             "Gedenkveranstaltung": "other",
         }
-        html = "".join(
-            self._listing(category, f"Test {index}")
-            for index, category in enumerate(categories, start=1)
-        )
+        html = "".join(self._listing(category, f"Test {index}") for index, category in enumerate(categories, start=1))
         with patch.object(common, "log_source_error") as log_source_error:
             events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
 
         self.assertEqual(len(events), len(categories))
-        self.assertEqual(
-            {event["category_key"] for event in events}, set(categories.values())
-        )
+        self.assertEqual({event["category_key"] for event in events}, set(categories.values()))
         log_source_error.assert_not_called()
 
     def test_listing_rejects_blocked_unknown_and_absent_categories(self):

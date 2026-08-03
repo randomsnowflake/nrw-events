@@ -16,7 +16,10 @@ def fetch() -> list:
         try:
             group_events = common.fetch_ical(
                 f"https://www.meetup.com/{slug}/events/ical/",
-                "Meetup", city, category, trust,
+                "Meetup",
+                city,
+                category,
+                trust,
                 # Meetup returns a complete VCALENDAR with no VEVENT entries
                 # while an otherwise valid group simply has nothing scheduled.
                 empty_calendar_is_valid=True,

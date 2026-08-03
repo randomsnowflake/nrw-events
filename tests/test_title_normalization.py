@@ -40,9 +40,11 @@ class TitleNormalizationTests(unittest.TestCase):
 
     def test_truncation_is_warning_only_and_avoids_short_stylistic_ellipsis(self):
         self.assertTrue(title_looks_truncated("Festival mit Auftritten von Calvin Kleinen u"))
-        self.assertTrue(title_looks_truncated(
-            "Ein sehr langer Titel aus dem Quellenteaser…",
-            source="marktcom",
-        ))
+        self.assertTrue(
+            title_looks_truncated(
+                "Ein sehr langer Titel aus dem Quellenteaser…",
+                source="marktcom",
+            )
+        )
         self.assertFalse(title_looks_truncated("Ein sehr langer offizieller Werktitel…"))
         self.assertFalse(title_looks_truncated("Es war einmal…"))

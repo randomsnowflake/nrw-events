@@ -28,7 +28,7 @@ def _text(value: str) -> str:
 
 def _panel_blocks(html: str) -> list[str]:
     starts = [match.start() for match in re.finditer(r'<div class="panel\s+bonn"', html or "", re.I)]
-    return [html[start:end] for start, end in zip(starts, starts[1:] + [len(html)])]
+    return [html[start:end] for start, end in zip(starts, starts[1:] + [len(html)], strict=False)]
 
 
 def _embedded_family_tours(panel: str, date_text: str, link: str) -> list:
@@ -44,9 +44,7 @@ def _embedded_family_tours(panel: str, date_text: str, link: str) -> list:
         return []
     events = []
     for hour, minute in re.findall(r"\b(\d{1,2})(?::(\d{2}))?\b", match.group(1)):
-        start = datetime.strptime(date_text, "%Y%m%d").replace(
-            hour=int(hour), minute=int(minute or 0)
-        )
+        start = datetime.strptime(date_text, "%Y%m%d").replace(hour=int(hour), minute=int(minute or 0))
         end = start + timedelta(minutes=60)
         event = common.make_event(
             f"Familienbegleitung „{match.group(2).strip()}“",
@@ -90,18 +88,25 @@ def events_from_html(html: str) -> list:
         venue = re.split(r",\s*(?:[A-ZÄÖÜ][^,]+\s+)?\d{1,5}\b", venue, maxsplit=1)[0].strip()
         category = _text(re.sub(r"<span\b.*?</span>", "", heading, flags=re.S | re.I)) or "Museum"
 
-        description_match = re.search(
-            r'class="[^"]*calendar-bodycopy[^"]*"[^>]*>(.*?)</div>', panel, re.S | re.I
-        )
+        description_match = re.search(r'class="[^"]*calendar-bodycopy[^"]*"[^>]*>(.*?)</div>', panel, re.S | re.I)
         description = _text(description_match.group(1) if description_match else "")
         if description_match:
-            description = " ".join(filter(None, [description, _text(panel[:description_match.start()])]))
+            description = " ".join(filter(None, [description, _text(panel[: description_match.start()])]))
 
         link_match = re.search(r'<a[^>]*class="hidden"[^>]*href="([^"]+)"', panel, re.S | re.I)
         link = common.urllib.parse.urljoin(_URL, link_match.group(1)) if link_match else _URL
         event = common.make_event(
-            _text(title_match.group(1)), start, None, venue, "Bonn", description,
-            link, _SOURCE, category, 1.0, start.strftime("%H:%M") if clock else "",
+            _text(title_match.group(1)),
+            start,
+            None,
+            venue,
+            "Bonn",
+            description,
+            link,
+            _SOURCE,
+            category,
+            1.0,
+            start.strftime("%H:%M") if clock else "",
             all_day=not bool(clock),
         )
         if event:
@@ -120,7 +125,7 @@ def _guided_tour_sections(html: str) -> list[tuple[str, str]]:
     return [
         (
             _text(match.group(1)),
-            html[match.end():(starts[index + 1].start() if index + 1 < len(starts) else len(html))],
+            html[match.end() : (starts[index + 1].start() if index + 1 < len(starts) else len(html))],
         )
         for index, match in enumerate(starts)
     ]
@@ -131,7 +136,7 @@ def guided_tours_from_html(html: str) -> list:
     definitions = []
     for heading, section in _guided_tour_sections(html):
         if "Begleitungen zur Wechselausstellung" in heading:
-            exhibition = re.search(r'[„“\"]([^“”\"]+)[“”\"]', heading)
+            exhibition = re.search(r"[„“\"]([^“”\"]+)[“”\"]", heading)
             title = (
                 f"Öffentliche Begleitung „{exhibition.group(1)}“"
                 if exhibition
@@ -149,7 +154,7 @@ def guided_tours_from_html(html: str) -> list:
             continue
         weekday_names = re.findall(
             r"Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag",
-            text[:time_match.start()],
+            text[: time_match.start()],
             re.I,
         )
         weekdays = sorted({_WEEKDAYS[name.casefold()] for name in weekday_names})

@@ -168,9 +168,7 @@ class AssignEventIdsTests(unittest.TestCase):
         self.assertNotIn("event_id", source)
 
     def test_internal_identity_venue_is_not_published(self):
-        assigned = assign_event_ids([
-            occurrence(identity_venue="Bundeskunsthalle", identity_venue_locked=True)
-        ])
+        assigned = assign_event_ids([occurrence(identity_venue="Bundeskunsthalle", identity_venue_locked=True)])
         self.assertNotIn("identity_venue", assigned[0])
         self.assertNotIn("identity_venue_locked", assigned[0])
 

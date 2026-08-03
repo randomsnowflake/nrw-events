@@ -4,10 +4,9 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
 import json
+from datetime import date
 from pathlib import Path
-
 
 REJECTED = {
     "Brühler Innenstadt": "matched an unrelated restaurant, not the city centre",
@@ -56,10 +55,23 @@ def load(path: Path):
 
 def street_like(venue: str) -> bool:
     value = venue.casefold()
-    return any(word in value for word in (
-        "bahnhof", "friedhof", "innenstadt", "markt", "parkplatz", "platz",
-        "rheinufer", "straße", "strasse", "treff", "ufer", "wanderparkplatz",
-    ))
+    return any(
+        word in value
+        for word in (
+            "bahnhof",
+            "friedhof",
+            "innenstadt",
+            "markt",
+            "parkplatz",
+            "platz",
+            "rheinufer",
+            "straße",
+            "strasse",
+            "treff",
+            "ufer",
+            "wanderparkplatz",
+        )
+    )
 
 
 def decision(proposal: dict) -> tuple[str, str]:
@@ -100,27 +112,35 @@ def main() -> int:
         status, note = decision(proposal)
         manual = MANUAL.get((proposal["city"], proposal["venue"]))
         match = manual or proposal.get("match") or {}
-        decisions.append({
-            "city": proposal["city"], "venue": proposal["venue"], "eventCount": proposal["count"],
-            "status": status, "reason": note, "proposalScore": proposal.get("score"),
-            "osmUrl": match.get("osmUrl", ""),
-        })
+        decisions.append(
+            {
+                "city": proposal["city"],
+                "venue": proposal["venue"],
+                "eventCount": proposal["count"],
+                "status": status,
+                "reason": note,
+                "proposalScore": proposal.get("score"),
+                "osmUrl": match.get("osmUrl", ""),
+            }
+        )
         if status != "accepted":
             continue
         samples = proposal.get("samples") or []
-        registry.append({
-            "city": proposal["city"],
-            "venue": proposal["venue"],
-            "address": (proposal.get("addresses") or [""])[0],
-            "latitude": match["latitude"],
-            "longitude": match["longitude"],
-            "checkedAt": str(date.today()),
-            "evidence": {
-                "eventUrl": samples[0].get("link", "") if samples else "",
-                "osmUrl": match.get("osmUrl", ""),
-                "method": note if not manual else manual["note"],
-            },
-        })
+        registry.append(
+            {
+                "city": proposal["city"],
+                "venue": proposal["venue"],
+                "address": (proposal.get("addresses") or [""])[0],
+                "latitude": match["latitude"],
+                "longitude": match["longitude"],
+                "checkedAt": str(date.today()),
+                "evidence": {
+                    "eventUrl": samples[0].get("link", "") if samples else "",
+                    "osmUrl": match.get("osmUrl", ""),
+                    "method": note if not manual else manual["note"],
+                },
+            }
+        )
     registry.sort(key=lambda item: (item["city"].casefold(), item["venue"].casefold()))
     args.registry.parent.mkdir(parents=True, exist_ok=True)
     args.registry.write_text(json.dumps({"locations": registry}, ensure_ascii=False, indent=2) + "\n")

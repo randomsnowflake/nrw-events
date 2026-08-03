@@ -12,7 +12,6 @@ import urllib.parse
 from .. import common
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.koenigswinter.de/"
 _CALENDAR_URL = f"{_BASE_URL}de/veranstaltungskalender.html"
 _CARD_START_RE = re.compile(r'(?=<li[^>]*class="[^"]*\bmedia\b[^"]*"[^>]*>)', re.I)
@@ -24,8 +23,7 @@ def fetch() -> list:
         html = common.fetch_url(_CALENDAR_URL, timeout=25)
         return _events_from_listing(
             html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="koenigswinter", timeout=15),
+            detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="koenigswinter", timeout=15),
         )
     except Exception as e:
         common.log_source_error(source, e)
@@ -63,12 +61,16 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             if common.window_contains(common.parse_date(start_date), common.parse_date(end_date))
             else ""
         )
-        description = detail_copy or listing_copy or _fallback_description(
-            title,
-            start_date,
-            end_date,
-            time_text,
-            venue,
+        description = (
+            detail_copy
+            or listing_copy
+            or _fallback_description(
+                title,
+                start_date,
+                end_date,
+                time_text,
+                venue,
+            )
         )
         category = f"{source_category} königswinter siebengebirge"
         event = common.make_event(

@@ -24,23 +24,29 @@ def _rest_item(post_id, title, content="Irgendein Text."):
     }
 
 
-def _calendar(summary, start="20260906T080000Z", end="20260906T140000Z",
-              location="Hennef-Lichtenberg",
-              categories="Ausstellungen und Märkte,Bürgervereine und Dörfer"):
-    return "\r\n".join([
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//WordPress - MECv6.9.0//EN",
-        "BEGIN:VEVENT",
-        f"UID:MEC-{summary}@hennef.de",
-        f"DTSTART:{start}",
-        f"DTEND:{end}",
-        f"SUMMARY:{summary}",
-        f"CATEGORIES:{categories}",
-        f"LOCATION:{location}",
-        "END:VEVENT",
-        "END:VCALENDAR",
-    ])
+def _calendar(
+    summary,
+    start="20260906T080000Z",
+    end="20260906T140000Z",
+    location="Hennef-Lichtenberg",
+    categories="Ausstellungen und Märkte,Bürgervereine und Dörfer",
+):
+    return "\r\n".join(
+        [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//WordPress - MECv6.9.0//EN",
+            "BEGIN:VEVENT",
+            f"UID:MEC-{summary}@hennef.de",
+            f"DTSTART:{start}",
+            f"DTEND:{end}",
+            f"SUMMARY:{summary}",
+            f"CATEGORIES:{categories}",
+            f"LOCATION:{location}",
+            "END:VEVENT",
+            "END:VCALENDAR",
+        ]
+    )
 
 
 class MecCandidateFilterTests(unittest.TestCase):
@@ -60,7 +66,7 @@ class MecCandidateFilterTests(unittest.TestCase):
         self.assertEqual(len(mec_municipal.market_candidates(items)), 6)
 
     def test_produce_and_non_market_boersen_are_excluded(self):
-        """"Börse" alone is too broad — these are not second-hand markets."""
+        """ "Börse" alone is too broad — these are not second-hand markets."""
         items = [
             _rest_item(10, "Pflanzentauschbörse im Schaugarten"),
             _rest_item(11, "Samenbörse"),
@@ -86,13 +92,10 @@ class MecCandidateFilterTests(unittest.TestCase):
 
 class MecCalendarFetchTests(unittest.TestCase):
     def test_calendar_reads_go_through_the_ttl_cache(self):
-        with mock.patch.object(common, "fetch_detail_url",
-                               return_value="ok") as cached:
-            mec_municipal._cached_calendar_fetcher(
-                "https://www.hennef.de/?method=ical&id=1", timeout=99, accept="x")
+        with mock.patch.object(common, "fetch_detail_url", return_value="ok") as cached:
+            mec_municipal._cached_calendar_fetcher("https://www.hennef.de/?method=ical&id=1", timeout=99, accept="x")
 
-        self.assertEqual(cached.call_args.kwargs["cache_namespace"],
-                         "mec-municipal")
+        self.assertEqual(cached.call_args.kwargs["cache_namespace"], "mec-municipal")
         self.assertEqual(cached.call_args.kwargs["timeout"], 20)
 
     def test_fetch_ical_uses_the_injected_fetcher(self):
@@ -103,11 +106,12 @@ class MecCalendarFetchTests(unittest.TestCase):
             calls.append(url)
             return payload
 
-        with mock.patch.object(common, "TODAY", datetime(2026, 9, 1)), \
-                mock.patch.object(common, "END_DATE", datetime(2026, 9, 30)), \
-                mock.patch.object(common, "fetch_url") as plain:
-            events = common.fetch_ical("https://example.test/e.ics", "Test",
-                                       "Hennef", fetcher=fetcher)
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 9, 1)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 9, 30)),
+            mock.patch.object(common, "fetch_url") as plain,
+        ):
+            events = common.fetch_ical("https://example.test/e.ics", "Test", "Hennef", fetcher=fetcher)
 
         plain.assert_not_called()
         self.assertEqual(calls, ["https://example.test/e.ics"])
@@ -123,21 +127,25 @@ class MecSiteIntegrationTests(unittest.TestCase):
             "Hennef",
             (74,),
         )
-        listing = json.dumps([
-            _rest_item(19512, "Garagenflohmarkt in Hennef-Lichtenberg"),
-            _rest_item(17802, "Pflanzentauschbörse im Schaugarten"),
-            _rest_item(999, "Zen-Meditation im Zen Haus"),
-        ])
+        listing = json.dumps(
+            [
+                _rest_item(19512, "Garagenflohmarkt in Hennef-Lichtenberg"),
+                _rest_item(17802, "Pflanzentauschbörse im Schaugarten"),
+                _rest_item(999, "Zen-Meditation im Zen Haus"),
+            ]
+        )
         requested = []
 
         def fake_detail(url, **kwargs):
             requested.append(url)
             return _calendar("Garagenflohmarkt in Hennef-Lichtenberg")
 
-        with mock.patch.object(common, "TODAY", datetime(2026, 9, 1)), \
-                mock.patch.object(common, "END_DATE", datetime(2026, 9, 30)), \
-                mock.patch.object(common, "fetch_url", return_value=listing), \
-                mock.patch.object(common, "fetch_detail_url", side_effect=fake_detail):
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 9, 1)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 9, 30)),
+            mock.patch.object(common, "fetch_url", return_value=listing),
+            mock.patch.object(common, "fetch_detail_url", side_effect=fake_detail),
+        ):
             events = mec_municipal.events_for_site(site)
 
         self.assertEqual(requested, ["https://www.hennef.de/?method=ical&id=19512"])
@@ -157,8 +165,10 @@ class MecSiteIntegrationTests(unittest.TestCase):
         )
         result = SourceResult("Municipal MEC markets")
 
-        with mock.patch.object(common, "fetch_url", side_effect=OSError("boom")), \
-                mock.patch.object(common, "_SOURCE_CONTEXT") as context:
+        with (
+            mock.patch.object(common, "fetch_url", side_effect=OSError("boom")),
+            mock.patch.object(common, "_SOURCE_CONTEXT") as context,
+        ):
             context.result = result
             self.assertEqual(mec_municipal.events_for_site(site), [])
 
@@ -172,24 +182,28 @@ class MecSiteIntegrationTests(unittest.TestCase):
             "Hennef",
             (74,),
         )
-        listing = json.dumps([
-            _rest_item(19512, "Garagenflohmarkt in Hennef-Lichtenberg"),
-        ])
+        listing = json.dumps(
+            [
+                _rest_item(19512, "Garagenflohmarkt in Hennef-Lichtenberg"),
+            ]
+        )
         result = SourceResult("Municipal MEC markets")
 
-        with mock.patch.object(common, "TODAY", datetime(2026, 7, 26)), \
-                mock.patch.object(common, "END_DATE", datetime(2026, 7, 28)), \
-                mock.patch.object(common, "fetch_url", return_value=listing), \
-                mock.patch.object(
-                    common,
-                    "fetch_detail_url",
-                    return_value=_calendar(
-                        "Wochenmarkt auf dem Marktplatz",
-                        start="20260727T080000Z",
-                        end="20260727T140000Z",
-                    ),
-                ), \
-                mock.patch.object(common, "_SOURCE_CONTEXT") as context:
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 7, 26)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 7, 28)),
+            mock.patch.object(common, "fetch_url", return_value=listing),
+            mock.patch.object(
+                common,
+                "fetch_detail_url",
+                return_value=_calendar(
+                    "Wochenmarkt auf dem Marktplatz",
+                    start="20260727T080000Z",
+                    end="20260727T140000Z",
+                ),
+            ),
+            mock.patch.object(common, "_SOURCE_CONTEXT") as context,
+        ):
             context.result = result
             events = mec_municipal.events_for_site(site)
 
@@ -197,12 +211,7 @@ class MecSiteIntegrationTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
         self.assertTrue(result.endpoints)
-        self.assertFalse(
-            any(
-                endpoint.get("parser_empty") is True
-                for endpoint in result.endpoints.values()
-            )
-        )
+        self.assertFalse(any(endpoint.get("parser_empty") is True for endpoint in result.endpoints.values()))
 
     def test_listing_url_and_ical_url_shapes(self):
         site = mec_municipal.SITES[0]

@@ -16,9 +16,21 @@ _SOURCE = "Naturregion Sieg"
 _CATEGORY = "naturregion sieg outdoor kultur markt"
 _TRUST = 0.9
 _DETAIL_FIELDS = (
-    "description", "description_source", "price", "time", "venue", "city", "distance_km",
-    "location_confidence", "location_source", "status", "start_at", "end_at",
-    "end_date", "all_day", "timezone",
+    "description",
+    "description_source",
+    "price",
+    "time",
+    "venue",
+    "city",
+    "distance_km",
+    "location_confidence",
+    "location_source",
+    "status",
+    "start_at",
+    "end_at",
+    "end_date",
+    "all_day",
+    "timezone",
 )
 
 
@@ -26,9 +38,12 @@ def _fallback_description(event: dict) -> str:
     """Build a factual minimum description when a detail page is unavailable."""
     start = common.parse_iso_date(event.get("start_date", ""))
     return common.factual_event_description(
-        event.get("title", ""), date_value=start or event.get("date", ""),
-        time_text=event.get("time", ""), venue=event.get("venue", ""),
-        city=event.get("city", ""), calendar_name="Naturregion Sieg",
+        event.get("title", ""),
+        date_value=start or event.get("date", ""),
+        time_text=event.get("time", ""),
+        venue=event.get("venue", ""),
+        city=event.get("city", ""),
+        calendar_name="Naturregion Sieg",
     )
 
 
@@ -50,7 +65,9 @@ def _merge_raw_jsonld_item(event: dict, item: dict) -> dict:
         enriched["description"] = description
         enriched["description_source"] = "scraped"
         enriched["price"] = common.infer_free_admission_price(
-            enriched.get("title", ""), description, enriched.get("price", ""),
+            enriched.get("title", ""),
+            description,
+            enriched.get("price", ""),
         )
 
     start = common.parse_iso_date(item.get("startDate", ""))
@@ -80,17 +97,15 @@ def _enrich_from_detail(event: dict, html: str) -> dict:
     title = common.clean_html(event.get("title", "")).casefold()
     start_date = event.get("start_date", "")
     exact = [
-        candidate for candidate in candidates
+        candidate
+        for candidate in candidates
         if common.clean_html(candidate.get("title", "")).casefold() == title
         and candidate.get("start_date", "") == start_date
     ]
     if exact:
         return _merge_detail_event(event, exact[0])
 
-    same_date = [
-        candidate for candidate in candidates
-        if candidate.get("start_date", "") == start_date
-    ]
+    same_date = [candidate for candidate in candidates if candidate.get("start_date", "") == start_date]
     if len(same_date) == 1:
         return _merge_detail_event(event, same_date[0])
 
@@ -120,12 +135,16 @@ def fetch() -> list:
     try:
         html = common.fetch_url(_URL, timeout=25)
         events = common.events_from_ecmaps_tiles(
-            html, _SOURCE, _SOURCE, _CATEGORY, _TRUST, _BASE,
+            html,
+            _SOURCE,
+            _SOURCE,
+            _CATEGORY,
+            _TRUST,
+            _BASE,
         )
         return _enrich_listing_events(
             events,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="naturregion-sieg", timeout=20),
+            detail_fetcher=lambda url: common.fetch_detail_url(url, cache_namespace="naturregion-sieg", timeout=20),
         )
     except Exception as e:
         common.log_source_error(_SOURCE, e)

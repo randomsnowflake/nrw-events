@@ -5,6 +5,7 @@ import urllib.parse
 from datetime import datetime
 from html import unescape
 from html.parser import HTMLParser
+
 from .. import common
 from ..dates import MONTH_DE, MONTH_EN
 from ..source_types import TextParser
@@ -14,17 +15,51 @@ class ParserEmptyError(RuntimeError):
     """A source responded, but its parser produced no trustworthy records."""
 
 
-VOID_TAGS = frozenset({
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-    "meta", "param", "source", "track", "wbr",
-})
+VOID_TAGS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
 
 
-BLOCK_TAGS = frozenset({
-    "p", "div", "section", "article", "header", "footer", "ul", "ol", "dl",
-    "table", "blockquote", "figure", "figcaption", "pre", "hr",
-    "h1", "h2", "h3", "h4", "h5", "h6",
-})
+BLOCK_TAGS = frozenset(
+    {
+        "p",
+        "div",
+        "section",
+        "article",
+        "header",
+        "footer",
+        "ul",
+        "ol",
+        "dl",
+        "table",
+        "blockquote",
+        "figure",
+        "figcaption",
+        "pre",
+        "hr",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+    }
+)
 LINE_TAGS = frozenset({"br", "li", "dt", "dd", "tr"})
 
 
@@ -41,10 +76,7 @@ class ClassScopedTextParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
         if not self._target:
-            self._target = next((
-                name for name, matcher in self.targets.items()
-                if matcher(tag, attributes)
-            ), "")
+            self._target = next((name for name, matcher in self.targets.items() if matcher(tag, attributes)), "")
             if self._target:
                 self._depth = 1
         elif tag not in VOID_TAGS:
@@ -97,7 +129,11 @@ class ClassScopedTextParser(HTMLParser):
 _MONTH = {
     **MONTH_DE,
     **MONTH_EN,
-    "mar": 3, "mär": 3, "sept": 9, "oct": 10, "dec": 12,
+    "mar": 3,
+    "mär": 3,
+    "sept": 9,
+    "oct": 10,
+    "dec": 12,
 }
 
 
@@ -147,8 +183,11 @@ def enrich_descriptions(
         link = (event.get("link") or "").strip()
         if link and link not in html_by_link and link not in failed_links:
             try:
-                html_by_link[link] = detail_fetcher(link) if detail_fetcher else common.fetch_detail_url(
-                    link, cache_namespace=cache_namespace, timeout=timeout)
+                html_by_link[link] = (
+                    detail_fetcher(link)
+                    if detail_fetcher
+                    else common.fetch_detail_url(link, cache_namespace=cache_namespace, timeout=timeout)
+                )
             except Exception as exc:
                 failed_links.add(link)
                 common.log_source_error(source, exc)
@@ -269,18 +308,21 @@ def range_dates(text: str):
     return parse_dt(text), None
 
 
-def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
-                      *, source_id: str = "", empty_is_healthy: bool = False,
-                      fetcher=None) -> list:
+def fetch_html_events(
+    name: str,
+    url: str,
+    parser: TextParser,
+    timeout: int = 25,
+    *,
+    source_id: str = "",
+    empty_is_healthy: bool = False,
+    fetcher=None,
+) -> list:
     try:
         html = (fetcher or common.fetch_url)(url, timeout=timeout)
         with common.capture_parser_metrics() as metrics:
             events = parser(html)
-        parser_empty = (
-            not events
-            and metrics["out_of_window_count"] == 0
-            and not empty_is_healthy
-        )
+        parser_empty = not events and metrics["out_of_window_count"] == 0 and not empty_is_healthy
         common._record_endpoint(
             url,
             parser_type="html",

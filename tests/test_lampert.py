@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import SOURCES, lampert
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LAMPPERT_PAGE = """
 <article class="post type-post">

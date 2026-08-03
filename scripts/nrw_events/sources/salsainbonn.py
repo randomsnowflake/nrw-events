@@ -7,7 +7,6 @@ import urllib.parse
 from .. import common
 from . import regional_common as rc
 
-
 API_URL = "https://www.salsainbonn.de/wp-json/tribe/events/v1/events"
 SOURCE = "Salsa in Bonn"
 _DANCE_RE = re.compile(r"\b(?:salsa|bachata|kizomba|milonga|tanz(?:en|party)?)\b", re.I)
@@ -40,13 +39,18 @@ def _events_from_payload(payload: dict) -> list:
         city = common.clean_html(str(venue_data.get("city") or "Bonn"))
         start = common.parse_iso_date(str(item.get("start_date") or ""))
         end = common.parse_iso_date(str(item.get("end_date") or "")) or start
-        description = description or common.factual_event_description(
-            title, date_value=start, venue=venue, city=city
-        )
+        description = description or common.factual_event_description(title, date_value=start, venue=venue, city=city)
         event = common.make_event(
-            title, start, end, venue, city, description,
+            title,
+            start,
+            end,
+            venue,
+            city,
+            description,
             str(item.get("url") or "https://www.salsainbonn.de/events/liste/"),
-            SOURCE, "salsa bachata dance party nightlife", 0.98,
+            SOURCE,
+            "salsa bachata dance party nightlife",
+            0.98,
             source_id="salsa-in-bonn",
         )
         if event:
@@ -58,16 +62,21 @@ def _events_from_payload(payload: dict) -> list:
 
 
 def fetch() -> list:
-    query = urllib.parse.urlencode({
-        "per_page": 50,
-        "start_date": common.TODAY.strftime("%Y-%m-%d"),
-        "end_date": common.END_DATE.strftime("%Y-%m-%d"),
-    })
+    query = urllib.parse.urlencode(
+        {
+            "per_page": 50,
+            "start_date": common.TODAY.strftime("%Y-%m-%d"),
+            "end_date": common.END_DATE.strftime("%Y-%m-%d"),
+        }
+    )
     url = f"{API_URL}?{query}"
     try:
         raw = common.fetch_url(
-            url, timeout=25, accept="application/json",
-            sec_fetch_mode="cors", sec_fetch_dest="empty",
+            url,
+            timeout=25,
+            accept="application/json",
+            sec_fetch_mode="cors",
+            sec_fetch_dest="empty",
             expected_content_types=("application/json",),
         )
         payload = json.loads(raw)
@@ -75,9 +84,12 @@ def fetch() -> list:
             events = _events_from_payload(payload)
         parser_empty = not events and metrics["out_of_window_count"] == 0 and bool(payload.get("events"))
         common._record_endpoint(
-            url, parser_type="tribe-rest-json", candidate_count=metrics["candidate_count"],
+            url,
+            parser_type="tribe-rest-json",
+            candidate_count=metrics["candidate_count"],
             out_of_window_count=metrics["out_of_window_count"],
-            parsed_event_count=len(events), parser_empty=parser_empty,
+            parsed_event_count=len(events),
+            parser_empty=parser_empty,
         )
         if parser_empty:
             common.log_source_error(SOURCE, rc.ParserEmptyError("feed had records but no public dance events"))

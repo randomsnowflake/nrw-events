@@ -5,7 +5,6 @@ import json
 from .. import category_taxonomy, common
 from . import regional_common as rc
 
-
 _SOURCE = "Theater Bonn"
 _API = "https://www.theater-bonn.de/de/api/events/"
 _CALENDAR = "https://www.theater-bonn.de/de/?mode=kalender#programm"
@@ -20,8 +19,7 @@ def _start(item: dict):
 
 
 def _venue(item: dict) -> str:
-    tags = [rc.clean(tag.get("name", "") if isinstance(tag, dict) else str(tag))
-            for tag in item.get("tags", [])]
+    tags = [rc.clean(tag.get("name", "") if isinstance(tag, dict) else str(tag)) for tag in item.get("tags", [])]
     ignored = {"oper", "schauspiel", "tanz", "quatsch keine oper", "theater bonn"}
     candidates = [tag for tag in tags if tag and tag.casefold() not in ignored]
     return candidates[-1] if candidates else "Theater Bonn"
@@ -34,8 +32,7 @@ def _category(item: dict) -> str:
         if isinstance(value, str):
             names.append(value)
         else:
-            names.extend(entry.get("name", "") if isinstance(entry, dict) else str(entry)
-                         for entry in value or [])
+            names.extend(entry.get("name", "") if isinstance(entry, dict) else str(entry) for entry in value or [])
     text = " ".join(rc.clean(name) for name in names).casefold()
     if any(word in text for word in ("oper", "schauspiel", "tanz", "musical", "quatsch")):
         return "theater bühne schauspiel tanz performance"
@@ -48,8 +45,7 @@ def _format_label(item: dict) -> str:
     values = item.get("categories", []) or item.get("genre_names", []) or []
     if isinstance(values, str):
         values = [values]
-    labels = [rc.clean(value.get("name", "") if isinstance(value, dict) else str(value))
-              for value in values]
+    labels = [rc.clean(value.get("name", "") if isinstance(value, dict) else str(value)) for value in values]
     return next((label for label in labels if label), "")
 
 
@@ -85,16 +81,23 @@ def events_from_payload(items: list[dict]) -> list[dict]:
         category_hint = _category(item)
         if category_hint.startswith("theater"):
             format_label = _format_label(item) or "Bühnenaufführung"
-            description = common.concise_description(
-                f"{format_label} im Theater auf der Bühne. {description}"
-            )
+            description = common.concise_description(f"{format_label} im Theater auf der Bühne. {description}")
         ticket = item.get("ticket") or {}
         ticket_info = rc.clean(ticket.get("ticket_info", "") if isinstance(ticket, dict) else "")
         if ticket_info and ticket_info.casefold() not in description.casefold():
             description = common.concise_description(f"{description} {ticket_info}")
         event = common.make_event(
-            title, start, None, venue, "Bonn", description, _link(item), _SOURCE,
-            category_hint, _TRUST, time_text,
+            title,
+            start,
+            None,
+            venue,
+            "Bonn",
+            description,
+            _link(item),
+            _SOURCE,
+            category_hint,
+            _TRUST,
+            time_text,
             source_id="theater-bonn",
             description_source="generated" if description_generated else "scraped",
         )

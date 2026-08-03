@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from .. import common
 from . import regional_common as rc
 
-
 _URL = "https://lampert-maerkte.de/53121-bonn-an-der-ehem-biskuithalle/"
 _SOURCE = "Lampert Märkte"
 _SOURCE_ID = "lampert-bonn-siemensstrasse"

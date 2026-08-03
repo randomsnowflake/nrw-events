@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime
 
 from nrw_events.sources import requested_venues
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LISTING = """
 <div class="col module"><div class="event-single">
@@ -30,9 +30,7 @@ class BrueckenforumMarketTests(unittest.TestCase):
         Einlass von 15:00 - 18:45 Uhr</div>
         """
 
-        events = requested_venues._events_from_brueckenforum(
-            listing, detail_fetcher=lambda url: detail
-        )
+        events = requested_venues._events_from_brueckenforum(listing, detail_fetcher=lambda url: detail)
 
         self.assertEqual(len(events), 1)
         event = events[0]
@@ -56,9 +54,7 @@ class BrueckenforumMarketTests(unittest.TestCase):
         <div>Eintritt für Besucher: Kostenlos<br>Zeitraum: Immer von 11-17 Uhr</div>
         """
 
-        event = requested_venues._events_from_brueckenforum(
-            listing, detail_fetcher=lambda url: detail
-        )[0]
+        event = requested_venues._events_from_brueckenforum(listing, detail_fetcher=lambda url: detail)[0]
 
         self.assertEqual(event["title"], "Floh- und Trödelmarkt Beueler Rathausplatz")
         self.assertEqual(event["venue"], "Beueler Rathausplatz (Möhneplatz)")

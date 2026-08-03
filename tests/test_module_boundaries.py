@@ -6,8 +6,8 @@ from nrw_events import common, dates, location, scoring
 from nrw_events.health import SourceStatus
 from nrw_events.models import CanonicalEvent, RawEvent
 from nrw_events.source_types import SourceFetcher, TextParser
+from nrw_events.sources import SOURCE_IDS, SOURCE_SPECS, SOURCES, harmonie
 from nrw_events.validation import canonicalize_event
-from nrw_events.sources import SOURCES, SOURCE_IDS, SOURCE_SPECS, harmonie
 
 
 class ModuleBoundaryTests(unittest.TestCase):
@@ -28,10 +28,15 @@ class ModuleBoundaryTests(unittest.TestCase):
 
     def test_canonical_event_is_immutable_after_validation(self):
         event_date = common.TODAY.strftime("%Y-%m-%d")
-        event = canonicalize_event({
-            "title": "Event", "source": "Test", "date": event_date,
-            "score": 1.0, "city": "Bonn",
-        })
+        event = canonicalize_event(
+            {
+                "title": "Event",
+                "source": "Test",
+                "date": event_date,
+                "score": 1.0,
+                "city": "Bonn",
+            }
+        )
         self.assertIsInstance(event, CanonicalEvent)
         self.assertEqual(event["start_date"], event_date)
         with self.assertRaises(AttributeError):

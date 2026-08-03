@@ -20,7 +20,6 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _URL = "https://rhein-antik.de/termine/"
 _SOURCE = "Rhein Antik"
 _SOURCE_ID = "rhein-antik"
@@ -29,8 +28,7 @@ _ITEM_PATTERN = re.compile(
     r'<span[^>]+class="[^"]*\belementor-icon-list-text\b[^"]*"[^>]*>(.*?)</span>',
     re.S | re.I,
 )
-_HEADING_YEAR_PATTERN = re.compile(
-    r"Geplante[^<]{0,120}?Märkte\s*(\d{4})", re.I)
+_HEADING_YEAR_PATTERN = re.compile(r"Geplante[^<]{0,120}?Märkte\s*(\d{4})", re.I)
 _MONTH_NAMES = "|".join(sorted(MONTH_DE, key=len, reverse=True))
 _MONTH_IN_TEXT = re.compile(rf"\b({_MONTH_NAMES})\b\.?", re.I)
 _DAY_IN_TEXT = re.compile(r"\b(\d{1,2})\.")
@@ -39,8 +37,7 @@ _DAY_IN_TEXT = re.compile(r"\b(\d{1,2})\.")
 # Industriedenkmal Sayner Hütte NEU!!!". Strip them off the venue instead of
 # treating the item as a badge — discarding the item would silently shift the
 # following market's location onto this date.
-_BADGE_SUFFIX_PATTERN = re.compile(
-    r"(?:\s*(?:\b(?:wieder\s+da|neuer\s+termin|indoor|neu)\b|!+))+\s*$", re.I)
+_BADGE_SUFFIX_PATTERN = re.compile(r"(?:\s*(?:\b(?:wieder\s+da|neuer\s+termin|indoor|neu)\b|!+))+\s*$", re.I)
 
 
 def _is_date_item(text: str) -> bool:
@@ -53,9 +50,9 @@ def _strip_badges(text: str) -> str:
 
 def _parse_dates(text: str, year: int):
     """Return (start, end) for single, ``bis`` range and ``&`` pair notations."""
-    months = [MONTH_DE[m.group(1).casefold()]
-              for m in _MONTH_IN_TEXT.finditer(text)
-              if m.group(1).casefold() in MONTH_DE]
+    months = [
+        MONTH_DE[m.group(1).casefold()] for m in _MONTH_IN_TEXT.finditer(text) if m.group(1).casefold() in MONTH_DE
+    ]
     days = [int(m.group(1)) for m in _DAY_IN_TEXT.finditer(text)]
     if not months or not days:
         return None, None

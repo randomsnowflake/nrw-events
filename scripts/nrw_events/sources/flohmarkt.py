@@ -14,8 +14,7 @@ import re
 
 from .. import common
 
-_URL = ("https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
-        "hauptkalender/flohmarkt-rheinaue.php")
+_URL = "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/flohmarkt-rheinaue.php"
 
 
 def _visible_description(html: str) -> str:
@@ -32,8 +31,7 @@ def fetch() -> list:
     source = "Rheinauen-Flohmarkt"
     try:
         html = common.fetch_url(_URL, timeout=20)
-        events = common.events_from_jsonld(
-            html, source, "Bonn", "markt flohmarkt outdoor", 1.0, _URL)
+        events = common.events_from_jsonld(html, source, "Bonn", "markt flohmarkt outdoor", 1.0, _URL)
         description = _visible_description(html)
         if description:
             for event in events:

@@ -33,16 +33,17 @@ def _calendar(*, summary, categories="", ionas_category=""):
 
 class IcalFeedCategoryTests(unittest.TestCase):
     def _fetch(self, payload, hint=""):
-        with mock.patch.object(common, "TODAY", datetime(2026, 9, 14)), \
-                mock.patch.object(common, "END_DATE", datetime(2026, 9, 25)), \
-                mock.patch.object(common, "fetch_url", return_value=payload):
-            return common.fetch_ical(
-                "https://example.test/event.ics", "Troisdorf", "Troisdorf", hint)
+        with (
+            mock.patch.object(common, "TODAY", datetime(2026, 9, 14)),
+            mock.patch.object(common, "END_DATE", datetime(2026, 9, 25)),
+            mock.patch.object(common, "fetch_url", return_value=payload),
+        ):
+            return common.fetch_ical("https://example.test/event.ics", "Troisdorf", "Troisdorf", hint)
 
     def test_event_categories_replace_the_static_feed_hint(self):
-        payload = _calendar(summary="Spicher Dorftrödel",
-                            categories="Markt,Trödelmarkt,Innenstadt",
-                            ionas_category="Markt")
+        payload = _calendar(
+            summary="Spicher Dorftrödel", categories="Markt,Trödelmarkt,Innenstadt", ionas_category="Markt"
+        )
 
         events = self._fetch(payload, hint="troisdorf lokal kultur markt")
 
@@ -52,8 +53,7 @@ class IcalFeedCategoryTests(unittest.TestCase):
         self.assertNotIn("troisdorf lokal kultur markt", category_text)
 
     def test_flea_market_tag_classifies_as_market(self):
-        payload = _calendar(summary="Spicher Dorftrödel",
-                            categories="Markt,Trödelmarkt,Innenstadt")
+        payload = _calendar(summary="Spicher Dorftrödel", categories="Markt,Trödelmarkt,Innenstadt")
 
         events = self._fetch(payload, hint="troisdorf lokal kultur markt")
 
@@ -62,12 +62,13 @@ class IcalFeedCategoryTests(unittest.TestCase):
     def test_distinct_feed_tags_are_no_longer_flattened_by_the_hint(self):
         """The hint alone cannot tell an exhibition from a flea market."""
         market = self._fetch(
-            _calendar(summary="Garagenflohmarkt Müllekoven",
-                      categories="Markt,Trödelmarkt"),
-            hint="troisdorf lokal kultur markt")
+            _calendar(summary="Garagenflohmarkt Müllekoven", categories="Markt,Trödelmarkt"),
+            hint="troisdorf lokal kultur markt",
+        )
         exhibition = self._fetch(
             _calendar(summary="Bilderschau Burg Wissem", categories="Ausstellung,Kunst"),
-            hint="troisdorf lokal kultur markt")
+            hint="troisdorf lokal kultur markt",
+        )
 
         self.assertIn("Trödelmarkt", market[0]["category"])
         self.assertIn("Ausstellung", exhibition[0]["category"])
@@ -81,8 +82,7 @@ class IcalFeedCategoryTests(unittest.TestCase):
 
     def test_categories_only_feeds_are_unchanged(self):
         """Regression: Wachtberg registers no hint and must keep using CATEGORIES."""
-        events = self._fetch(
-            _calendar(summary="Dorfflohmarkt in Pech", categories="Markt,Flohmarkt"))
+        events = self._fetch(_calendar(summary="Dorfflohmarkt in Pech", categories="Markt,Flohmarkt"))
 
         self.assertEqual(events[0]["category"], "Markt,Flohmarkt")
 

@@ -7,7 +7,6 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _SOURCE = "Krewelshof Kindersachen-Flohmarkt"
 _SOURCE_ID = "krewelshof-lohmar"
 _URL = "https://krewelshof.de/kinder-familie/flohmarkt/"
@@ -59,9 +58,9 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
         try:
             start = datetime(year, month, int(day_text), start_hour, start_minute)
             end = datetime(year, month, int(day_text), end_hour, end_minute)
-        except ValueError:
+        except ValueError as exc:
             if strict:
-                raise rc.ParserEmptyError("Krewelshof date contract changed")
+                raise rc.ParserEmptyError("Krewelshof date contract changed") from exc
             return []
         event = common.make_event(
             "Kindersachen-Flohmarkt Krewelshof Lohmar",

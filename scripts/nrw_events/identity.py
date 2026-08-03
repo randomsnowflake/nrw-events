@@ -22,10 +22,11 @@ step whenever this module changes.
 
 from __future__ import annotations
 
-from hashlib import sha256
 import json
 import re
-from typing import Any, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from hashlib import sha256
+from typing import Any
 
 from .normalization import comparison_text
 
@@ -92,11 +93,7 @@ def content_fingerprint(event: Mapping[str, Any]) -> str:
     never feed the id itself: it changes whenever any field is enriched.
     """
     payload = json.dumps(
-        {
-            key: event[key]
-            for key in sorted(event)
-            if key not in {"event_id", "content_hash", "first_seen_at"}
-        },
+        {key: event[key] for key in sorted(event) if key not in {"event_id", "content_hash", "first_seen_at"}},
         ensure_ascii=False,
         sort_keys=True,
         default=str,
