@@ -558,6 +558,8 @@ def fetch_url_with_brightdata_fallback(
 # dozens of requests. Keep their raw HTML in small source-specific files so a
 # parser can be improved without coupling the cache format to its parsed fields.
 _DETAIL_PAGE_CACHE_VERSION = 1
+_DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES = 250
+_DETAIL_PAGE_CACHE_DEFAULT_MAX_BYTES = 25 * 1024 * 1024
 _DETAIL_PAGE_CACHE_LOCK = threading.RLock()
 _DETAIL_PAGE_CACHE_STATES: dict[str, dict] = {}
 
@@ -574,6 +576,66 @@ def _detail_page_cache_ttl_seconds() -> float:
         return max(float(os.environ.get("NRW_EVENTS_DETAIL_CACHE_TTL_HOURS", "24")), 0) * 60 * 60
     except (TypeError, ValueError):
         return 24 * 60 * 60
+
+
+def _detail_page_cache_limit(name: str, default: int) -> int:
+    try:
+        return max(int(os.environ.get(name, str(default))), 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _prune_detail_page_cache_entries(
+    entries: dict,
+    *,
+    namespace: str,
+    ttl_seconds: float,
+    now: float,
+) -> dict[str, dict]:
+    """Drop expired entries, then retain the newest entries within both caps."""
+    valid: list[tuple[str, dict]] = []
+    for url, entry in entries.items():
+        if not isinstance(url, str) or not isinstance(entry, dict):
+            continue
+        try:
+            fetched_at = float(entry.get("fetched_at", 0))
+            accessed_at = float(entry.get("accessed_at", fetched_at))
+        except (TypeError, ValueError):
+            continue
+        body = entry.get("body")
+        if not isinstance(body, str) or now - fetched_at > ttl_seconds:
+            continue
+        valid.append((url, {
+            "fetched_at": fetched_at,
+            "accessed_at": accessed_at,
+            "body": body,
+        }))
+
+    max_entries = _detail_page_cache_limit(
+        "NRW_EVENTS_DETAIL_CACHE_MAX_ENTRIES", _DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES,
+    )
+    max_bytes = _detail_page_cache_limit(
+        "NRW_EVENTS_DETAIL_CACHE_MAX_BYTES", _DETAIL_PAGE_CACHE_DEFAULT_MAX_BYTES,
+    )
+    valid.sort(key=lambda item: (item[1]["accessed_at"], item[1]["fetched_at"], item[0]), reverse=True)
+    valid = valid[:max_entries]
+
+    empty_payload_size = len(json.dumps(
+        {"version": _DETAIL_PAGE_CACHE_VERSION, "namespace": namespace, "entries": {}},
+        ensure_ascii=False, separators=(",", ":"),
+    ).encode("utf-8"))
+    retained: dict[str, dict] = {}
+    serialized_size = empty_payload_size
+    for url, entry in valid:
+        fragment_size = len(json.dumps(
+            {url: entry}, ensure_ascii=False, separators=(",", ":"),
+        ).encode("utf-8")) - 2
+        candidate_size = serialized_size + fragment_size + (1 if retained else 0)
+        if candidate_size > max_bytes:
+            continue
+        retained[url] = entry
+        serialized_size = candidate_size
+    return retained
 
 
 def _detail_page_cache_path(namespace: str) -> Path:
@@ -612,17 +674,10 @@ def _load_detail_page_cache(namespace: str, ttl_seconds: float) -> dict:
     if (isinstance(payload, dict)
             and payload.get("version") == _DETAIL_PAGE_CACHE_VERSION
             and payload.get("namespace") == slug):
-        now = time.time()
-        for url, entry in (payload.get("entries") or {}).items():
-            if not isinstance(url, str) or not isinstance(entry, dict):
-                continue
-            try:
-                fetched_at = float(entry.get("fetched_at", 0))
-            except (TypeError, ValueError):
-                continue
-            body = entry.get("body")
-            if isinstance(body, str) and now - fetched_at <= ttl_seconds:
-                entries[url] = {"fetched_at": fetched_at, "body": body}
+        entries = _prune_detail_page_cache_entries(
+            payload.get("entries") or {}, namespace=slug,
+            ttl_seconds=ttl_seconds, now=time.time(),
+        )
 
     state = {
         "namespace": slug,
@@ -651,7 +706,11 @@ def _persist_detail_page_cache(state: dict) -> None:
                 existing_entries = existing.get("entries") or {}
         except (FileNotFoundError, OSError, TypeError, ValueError):
             pass
-        entries = {**existing_entries, **state["entries"]}
+        entries = _prune_detail_page_cache_entries(
+            {**existing_entries, **state["entries"]},
+            namespace=state["namespace"], ttl_seconds=state["ttl_seconds"],
+            now=time.time(),
+        )
         temporary.write_text(
             json.dumps(
                 {
@@ -717,6 +776,8 @@ def fetch_detail_url(
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         cached = state["entries"].get(url)
         if cached is not None and time.time() - cached["fetched_at"] <= ttl_seconds:
+            cached["accessed_at"] = time.time()
+            state["dirty"] = True
             return cached["body"]
         state["entries"].pop(url, None)
 
@@ -726,12 +787,18 @@ def fetch_detail_url(
         if cache_failures:
             with _DETAIL_PAGE_CACHE_LOCK:
                 state = _load_detail_page_cache(cache_namespace, ttl_seconds)
-                state["entries"][url] = {"fetched_at": time.time(), "body": ""}
+                fetched_at = time.time()
+                state["entries"][url] = {
+                    "fetched_at": fetched_at, "accessed_at": fetched_at, "body": "",
+                }
                 state["dirty"] = True
         raise
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
-        state["entries"][url] = {"fetched_at": time.time(), "body": body}
+        fetched_at = time.time()
+        state["entries"][url] = {
+            "fetched_at": fetched_at, "accessed_at": fetched_at, "body": body,
+        }
         state["dirty"] = True
     return body
 
