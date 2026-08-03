@@ -7,7 +7,7 @@
       "keywords": [
         {
           "value": "cinema-special",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
@@ -19,14 +19,14 @@
       "keywords": [
         {
           "value": "fotoclub",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
         },
         {
           "value": "foto club",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
@@ -38,14 +38,14 @@
       "keywords": [
         {
           "value": "kunst!rasen",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
         },
         {
           "value": "kunstrasen",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
@@ -57,14 +57,14 @@
       "keywords": [
         {
           "value": "livetalk",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
         },
         {
           "value": "live-talk",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
@@ -76,7 +76,7 @@
       "keywords": [
         {
           "value": "soundwalk",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
@@ -95,14 +95,14 @@
         },
         {
           "value": "pilates",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
         },
         {
           "value": "hatha yoga",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
@@ -114,14 +114,14 @@
       "keywords": [
         {
           "value": "biker-treffen",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
         },
         {
           "value": "fiat-treffen",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
@@ -145,21 +145,21 @@
       "keywords": [
         {
           "value": "openair-kino",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
         },
         {
           "value": "open-air kino",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
         },
         {
           "value": "open air kino",
-          "match_mode": "substring",
+          "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
