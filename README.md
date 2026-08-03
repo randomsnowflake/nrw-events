@@ -801,6 +801,35 @@ Ein erfolgreicher Lauf ist nicht nur ein Exit-Code: Prüfe auch `event_count`,
 wichtige Quellenzählungen, `source_warnings` und `import_issues`, weil einzelne
 öffentliche Seiten degradiert sein können, ohne den Gesamtlauf zu stoppen.
 
+### Geprüfte Venue-Koordinaten
+
+Der Venue-Geocoding-Pfad ist ein reproduzierbarer, redaktionell geprüfter
+Offline-Workflow; während eines Imports werden keine Geocoder aufgerufen:
+
+```bash
+# 1. Noch nicht aufgelöste Venue-Gruppen aus einem Feed-Snapshot erfassen
+make venue-audit VENUE_FEED=/path/to/events-with-metadata.json \
+  VENUE_AUDIT=/tmp/venue-audit.json
+
+# 2. Kandidaten mit persistenten Caches recherchieren
+python3 scripts/research_venue_geocoding.py /tmp/venue-audit.json \
+  --cache /path/to/nominatim-cache.json \
+  --photon-cache /path/to/photon-cache.json \
+  --output /tmp/venue-proposals.json
+
+# 3. Reviewte Vorschläge bauen; manuelle/rejected Entscheidungen stehen in
+#    scripts/venue_geocoding_decisions.json
+python3 scripts/build_verified_venue_locations.py /tmp/venue-proposals.json \
+  --registry scripts/nrw_events/verified_venue_locations.json \
+  --decisions /tmp/venue-decisions.json
+
+# CI-Reproduzierbarkeitsprüfung gegen den versionierten Vorschlagsstand
+make venue-registry-check
+```
+
+`checkedAt` bleibt für unveränderte Einträge stabil und ändert sich nur, wenn
+sich Koordinaten, Adresse, Aliase oder Evidenz ändern.
+
 ## Lizenz
 
 MIT — siehe [LICENSE](LICENSE).

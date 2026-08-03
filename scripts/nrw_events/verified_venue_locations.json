@@ -652,19 +652,6 @@
     },
     {
       "city": "Bonn",
-      "venue": "TiK Theater Im Keller",
-      "address": "",
-      "latitude": 50.7211294,
-      "longitude": 7.0578383,
-      "checkedAt": "2026-08-01",
-      "evidence": {
-        "eventUrl": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/SOMMERTHEATER-IM-HOF-Mirandolina.php",
-        "osmUrl": "https://www.openstreetmap.org/node/558838592",
-        "method": "venue name and municipality matched"
-      }
-    },
-    {
-      "city": "Bonn",
       "venue": "TiK – Theater im Keller",
       "address": "",
       "latitude": 50.7211294,
@@ -674,7 +661,10 @@
         "eventUrl": "https://tik-bonn.de/2026/08/08/mirandolina/",
         "osmUrl": "https://www.openstreetmap.org/node/558838592",
         "method": "venue name and municipality matched"
-      }
+      },
+      "aliases": [
+        "TiK Theater Im Keller"
+      ]
     },
     {
       "city": "Bonn",
