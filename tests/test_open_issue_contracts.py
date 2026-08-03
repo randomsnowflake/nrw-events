@@ -8,7 +8,8 @@ from pathlib import Path
 from nrw_events import config, highlights, runner, series
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
-from nrw_events.source_specs import AdapterType, SourceSpec, adapter_for, load_source_specs
+from nrw_events.source_specs import AdapterType, SourceSpec, adapter_for, load_source_specs, typed_adapter_for
+from nrw_events.health import SourceFetchResult, SourceStatus
 
 
 def raw_event(title="Flohmarkt Rheinaue", day="2026-08-15", **overrides):
@@ -421,6 +422,25 @@ class OpenIssueContractTests(unittest.TestCase):
                 mock.patch("nrw_events.source_specs.common.events_from_jsonld", return_value=[]):
             self.assertEqual(adapter_for(detail)(), [])
         cached.assert_called_once()
+
+    def test_typed_adapter_lifts_legacy_lists_and_passes_specs_to_new_fetchers(self):
+        legacy = SourceSpec(
+            "legacy", "Legacy", adapter=AdapterType.PYTHON, region="test",
+            callable="nrw_events.sources.harmonie:fetch",
+        )
+        with mock.patch("nrw_events.source_specs.adapter_for", return_value=lambda: [{"title": "A"}]):
+            result = typed_adapter_for(legacy)()
+        self.assertIsInstance(result, SourceFetchResult)
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.events, ({"title": "A"},))
+
+        received = []
+        with mock.patch(
+            "nrw_events.source_specs.adapter_for",
+            return_value=lambda spec: received.append(spec) or [],
+        ):
+            typed_adapter_for(legacy)()
+        self.assertEqual(received, [legacy])
 
 
 if __name__ == "__main__":

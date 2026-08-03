@@ -8,7 +8,7 @@ from nrw_events.health import SourceStatus
 from nrw_events.models import CanonicalEvent, RawEvent
 from nrw_events.source_types import SourceFetcher, TextParser
 from nrw_events.validation import canonicalize_event
-from nrw_events.sources import SOURCES, SOURCE_IDS, SOURCE_SPECS, harmonie
+from nrw_events.sources import SOURCES, SOURCE_FETCHERS, SOURCE_IDS, SOURCE_SPECS, harmonie
 
 
 class ModuleBoundaryTests(unittest.TestCase):
@@ -43,6 +43,7 @@ class ModuleBoundaryTests(unittest.TestCase):
         ids = [spec.id for spec in SOURCE_SPECS]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(set(SOURCES), set(SOURCE_IDS))
+        self.assertEqual(set(SOURCE_FETCHERS), set(SOURCES))
 
     def test_removed_sources_are_not_registered(self):
         self.assertNotIn("Songkick", SOURCES)

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import importlib
+import inspect
 import json
 from pathlib import Path
 import re
@@ -14,6 +15,7 @@ from urllib.parse import urljoin, urlsplit
 
 from . import common
 from .models import AdmissionDefault, RawEvent, normalize_source_id
+from .health import SourceFetchResult
 
 
 class AdapterType(str, Enum):
@@ -179,6 +181,25 @@ def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
                 category_locked=spec.category_locked,
             ))
         return events
+
+    return fetch
+
+
+def typed_adapter_for(spec: SourceSpec) -> Callable[[], SourceFetchResult]:
+    """Lift every legacy/declarative adapter into the typed source contract."""
+    fetcher = adapter_for(spec)
+    accepts_spec = (
+        spec.adapter is AdapterType.PYTHON
+        and len(inspect.signature(fetcher).parameters) == 1
+    )
+
+    def fetch() -> SourceFetchResult:
+        result = fetcher(spec) if accepts_spec else fetcher()
+        if isinstance(result, SourceFetchResult):
+            return result
+        if not isinstance(result, list):
+            raise TypeError(f"source returned {type(result).__name__}, expected list or SourceFetchResult")
+        return SourceFetchResult.success(result)
 
     return fetch
 

@@ -30,10 +30,14 @@ from .models import CanonicalEvent, normalize_source_id
 from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
 from .runtime import EventWindow, RunContext
-from .sources import SOURCES, SOURCE_IDS
+from .sources import SOURCE_FETCHERS, SOURCE_IDS
 from .title_normalization import title_looks_truncated
 from .validation import EventValidationError, validate_event
 
+
+# Keep the historical module-level name as the injection seam used by callers
+# and tests, while making the typed facade the production default.
+SOURCES = SOURCE_FETCHERS
 
 EXIT_SUCCESS = 0
 # Historical name retained for callers/tests: a degraded import is still a
