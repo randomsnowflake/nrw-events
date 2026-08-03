@@ -6,9 +6,9 @@ Pure presentation + post-processing. No network, no source-specific logic.
 
 import os
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from urllib import parse as urlparse
 
@@ -145,6 +145,84 @@ def _dedup_key(ev: dict) -> str:
     city = _normalized_city(ev.get("city", ""))
     start_date = ev.get("start_date") or (ev.get("date", "") or "").split("–", 1)[0]
     return "|".join((norm, city, str(start_date)))
+
+
+def _occurrence_date_keys(event: dict) -> tuple[str, ...]:
+    """Return each covered date so overlapping runs enter the same bucket."""
+    bounds = _date_bounds(event)
+    if not bounds:
+        raw = event.get("start_date") or (event.get("date", "") or "").split("–", 1)[0]
+        return (str(raw),)
+    start, end = bounds
+    return tuple(
+        (start + timedelta(days=offset)).isoformat()
+        for offset in range((end - start).days + 1)
+    )
+
+
+def _dedup_blocking_keys(event: dict) -> set[tuple[str, ...]]:
+    """Return conservative cheap keys for plausible duplicate candidates."""
+    title = normalize_title(event.get("title", ""))
+    city = _normalized_city(event.get("city", ""))
+    prefix = title[:12]
+    suffix = title[-12:]
+    venue_id = str(event.get("venue_id") or "")
+    category = str(event.get("category_key") or "")
+    start_at = str(event.get("start_at") or "")
+    words = tuple(
+        word for word in comparison_text(event.get("title", "")).split()
+        if len(word) >= 4 and word not in {"eine", "einer", "einem", "einen", "oder"}
+    )
+    second = words[1] if len(words) > 1 else ""
+    last = words[-1] if words else ""
+    word_shape = (words[0], second, last) if words else ()
+    keys: set[tuple[str, ...]] = set()
+    for day in _occurrence_date_keys(event):
+        if prefix:
+            keys.add(("title-prefix", day, city, prefix))
+            keys.add(("title-prefix-any-city", day, prefix))
+        if suffix:
+            keys.add(("title-suffix", day, city, suffix))
+            keys.add(("title-suffix-any-city", day, suffix))
+        if word_shape:
+            keys.add(("title-shape", day, city, *word_shape))
+            keys.add(("title-shape-any-city", day, *word_shape))
+        if second and last:
+            keys.add(("title-tail", day, city, second, last))
+            keys.add(("title-tail-any-city", day, second, last))
+        if len(words) > 1:
+            keys.add(("title-last-pair", day, city, words[-2], last))
+            keys.add(("title-last-pair-any-city", day, words[-2], last))
+        market_family = _market_title_family(event.get("title", ""))
+        if market_family:
+            keys.add(("market-family", day, city, market_family))
+        if venue_id and category:
+            keys.add(("registered-venue", day, venue_id, category))
+        if start_at:
+            keys.update(("timed-word", start_at, word) for word in words)
+    return keys
+
+
+def _blocking_candidates(
+    event: dict,
+    index: dict[tuple[str, ...], set[int]],
+    frequencies: Counter[tuple[str, ...]],
+) -> list[int]:
+    keys = _dedup_blocking_keys(event)
+    selective = {key for key in keys if frequencies.get(key, 0) <= 32}
+    if not selective and keys:
+        minimum = min(frequencies.get(key, 0) for key in keys)
+        selective = {key for key in keys if frequencies.get(key, 0) == minimum}
+    return sorted({candidate for key in selective for candidate in index.get(key, ())})
+
+
+def _index_blocking_keys(
+    event: dict,
+    index_value: int,
+    index: dict[tuple[str, ...], set[int]],
+) -> None:
+    for key in _dedup_blocking_keys(event):
+        index.setdefault(key, set()).add(index_value)
 
 
 def _normalized_city(value: str) -> str:
@@ -600,23 +678,31 @@ def deduplicate(
         and source_authority(event.get("source", "")) >= 2
     ]
     result: list = []
+    blocking_frequencies = Counter(
+        key
+        for event in events
+        if event.get("status") not in {"cancelled", "postponed"}
+        for key in _dedup_blocking_keys(event)
+    )
+    candidate_index: dict[tuple[str, ...], set[int]] = {}
     for ev in events:
         if ev.get("status") in {"cancelled", "postponed"}:
             continue
         match_index = next(
             (
-                index
-                for index in range(len(result))
+                index for index in _blocking_candidates(ev, candidate_index, blocking_frequencies)
                 if events_are_duplicates(result[index], ev)
             ),
             None,
         )
         if match_index is None:
             result.append(ev)
+            _index_blocking_keys(ev, len(result) - 1, candidate_index)
             continue
 
         current = result[match_index]
         result[match_index] = merge_preferred(current, ev)
+        _index_blocking_keys(result[match_index], match_index, candidate_index)
 
     # Replace the scheduled record with its authoritative schedule change. By
     # keeping the scheduled record's identity fields, the public event ID stays
@@ -659,24 +745,31 @@ def deduplicate(
     # Metadata enrichment can make a winner comparable to an earlier result
     # that neither of its inputs matched on its own. Collapse those transitive
     # pairs until the exported set is closed under ``events_are_duplicates``.
-    while True:
-        duplicate_pair = next(
+    transitive_index: dict[tuple[str, ...], set[int]] = {}
+    if result:
+        _index_blocking_keys(result[0], 0, transitive_index)
+    right_index = 1
+    while right_index < len(result):
+        left_index = next(
             (
-                (left_index, right_index)
-                for right_index in range(1, len(result))
-                for left_index in range(right_index)
-                if events_are_duplicates(result[left_index], result[right_index])
+                index for index in _blocking_candidates(
+                    result[right_index], transitive_index, blocking_frequencies,
+                )
+                if events_are_duplicates(result[index], result[right_index])
             ),
             None,
         )
-        if duplicate_pair is None:
-            break
-        left_index, right_index = duplicate_pair
-        result[left_index] = merge_preferred(
-            result[left_index],
-            result[right_index],
-        )
+        if left_index is None:
+            _index_blocking_keys(result[right_index], right_index, transitive_index)
+            right_index += 1
+            continue
+        result[left_index] = merge_preferred(result[left_index], result[right_index])
         del result[right_index]
+        # Enrichment may make the merged winner comparable to an earlier row.
+        right_index = max(1, left_index)
+        transitive_index = {}
+        for index in range(right_index):
+            _index_blocking_keys(result[index], index, transitive_index)
 
     # A recurring series is not a duplicate: each date is a separately usable
     # occurrence. Cross-source authority is therefore resolved only inside the

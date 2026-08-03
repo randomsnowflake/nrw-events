@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from nrw_events import common, report
 
@@ -102,6 +103,26 @@ class ReportTests(unittest.TestCase):
         ])
 
         self.assertEqual(len(deduped), 2)
+
+    def test_deduplicate_blocks_unrelated_events_before_fuzzy_comparison(self):
+        events = [
+            {
+                "title": f"Konzert {index:04d} mit eigenem Programm",
+                "start_date": "2026-08-15", "end_date": "2026-08-15",
+                "date": "2026-08-15", "city": "Bonn", "venue": "Rheinaue",
+                "source": "Veranstalter", "score": 1.0, "description": "",
+                "price": "", "time": "", "start_at": "", "end_at": "",
+                "link": f"https://example.test/{index}",
+            }
+            for index in range(400)
+        ]
+
+        original = report.events_are_duplicates
+        with patch.object(report, "events_are_duplicates", wraps=original) as duplicate_check:
+            deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 400)
+        self.assertLess(duplicate_check.call_count, 2_000)
 
     def test_civic_market_absorbs_directory_title_variant_at_same_venue(self):
         base = {
