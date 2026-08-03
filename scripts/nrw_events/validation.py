@@ -229,6 +229,8 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     status = _text(event, "status", 32) or "scheduled"
     if status not in {"scheduled", "cancelled", "postponed", "unknown"}:
         raise EventValidationError("status_invalid")
+    if status == "scheduled" and common.event_status(event["title"], event["description"]) == "postponed":
+        status = "postponed"
     event["status"] = status
     # URLs contain venue slugs and navigation words such as ``museum`` or
     # ``events``; they are transport metadata, not editorial category evidence.

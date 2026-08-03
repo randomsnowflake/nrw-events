@@ -1215,6 +1215,7 @@ END:VCALENDAR
             ("Lesung mit Autorin", "Der Termin fällt aus und wird nachgeholt."),
             ("Lesung mit Autorin – FINDET NICHT STATT!", ""),
             ("Theaterabend verschoben", "Neuer Termin folgt"),
+            ("Theaterabend verlegt", "Neuer Termin folgt"),
         ]
 
         for title, description in cases:

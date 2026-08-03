@@ -1064,7 +1064,7 @@ def factual_event_description(
 _CANCELLED_STATUS_WORDS = (
     r"abgesagt(?:\s+(?:werden|wird|wurde))?|entfällt|entfaellt|"
     r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|"
-    r"findet\s+(?:leider\s+)?nicht\s+statt|verschoben"
+    r"findet\s+(?:leider\s+)?nicht\s+statt|verschoben|verlegt"
 )
 _CANCELLED_STATUS_SUBJECTS = (
     r"veranstaltung|termin|event|konzert|lesung|theaterabend|show|kurs|workshop|"
@@ -1095,7 +1095,11 @@ def event_status(title: str, description: str) -> str:
     """Return a normalized source-independent schedule status."""
     text = " ".join([title or "", description or ""])
     if has_cancelled_status(title, description):
-        return "postponed" if re.search(r"\bverschoben\b|neuer\s+termin", text, re.IGNORECASE) else "cancelled"
+        return (
+            "postponed"
+            if re.search(r"\b(?:verschoben|verlegt)\b|neuer\s+termin", text, re.IGNORECASE)
+            else "cancelled"
+        )
     return "scheduled"
 
 
