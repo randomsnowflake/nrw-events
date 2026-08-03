@@ -22,14 +22,7 @@ _DETAIL_FIELDS = (
 )
 
 
-def _fallback_description(event: dict) -> str:
-    """Build a factual minimum description when a detail page is unavailable."""
-    start = common.parse_iso_date(event.get("start_date", ""))
-    return common.factual_event_description(
-        event.get("title", ""), date_value=start or event.get("date", ""),
-        time_text=event.get("time", ""), venue=event.get("venue", ""),
-        city=event.get("city", ""), calendar_name="Naturregion Sieg",
-    )
+_fallback_description = rc.factual_fallback(calendar_name="Naturregion Sieg")
 
 
 def _merge_detail_event(event: dict, detail_event: dict) -> dict:

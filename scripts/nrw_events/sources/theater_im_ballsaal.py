@@ -14,26 +14,15 @@ _TRUST = 1.0
 
 
 def _meta_description(html: str) -> str:
-    for pattern in (
-        r'<meta[^>]+(?:property|name)=["\'](?:og:description|description)["\'][^>]+content=(["\'])(.*?)\1',
-        r'<meta[^>]+content=(["\'])(.*?)\1[^>]+(?:property|name)=["\'](?:og:description|description)["\']',
-    ):
-        match = re.search(pattern, html, re.I)
-        if match:
-            return common.concise_description(match.group(2))
-    return ""
+    return rc.meta_description(html)
 
 
 def _detail_description(url: str) -> str:
     if urlparse(url).hostname not in {"theater-im-ballsaal.de", "www.theater-im-ballsaal.de"}:
         return ""
-    try:
-        return _meta_description(common.fetch_detail_url(
-            url, cache_namespace="theater-im-ballsaal", timeout=15
-        ))
-    except Exception as exc:
-        common.log_source_error(f"{_SOURCE} detail", exc)
-        return ""
+    return rc.meta_detail_description(
+        url, namespace="theater-im-ballsaal", source=_SOURCE,
+    )
 
 
 def _category(genre: str) -> str:

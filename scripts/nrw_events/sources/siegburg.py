@@ -34,12 +34,7 @@ def _parse_detail_description(html: str) -> str:
     return common.concise_description("\n\n".join(description_parts))
 
 
-def _fallback_description(event: dict) -> str:
-    start = common.parse_iso_date(event.get("start_date") or "")
-    return common.factual_event_description(
-        event.get("title", ""), date_value=start, time_text=event.get("time", ""),
-        venue=event.get("venue", ""), city=event.get("city", "Siegburg"),
-    )
+_fallback_description = rc.factual_fallback("Siegburg")
 
 
 def _enrich_missing_descriptions(events: list, source: str) -> list:

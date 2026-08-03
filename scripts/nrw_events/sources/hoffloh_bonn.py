@@ -1,6 +1,5 @@
 """Scheduled Bonn neighborhood flea markets from HofFloh's public API."""
 
-import json
 import re
 
 from .. import common
@@ -74,13 +73,7 @@ def fetch() -> list:
     while page <= total_pages and page <= 20:
         url = _API_URL.format(page=page)
         try:
-            payload = json.loads(common.fetch_url(
-                url,
-                timeout=20,
-                accept="application/json,*/*;q=0.8",
-                sec_fetch_mode="cors",
-                sec_fetch_dest="empty",
-            ))
+            payload = common.fetch_json(url, timeout=20)
             if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
                 raise rc.ParserEmptyError("HofFloh API contract changed")
             parsed = _events_from_payload(payload)

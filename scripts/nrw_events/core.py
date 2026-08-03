@@ -416,6 +416,16 @@ def fetch_url(
     raise RuntimeError("fetch_url retry loop exhausted unexpectedly")  # pragma: no cover
 
 
+def fetch_json(url: str, timeout: int = 15, headers: Optional[dict] = None):
+    """Fetch and decode a JSON API response with a strict content-type guard."""
+    return json.loads(fetch_url(
+        url, timeout=timeout, headers=headers,
+        accept="application/json,*/*;q=0.8",
+        sec_fetch_mode="cors", sec_fetch_dest="empty",
+        expected_content_types=("application/json", "text/json"),
+    ))
+
+
 def _raise_brightdata_failure(url: str, started: float, exc: Exception) -> NoReturn:
     _record_endpoint(
         url,

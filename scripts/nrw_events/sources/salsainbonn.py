@@ -1,6 +1,5 @@
 """Public dance events from Salsa in Bonn e.V.'s official Tribe REST feed."""
 
-import json
 import re
 import urllib.parse
 
@@ -65,12 +64,7 @@ def fetch() -> list:
     })
     url = f"{API_URL}?{query}"
     try:
-        raw = common.fetch_url(
-            url, timeout=25, accept="application/json",
-            sec_fetch_mode="cors", sec_fetch_dest="empty",
-            expected_content_types=("application/json",),
-        )
-        payload = json.loads(raw)
+        payload = common.fetch_json(url, timeout=25)
         with common.capture_parser_metrics() as metrics:
             events = _events_from_payload(payload)
         parser_empty = not events and metrics["out_of_window_count"] == 0 and bool(payload.get("events"))

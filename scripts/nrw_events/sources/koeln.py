@@ -5,7 +5,6 @@ Reads:  stadt-koeln.de/externe-dienste/open-data/events-od.php (JSON)
 Yields: city-wide Köln events with real coordinates. The workhorse source.
 """
 
-import json
 import re
 from html import unescape
 
@@ -24,14 +23,7 @@ def fetch() -> list:
     try:
         url = ("https://www.stadt-koeln.de/externe-dienste/open-data/events-od.php"
                f"?out=json&ndays={common.DAYS_AHEAD}")
-        data = json.loads(common.fetch_url(
-            url,
-            timeout=20,
-            accept="application/json,*/*;q=0.8",
-            sec_fetch_mode="cors",
-            sec_fetch_dest="empty",
-            expected_content_types=("application/json", "text/json"),
-        ))
+        data = common.fetch_json(url, timeout=20)
         events = []
         for item in data.get("items", []):
             title = (item.get("title") or "").strip()

@@ -125,13 +125,7 @@ def _time_text(item: dict, start, end) -> str:
     return f"{start:%H:%M}"
 
 
-def _fallback_description(event: dict) -> str:
-    start = common.parse_iso_date(event.get("start_date", ""))
-    return common.factual_event_description(
-        event.get("title", ""), date_value=start or event.get("date", ""),
-        time_text=event.get("time", ""), venue=event.get("venue", ""),
-        city=event.get("city", ""), calendar_name=event.get("city", ""),
-    )
+_fallback_description = rc.factual_fallback(calendar_name=lambda event: event.get("city", ""))
 
 
 def _description_is_only_title(description: str, title: str) -> bool:
