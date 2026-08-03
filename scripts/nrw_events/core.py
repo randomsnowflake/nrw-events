@@ -1250,10 +1250,14 @@ def combine_time_notes(existing: str, inferred: str) -> str:
 
 _FREE_ADMISSION_PATTERNS = (
     r"\b(?:kosten|preis|teilnahmegebühr|teilnahmegebuehr)\s*:\s*(?:frei|kostenlos|kostenfrei)\b",
+    r"\beinlass\s*:?\s*(?:gratis|frei|kostenlos|kostenfrei)\b",
     r"\beintritt\s*:?\s*(?:frei|kostenlos|kostenfrei)\b",
-    r"\beintritt\s+(?:ist|bleibt)\s+(?:(?:nach\s+wie\s+vor|weiterhin|auch|"
-    r"wie\s+immer|(?:für|fuer|zu)\s+alle(?:n)?\s+(?:veranstaltungen|angebote|termine))\s+)*"
+    r"\beintritt\s+(?:ist|bleibt)\s+(?:(?:nach\s+wie\s+vor|weiterhin|auch|natürlich|natuerlich|"
+    r"wieder|wie\s+immer|(?:für|fuer|zu)\s+alle(?:n)?\s+(?:veranstaltungen|angebote|termine))\s+)*"
     r"(?:frei|kostenlos|kostenfrei)\b",
+    r"\beintirtt\s+(?:ist|bleibt)\s+(?:frei|kostenlos|kostenfrei)\b",
+    r"\beintritt\s+(?:(?:natürlich|natuerlich|weiterhin|wieder|nach\s+wie\s+vor|"
+    r"wie\s+immer)\s+)+(?:frei|kostenlos|kostenfrei)\b",
     r"\beintritt\s+(?:auch\s+)?(?:zu|für|fuer)\s+[^.]{1,60}\s+"
     r"(?:ist|bleibt)\s+(?:frei|kostenlos|kostenfrei)\b",
     r"\bfreier\s+eintritt\b",
@@ -1262,7 +1266,8 @@ _FREE_ADMISSION_PATTERNS = (
     r"\s+.{0,90}\b(?:ist|sind)\s+(?:kostenlos|kostenfrei)\b",
     r"\b(?:kostenlos(?:e[rsn]?|em|en|es)?|kostenfrei(?:e[rsn]?|em|en|es)?)[,\s–-]+"
     r"(?:[a-zäöüß-]+[,\s]+){0,2}(?:teilnahme|veranstaltung|angebot|programm|sportangebot|"
-    r"[a-zäöüß-]*(?:workshop|kurs|konzert|führung|fuehrung|tour)|termin|event|filmvorführung|filmvorfuehrung)\b",
+    r"[a-zäöüß-]*(?:workshop|kurs|konzert|führung|fuehrung|tour|training)|termin|event|"
+    r"filmvorführung|filmvorfuehrung)\b",
     r"\b(?:workshop|veranstaltung|sonder-veranstaltung|führung|fuehrung|offene werkstatt)"
     r"[^.]{0,80}\b(?:kostenlos|kostenfrei)\b",
     r"\b(?:kostenlos|kostenfrei)\s*(?:[-–]\s*)?(?:und\s+)?"
@@ -1271,8 +1276,22 @@ _FREE_ADMISSION_PATTERNS = (
     r"(?:keine anmeldung|ohne anmeldung)\b",
     r"(?:^|[.!?]\s*)kostenlos\s+und\s+unverbindlich\b",
     r"\b(?:kostenlos|kostenfrei)\s+ab\s+\d+\b",
+    r"\b(?:du\s+kannst|kannst\s+du|ihr\s+(?:könnt|koennt)|(?:könnt|koennt)\s+ihr|"
+    r"sie\s+(?:können|koennen)|(?:können|koennen)\s+sie|man\s+kann)\b"
+    r"[^.]{0,140}\b(?:kostenlos|kostenfrei)\b"
+    r"[^.]{0,60}\b(?:anhören|anhoeren|besuchen|teilnehmen|mitmachen)\b",
 )
 _FREE_TITLE_PATTERN = re.compile(r"^\s*(?:kostenlos|kostenfrei)\s+", re.IGNORECASE)
+# Municipal calendar templates often place the admission value on its own
+# paragraph instead of exposing a dedicated price field. Require a whole block;
+# ordinary prose such as "Anmeldung nicht erforderlich: frei" is not evidence.
+_FREE_DESCRIPTION_BLOCK_PATTERN = re.compile(
+    r"(?im)^\s*(?:"
+    r"(?:kostenlos|kostenfrei)(?:\s+natürlich|\s+natuerlich)?\s*"
+    r"(?:[.!][ \t]*(?=\n|$)|$)"
+    r"|frei\s*(?:[.!]?\s*$|,\s*(?:es\s+geht\s+der\s+hut\s+rum|hutspenden?\b|spenden?\b).*$)"
+    r")",
+)
 _FREE_PRICE_PATTERN = re.compile(
     r"^(?:(?:eintritt|kosten|preis|teilnahmegebühr|teilnahmegebuehr)\s*:?\s*)?"
     r"(?:(?:frei|kostenlos|kostenfrei|free)"
@@ -1295,15 +1314,21 @@ _LIMITED_FREE_CONTEXT_PATTERNS = (
     r"\bkinder(?:n)?\s+bis\s+\d+[^.]{0,40}\s+(?:kostenlos|frei)\b",
     r"\b(?:kostenlos|frei)[^.]{0,40}\bkinder(?:n)?\s+bis\s+\d+\b",
 )
+_LIMITED_FREE_TRIAL_PATTERN = re.compile(
+    r"\b(?:erste|ersten|erstes|erstmalige|einmalige)\b[^.]{0,80}"
+    r"\b(?:kostenlos|kostenfrei)(?:e[rsn]?|em|en|es)?\s+probe(?:stunde|training|termin)\b",
+    re.IGNORECASE,
+)
 
 # These event types normally have no visitor admission even when the source only
-# publishes seller fees or leaves the price field empty. Keep the list narrow:
-# ticketed design/night/indoor markets are deliberately excluded.
+# publishes ancillary charges or leaves the price field empty. Keep the list
+# narrow: ticketed design/night/indoor markets are deliberately excluded.
 _IMPLICIT_FREE_TITLE_PATTERN = re.compile(
     r"\b(?:flohmarkt|trödelmarkt|troedelmarkt|hofflohmarkt|hausflohmarkt|"
     r"straßenflohmarkt|strassenflohmarkt|stadtflohmarkt|büchermarkt|buechermarkt|"
     r"stadtteilfest|straßenfest|strassenfest|veedelsfest|dorffest|"
-    r"nachbarschaftsfest|tag\s+der\s+offenen\s+tür|tag\s+der\s+offenen\s+tuer)\b",
+    r"nachbarschaftsfest|tag\s+der\s+offenen\s+tür|tag\s+der\s+offenen\s+tuer|"
+    r"repair[-\s]?caf[ée]|reparaturcaf[ée])\b",
     re.IGNORECASE,
 )
 _IMPLICIT_FREE_EXCLUSION_PATTERN = re.compile(
@@ -1312,7 +1337,9 @@ _IMPLICIT_FREE_EXCLUSION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _VISITOR_ADMISSION_AMOUNT_PATTERN = re.compile(
-    r"\b(?:(?:eintritt|besucher(?:preis|eintritt)|ticket(?:preis)?)\b[^.]{0,60}|"
+    r"\b(?:(?:eintritt|besucher(?:preis|eintritt)|ticket(?:preis)?|"
+    r"teilnahme(?:gebühr|gebuehr|kosten)|teilnehmergebühr|teilnehmergebuehr|"
+    r"kostenbeitrag|kursgebühr|kursgebuehr|workshopgebühr|workshopgebuehr)\b[^.]{0,60}|"
     r"(?:gäste|gaeste|erwachsene)\s+(?:zahlen|bezahlen|kosten)\s*)"
     # `\b` after `€` would never match at end of string: use a word-char guard so
     # the common German notation ("Eintritt: 4,50 €") is recognised.
@@ -1375,7 +1402,11 @@ def infer_admission(
         return "", ""
     if _LIMITED_FREE_WITH_PAID_PATTERN.search(text) and any(re.search(pattern, text, re.IGNORECASE) for pattern in _LIMITED_FREE_CONTEXT_PATTERNS):
         return "", ""
+    if _LIMITED_FREE_TRIAL_PATTERN.search(clean_html(description or "")):
+        return "", ""
     if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
+        return "kostenlos", "inferred"
+    if _FREE_DESCRIPTION_BLOCK_PATTERN.search(clean_html_blocks(description or "")):
         return "kostenlos", "inferred"
     if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
         return "kostenlos", "inferred"
