@@ -10,10 +10,13 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import uuid
+import weakref
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import thread as futures_thread
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,6 +51,46 @@ _CATEGORY_ALIASES = {
     "sport": "sports", "theater": "stage", "treffen": "activities", "vortrag": "talk",
     "workshop": "workshop",
 }
+
+
+class _DetachedThreadPoolExecutor(ThreadPoolExecutor):
+    """Thread pool whose abandoned workers cannot hold CLI shutdown open."""
+
+    def _adjust_thread_count(self) -> None:
+        if self._idle_semaphore.acquire(timeout=0):
+            return
+
+        def weakref_callback(_reference, work_queue=self._work_queue):
+            work_queue.put(None)
+
+        num_threads = len(self._threads)
+        if num_threads >= self._max_workers:
+            return
+        thread_name = f"{self._thread_name_prefix or self}_{num_threads}"
+        if hasattr(self, "_create_worker_context"):
+            worker_args = (
+                weakref.ref(self, weakref_callback),
+                self._create_worker_context(),
+                self._work_queue,
+            )
+        else:
+            worker_args = (
+                weakref.ref(self, weakref_callback),
+                self._work_queue,
+                getattr(self, "_initializer", None),
+                getattr(self, "_initargs", ()),
+            )
+        worker = threading.Thread(
+            name=thread_name, target=futures_thread._worker,
+            args=worker_args, daemon=True,
+        )
+        worker.start()
+        self._threads.add(worker)
+
+    def replace_stalled_worker(self, worker: threading.Thread) -> None:
+        """Restore queue capacity while an abandoned daemon worker is stuck."""
+        self._threads.discard(worker)
+        self._adjust_thread_count()
 
 
 @dataclass(frozen=True, slots=True)
@@ -801,7 +844,7 @@ def filter_import_result(
 
 
 def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
-               executor_factory=ThreadPoolExecutor) -> ImportResult:
+               executor_factory=_DetachedThreadPoolExecutor) -> ImportResult:
     """Execute, validate, filter, and deduplicate sources in memory."""
     # Source adapters still read a compatibility facade; embedders must not
     # need to configure that module-global window separately from RunContext.
@@ -814,26 +857,70 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     all_events: list[CanonicalEvent] = []
     source_results: dict[str, SourceResult] = {}
     worker_count = min(settings.source_workers, max(len(sources), 1))
-    with executor_factory(max_workers=worker_count) as pool:
+    pool = executor_factory(max_workers=worker_count)
+    started: dict[str, tuple[float, threading.Thread]] = {}
+    started_lock = threading.Lock()
+
+    def run_source(name: str, fetch: Callable[[], list]):
+        with started_lock:
+            started[name] = (time.monotonic(), threading.current_thread())
+        return _run_source(name, fetch, settings.source_timeout_seconds)
+
+    def accept_result(name: str, future: Future) -> None:
+        result, events = future.result()
+        source_results[name] = result
+        if result.error:
+            log(logger, 40, result.error["error"], run_id=run_id, source=name,
+                error_type=result.error["error_type"])
+        marker = "✓" if result.status in {
+            SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY,
+            SourceStatus.SCHEDULED_SKIP, SourceStatus.DISABLED,
+        } else "!"
+        log(logger, 20 if marker == "✓" else 30,
+            f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
+            run_id=run_id, source=name)
+        all_events.extend(events)
+
+    try:
         futures = {
-            pool.submit(_run_source, name, fetch, settings.source_timeout_seconds): name
+            pool.submit(run_source, name, fetch): name
             for name, fetch in sources.items()
         }
-        for future in as_completed(futures):
-            name = futures[future]
-            result, events = future.result()
-            source_results[name] = result
-            if result.error:
-                log(logger, 40, result.error["error"], run_id=run_id, source=name,
-                    error_type=result.error["error_type"])
-            marker = "✓" if result.status in {
-                SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY,
-                SourceStatus.SCHEDULED_SKIP, SourceStatus.DISABLED,
-            } else "!"
-            log(logger, 20 if marker == "✓" else 30,
-                f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
-                run_id=run_id, source=name)
-            all_events.extend(events)
+        pending = set(futures)
+        while pending:
+            completed, _ = wait(pending, timeout=0.01, return_when=FIRST_COMPLETED)
+            for future in completed:
+                pending.remove(future)
+                accept_result(futures[future], future)
+
+            now = time.monotonic()
+            timed_out = [
+                future for future in pending
+                if futures[future] in started
+                and now - started[futures[future]][0] >= settings.source_timeout_seconds
+            ]
+            for future in timed_out:
+                pending.remove(future)
+                name = futures[future]
+                worker = started[name][1]
+                future.cancel()
+                replace_worker = getattr(pool, "replace_stalled_worker", None)
+                if replace_worker is not None:
+                    replace_worker(worker)
+                result = SourceResult(source=name)
+                result.error = {
+                    "error_type": "TimeoutError",
+                    "error": f"source exceeded {settings.source_timeout_seconds:g}s wall-clock budget",
+                }
+                result.duration_ms = round(settings.source_timeout_seconds * 1000)
+                result.finish([])
+                source_results[name] = result
+                log(
+                    logger, 40, result.error["error"], run_id=run_id, source=name,
+                    error_type=result.error["error_type"],
+                )
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:

@@ -214,13 +214,13 @@ class HardeningRegressionTests(unittest.TestCase):
             finally:
                 common.set_source_context(None)
 
-    def test_successful_endpoint_renews_the_source_inactivity_budget(self):
+    def test_successful_endpoint_never_renews_past_the_source_hard_deadline(self):
         result = mock.Mock()
         with mock.patch.object(common.time, "perf_counter", side_effect=[100.0, 120.0, 121.0]):
             common.set_source_context(result, timeout_seconds=30.0)
             try:
                 common._record_endpoint("https://progress.test/events", status=200)
-                self.assertEqual(common._request_deadline(), 150.0)
+                self.assertEqual(common._request_deadline(), 130.0)
             finally:
                 common.set_source_context(None)
 
