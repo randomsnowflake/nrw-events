@@ -10,6 +10,11 @@ from nrw_events.category_taxonomy import (
     categorize_event,
     configure_fallback_cache,
 )
+from nrw_events.event_vocabulary import (
+    MARKET_CLASSIFICATION_TERMS,
+    MARKET_TERM_POLICIES,
+    ROUTINE_MARKET_DROP_TERMS,
+)
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
@@ -39,6 +44,20 @@ class CategoryTaxonomyTests(unittest.TestCase):
         result = categorize_event("", "Sommerabend", "Ein Vortrag über Bienen.")
         self.assertEqual(result["key"], "talk")
         self.assertGreaterEqual(result["confidence"], taxonomy.HEURISTIC_CONFIDENCE_THRESHOLD)
+
+    def test_market_terms_have_one_explicit_filter_and_taxonomy_policy(self):
+        policy_by_term = {policy.term: policy for policy in MARKET_TERM_POLICIES}
+
+        self.assertEqual(len(policy_by_term), len(MARKET_TERM_POLICIES))
+        self.assertEqual(
+            set(MARKET_CLASSIFICATION_TERMS) & set(ROUTINE_MARKET_DROP_TERMS),
+            {term for term, policy in policy_by_term.items()
+             if policy.classify_as_market and policy.drop_as_routine_market},
+        )
+        self.assertTrue(policy_by_term["wochenmarkt"].classify_as_market)
+        self.assertTrue(policy_by_term["wochenmarkt"].drop_as_routine_market)
+        self.assertTrue(policy_by_term["frischemarkt"].classify_as_market)
+        self.assertTrue(policy_by_term["frischemarkt"].drop_as_routine_market)
 
     def test_compound_event_formats_classify_without_source_bags(self):
         cases = (

@@ -172,6 +172,7 @@ scripts/nrw_events/
   dates.py
   detail_enrichment.py
   event_builder.py
+  event_vocabulary.py
   health.py
   highlights.py
   http.py
