@@ -244,6 +244,8 @@ def _events_from_rex_filmbuehne(html: str) -> list:
                     if shared_time and "minute" not in match.re.groupindex
                     else None,
                 )
+                if start is None:
+                    continue
                 venue = _rex_venue(line, evidence)
                 event_title = title
                 if re.search(r"reihe\b|retrospektive|festival", title, re.I) and index + 1 < len(lines):
@@ -285,25 +287,30 @@ def _html_lines(fragment: str) -> list[str]:
     ]
 
 
-def _rex_datetime(match: re.Match, *, hour: int | None = None, minute: int | None = None) -> datetime:
-    day = int(match.group("day"))
-    if match.group("month_num"):
-        month = int(match.group("month_num"))
-    else:
-        month = common.MONTH_DE[match.group("month_name").lower().rstrip(".")]
-    raw_year = match.group("year")
-    year = int(raw_year) if raw_year else common.TODAY.year
-    if raw_year and year < 100:
-        year += 2000
-    if not raw_year and month < common.TODAY.month:
-        year += 1
-    return datetime(
-        year,
-        month,
-        day,
-        int(match.group("hour")) if "hour" in match.re.groupindex else int(hour or 0),
-        int(match.group("minute") or 0) if "minute" in match.re.groupindex else int(minute or 0),
-    )
+def _rex_datetime(match: re.Match, *, hour: int | None = None, minute: int | None = None) -> datetime | None:
+    try:
+        day = int(match.group("day"))
+        if match.group("month_num"):
+            month = int(match.group("month_num"))
+        else:
+            month = common.MONTH_DE.get(match.group("month_name").lower().rstrip("."))
+            if month is None:
+                return None
+        raw_year = match.group("year")
+        year = int(raw_year) if raw_year else common.TODAY.year
+        if raw_year and year < 100:
+            year += 2000
+        if not raw_year and month < common.TODAY.month:
+            year += 1
+        return datetime(
+            year,
+            month,
+            day,
+            int(match.group("hour")) if "hour" in match.re.groupindex else int(hour or 0),
+            int(match.group("minute") or 0) if "minute" in match.re.groupindex else int(minute or 0),
+        )
+    except (TypeError, ValueError):
+        return None
 
 
 def _rex_venue(schedule_text: str, fallback_text: str) -> str:

@@ -122,6 +122,25 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         self.assertIn("Anwesenheit des Regisseurs", events[0]["description"])
         self.assert_valid_cinema_events(events)
 
+    def test_rex_filmbuehne_skips_invalid_month_or_day_without_losing_siblings(self):
+        html = """
+<div class="vorschau">
+  <h2>Sondervorstellung Fehler</h2>
+  <h4 class="termin"><strong>14. Vorstellungen beginnen um 20 Uhr im Rex</strong></h4>
+</div>
+<div class="vorschau">
+  <h2>Preview bleibt erhalten</h2>
+  <h4 class="termin"><strong>31. April um 19:00 Uhr im Rex<br>22.07. um 20:15 Uhr im Rex</strong></h4>
+</div>
+"""
+
+        events = cinema_specials._events_from_rex_filmbuehne(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Preview bleibt erhalten")
+        self.assertEqual(events[0]["date"], "2026-07-22")
+        self.assertEqual(events[0]["time"], "20:15")
+
     def test_rex_filmbuehne_applies_shared_time_to_date_only_series(self):
         html = """
 <div class="vorschau">
