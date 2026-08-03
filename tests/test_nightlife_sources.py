@@ -2,21 +2,14 @@ import json
 import unittest
 from datetime import datetime
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import afterjobparty, max7, rheinevents, salsainbonn
-from scripts.nrw_events.validation import canonicalize_event
+from nrw_events.sources import afterjobparty, max7, rheinevents, salsainbonn
+from nrw_events.validation import canonicalize_event
+from tests.helpers import patch_window
 
 
 class NightlifeSourceTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 19)
-        common.END_DATE = datetime(2026, 9, 10)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 7, 19), datetime(2026, 9, 10))
 
     def assert_canonical(self, event):
         canonical = canonicalize_event(event)

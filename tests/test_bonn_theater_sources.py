@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.sources import (
+from nrw_events import common
+from nrw_events.sources import (
     junges_theater_bonn,
     kleines_theater,
     theater_bonn,
@@ -11,19 +11,13 @@ from scripts.nrw_events.sources import (
     theater_marabu,
     tik_bonn,
 )
-from scripts.nrw_events.validation import canonicalize_event
+from nrw_events.validation import canonicalize_event
+from tests.helpers import patch_window
 
 
 class BonnTheaterSourceTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 19)
-        common.END_DATE = datetime(2026, 12, 31)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 7, 19), datetime(2026, 12, 31))
 
     def assert_canonical(self, event, source_id):
         canonical = canonicalize_event(event)

@@ -3,22 +3,16 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.health import SourceResult
-from scripts.nrw_events.sources import SOURCES, cinema_specials
-from scripts.nrw_events.validation import validate_event
+from nrw_events import common
+from nrw_events.health import SourceResult
+from nrw_events.sources import SOURCES, cinema_specials
+from nrw_events.validation import validate_event
+from tests.helpers import patch_window
 
 
 class CinemaSpecialSourceTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 19)
-        common.END_DATE = datetime(2026, 9, 30)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 7, 19), datetime(2026, 9, 30))
 
     def assert_valid_cinema_events(self, events):
         self.assertTrue(events)
@@ -275,7 +269,7 @@ Treffpunkt: Jahnschule, Herseler Str. 7, 53117 Bon</strong>n</strong></p>
             "date": "2026-07-20",
             "source_id": "ruengsdorfer-kulturbad",
         }]
-        with patch("scripts.nrw_events.common.fetch_ical", return_value=feed_events) as fetch_ical:
+        with patch("nrw_events.common.fetch_ical", return_value=feed_events) as fetch_ical:
             events = cinema_specials._fetch_kulturbad_cinema()
 
         self.assertEqual(events, feed_events)
@@ -289,7 +283,7 @@ Treffpunkt: Jahnschule, Herseler Str. 7, 53117 Bon</strong>n</strong></p>
         common.set_source_context(result)
         try:
             with patch(
-                "scripts.nrw_events.common.fetch_url",
+                "nrw_events.common.fetch_url",
                 side_effect=TimeoutError("timed out"),
             ):
                 events = cinema_specials._fetch_optional_html(

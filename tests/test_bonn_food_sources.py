@@ -3,22 +3,16 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from scripts.nrw_events import common
-from scripts.nrw_events.health import SourceStatus
-from scripts.nrw_events.sources import CUSTOM_SOURCES, bonn_food
-from scripts.nrw_events.validation import validate_event
+from nrw_events import common
+from nrw_events.health import SourceStatus
+from nrw_events.sources import CUSTOM_SOURCES, bonn_food
+from nrw_events.validation import validate_event
+from tests.helpers import patch_window
 
 
 class BonnFoodSourceTests(unittest.TestCase):
     def setUp(self):
-        self.old_today = common.TODAY
-        self.old_end_date = common.END_DATE
-        common.TODAY = datetime(2026, 7, 19)
-        common.END_DATE = datetime(2026, 12, 31)
-
-    def tearDown(self):
-        common.TODAY = self.old_today
-        common.END_DATE = self.old_end_date
+        patch_window(self, datetime(2026, 7, 19), datetime(2026, 12, 31))
 
     def assert_food_events(self, events, expected_count):
         self.assertEqual(len(events), expected_count)
@@ -116,7 +110,7 @@ class BonnFoodSourceTests(unittest.TestCase):
           </article>
         </div>
         """
-        common.TODAY = datetime(2026, 7, 20)
+        patch_window(self, datetime(2026, 7, 20), datetime(2026, 12, 31))
         with patch.object(
             common,
             "fetch_url_with_brightdata",
@@ -152,7 +146,7 @@ class BonnFoodSourceTests(unittest.TestCase):
         )
 
     def test_vomfass_skips_network_refresh_outside_monday(self):
-        common.TODAY = datetime(2026, 7, 24)
+        patch_window(self, datetime(2026, 7, 24), datetime(2026, 12, 31))
         with patch.object(
             common,
             "fetch_url_with_brightdata",
