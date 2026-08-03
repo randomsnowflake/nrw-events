@@ -3,11 +3,12 @@
 from . import config
 
 
-def distance_score(km: float) -> float:
+def distance_score(km: float, radius_km: float | None = None) -> float:
     """Score 0.1–1.0 by distance from Bonn."""
     if km <= 0:
         return 1.0
-    return max(0.1, 1.0 - (km / config.MAX_RADIUS_KM) * 0.9)
+    radius = radius_km or config.MAX_RADIUS_KM
+    return max(0.1, 1.0 - (km / radius) * 0.9)
 
 
 def category_score(text: str) -> float:

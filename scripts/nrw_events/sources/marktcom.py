@@ -101,7 +101,7 @@ def listing_url(category_id: int, page: int = 1) -> str:
     """Build the radius+format search URL for one page."""
     query = (
         f"lat={common.BONN_LAT}&lng={common.BONN_LON}"
-        f"&radius={common.MAX_RADIUS_KM}&stadt=Bonn"
+        f"&radius={common.runtime_radius_km()}&stadt=Bonn"
         f"&q%5Bevent_kategorie_eq%5D={category_id}&q%5Bdatum_gteq%5D="
     )
     if page > 1:

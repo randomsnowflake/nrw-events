@@ -43,7 +43,7 @@ def fetch() -> list:
                 km = common.haversine(common.BONN_LAT, common.BONN_LON, lat, lon)
             else:
                 km = common.haversine(common.BONN_LAT, common.BONN_LON, *common.coords_for_city("köln"))
-            if km > common.MAX_RADIUS_KM:
+            if km > common.runtime_radius_km():
                 continue
 
             venue = item.get("veranstaltungsort", "")

@@ -1,11 +1,12 @@
 import os
 import tempfile
 import unittest
+from contextvars import copy_context
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-from nrw_events import common, config
+from nrw_events import common, config, report
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.health import SourceResult, SourceStatus
@@ -22,14 +23,56 @@ class RuntimeConfigTests(unittest.TestCase):
     def test_env_file_is_loaded_before_http_runtime_configuration(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             env_file = Path(tmpdir) / "settings.env"
-            env_file.write_text("NRW_EVENTS_HTTP_RETRY_ATTEMPTS=3\nNRW_EVENTS_BONN_DE_DELAY_SECONDS=4.5\n")
+            env_file.write_text(
+                "NRW_EVENTS_HTTP_RETRY_ATTEMPTS=3\n"
+                "NRW_EVENTS_BONN_DE_DELAY_SECONDS=4.5\n"
+                "NRW_EVENTS_DESCRIPTION_MAX_CHARS=12\n"
+            )
             with mock.patch.dict(os.environ, {"NRW_EVENTS_ENV_FILE": str(env_file)}, clear=True):
                 config.load_env_file()
                 settings = config.runtime_config()
                 common.configure_runtime(settings, "test-run", common._LOGGER)
 
-        self.assertEqual(common._HTTP_RETRY_ATTEMPTS, 3)
-        self.assertEqual(common._HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"], 4.5)
+        runtime = common._runtime_state()
+        self.assertEqual(runtime.settings.http_retry_attempts, 3)
+        self.assertEqual(runtime.settings.bonn_de_delay_seconds, 4.5)
+        self.assertEqual(runtime.settings.description_max_chars, 12)
+        self.assertLessEqual(len(common.concise_description("A long description for testing.")), 13)
+        common._RUNTIME_STATE.set(None)
+
+    def test_runtime_contexts_keep_radius_isolated_without_mutating_static_config(self):
+        logger = configure_logging("test", "ERROR", "", "")
+        first = copy_context()
+        second = copy_context()
+        first.run(common.configure_runtime, config.RuntimeConfig(radius_km=10), "first", logger)
+        second.run(common.configure_runtime, config.RuntimeConfig(radius_km=120), "second", logger)
+        self.assertEqual(first.run(common.runtime_radius_km), 10)
+        self.assertEqual(second.run(common.runtime_radius_km), 120)
+        self.assertEqual(config.MAX_RADIUS_KM, 75)
+
+    def test_failed_fallback_cache_configuration_does_not_leak_runtime_state(self):
+        logger = configure_logging("test", "ERROR", "", "")
+        token = common.configure_runtime(config.RuntimeConfig(radius_km=12), "first", logger)
+        try:
+            missing = str(Path(tempfile.gettempdir()) / "missing-category-fallback.json")
+            with self.assertRaises(FileNotFoundError):
+                common.configure_runtime(
+                    config.RuntimeConfig(radius_km=99, category_fallback_cache=missing),
+                    "failed",
+                    logger,
+                )
+            self.assertEqual(common.runtime_radius_km(), 12)
+        finally:
+            common.reset_runtime(token)
+
+    def test_report_can_render_the_completed_run_radius_after_context_reset(self):
+        rendered = report.format_report([], radius_km=15)
+        self.assertIn("**Radius:** 15km from Bonn", rendered)
+
+    def test_invalid_description_limit_is_an_actionable_configuration_error(self):
+        with mock.patch.dict(os.environ, {"NRW_EVENTS_DESCRIPTION_MAX_CHARS": "700x"}, clear=True):
+            with self.assertRaisesRegex(ValueError, "NRW_EVENTS_DESCRIPTION_MAX_CHARS"):
+                config.runtime_config()
 
     def test_parallelism_and_timeout_budgets_are_configurable(self):
         with mock.patch.dict(os.environ, {

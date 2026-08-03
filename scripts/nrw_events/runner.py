@@ -15,6 +15,7 @@ import time
 import uuid
 import weakref
 from collections.abc import Sequence
+from contextvars import copy_context
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from concurrent.futures import thread as futures_thread
 from dataclasses import dataclass, field, replace
@@ -853,10 +854,19 @@ def filter_import_result(
 
 def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
                executor_factory=_DetachedThreadPoolExecutor) -> ImportResult:
+    """Execute one import with runtime settings isolated to its context."""
+    token = common.configure_context(context)
+    try:
+        return _run_import_configured(context, sources, executor_factory)
+    finally:
+        common.reset_runtime(token)
+
+
+def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], list]],
+                           executor_factory=_DetachedThreadPoolExecutor) -> ImportResult:
     """Execute, validate, filter, and deduplicate sources in memory."""
     # Source adapters still read a compatibility facade; embedders must not
     # need to configure that module-global window separately from RunContext.
-    common.configure_context(context)
     settings, logger, run_id = context.settings, context.logger, context.run_id
     previous_path = settings.previous_meta_json or settings.meta_json_out
     previous = _previous_snapshot(previous_path)
@@ -892,7 +902,12 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
 
     try:
         futures = {
-            pool.submit(run_source, name, fetch): name
+            pool.submit(
+                copy_context().run,
+                run_source,
+                name,
+                fetch,
+            ): name
             for name, fetch in sources.items()
         }
         pending = set(futures)
@@ -1077,7 +1092,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "generated_at": generated_at,
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),
                    "label": "this weekend" if has_weekend else "short term"},
-        "radius_km_from_bonn": common.MAX_RADIUS_KM,
+        "radius_km_from_bonn": context.settings.radius_km,
         "score_floor": context.settings.score_floor,
         "source_counts_raw": {name: result.raw_event_count for name, result in source_results.items()},
         "source_ids": SOURCE_IDS,
@@ -1142,18 +1157,17 @@ def cli(argv: list[str]) -> int:
     logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
     context = RunContext(import_settings, EventWindow.from_days(import_settings.days_ahead), run_id, logger)
     try:
-        common.configure_context(context)
+        import_result = run_import(context, SOURCES)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return EXIT_FAILED
-    import_result = run_import(context, SOURCES)
     snapshot = build_snapshot(import_result, context)
     presentation_result = filter_import_result(import_result, settings, query, context.window.start)
     if settings.json_stdout:
         presentation_snapshot = build_snapshot(presentation_result, context)
         print(json.dumps(presentation_snapshot.events, ensure_ascii=False, indent=2))
     else:
-        print(report.format_report(list(presentation_result.events)))
+        print(report.format_report(list(presentation_result.events), radius_km=settings.radius_km))
     for issue in snapshot.metadata["import_issues"]:
         log(logger, 30 if issue["severity"] == "warning" else 40,
             f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))

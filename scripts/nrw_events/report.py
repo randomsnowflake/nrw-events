@@ -874,14 +874,15 @@ PREFERRED_ORDER = [
 
 
 def format_report(events: list, *, window_start: datetime | None = None,
-                  window_end: datetime | None = None, max_per_section: int | None = None) -> str:
+                  window_end: datetime | None = None, max_per_section: int | None = None,
+                  radius_km: float | None = None) -> str:
     """Render the deduplicated, scored event list into a grouped Markdown report."""
     start = window_start or common.TODAY
     end = window_end or common.END_DATE
     lines = [
         "# 🗓 Weekend Event Report",
         f"**{start.strftime('%A %d %b')} → {end.strftime('%A %d %b %Y')}**",
-        f"**Radius:** {common.MAX_RADIUS_KM}km from Bonn",
+        f"**Radius:** {common.runtime_radius_km() if radius_km is None else radius_km}km from Bonn",
         f"**Sources:** {len(set(e['source'] for e in events))} active",
         f"**Relevant events after cleanup:** {len(events)}",
         "",
