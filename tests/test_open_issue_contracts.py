@@ -149,6 +149,16 @@ class OpenIssueContractTests(unittest.TestCase):
 
         self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
         self.assertEqual(result.series, ())
+        self.assertEqual(result.run_status, "degraded")
+        snapshot = runner.build_snapshot(result, context)
+        self.assertIn(
+            {
+                "source": "series",
+                "error_type": "ValueError",
+                "error": "series enrichment failed: bad season",
+            },
+            snapshot.metadata["source_warnings"],
+        )
 
     def test_series_realistic_groups_cadence_conclusion_and_announced_dates(self):
         events = [

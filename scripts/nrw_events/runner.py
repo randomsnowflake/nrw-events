@@ -59,6 +59,7 @@ class ImportResult:
     retention: dict[str, object] = field(default_factory=dict)
     series: tuple[dict, ...] = ()
     series_ledger: dict[str, object] = field(default_factory=dict)
+    warnings: tuple[dict[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -882,6 +883,7 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)
+    import_warnings: tuple[dict[str, str], ...] = ()
     try:
         series_rows, series_metadata, series_ledger = series_entities.enrich_events(
             (event.to_dict() for event in deduped),
@@ -895,8 +897,14 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
             ),
         )
     except Exception as exc:
+        warning = {
+            "source": "series",
+            "error_type": type(exc).__name__,
+            "error": f"series enrichment failed: {exc}",
+        }
+        import_warnings = (warning,)
         log(
-            logger, 40, f"series enrichment failed: {exc}",
+            logger, 40, warning["error"],
             run_id=run_id, source="series", error_type=type(exc).__name__,
         )
         series_rows = [event.to_dict() for event in deduped]
@@ -929,10 +937,13 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     retention["retained_event_count"] = retained_count
     retention["fresh_event_count"] = max(len(deduped) - retained_count, 0)
 
+    run_status = _run_status(source_results, len(deduped))
+    if import_warnings and run_status != "failed":
+        run_status = "degraded"
     return ImportResult(
         tuple(deduped), source_results, len(filtered) + len(retained),
-        _run_status(source_results, len(deduped)), retention,
-        tuple(series_metadata), series_ledger,
+        run_status, retention, tuple(series_metadata), series_ledger,
+        import_warnings,
     )
 
 
@@ -970,6 +981,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "source_errors": {name: result.error["error"] for name, result in source_results.items() if result.error},
         "source_warnings": [
             *[warning for result in source_results.values() for warning in result.warnings],
+            *import_result.warnings,
             *quality_warnings,
         ],
         "quality_warnings": quality_warnings,
