@@ -27,7 +27,7 @@ def category_score(text: str) -> float:
         and not any(word in normalized for word in adult_outdoor_signals)
     )
     family_side_offer_terms = {
-        "kids", "kinder", "family", "familie", "reading", "vorlesen", "basteln",
+        "kids", "kinder", "family", "familie", "vorlesen", "basteln",
     }
     matched = [
         (keyword, weight)
