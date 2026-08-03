@@ -1,6 +1,13 @@
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import unittest
 import unicodedata
+from unittest import mock
 
+from scripts import audit_venue_locations, enrich_verified_venue_locations
 from nrw_events.normalization import (
     VENUE_REGISTRY,
     VERIFIED_VENUE_LOCATIONS,
@@ -36,6 +43,77 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertEqual(venue.venue, "Werkstattbühne")
         self.assertEqual(venue.venue_id, "werkstattbuehne-bonn")
         self.assertAlmostEqual(venue.venue_latitude or 0, 50.7363281468)
+
+    def test_registry_rebuild_is_diff_free(self):
+        root = Path(__file__).resolve().parents[1]
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(root / "scripts/build_verified_venue_locations.py"),
+                str(root / "scripts/venue_geocoding_proposals.json"),
+                "--registry", str(root / "scripts/nrw_events/verified_venue_locations.json"),
+                "--decisions", str(root / "scripts/venue_geocoding_audit.json"),
+                "--check",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
+    def test_registry_check_does_not_trust_existing_checked_at(self):
+        root = Path(__file__).resolve().parents[1]
+        registry = json.loads(
+            (root / "scripts/nrw_events/verified_venue_locations.json").read_text(encoding="utf-8")
+        )
+        registry["locations"][0]["checkedAt"] = "1999-01-01"
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "registry.json"
+            candidate.write_text(json.dumps(registry), encoding="utf-8")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "scripts/build_verified_venue_locations.py"),
+                    str(root / "scripts/venue_geocoding_proposals.json"),
+                    "--registry", str(candidate),
+                    "--decisions", str(Path(directory) / "decisions.json"),
+                    "--check",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertNotEqual(completed.returncode, 0)
+
+    def test_audit_generator_marks_only_unresolved_venues_as_candidates(self):
+        payload = audit_venue_locations.audit_payload([
+            {"title": "Known", "city": "Bonn", "venue": "TiK Theater Im Keller", "link": "https://example.test/1"},
+            {"title": "Unknown", "city": "Bonn", "venue": "Invented Test Hall", "link": "https://example.test/2"},
+        ])
+        classifications = {item["venue"]: item["classification"] for item in payload["candidates"]}
+        self.assertEqual(classifications["TiK Theater Im Keller"], "verified")
+        self.assertEqual(classifications["Invented Test Hall"], "candidate")
+
+    def test_cityless_verified_lookup_requires_a_registrywide_unique_name(self):
+        self.assertIsNone(resolve_venue("Katharinenhof", "").venue_latitude)
+        self.assertIsNotNone(resolve_venue("Katharinenhof", "Bonn").venue_latitude)
+
+    def test_snapshot_enrichment_reports_verified_source_and_reapplies_radius(self):
+        event = {"venue": "Mehrzweckhalle Lantershofen", "city": "Grafschaft", "location_confidence": "unresolved"}
+        with tempfile.TemporaryDirectory() as directory:
+            feed = Path(directory) / "feed.json"
+            feed.write_text(json.dumps({"events": [event]}), encoding="utf-8")
+            with mock.patch.object(sys, "argv", ["enrich", str(feed)]):
+                enrich_verified_venue_locations.main()
+            enriched = json.loads(feed.read_text(encoding="utf-8"))["events"][0]
+            self.assertEqual(enriched["location_source"], "verified_venue_locations")
+
+            feed.write_text(json.dumps({"events": [event]}), encoding="utf-8")
+            with mock.patch.object(enrich_verified_venue_locations.common, "MAX_RADIUS_KM", 0.01), \
+                    mock.patch.object(sys, "argv", ["enrich", str(feed)]):
+                enrich_verified_venue_locations.main()
+            self.assertEqual(json.loads(feed.read_text(encoding="utf-8"))["events"], [])
 
     def test_registry_ids_and_aliases_are_unique(self):
         ids = [record.id for record in VENUE_REGISTRY]

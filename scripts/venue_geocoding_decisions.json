@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "checkedAt": "2026-08-01",
+  "rejected": {
+    "Brühler Innenstadt": "matched an unrelated restaurant, not the city centre",
+    "Bürgersaal im Bergischen Hof": "matched Rathausplatz rather than the hall",
+    "Christuskirche": "matched a kindergarten at the source address",
+    "Festsaal Haus Wetterstein": "matched a pharmacy rather than the hall",
+    "Feuerwehrgerätehaus und Umfeld DGH/Alte Schule": "matched a bakery rather than the venue",
+    "Freizeitpark Rheinbach": "matched the adjacent water park",
+    "Nachbarschaftszentrum Brüser Berg": "matched the district rather than the centre",
+    "Poppelsdorfer": "venue label is incomplete and matched a university office",
+    "Spielplatz „Gustav-Stresemann-Ring“, Efferen": "matched Hürth town hall rather than the playground",
+    "Treff Max-Ernst-Brunnen": "matched Brühl town hall rather than the fountain"
+  },
+  "manual": [
+    {
+      "city": "Grafschaft",
+      "venue": "Mehrzweckhalle Lantershofen",
+      "latitude": 50.55506,
+      "longitude": 7.1031,
+      "osmUrl": "https://www.openstreetmap.org/way/254046733",
+      "note": "OSM community-centre building, cross-checked against municipal address Graf-Blankard-Straße 25"
+    },
+    {
+      "city": "Brühl",
+      "venue": "Schloss Augustusburg - UNESCO-Welterbe",
+      "latitude": 50.8284022,
+      "longitude": 6.9077385,
+      "osmUrl": "https://www.openstreetmap.org/way/25187730",
+      "note": "replaced road match with the Schloss Augustusburg building"
+    },
+    {
+      "city": "Rösrath",
+      "venue": "Schloss Eulenbroich - Schlosshof",
+      "latitude": 50.8997337,
+      "longitude": 7.1856549,
+      "osmUrl": "https://www.openstreetmap.org/way/110134435",
+      "note": "replaced restaurant match with the Schloss Eulenbroich building"
+    },
+    {
+      "city": "Rösrath",
+      "venue": "Außengelände/Park von Schloss Eulenbroich",
+      "latitude": 50.8997337,
+      "longitude": 7.1856549,
+      "osmUrl": "https://www.openstreetmap.org/way/110134435",
+      "note": "replaced restaurant match with the Schloss Eulenbroich site"
+    }
+  ]
+}

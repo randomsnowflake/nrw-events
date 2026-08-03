@@ -9,45 +9,7 @@ import json
 from pathlib import Path
 
 
-REJECTED = {
-    "Brühler Innenstadt": "matched an unrelated restaurant, not the city centre",
-    "Bürgersaal im Bergischen Hof": "matched Rathausplatz rather than the hall",
-    "Christuskirche": "matched a kindergarten at the source address",
-    "Festsaal Haus Wetterstein": "matched a pharmacy rather than the hall",
-    "Feuerwehrgerätehaus und Umfeld DGH/Alte Schule": "matched a bakery rather than the venue",
-    "Freizeitpark Rheinbach": "matched the adjacent water park",
-    "Nachbarschaftszentrum Brüser Berg": "matched the district rather than the centre",
-    "Poppelsdorfer": "venue label is incomplete and matched a university office",
-    "Spielplatz „Gustav-Stresemann-Ring“, Efferen": "matched Hürth town hall rather than the playground",
-    "Treff Max-Ernst-Brunnen": "matched Brühl town hall rather than the fountain",
-}
-
-MANUAL = {
-    ("Grafschaft", "Mehrzweckhalle Lantershofen"): {
-        "latitude": 50.55506,
-        "longitude": 7.1031,
-        "osmUrl": "https://www.openstreetmap.org/way/254046733",
-        "note": "OSM community-centre building, cross-checked against municipal address Graf-Blankard-Straße 25",
-    },
-    ("Brühl", "Schloss Augustusburg - UNESCO-Welterbe"): {
-        "latitude": 50.8284022,
-        "longitude": 6.9077385,
-        "osmUrl": "https://www.openstreetmap.org/way/25187730",
-        "note": "replaced road match with the Schloss Augustusburg building",
-    },
-    ("Rösrath", "Schloss Eulenbroich - Schlosshof"): {
-        "latitude": 50.8997337,
-        "longitude": 7.1856549,
-        "osmUrl": "https://www.openstreetmap.org/way/110134435",
-        "note": "replaced restaurant match with the Schloss Eulenbroich building",
-    },
-    ("Rösrath", "Außengelände/Park von Schloss Eulenbroich"): {
-        "latitude": 50.8997337,
-        "longitude": 7.1856549,
-        "osmUrl": "https://www.openstreetmap.org/way/110134435",
-        "note": "replaced restaurant match with the Schloss Eulenbroich site",
-    },
-}
+DEFAULT_POLICY = Path(__file__).with_name("venue_geocoding_decisions.json")
 
 
 def load(path: Path):
@@ -62,11 +24,32 @@ def street_like(venue: str) -> bool:
     ))
 
 
-def decision(proposal: dict) -> tuple[str, str]:
+def load_policy(path: Path) -> tuple[dict[str, str], dict[tuple[str, str], dict], str]:
+    payload = load(path)
+    if payload.get("version") != 1:
+        raise ValueError("venue decision policy must use schema version 1")
+    rejected = payload.get("rejected")
+    manual_entries = payload.get("manual")
+    checked_at = payload.get("checkedAt")
+    if not isinstance(rejected, dict) or not isinstance(manual_entries, list):
+        raise ValueError("venue decision policy must contain rejected and manual collections")
+    try:
+        date.fromisoformat(checked_at)
+    except (TypeError, ValueError):
+        raise ValueError("venue decision policy must contain an ISO checkedAt date") from None
+    manual = {(entry["city"], entry["venue"]): entry for entry in manual_entries}
+    return rejected, manual, checked_at
+
+
+def decision(
+    proposal: dict,
+    rejected: dict[str, str],
+    manual: dict[tuple[str, str], dict],
+) -> tuple[str, str]:
     venue = proposal["venue"]
-    if venue in REJECTED:
-        return "rejected", REJECTED[venue]
-    if (proposal["city"], venue) in MANUAL:
+    if venue in rejected:
+        return "rejected", rejected[venue]
+    if (proposal["city"], venue) in manual:
         return "accepted", "manually cross-checked override"
     if proposal.get("status") != "strong-candidate":
         return "needs-review", "automated evidence below acceptance threshold"
@@ -92,13 +75,16 @@ def main() -> int:
     parser.add_argument("proposals", type=Path)
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--decisions", type=Path, required=True)
+    parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     payload = load(args.proposals)
+    rejected, manual_overrides, checked_at = load_policy(args.policy)
     registry = []
     decisions = []
     for proposal in payload["proposals"]:
-        status, note = decision(proposal)
-        manual = MANUAL.get((proposal["city"], proposal["venue"]))
+        status, note = decision(proposal, rejected, manual_overrides)
+        manual = manual_overrides.get((proposal["city"], proposal["venue"]))
         match = manual or proposal.get("match") or {}
         decisions.append({
             "city": proposal["city"], "venue": proposal["venue"], "eventCount": proposal["count"],
@@ -108,22 +94,32 @@ def main() -> int:
         if status != "accepted":
             continue
         samples = proposal.get("samples") or []
-        registry.append({
+        item = {
             "city": proposal["city"],
             "venue": proposal["venue"],
             "address": (proposal.get("addresses") or [""])[0],
             "latitude": match["latitude"],
             "longitude": match["longitude"],
-            "checkedAt": str(date.today()),
+            "checkedAt": checked_at,
             "evidence": {
                 "eventUrl": samples[0].get("link", "") if samples else "",
                 "osmUrl": match.get("osmUrl", ""),
                 "method": note if not manual else manual["note"],
             },
-        })
+        }
+        if proposal.get("aliases"):
+            item["aliases"] = proposal["aliases"]
+        if proposal.get("evidence"):
+            item["evidence"] = proposal["evidence"]
+        registry.append(item)
     registry.sort(key=lambda item: (item["city"].casefold(), item["venue"].casefold()))
-    args.registry.parent.mkdir(parents=True, exist_ok=True)
-    args.registry.write_text(json.dumps({"locations": registry}, ensure_ascii=False, indent=2) + "\n")
+    registry_rendered = json.dumps({"locations": registry}, ensure_ascii=False, indent=2) + "\n"
+    if args.check:
+        if not args.registry.exists() or args.registry.read_text(encoding="utf-8") != registry_rendered:
+            raise SystemExit("verified venue registry is stale; regenerate it")
+    else:
+        args.registry.parent.mkdir(parents=True, exist_ok=True)
+        args.registry.write_text(registry_rendered, encoding="utf-8")
     accepted_events = sum(item["eventCount"] for item in decisions if item["status"] == "accepted")
     decision_payload = {
         "generatedAt": str(date.today()),
@@ -137,7 +133,8 @@ def main() -> int:
         },
         "decisions": decisions,
     }
-    args.decisions.write_text(json.dumps(decision_payload, ensure_ascii=False, indent=2) + "\n")
+    if not args.check:
+        args.decisions.write_text(json.dumps(decision_payload, ensure_ascii=False, indent=2) + "\n")
     return 0
 
 

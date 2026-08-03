@@ -51,6 +51,7 @@ class VenueResolution:
     venue_type: str = ""
     venue_latitude: float | None = None
     venue_longitude: float | None = None
+    coordinate_source: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +63,7 @@ class VerifiedVenueLocation:
     address: str
     latitude: float
     longitude: float
+    aliases: tuple[str, ...] = ()
 
 
 def _venue(
@@ -159,15 +161,15 @@ def _load_verified_venue_locations() -> tuple[VerifiedVenueLocation, ...]:
         address=str(item.get("address") or ""),
         latitude=float(item["latitude"]),
         longitude=float(item["longitude"]),
+        aliases=tuple(str(alias) for alias in item.get("aliases", [])),
     ) for item in payload["locations"])
 
 
 VERIFIED_VENUE_LOCATIONS = _load_verified_venue_locations()
 _VERIFIED_LOCATION_BY_ALIAS: dict[str, list[VerifiedVenueLocation]] = {}
 for _location in VERIFIED_VENUE_LOCATIONS:
-    _VERIFIED_LOCATION_BY_ALIAS.setdefault(
-        comparison_text(_location.venue), [],
-    ).append(_location)
+    for _alias_key in {comparison_text(alias) for alias in (_location.venue, *_location.aliases)}:
+        _VERIFIED_LOCATION_BY_ALIAS.setdefault(_alias_key, []).append(_location)
 
 
 _TAG = re.compile(r"<[^>]+>")
@@ -230,9 +232,12 @@ def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | Non
     if first_segment and first_segment != value:
         candidates.append(first_segment)
     for candidate in candidates:
-        for location in _VERIFIED_LOCATION_BY_ALIAS.get(comparison_text(candidate), []):
-            if not city or _compatible_city(location.city, city):
+        locations = _VERIFIED_LOCATION_BY_ALIAS.get(comparison_text(candidate), [])
+        for location in locations:
+            if city and _compatible_city(location.city, city):
                 return location
+        if not city and len(locations) == 1:
+            return locations[0]
     return None
 
 
@@ -346,6 +351,9 @@ def resolve_venue(
             record.venue_type,
             record.latitude if record.latitude is not None else (location.latitude if location else None),
             record.longitude if record.longitude is not None else (location.longitude if location else None),
+            "venue_registry" if record.latitude is not None else (
+                "verified_venue_locations" if location else ""
+            ),
         )
     if location:
         return VenueResolution(
@@ -353,6 +361,7 @@ def resolve_venue(
             venue_address=parsed_address or location.address,
             venue_latitude=location.latitude,
             venue_longitude=location.longitude,
+            coordinate_source="verified_venue_locations",
         )
     if _same_place(parsed_name, city):
         parsed_name = ""
