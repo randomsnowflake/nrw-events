@@ -21,9 +21,10 @@ def _planner_id(index: int) -> str:
 
 
 def _rank(event: Mapping[str, Any]) -> tuple[float, float, str, str]:
+    distance = event.get("distance_km")
     return (
         -(float(event.get("score") or 0) + float(event.get("priority_bonus") or 0)),
-        float(event.get("distance_km") or 999),
+        999.0 if distance in (None, "") else float(distance),
         str(event.get("start_date") or ""),
         str(event.get("event_id") or ""),
     )
