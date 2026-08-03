@@ -1182,6 +1182,16 @@ _CANCELLED_CONTEXT_PATTERN = re.compile(
     rf"|\b(?:{_CANCELLED_STATUS_WORDS})\b[^\n.!?]{{0,80}}\b(?:krankheitsbedingt|neuer\s+termin|nachgeholt)\b",
     re.IGNORECASE,
 )
+_POSTPONED_VERLEGT_TITLE_PATTERN = re.compile(
+    r"^\s*[-–—:()]*\s*verlegt\b|\bverlegt\s*[-–—:()]*$",
+    re.IGNORECASE,
+)
+_POSTPONED_VERLEGT_CONTEXT_PATTERN = re.compile(
+    rf"\b(?:{_CANCELLED_STATUS_SUBJECTS})\b\s+(?:wurde|wird|ist)\b"
+    r"[^\n.!?]{0,80}\bverlegt\b"
+    r"|\bverlegt\b[^\n.!?]{0,80}\b(?:vom|auf|neuer\s+termin|neues\s+datum)\b",
+    re.IGNORECASE,
+)
 
 
 def has_cancelled_status(title: str, description: str) -> bool:
@@ -1190,6 +1200,8 @@ def has_cancelled_status(title: str, description: str) -> bool:
     return bool(
         _CANCELLED_TITLE_PATTERN.search(title or "")
         or _CANCELLED_CONTEXT_PATTERN.search(combined)
+        or _POSTPONED_VERLEGT_TITLE_PATTERN.search(title or "")
+        or _POSTPONED_VERLEGT_CONTEXT_PATTERN.search(combined)
     )
 
 
@@ -1197,7 +1209,11 @@ def event_status(title: str, description: str) -> str:
     """Return a normalized source-independent schedule status."""
     text = " ".join([title or "", description or ""])
     if has_cancelled_status(title, description):
-        return "postponed" if re.search(r"\bverschoben\b|neuer\s+termin", text, re.IGNORECASE) else "cancelled"
+        return (
+            "postponed"
+            if re.search(r"\b(?:verschoben|verlegt)\b|neuer\s+termin", text, re.IGNORECASE)
+            else "cancelled"
+        )
     return "scheduled"
 
 

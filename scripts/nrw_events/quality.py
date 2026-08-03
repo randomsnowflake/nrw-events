@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterable, Mapping
 
-from .core import _legacy_junk_decision
+from .core import _legacy_junk_decision, event_status
 
 
 class QualityAction(str, Enum):
@@ -223,7 +223,13 @@ _ADVERTISING_MARKER = re.compile(
 _UNAVAILABLE_STATUS = (
     r"ausgebucht|ausverkauft|sold\s*out|abgesagt|abgesetzt|entfällt|entfaellt|"
     r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|"
-    r"findet\s+(?:leider\s+)?nicht\s+statt|verschoben|verlegt"
+    r"findet\s+(?:leider\s+)?nicht\s+statt"
+)
+_SOLD_OUT_STATUS = r"ausgebucht|ausverkauft|sold\s*out"
+_CANCELLED_STATUS = (
+    r"abgesagt|abgesetzt|entfällt|entfaellt|"
+    r"fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|"
+    r"findet\s+(?:leider\s+)?nicht\s+statt"
 )
 _UNAVAILABLE_TITLE_MARKER = re.compile(
     rf"^\s*[-+–—:()]*\s*(?P<marker>{_UNAVAILABLE_STATUS}|geschlossen)\b"
@@ -231,8 +237,14 @@ _UNAVAILABLE_TITLE_MARKER = re.compile(
     re.IGNORECASE,
 )
 _UNAVAILABLE_DESCRIPTION_EDGE = re.compile(
-    rf"^\s*[-+–—:()]*\s*(?P<prefix>{_UNAVAILABLE_STATUS}|geschlossen)\b"
-    rf"|\b(?P<suffix>{_UNAVAILABLE_STATUS})\s*[-+–—:()!.?]*\s*$",
+    rf"^\s*[-+–—:()]*\s*(?P<prefix>{_CANCELLED_STATUS}|geschlossen)\b"
+    rf"|\b(?P<suffix>{_CANCELLED_STATUS})\s*[-+–—:()!.?]*\s*$",
+    re.IGNORECASE,
+)
+_SOLD_OUT_DESCRIPTION_SENTENCE = re.compile(
+    rf"^\s*[-+–—:()]*\s*(?P<prefix>{_SOLD_OUT_STATUS})\b"
+    rf"|(?:^|[.!?]\s+|[-–—:]\s*)"
+    rf"(?P<suffix>{_SOLD_OUT_STATUS})\s*[-+–—:()!.?]*\s*$",
     re.IGNORECASE,
 )
 _UNAVAILABLE_CURRENT_STATE = re.compile(
@@ -241,7 +253,7 @@ _UNAVAILABLE_CURRENT_STATE = re.compile(
     rf"führung|fuehrung|vorstellung|tickets?|karten?|plätze?|plaetze?|"
     rf"anmeldung|buchung|ticketverkauf)\b"
     rf"[^.\n!?]{{0,80}}\b(?:ist|sind|bleibt|bleiben|wurde|wurden)\b"
-    rf"[^.\n!?]{{0,40}}\b(?P<marker>{_UNAVAILABLE_STATUS}|geschlossen|"
+    rf"[^.\n!?]{{0,40}}\b(?P<marker>{_CANCELLED_STATUS}|{_SOLD_OUT_STATUS}|geschlossen|"
     rf"nicht\s+mehr\s+(?:verfügbar|verfuegbar|buchbar))\b",
     re.IGNORECASE,
 )
@@ -278,10 +290,17 @@ def _unavailable_status_marker(title: str, description: str) -> str:
     for pattern, content in (
         (_UNAVAILABLE_TITLE_MARKER, title),
         (_UNAVAILABLE_DESCRIPTION_EDGE, description),
+        (_SOLD_OUT_DESCRIPTION_SENTENCE, description),
         (_UNAVAILABLE_CURRENT_STATE, description),
         (_NO_AVAILABILITY, description),
     ):
         if match := pattern.search(content):
+            if (
+                pattern is _UNAVAILABLE_CURRENT_STATE
+                and re.search(_SOLD_OUT_STATUS, match.group(0), re.IGNORECASE)
+                and re.search(r"\b(?:im\s+vorverkauf|standby)\b", description, re.IGNORECASE)
+            ):
+                continue
             return match.group(0).strip()
     return ""
 
@@ -380,7 +399,10 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
             (recurring.group(0), "verkauf"),
         )
 
-    if legacy := _legacy_junk_decision(dict(event)):
+    compatibility_event = dict(event)
+    if event_status(title, description) == "postponed":
+        compatibility_event["status"] = "postponed"
+    if legacy := _legacy_junk_decision(compatibility_event):
         rule_id, reason, matched_terms = legacy
         return QualityDecision(QualityAction.DROP, rule_id, reason, matched_terms)
     return QualityDecision(QualityAction.KEEP, "quality.accepted",

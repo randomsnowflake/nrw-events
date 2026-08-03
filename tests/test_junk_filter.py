@@ -214,10 +214,6 @@ class JunkFilterTests(unittest.TestCase):
             {"title": "Ferienprogramm", "description": "- AUSGEBUCHT - Noch nichts vor?"},
             {"title": "Belcanto", "description": "Konzert – Ausverkauft"},
             {
-                "title": "Summerclosing auf dem Rhein",
-                "description": "Die Party ist im Vorverkauf ausverkauft! Es gibt nur noch Standby-Tickets.",
-            },
-            {
                 "title": "Platz & Prost",
                 "description": "08. August 2026 Platz & Prost Summer Edition 2026 abgesagt",
             },
@@ -248,6 +244,18 @@ class JunkFilterTests(unittest.TestCase):
                 "description": "Das Benefizkonzert im April war bereits ausverkauft. Nun folgt das neue Konzert.",
             },
             {
+                "title": "Sommerfestival",
+                "description": "Das Festival läuft weiter; viele Termine sind bereits ausverkauft",
+            },
+            {
+                "title": "Summerclosing auf dem Rhein",
+                "description": "Die Party ist im Vorverkauf ausverkauft! Es gibt nur noch Standby-Tickets.",
+            },
+            {
+                "title": "Konzert am neuen Termin",
+                "description": "Der Termin wurde vom Mai hierher verlegt",
+            },
+            {
                 "title": "Südstadt",
                 "description": "Die Südstadt ist ein in sich geschlossenes Areal gründerzeitlichen Bauens.",
             },
@@ -265,6 +273,29 @@ class JunkFilterTests(unittest.TestCase):
             with self.subTest(candidate=candidate):
                 decision = evaluate_event_quality(candidate)
                 self.assertFalse(decision.should_drop)
+
+    def test_shift_markers_are_not_unavailability_drops(self):
+        for title in ("Theaterabend verschoben", "Konzert verlegt"):
+            with self.subTest(title=title):
+                decision = evaluate_event_quality({"title": title, "description": "Neuer Termin folgt"})
+                self.assertFalse(decision.should_drop)
+
+    def test_verlegt_requires_schedule_context(self):
+        title = "Fliesen-Workshop"
+        description = "In diesem Workshop werden Fliesen fachgerecht verlegt."
+
+        self.assertEqual(common.event_status(title, description), "scheduled")
+        self.assertFalse(evaluate_event_quality({"title": title, "description": description}).should_drop)
+
+    def test_full_sold_out_sentence_is_unavailable(self):
+        for description in (
+            "Die Veranstaltung ist ausverkauft.",
+            "Der Workshop ist ausgebucht.",
+        ):
+            with self.subTest(description=description):
+                decision = evaluate_event_quality({"title": "Termin", "description": description})
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "availability.unavailable")
 
     def setUp(self):
         patch_window(self, datetime(2026, 6, 12), datetime(2026, 6, 25))

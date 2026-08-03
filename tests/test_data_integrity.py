@@ -84,6 +84,18 @@ class DataIntegrityTests(unittest.TestCase):
         })
         self.assertEqual(event.price, "4 Euro")
 
+    def test_validation_marks_shifted_direct_dict_event_as_postponed(self):
+        event = validate_event({
+            "title": "Theaterabend verlegt",
+            "source": "Test",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "description": "Neuer Termin folgt.",
+        })
+
+        self.assertEqual(event.status, "postponed")
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 30))
 
