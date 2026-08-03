@@ -67,6 +67,23 @@
       "eventId": "strassenfest-puetzchen-kuechenmaerchen-2026-09-12-9ae5e93aae"
     },
     {
+      "name": "decomposed-unicode-in-public-id-fields",
+      "event": {
+        "title": "Ku\u0308chenma\u0308rchen",
+        "start_date": "2026-09-13",
+        "date": "2026-09-13",
+        "end_date": "2026-09-13",
+        "time": "",
+        "start_at": "",
+        "all_day": true,
+        "venue": "Mo\u0308hneplatz",
+        "venue_id": "",
+        "city": "Ko\u0308ln"
+      },
+      "eventId": "kuechenmaerchen-2026-09-13-7963a54eaa",
+      "note": "Title, unregistered venue and city use decomposed umlauts; NFC and NFD input must produce the same public URL."
+    },
+    {
       "name": "ganztaegig-ohne-venue-id",
       "event": {
         "title": "Flohmarkt in der Rheinaue",
