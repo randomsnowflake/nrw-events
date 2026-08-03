@@ -49,6 +49,20 @@ class HardeningRegressionTests(unittest.TestCase):
             datetime(2028, 2, 29),
         )
 
+    def test_date_ranges_keep_the_start_and_inherit_end_context(self):
+        cases = {
+            "01.08. - 05.08.2026": datetime(2026, 8, 1),
+            "01.08 - 05.08.2026": datetime(2026, 8, 1),
+            "01.08.—05.08.2026": datetime(2026, 8, 1),
+            "1. bis 5. August 2026": datetime(2026, 8, 1),
+            "1. bis zum 5. August 2026": datetime(2026, 8, 1),
+            "30. Juli – 2. August 2026": datetime(2026, 7, 30),
+            "Dienstag, 14.07.2026": datetime(2026, 7, 14),
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(dates.parse_date(value), expected)
+
     def test_common_date_parser_uses_the_configured_report_window_start(self):
         previous = dates._REFERENCE_DATE
         self.addCleanup(setattr, dates, "_REFERENCE_DATE", previous)

@@ -64,13 +64,37 @@ def _next_yearless_occurrence(day: int, month: int, reference_date: datetime) ->
     return None
 
 
+def _range_start(text: str) -> str:
+    """Return a range's start while inheriting missing month/year context."""
+    parts = re.split(r"\s*(?:[–—]|\bbis(?:\s+zum)?\b|\s-\s)\s*", text, maxsplit=1, flags=re.I)
+    if len(parts) == 1:
+        return text
+    start, end = (part.strip() for part in parts)
+    year_match = re.search(r"\b(20\d{2})\b", end)
+    year = year_match.group(1) if year_match else ""
+    if re.fullmatch(r"\d{1,2}\.\d{1,2}\.?", start) and year:
+        separator = "" if start.endswith(".") else "."
+        return f"{start}{separator}{year}"
+    if re.fullmatch(r"\d{1,2}\.?", start):
+        month_match = re.search(r"\b([A-Za-zäöüÄÖÜ]+)\b", end)
+        if month_match:
+            suffix = f"{month_match.group(1)} {year}".strip()
+            return f"{start} {suffix}"
+    if year and not re.search(r"\b20\d{2}\b", start):
+        return f"{start} {year}"
+    return start
+
+
 def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optional[datetime]:
     """Parse common ISO, numeric, English, and German event dates."""
     text = (text or "").strip()
     if not text:
         return None
-    text = re.split(r"\s*(?:–|\bbis\b)\s*", text, maxsplit=1)[0].strip()
-    text = re.sub(r"^(?:mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\.?,?\s*", "", text, flags=re.I)
+    text = re.sub(
+        r"^(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\b\.?,?\s*",
+        "", text, flags=re.I,
+    )
+    text = _range_start(text)
     if "," in text:
         try:
             parsed = parsedate_to_datetime(text)
@@ -84,7 +108,7 @@ def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optio
             return _local_naive(datetime.strptime(candidate, fmt))
         except (ValueError, IndexError):
             continue
-    match = re.search(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
+    match = re.match(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
     if match:
         try:
             day, month, year = map(int, match.groups())
