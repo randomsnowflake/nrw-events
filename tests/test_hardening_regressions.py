@@ -1,4 +1,5 @@
 import json
+import inspect
 import logging
 import os
 import socket
@@ -13,6 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 from nrw_events import common, config, dates, location, scoring
+from nrw_events.event_builder import EventDraft, build_event
 from nrw_events.observability import JsonFormatter
 from nrw_events.runtime import EventWindow
 from nrw_events.sources import regional_common
@@ -58,6 +60,34 @@ class HardeningRegressionTests(unittest.TestCase):
                     self.fail("expired request entered the network section")
 
         self.assertEqual(remaining.call_count, 2)
+
+    def test_search_results_use_the_bundled_event_pipeline(self):
+        with mock.patch.object(common, "TODAY", datetime(2026, 8, 3)), \
+                mock.patch.object(common, "END_DATE", datetime(2026, 8, 9)):
+            event = common.search_result_event(
+                "Album Release-Konzert in Bonn",
+                "https://münchen.example/event",
+                "5. August 2026, 20 Uhr im Pantheon Bonn.",
+                "Exa Search",
+                0.58,
+            )
+        self.assertIsNotNone(event)
+        self.assertEqual(event and event["category_key"], "concert")
+        self.assertEqual(event and event["link"], "https://xn--mnchen-3ya.example/event")
+        self.assertIn("venue_id", event or {})
+        self.assertIn("admission_basis", event or {})
+
+    def test_event_draft_is_the_typed_builder_boundary(self):
+        event = build_event(EventDraft(
+            title="Testkonzert", start=datetime(2026, 8, 5), end=None,
+            venue="Pantheon", city="Bonn", description="Live-Musik",
+            link="https://example.test/concert", source="Test", category="Konzert",
+        ))
+        self.assertIsNotNone(event)
+        parameters = inspect.signature(common.infer_admission).parameters
+        self.assertNotIn("venue", parameters)
+        self.assertNotIn("source", parameters)
+        self.assertNotIn("link", parameters)
 
     def test_clean_html_removes_complete_comments_with_embedded_angle_brackets(self):
         self.assertEqual(

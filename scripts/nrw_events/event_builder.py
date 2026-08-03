@@ -1,6 +1,7 @@
 """Canonical event construction and report-window predicates."""
 
 from .core import (
+    build_event,
     event_in_window,
     event_in_window_and_radius,
     event_status,
@@ -9,8 +10,10 @@ from .core import (
     make_event,
     window_contains,
 )
+from .models import EventDraft
 
 __all__ = [
-    "event_in_window", "event_in_window_and_radius", "event_status", "has_cancelled_status",
-    "infer_free_admission_price", "make_event", "window_contains",
+    "EventDraft", "build_event", "event_in_window", "event_in_window_and_radius",
+    "event_status", "has_cancelled_status", "infer_free_admission_price", "make_event",
+    "window_contains",
 ]
