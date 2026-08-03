@@ -1,7 +1,7 @@
 """Dated Bonn flea markets from Geide Märkte's first-party HTML pages."""
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from .. import common
 from ..dates import MONTH_DE
@@ -9,18 +9,11 @@ from . import regional_common as rc
 
 
 _SOURCE = "Geide Märkte"
-# The organizer's 2026 schedule PDF states a common visitor market time of
-# 11:00–18:00:
-# https://www.geide-maerkte.de/files/pdf/2026/Termine-2026.pdf
-# Fail closed when the linked schedule rolls to another year so those
-# sourced-but-configured hours cannot silently become stale.
-_CONFIGURED_HOURS_YEAR = 2026
 _PAGES = {
     "https://www.geide-maerkte.de/bonn-nord.html": {
         "title": "Trödelmarkt Bonn-Nord",
         "venue": "OBI/EDEKA, Bornheimer Straße 166",
         "address_pattern": r"Bornheimer\s+Str\.\s*166\s*-\s*53119\s+Bonn",
-        "hours": None,
         "source_id": "geide-bonn-nord",
         "city": "Bonn",
     },
@@ -28,7 +21,6 @@ _PAGES = {
         "title": "Trödelmarkt Bad Godesberg am HIT-Markt",
         "venue": "HIT-Markt, Drachenburgstraße 14",
         "address_pattern": r"Drachenburgstra(?:ße|sse)\s*14\s*-\s*53179\s+Bonn",
-        "hours": (11, 18),
         "source_id": "geide-bonn-bad-godesberg",
         "city": "Bonn",
     },
@@ -36,7 +28,6 @@ _PAGES = {
         "title": "Trödelmarkt Alfter-Oedekoven am OBI",
         "venue": "OBI, Alfterer Straße 35–37",
         "address_pattern": r"Alfterer\s+Str\.\s*35\s*-\s*37\s*-\s*53347\s+Alfter[ -]Oedekoven",
-        "hours": (11, 18),
         "source_id": "geide-alfter-obi",
         "city": "Alfter",
     },
@@ -44,7 +35,6 @@ _PAGES = {
         "title": "Trödelmarkt Alfter-Oedekoven am REWE",
         "venue": "REWE, Ziegelweg 1",
         "address_pattern": r"Ziegelweg\s*1\s*53347\s+Alfter[ -]Oedekoven",
-        "hours": (11, 18),
         "source_id": "geide-alfter-rewe",
         "city": "Alfter",
     },
@@ -52,7 +42,6 @@ _PAGES = {
         "title": "Trödelmarkt Sankt Augustin am HIT-Markt",
         "venue": "HIT-Markt, Alte Heerstraße 53",
         "address_pattern": r"Alte\s+Heerstra(?:ße|sse)\s*53\s*-\s*53757\s+Sankt\s+Augustin",
-        "hours": (11, 18),
         "source_id": "geide-sankt-augustin-hit",
         "city": "Sankt Augustin",
     },
@@ -61,7 +50,6 @@ _PAGES = {
         "venue": "OBI-Baumarkt Siegburg",
         "address_pattern": r"Adresse\s*/\s*-\s*53721\s+Siegburg",
         "venue_pattern": r"Flohmärkte\s+am\s+OBI-Baumarkt\s+in\s+Siegburg",
-        "hours": (11, 18),
         "source_id": "geide-siegburg-obi",
         "city": "Siegburg",
     },
@@ -69,11 +57,36 @@ _PAGES = {
         "title": "Stadtflohmarkt Hennef",
         "venue": "Marktplatz und Frankfurter Straße",
         "address_pattern": r"Frankfurter\s+Stra(?:ße|sse)\s*-\s*Marktplatz\s*-\s*53773\s+Hennef",
-        "hours": (11, 18),
         "source_id": "geide-hennef-stadtflohmarkt",
         "city": "Hennef",
     },
 }
+
+
+def _configured_hours(source_id: str, schedule_year: int) -> tuple[int, int] | None:
+    """Return a still-valid reviewed fallback from the source registry."""
+    from . import SOURCE_SPECS
+
+    spec = next(item for item in SOURCE_SPECS if item.id == "geide-m-rkte")
+    fallback = next((
+        item for item in spec.fallbacks
+        if item["key"] == "market_hours" and source_id in item["source_ids"]
+    ), None)
+    if fallback is None:
+        return None
+    valid_until = date.fromisoformat(fallback["valid_until"])
+    if common.TODAY.date() > valid_until or schedule_year != valid_until.year:
+        common.log_source_error(
+            _SOURCE,
+            RuntimeError(
+                f"configured market hours expired on {valid_until}; "
+                "fresh organizer hours are required"
+            ),
+            source_id=source_id,
+        )
+        return None
+    match = re.fullmatch(r"(\d{2}):(\d{2})–(\d{2}):(\d{2})", fallback["value"])
+    return (int(match.group(1)), int(match.group(3))) if match else None
 
 
 def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list:
@@ -96,10 +109,9 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
         clean,
         re.I,
     )
-    configured_hours = page.get("hours") if page else None
-    configured_hours_ok = bool(
-        configured_hours and years == {_CONFIGURED_HOURS_YEAR}
-    )
+    schedule_year = next(iter(years)) if len(years) == 1 else 0
+    configured_hours = _configured_hours(page["source_id"], schedule_year) if page else None
+    configured_hours_ok = bool(configured_hours)
     if not (page and len(years) == 1 and address_ok and venue_ok and (time_match or configured_hours_ok)):
         if strict:
             raise rc.ParserEmptyError("Geide year, address, venue, or hours contract changed")
@@ -163,6 +175,6 @@ def fetch() -> list:
             lambda html, page_url=url: _events_from_page(html, page_url, strict=True),
             timeout=20,
             source_id=_PAGES[url]["source_id"],
-            empty_is_healthy=True,
+            empty_is_healthy=False,
         ))
     return rc.dedupe(events)

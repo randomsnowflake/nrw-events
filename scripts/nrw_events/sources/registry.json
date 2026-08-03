@@ -242,7 +242,23 @@
       "display_name": "Geide Märkte",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.geide:fetch"
+      "callable": "nrw_events.sources.geide:fetch",
+      "fallbacks": [
+        {
+          "key": "market_hours",
+          "source_ids": [
+            "geide-bonn-bad-godesberg",
+            "geide-alfter-obi",
+            "geide-alfter-rewe",
+            "geide-sankt-augustin-hit",
+            "geide-siegburg-obi",
+            "geide-hennef-stadtflohmarkt"
+          ],
+          "value": "11:00–18:00",
+          "valid_until": "2026-12-31",
+          "evidence": "https://www.geide-maerkte.de/files/pdf/2026/Termine-2026.pdf"
+        }
+      ]
     },
     {
       "id": "krewelshof-kindersachen-flohmarkt",

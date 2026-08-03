@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 import importlib
 import inspect
@@ -45,6 +45,7 @@ class SourceSpec:
     detail_urls: tuple[str, ...] = ()
     selectors: tuple[tuple[str, str], ...] = ()
     component_ids: tuple[str, ...] = ()
+    fallbacks: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -251,6 +252,17 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
             raise ValueError(f"source registry row {index} has an invalid component id")
         if len(components) != len(set(components)) or component_ids.intersection(components):
             raise ValueError(f"source registry row {index} has duplicate component ids")
+        fallbacks = raw.get("fallbacks") or []
+        if not isinstance(fallbacks, list):
+            raise ValueError(f"source registry row {index} fallbacks must be a list")
+        for fallback in fallbacks:
+            required = {"key", "source_ids", "value", "valid_until", "evidence"}
+            if not isinstance(fallback, dict) or not required <= fallback.keys():
+                raise ValueError(f"source registry row {index} has an invalid fallback")
+            try:
+                date.fromisoformat(str(fallback["valid_until"]))
+            except ValueError as exc:
+                raise ValueError(f"source registry row {index} fallback has invalid valid_until") from exc
         spec = SourceSpec(
             id=source_id, display_name=display_name, urls=urls, adapter=adapter,
             city=str(raw.get("city") or ""), region=region,
@@ -263,6 +275,7 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
             callable=callable_reference, page_urls=page_urls, detail_urls=detail_urls,
             selectors=tuple(tuple(value) for value in raw.get("selectors") or []),
             component_ids=components,
+            fallbacks=tuple(fallbacks),
         )
         ids.add(source_id)
         names.add(display_name)

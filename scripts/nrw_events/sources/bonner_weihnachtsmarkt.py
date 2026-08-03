@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 
 from .. import common
+from ..dates import MONTH_DE
 from . import regional_common as rc
 
 
@@ -57,70 +58,121 @@ def _daily_events(
 def _events_from_pages(main_html: str, dates_html: str, *, strict: bool = False) -> list:
     main_text = rc.clean(main_html)
     dates_text = rc.clean(dates_html)
-    main_range = re.search(
-        r"18\.\s*November\s+bis\s+23\.\s*Dezember\s+(20\d{2})",
+    main_anchor = re.search(
+        r"\b(?:Bonner\s+Weihnachtsmarkt|Weihnachtsmarkt\s+Bonn)\b",
         main_text,
+        re.I,
+    )
+    kings_anchor = re.search(r"\bDreikönigsmarkt\b", dates_text, re.I)
+    main_section = main_text[main_anchor.start():] if main_anchor else ""
+    kings_section = dates_text[kings_anchor.start():] if kings_anchor else ""
+    main_range = re.search(
+        r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+bis\s+"
+        r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})",
+        main_section,
         re.I,
     )
     main_hours = re.search(
-        r"Alle Geschäfte\s+12[.:]00\s+bis\s+21[.:]00\s+Uhr",
-        main_text,
+        r"Alle Geschäfte\s+(\d{1,2})[.:]00\s+bis\s+(\d{1,2})[.:]00\s+Uhr",
+        main_section,
         re.I,
     )
     main_closed = re.search(
-        r"Totensonntag\s*\(22\.11\.(20\d{2})\).*?geschlossen",
-        main_text,
+        r"Totensonntag\s*\((\d{1,2})\.(\d{1,2})\.(20\d{2})\).*?geschlossen",
+        main_section,
+        re.I,
+    )
+    final_day_hours = re.search(
+        r"Letzter Tag\s*\((\d{1,2})\.(\d{1,2})\.(20\d{2})\).*?bis\s+(\d{1,2})\s+Uhr",
+        main_section,
         re.I,
     )
     main_venue = all(
-        name.casefold() in main_text.casefold()
+        name.casefold() in main_section.casefold()
         for name in ("Münster", "Bottler", "Friedensplatz", "Remigiusplatz")
     )
     kings_range = re.search(
-        r"27\.12\.(20\d{2})\s+bis\s+06\.01\.(20\d{2})",
-        dates_text,
+        r"(\d{1,2})\.(\d{1,2})\.(20\d{2})\s+bis\s+"
+        r"(\d{1,2})\.(\d{1,2})\.(20\d{2})",
+        kings_section,
         re.I,
     )
     kings_closed = re.search(
-        r"01\.01\.(20\d{2})\s+geschlossen",
-        dates_text,
+        r"(\d{1,2})\.(\d{1,2})\.(20\d{2})\s+geschlossen",
+        kings_section,
         re.I,
     )
-    kings_hours = all(
-        pattern in dates_text
-        for pattern in ("12 bis 20 Uhr", "12 bis 21 Uhr", "Silvester: 11 bis 17 Uhr")
+    weekday_hours = re.search(
+        r"(\d{1,2})\s+bis\s+(\d{1,2})\s+Uhr\s*"
+        r"\(Sonntag\s+bis\s+Donnerstag\)",
+        kings_section,
+        re.I,
     )
+    weekend_hours = re.search(
+        r"(\d{1,2})\s+bis\s+(\d{1,2})\s+Uhr\s*"
+        r"\(Freitag\s+und\s+Samstag\)",
+        kings_section,
+        re.I,
+    )
+    silvester_hours = re.search(
+        r"Silvester:\s*(\d{1,2})\s+bis\s+(\d{1,2})\s+Uhr", kings_section, re.I,
+    )
+    kings_hours = all((weekday_hours, weekend_hours, silvester_hours))
     valid = all(
-        (main_range, main_hours, main_closed, main_venue, kings_range, kings_closed, kings_hours)
+        (main_range, main_hours, main_closed, final_day_hours, main_venue,
+         kings_range, kings_closed, kings_hours)
     )
     if not valid:
         if strict:
             raise rc.ParserEmptyError("Bonner Christmas-market date/hour contract changed")
         return []
 
-    year = int(main_range.group(1))
+    start_day, start_month_name, end_day, end_month_name, year_text = main_range.groups()
+    year = int(year_text)
+    start_month = MONTH_DE.get(start_month_name.casefold())
+    end_month = MONTH_DE.get(end_month_name.casefold())
+    if not start_month or not end_month:
+        if strict:
+            raise rc.ParserEmptyError("Bonner Christmas-market month contract changed")
+        return []
+    closed_day, closed_month, closed_year = (int(value) for value in main_closed.groups())
+    final_day, final_month, final_year, final_hour = (int(value) for value in final_day_hours.groups())
+    regular_start_hour, regular_end_hour = (int(value) for value in main_hours.groups())
     events = _daily_events(
         "Bonner Weihnachtsmarkt",
-        datetime(year, 11, 18),
-        datetime(year, 12, 23),
+        datetime(year, start_month, int(start_day)),
+        datetime(year, end_month, int(end_day)),
         venue=_VENUE,
         link=_MAIN_URL,
         source_id="bonner-weihnachtsmarkt",
-        closed={datetime(year, 11, 22).date()},
-        hours=lambda day: (12, 20 if day.date() == datetime(year, 12, 23).date() else 21),
+        closed={datetime(closed_year, closed_month, closed_day).date()},
+        hours=lambda day: (
+            regular_start_hour,
+            final_hour if day.date() == datetime(final_year, final_month, final_day).date()
+            else regular_end_hour,
+        ),
     )
-    kings_start_year, kings_end_year = map(int, kings_range.groups())
+    king_values = tuple(int(value) for value in kings_range.groups())
+    king_start_day, king_start_month, kings_start_year = king_values[:3]
+    king_end_day, king_end_month, kings_end_year = king_values[3:]
+    kings_closed_day, kings_closed_month, kings_closed_year = (
+        int(value) for value in kings_closed.groups()
+    )
+    weekday_start, weekday_end = (int(value) for value in weekday_hours.groups())
+    weekend_start, weekend_end = (int(value) for value in weekend_hours.groups())
+    silvester_start, silvester_end = (int(value) for value in silvester_hours.groups())
     events.extend(_daily_events(
         "Bonner Dreikönigsmarkt",
-        datetime(kings_start_year, 12, 27),
-        datetime(kings_end_year, 1, 6),
+        datetime(kings_start_year, king_start_month, king_start_day),
+        datetime(kings_end_year, king_end_month, king_end_day),
         venue="Remigiusplatz",
         link=_DATES_URL,
         source_id="bonner-dreikoenigsmarkt",
-        closed={datetime(int(kings_closed.group(1)), 1, 1).date()},
+        closed={datetime(kings_closed_year, kings_closed_month, kings_closed_day).date()},
         hours=lambda day: (
-            (11, 17) if (day.month, day.day) == (12, 31)
-            else (12, 21 if day.weekday() in {4, 5} else 20)
+            (silvester_start, silvester_end) if (day.month, day.day) == (12, 31)
+            else ((weekend_start, weekend_end) if day.weekday() in {4, 5}
+                  else (weekday_start, weekday_end))
         ),
     ))
     return rc.dedupe(events)
