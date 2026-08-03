@@ -721,7 +721,7 @@ def _load_detail_page_cache(namespace: str, ttl_seconds: float) -> DetailCacheSt
     return state
 
 
-def _persist_detail_page_cache(state: DetailCacheState) -> None:
+def _persist_detail_page_cache(state: DetailCacheState) -> dict[str, str] | None:
     path = state["path"]
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
@@ -759,21 +759,30 @@ def _persist_detail_page_cache(state: DetailCacheState) -> None:
         os.replace(temporary, path)
         state["entries"] = entries
         state["dirty"] = False
+        return None
     except OSError as exc:
         log_source_error(f"{state['namespace']} detail cache", exc)
         try:
             temporary.unlink(missing_ok=True)
         except OSError:
             pass
+        return {
+            "source": "detail-cache",
+            "error_type": type(exc).__name__,
+            "error": f"failed to persist {state['namespace']} detail cache: {exc}",
+        }
 
 
-def flush_detail_page_caches(namespace: str | None = None) -> None:
+def flush_detail_page_caches(namespace: str | None = None) -> list[dict[str, str]]:
     """Persist dirty cache namespaces once at a source-run boundary."""
+    warnings: list[dict[str, str]] = []
     with _DETAIL_PAGE_CACHE_LOCK:
         slug = _detail_page_cache_slug(namespace) if namespace else None
         for key, state in list(_DETAIL_PAGE_CACHE_STATES.items()):
             if state.get("dirty") and (slug is None or key == slug):
-                _persist_detail_page_cache(state)
+                if warning := _persist_detail_page_cache(state):
+                    warnings.append(warning)
+    return warnings
 
 
 def fetch_detail_url(

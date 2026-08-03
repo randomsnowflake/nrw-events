@@ -16,6 +16,41 @@ from tests.helpers import patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_run_import_flushes_shared_detail_caches_once_after_all_sources(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "cache-flush", configure_logging("cache-flush", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+        event = {
+            "title": "Event", "source": "Source A", "date": "2026-06-08",
+            "score": 1.0, "city": "Bonn",
+        }
+
+        with mock.patch.object(common, "flush_detail_page_caches") as flush:
+            runner.run_import(context, {
+                "Source A": lambda: [event],
+                "Source B": lambda: [{**event, "title": "Other Event", "source": "Source B"}],
+            })
+
+        flush.assert_called_once_with()
+
+    def test_cache_flush_failure_is_exported_as_runner_warning(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "cache-warning", configure_logging("cache-warning", "ERROR", "", ""),
+        )
+        warning = {
+            "source": "detail-cache", "error_type": "OSError",
+            "error": "failed to persist cache",
+        }
+        with mock.patch.object(common, "flush_detail_page_caches", return_value=[warning]):
+            result = runner.run_import(context, {})
+
+        self.assertIn(warning, result.warnings)
+
     def test_runner_filters_window_after_source_health_is_recorded(self):
         with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), \
              mock.patch.object(common, "END_DATE", datetime(2026, 8, 1)):

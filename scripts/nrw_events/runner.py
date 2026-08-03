@@ -228,7 +228,6 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
         return result, []
     finally:
         result.duration_ms = round((time.monotonic() - started) * 1000)
-        common.flush_detail_page_caches()
         common.set_source_context(None)
 
 
@@ -861,6 +860,7 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     all_events: list[CanonicalEvent] = []
     source_results: dict[str, SourceResult] = {}
     worker_count = min(settings.source_workers, max(len(sources), 1))
+    cache_warnings: list[dict[str, str]] = []
     pool = executor_factory(max_workers=worker_count)
     started: dict[str, tuple[float, threading.Thread]] = {}
     started_lock = threading.Lock()
@@ -925,6 +925,10 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
                 )
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
+        # Source workers share the detail-cache lock. Persist dirty namespaces
+        # once after all workers finish instead of serializing every source at
+        # its boundary while other workers still need cache lookups.
+        cache_warnings.extend(common.flush_detail_page_caches())
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:
@@ -977,7 +981,7 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)
-    import_warnings: tuple[dict[str, str], ...] = ()
+    import_warnings: tuple[dict[str, str], ...] = tuple(cache_warnings)
     try:
         series_rows, series_metadata, series_ledger = series_entities.enrich_events(
             (event.to_dict() for event in deduped),
@@ -996,7 +1000,7 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
             "error_type": type(exc).__name__,
             "error": f"series enrichment failed: {exc}",
         }
-        import_warnings = (warning,)
+        import_warnings = (*import_warnings, warning)
         log(
             logger, 40, warning["error"],
             run_id=run_id, source="series", error_type=type(exc).__name__,
