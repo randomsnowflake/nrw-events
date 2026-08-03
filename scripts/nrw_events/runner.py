@@ -146,10 +146,14 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
             )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         result.finish(events)
+        explicit_parser_empty = any(
+            endpoint.get("parser_empty") is True
+            for endpoint in result.endpoints.values()
+        )
         if typed_status in {
             SourceStatus.DISABLED, SourceStatus.SCHEDULED_SKIP,
             SourceStatus.PARSER_EMPTY, SourceStatus.DEGRADED,
-        }:
+        } or (typed_status == SourceStatus.HEALTHY_EMPTY and not explicit_parser_empty):
             result.status = typed_status
         accepted = []
         for event in events:

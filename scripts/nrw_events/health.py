@@ -111,6 +111,10 @@ class SourceResult:
             endpoint.get("parser_empty") is True
             for endpoint in self.endpoints.values()
         )
+        parser_measured = any(
+            "parser_empty" in endpoint
+            for endpoint in self.endpoints.values()
+        )
         if self.error:
             self.status = SourceStatus.FAILED
         elif parser_empty and not events:
@@ -123,6 +127,11 @@ class SourceResult:
             self.status = SourceStatus.DEGRADED
         elif events:
             self.status = SourceStatus.HEALTHY
+        elif not parser_measured:
+            # A successful transport with no parser measurement cannot prove
+            # that an empty result is authoritative. Treat legacy direct-fetch
+            # adapters as parser drift until they opt into a measured facade.
+            self.status = SourceStatus.PARSER_EMPTY
         else:
             self.status = SourceStatus.HEALTHY_EMPTY
 

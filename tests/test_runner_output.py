@@ -136,6 +136,30 @@ class RunnerOutputTests(unittest.TestCase):
         )
         self.assertEqual(SourceFetchResult.parser_empty().status, SourceStatus.PARSER_EMPTY)
 
+    def test_unmeasured_legacy_empty_result_is_parser_empty(self):
+        result, events = runner._run_source("Legacy direct fetch", lambda: [])
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.PARSER_EMPTY)
+
+    def test_typed_authoritative_empty_result_stays_healthy_empty(self):
+        result, events = runner._run_source(
+            "Typed empty", lambda: SourceFetchResult.success([]),
+        )
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
+
+    def test_typed_empty_does_not_override_explicit_parser_failure(self):
+        def parser_drift():
+            common._record_endpoint("https://example.test/feed", parser_empty=True)
+            return SourceFetchResult.success([])
+
+        result, events = runner._run_source("Typed parser drift", parser_drift)
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.PARSER_EMPTY)
+
     def test_runner_preserves_typed_partial_success(self):
         result, events = runner._run_source("Typed", lambda: SourceFetchResult.partial([
             {"title": "Event", "source": "Typed", "date": common.TODAY.strftime("%Y-%m-%d"),
