@@ -148,16 +148,28 @@ def _dedup_key(ev: dict) -> str:
 
 
 def _occurrence_date_keys(event: dict) -> tuple[str, ...]:
-    """Return each covered date so overlapping runs enter the same bucket."""
+    """Return bounded daily/coarse keys so overlapping runs share a bucket."""
     bounds = _date_bounds(event)
     if not bounds:
         raw = event.get("start_date") or (event.get("date", "") or "").split("–", 1)[0]
         return (str(raw),)
     start, end = bounds
-    return tuple(
-        (start + timedelta(days=offset)).isoformat()
-        for offset in range((end - start).days + 1)
+    span_days = (end - start).days + 1
+    # Every interval gets coarse century buckets. They let a short occurrence
+    # enter the candidate set of a pathological multi-year range without
+    # materializing every covered calendar day. The exact duplicate predicate
+    # still decides whether the coarse candidate really overlaps.
+    coarse = tuple(
+        f"century:{century}"
+        for century in range((start.year - 1) // 100, (end.year - 1) // 100 + 1)
     )
+    if span_days > 92:
+        return coarse
+    daily = tuple(
+        (start + timedelta(days=offset)).isoformat()
+        for offset in range(span_days)
+    )
+    return (*daily, *coarse)
 
 
 def _dedup_blocking_keys(event: dict) -> set[tuple[str, ...]]:
@@ -193,6 +205,9 @@ def _dedup_blocking_keys(event: dict) -> set[tuple[str, ...]]:
         if len(words) > 1:
             keys.add(("title-last-pair", day, city, words[-2], last))
             keys.add(("title-last-pair-any-city", day, words[-2], last))
+        for word in words:
+            keys.add(("title-word", day, city, word))
+            keys.add(("title-word-any-city", day, word))
         market_family = _market_title_family(event.get("title", ""))
         if market_family:
             keys.add(("market-family", day, city, market_family))

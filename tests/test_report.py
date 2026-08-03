@@ -124,6 +124,40 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(deduped), 400)
         self.assertLess(duplicate_check.call_count, 2_000)
 
+    def test_candidate_index_keeps_embedded_title_duplicates_reachable(self):
+        base = {
+            "start_date": "2026-08-15", "end_date": "2026-08-15",
+            "date": "2026-08-15", "city": "Bonn", "venue": "Pantheon",
+            "score": 1.0, "description": "", "price": "", "time": "",
+            "start_at": "", "end_at": "",
+        }
+
+        deduped = report.deduplicate([
+            {
+                **base, "title": "Beethoven Orchester Bonn",
+                "source": "Orchester", "link": "https://orchester.test/event",
+            },
+            {
+                **base, "title": "Live: Beethoven Orchester Bonn im Pantheon",
+                "source": "Stadtkalender", "link": "https://city.test/event",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+
+    def test_pathological_date_range_has_bounded_blocking_keys(self):
+        event = {
+            "title": "Langzeitausstellung", "start_date": "0001-01-01",
+            "end_date": "9999-12-31", "date": "0001-01-01–9999-12-31",
+            "city": "Bonn", "venue": "Museum", "category_key": "exhibition",
+            "start_at": "", "source": "Museum",
+        }
+
+        keys = report._dedup_blocking_keys(event)
+
+        self.assertLess(len(keys), 2_000)
+        self.assertIn("century:20", report._occurrence_date_keys(event))
+
     def test_civic_market_absorbs_directory_title_variant_at_same_venue(self):
         base = {
             "start_date": "2026-08-23", "end_date": "2026-08-23",
