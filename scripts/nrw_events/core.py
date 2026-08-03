@@ -28,7 +28,7 @@ from contextlib import closing, contextmanager
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterator, NoReturn, Optional, TypedDict
+from typing import Any, Callable, Iterator, NoReturn, Optional, TypedDict
 from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, config, richtext
@@ -50,9 +50,6 @@ from .dates import MONTH_DE as MONTH_DE
 from .dates import MONTH_EN as MONTH_EN
 from .dates import parse_date
 from .dates import parse_iso_date
-
-if TYPE_CHECKING:
-    from .quality import QualityDecision
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
