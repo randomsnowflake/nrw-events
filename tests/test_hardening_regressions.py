@@ -32,6 +32,8 @@ class HardeningRegressionTests(unittest.TestCase):
             "53545 Linz": "linz",
             "53501 Grafschaft-Lantershofen": "grafschaft",
             "Linz am Rhein": "linz am rhein",
+            "Linz, Marktplatz": "linz",
+            "Much, Hauptstraße 12": "much",
         }
         for text, expected in cases.items():
             with self.subTest(text=text):

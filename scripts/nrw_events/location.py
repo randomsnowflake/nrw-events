@@ -60,6 +60,10 @@ def guess_city_from_text(text: str) -> Optional[str]:
             text_lower.strip(" ,;-") == city
             or re.search(rf"\b\d{{5}}\s+{re.escape(city)}(?![a-zäöüß])", text_lower)
             or re.search(rf",\s*{re.escape(city)}(?![a-zäöüß])", text_lower)
+            or re.search(
+                rf"^\s*{re.escape(city)}(?![a-zäöüß])\s*,\s*\S",
+                text_lower,
+            )
             or re.search(rf"\bin\s+{re.escape(city)}(?![a-zäöüß])", text_lower)
         ):
             return city
