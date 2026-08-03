@@ -5,6 +5,7 @@ from datetime import datetime
 
 from .. import common
 from ..dates import MONTH_DE
+from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurrences, fetch_market
 from . import regional_common as rc
 
 
@@ -12,6 +13,13 @@ _SOURCE = "Krewelshof Kindersachen-Flohmarkt"
 _SOURCE_ID = "krewelshof-lohmar"
 _URL = "https://krewelshof.de/kinder-familie/flohmarkt/"
 _MONTHS = {**MONTH_DE, "sept": 9}
+_SPEC = FixedMarketSpec(
+    title="Kindersachen-Flohmarkt Krewelshof Lohmar",
+    venue="Krewelshof Lohmar, Krewelshof 1", city="Lohmar",
+    source=_SOURCE, source_id=_SOURCE_ID, url=_URL, trust=0.98,
+    description="Flohmarkt für gebrauchte Kinder- und Jugendkleidung, Spielzeug und Bücher.",
+    category_hint="kinderflohmarkt kindersachen flohmarkt markt",
+)
 
 
 def _events_from_page(html: str, *, strict: bool = False) -> list:
@@ -49,7 +57,7 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             raise rc.ParserEmptyError("Krewelshof dated schedule contract changed")
         return []
 
-    events = []
+    parsed = []
     for day_text, month_text in date_matches:
         month = _MONTHS.get(month_text.casefold().rstrip("."))
         if not month:
@@ -63,30 +71,12 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             if strict:
                 raise rc.ParserEmptyError("Krewelshof date contract changed")
             return []
-        event = common.make_event(
-            "Kindersachen-Flohmarkt Krewelshof Lohmar",
-            start,
-            end,
-            "Krewelshof Lohmar, Krewelshof 1",
-            "Lohmar",
-            "Flohmarkt für gebrauchte Kinder- und Jugendkleidung, Spielzeug und Bücher.",
-            _URL,
-            _SOURCE,
-            "kinderflohmarkt kindersachen flohmarkt markt",
-            0.98,
+        parsed.append(MarketOccurrence(
+            start, end,
             f"{start_hour:02d}:{start_minute:02d}–{end_hour:02d}:{end_minute:02d}",
-            source_id=_SOURCE_ID,
-        )
-        if event and common.event_in_window(event):
-            events.append(event)
-    return rc.dedupe(events)
+        ))
+    return events_from_occurrences(_SPEC, parsed)
 
 
 def fetch() -> list:
-    return rc.fetch_html_events(
-        _SOURCE,
-        _URL,
-        lambda html: _events_from_page(html, strict=True),
-        timeout=25,
-        source_id=_SOURCE_ID,
-    )
+    return fetch_market(_SPEC, lambda html: _events_from_page(html, strict=True))

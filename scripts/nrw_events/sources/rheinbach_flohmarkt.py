@@ -5,12 +5,22 @@ from datetime import datetime
 
 from .. import common
 from ..dates import MONTH_DE
+from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurrences, fetch_market
 from . import regional_common as rc
 
 
 _SOURCE = "Rheinbach Flohmarkt"
 _SOURCE_ID = "rheinbach-freizeitpark-flohmarkt"
 _URL = "https://www.rheinbach.de/flohmarkt"
+_SPEC = FixedMarketSpec(
+    title="Flohmarkt im Freizeitpark Rheinbach",
+    venue="Freizeitpark Rheinbach, Münstereifeler Straße 69",
+    city="Rheinbach", source=_SOURCE, source_id=_SOURCE_ID, url=_URL, trust=0.99,
+    description=(
+        "Städtischer Flohmarkt für private Anbieter; "
+        "Neuwaren und Lebensmittel sind ausgeschlossen."
+    ),
+)
 
 
 def _events_from_page(html: str, *, strict: bool = False) -> list:
@@ -45,7 +55,7 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
         return []
 
     start_hour, start_minute, end_hour, end_minute = (int(value) for value in time_match.groups())
-    events = []
+    parsed = []
     for day_text, month_text, year_text in dates:
         month = MONTH_DE.get(month_text.casefold().rstrip("."))
         if not month:
@@ -59,30 +69,12 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             if strict:
                 raise rc.ParserEmptyError("Rheinbach date contract changed")
             return []
-        event = common.make_event(
-            "Flohmarkt im Freizeitpark Rheinbach",
-            start,
-            end,
-            "Freizeitpark Rheinbach, Münstereifeler Straße 69",
-            "Rheinbach",
-            "Städtischer Flohmarkt für private Anbieter; Neuwaren und Lebensmittel sind ausgeschlossen.",
-            _URL,
-            _SOURCE,
-            "flohmarkt trödelmarkt markt",
-            0.99,
+        parsed.append(MarketOccurrence(
+            start, end,
             f"{start_hour:02d}:{start_minute:02d}–{end_hour:02d}:{end_minute:02d}",
-            source_id=_SOURCE_ID,
-        )
-        if event and common.event_in_window(event):
-            events.append(event)
-    return rc.dedupe(events)
+        ))
+    return events_from_occurrences(_SPEC, parsed)
 
 
 def fetch() -> list:
-    return rc.fetch_html_events(
-        _SOURCE,
-        _URL,
-        lambda html: _events_from_page(html, strict=True),
-        timeout=25,
-        source_id=_SOURCE_ID,
-    )
+    return fetch_market(_SPEC, lambda html: _events_from_page(html, strict=True))
