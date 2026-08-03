@@ -15,6 +15,7 @@ prefer the focused HTTP, text, event-builder, JSON-LD, and iCal modules.
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 import logging
 import os
 import random
@@ -31,7 +32,7 @@ from datetime import datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
 from typing import Any, Callable, Iterator, NoReturn, Optional, TypedDict
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import category_taxonomy, config, richtext
 from .health import SourceResult, SourceStatus
@@ -862,22 +863,42 @@ def fetch_detail_url(
         raise ValueError("brightdata and brightdata_fallback are mutually exclusive")
     if brightdata:
         fetcher: Callable[..., str] = fetch_url_with_brightdata
+        transport = "brightdata"
     elif brightdata_fallback:
         fetcher = fetch_url_with_brightdata_fallback
+        transport = "direct-with-brightdata-fallback"
     else:
         fetcher = fetch_url
+        transport = "direct"
     ttl_seconds = _detail_page_cache_ttl_seconds()
     if not ttl_seconds:
         return fetcher(url, timeout=timeout, **fetch_kwargs)
+    cache_parameters = json.dumps(
+        {
+            "url": url,
+            "transport": transport,
+            "timeout": timeout,
+            "fetch_kwargs": fetch_kwargs,
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    cache_key = (
+        url
+        if transport == "direct" and timeout == 15 and not fetch_kwargs
+        else f"{url}#{sha256(cache_parameters.encode()).hexdigest()[:16]}"
+    )
 
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
-        cached = state["entries"].get(url)
+        cached = state["entries"].get(cache_key)
         if cached is not None and time.time() - cached["fetched_at"] <= ttl_seconds:
             cached["accessed_at"] = time.time()
             state["dirty"] = True
             return cached["body"]
-        state["entries"].pop(url, None)
+        state["entries"].pop(cache_key, None)
 
     try:
         body = fetcher(url, timeout=timeout, **fetch_kwargs)
@@ -886,7 +907,7 @@ def fetch_detail_url(
             with _DETAIL_PAGE_CACHE_LOCK:
                 state = _load_detail_page_cache(cache_namespace, ttl_seconds)
                 fetched_at = time.time()
-                state["entries"][url] = {
+                state["entries"][cache_key] = {
                     "fetched_at": fetched_at, "accessed_at": fetched_at, "body": "",
                 }
                 state["dirty"] = True
@@ -894,7 +915,7 @@ def fetch_detail_url(
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         fetched_at = time.time()
-        state["entries"][url] = {
+        state["entries"][cache_key] = {
             "fetched_at": fetched_at, "accessed_at": fetched_at, "body": body,
         }
         state["dirty"] = True
@@ -950,7 +971,7 @@ def post_json(url: str, payload: dict[str, Any], timeout: int = 45,
 
 def post_form(url: str, fields: Any, timeout: int = 45,
               headers: Optional[dict[str, str]] = None,
-              retry_safe: bool = True) -> dict[str, Any]:
+              retry_safe: bool = False) -> dict[str, Any]:
     """POST URL-encoded form fields and parse a JSON response."""
     hdrs = browser_headers(
         accept="application/json",
@@ -995,12 +1016,16 @@ def extract_json_array(text: str) -> list:
     arr_match = re.search(r"\[[\s\S]*\]", text)
     if arr_match:
         candidates.append(arr_match.group(0))
+    last_error = None
     for candidate in candidates:
         try:
             parsed = json.loads(candidate.strip())
             return parsed if isinstance(parsed, list) else []
-        except Exception:
+        except json.JSONDecodeError as exc:
+            last_error = exc
             continue
+    if last_error is not None:
+        log_source_error("Search JSON response", last_error)
     return []
 
 
@@ -1367,7 +1392,7 @@ _SIMPLE_TIME_PATTERN = re.compile(
 
 def _round_time_to_quarter(hour: int, minute: int) -> tuple[int, int]:
     total = hour * 60 + minute
-    rounded = int(round(total / 15) * 15) % (24 * 60)
+    rounded = min(int(round(total / 15) * 15), 23 * 60 + 45)
     return divmod(rounded, 60)
 
 
@@ -1811,7 +1836,8 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
         raw = m.group(1).strip()
         try:
             walk(json.loads(raw))
-        except Exception:
+        except json.JSONDecodeError as exc:
+            log_source_error("JSON-LD", exc)
             continue
     return items
 
@@ -2239,8 +2265,8 @@ def _ical_parse_dt(value: str, property_key: str = "") -> Optional[datetime]:
         if tzid:
             try:
                 return parsed.replace(tzinfo=ZoneInfo(tzid.group(1))).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
-            except Exception:
-                pass
+            except (ValueError, ZoneInfoNotFoundError) as exc:
+                log_source_error("iCal timezone", exc)
         return parsed
     if re.match(r"^\d{8}$", v):
         return datetime.strptime(v, "%Y%m%d")

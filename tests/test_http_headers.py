@@ -534,6 +534,20 @@ class HttpHeaderTests(unittest.TestCase):
         self.assertEqual(headers["Accept"], "application/json")
         self.assertEqual(headers["Referer"], "https://example.org/events")
 
+    def test_post_form_does_not_retry_without_explicit_opt_in(self):
+        transient = urllib.error.HTTPError(
+            "https://example.org/events-api", 503, "Unavailable", Message(), None
+        )
+        self.addCleanup(transient.close)
+        with patch(
+            "nrw_events.common.urllib.request.urlopen", side_effect=transient
+        ) as urlopen, patch("nrw_events.common.time.sleep") as sleep:
+            with self.assertRaises(urllib.error.HTTPError):
+                common.post_form("https://example.org/events-api", {"query": "events"})
+
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

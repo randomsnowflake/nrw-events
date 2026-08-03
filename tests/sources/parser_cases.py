@@ -677,6 +677,7 @@ END:VCALENDAR
         fields = dict(post_form.call_args.args[1])
         self.assertEqual(fields["tx[startDate]"], "2026-07-13")
         self.assertEqual(fields["tx[endedBeforeDate]"], "2026-07-26")
+        self.assertTrue(post_form.call_args.kwargs["retry_safe"])
 
     def test_search_fallback_requires_a_concrete_date(self):
         event = common.search_result_event(

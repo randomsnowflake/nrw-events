@@ -137,6 +137,51 @@ class DetailPageCacheTests(unittest.TestCase):
 
         self.assertEqual(set(retained), {"https://example.org/fits"})
 
+    def test_cache_key_separates_transport_and_request_parameters(self):
+        url = "https://example.org/events/detail/parameters"
+        with patch.object(
+            common,
+            "fetch_url",
+            side_effect=["html", "calendar", "long-timeout"],
+        ) as direct, patch.object(
+            common,
+            "fetch_url_with_brightdata",
+            return_value="proxy",
+        ) as proxy:
+            self.assertEqual(
+                common.fetch_detail_url(
+                    url, cache_namespace="parameters", accept="text/html"
+                ),
+                "html",
+            )
+            self.assertEqual(
+                common.fetch_detail_url(
+                    url, cache_namespace="parameters", accept="text/calendar"
+                ),
+                "calendar",
+            )
+            self.assertEqual(
+                common.fetch_detail_url(
+                    url, cache_namespace="parameters", accept="text/html", timeout=30
+                ),
+                "long-timeout",
+            )
+            self.assertEqual(
+                common.fetch_detail_url(
+                    url, cache_namespace="parameters", accept="text/html", brightdata=True
+                ),
+                "proxy",
+            )
+            self.assertEqual(
+                common.fetch_detail_url(
+                    url, cache_namespace="parameters", accept="text/html"
+                ),
+                "html",
+            )
+
+        self.assertEqual(direct.call_count, 3)
+        proxy.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

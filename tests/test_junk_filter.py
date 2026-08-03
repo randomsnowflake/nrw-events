@@ -24,6 +24,15 @@ def event(title, description="", category="", source="Test"):
 
 
 class JunkFilterTests(unittest.TestCase):
+    def test_recurring_service_reports_the_actual_longest_matches(self):
+        decision = evaluate_event_quality(event(
+            "Kleiderverkauf im Bürgerhaus",
+            description="Jeden ersten Montag Ausgabe gespendeter Kleidung.",
+        ))
+
+        self.assertEqual(decision.rule_id, "civic.recurring-service")
+        self.assertEqual(decision.matched_terms, ("jeden ersten", "kleiderverkauf"))
+
     def test_quality_summary_exposes_longitudinal_completeness_metrics(self):
         metrics = summarize_event_quality([{
             "title": "Event", "source": "Test", "start_date": "2026-06-12",

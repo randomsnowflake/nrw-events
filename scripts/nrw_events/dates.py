@@ -38,7 +38,7 @@ def configure_reference_date(value: datetime) -> None:
 
 MONTH_DE = {
     "januar": 1, "jan": 1, "februar": 2, "feb": 2, "märz": 3, "maerz": 3,
-    "mär": 3, "mae": 3, "april": 4, "apr": 4, "mai": 5, "juni": 6, "jun": 6,
+    "mär": 3, "april": 4, "apr": 4, "mai": 5, "juni": 6, "jun": 6,
     "juli": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9,
     "oktober": 10, "okt": 10, "november": 11, "nov": 11, "dezember": 12, "dez": 12,
 }
@@ -47,6 +47,16 @@ MONTH_EN = {
     "july": 7, "august": 8, "september": 9, "october": 10, "november": 11,
     "december": 12,
 }
+MONTH_ALIASES = {"mar": 3, "sept": 9, "oct": 10, "dec": 12}
+DATE_FORMATS = (
+    (r"^\d{4}-\d{2}-\d{2}", "%Y-%m-%d"),
+    (r"^\d{1,2}\.\d{1,2}\.\d{4}", "%d.%m.%Y"),
+    (r"^\d{1,2}\.\d{1,2}\.\d{2}", "%d.%m.%y"),
+    (
+        r"^[A-Za-z]{3}, \d{1,2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} [+-]\d{4}",
+        "%a, %d %b %Y %H:%M:%S %z",
+    ),
+)
 
 
 def parse_iso_date(text: str) -> Optional[datetime]:
@@ -144,11 +154,17 @@ def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optio
                 return _local_naive(parsed)
         except (TypeError, ValueError, OverflowError):
             pass
-    for fmt in ["%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y", "%a, %d %b %Y %H:%M:%S %z"]:
+    try:
+        return _local_naive(datetime.fromisoformat(text.replace("Z", "+00:00")))
+    except (ValueError, TypeError):
+        pass
+    for pattern, fmt in DATE_FORMATS:
+        match = re.match(pattern, text)
+        if not match:
+            continue
         try:
-            candidate = text if "%z" in fmt else text[:len(fmt) + 5]
-            return _local_naive(datetime.strptime(candidate, fmt))
-        except (ValueError, IndexError):
+            return _local_naive(datetime.strptime(match.group(0), fmt))
+        except ValueError:
             continue
     match = re.match(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
     if match:
@@ -161,18 +177,14 @@ def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optio
     if match:
         day, month, year = match.groups()
         key = month.lower().rstrip(".")
-        month_number = MONTH_DE.get(key) or MONTH_EN.get(key) or {
-            "mar": 3, "sept": 9, "oct": 10, "dec": 12,
-        }.get(key)
+        month_number = MONTH_DE.get(key) or MONTH_EN.get(key) or MONTH_ALIASES.get(key)
         if month_number:
             return datetime(int(year), month_number, int(day))
     match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b", text)
     if match:
         day, month = match.groups()
         key = month.lower().rstrip(".")
-        month_number = MONTH_DE.get(key) or MONTH_EN.get(key) or {
-            "mar": 3, "sept": 9, "oct": 10, "dec": 12,
-        }.get(key)
+        month_number = MONTH_DE.get(key) or MONTH_EN.get(key) or MONTH_ALIASES.get(key)
         if month_number:
             reference = reference_date or _REFERENCE_DATE or datetime.now(LOCAL_TIMEZONE)
             return _next_yearless_occurrence(int(day), month_number, reference)
