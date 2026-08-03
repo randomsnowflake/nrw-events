@@ -12,7 +12,7 @@ from nrw_events import config
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.sources import bonn_districts, regional_sitekit
-from tests.helpers import patch_window
+from tests.helpers import default_window, make_runner_env, patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
@@ -145,7 +145,7 @@ class RunnerOutputTests(unittest.TestCase):
         result = runner.ImportResult((canonical,), {}, 1, "healthy")
         context = RunContext(
             config.RuntimeConfig(),
-            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            default_window(),
             "fixed",
             configure_logging("fixed", "ERROR", "", ""),
             clock=lambda: datetime(2026, 6, 8, 12),
@@ -162,6 +162,8 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(event["admission"]["isFree"], True)
         self.assertEqual(event["admission"]["basis"], "inferred")
 
+
+class SourceHealthTests(unittest.TestCase):
     def test_typed_source_result_distinguishes_adapter_states(self):
         self.assertEqual(SourceFetchResult.success([]).status, SourceStatus.HEALTHY_EMPTY)
         self.assertEqual(SourceFetchResult.disabled("missing key").status, SourceStatus.DISABLED)
@@ -204,9 +206,10 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(result.event_sources, ["Typed"])
 
+
+class CrossRunRetentionTests(unittest.TestCase):
     def test_unavailable_grouped_subsource_retains_only_unexpired_events(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            previous_path = os.path.join(tmpdir, "previous.json")
+        with make_runner_env() as env:
             previous = {
                 "generated_at": "2026-06-07T05:00:00",
                 "source_results": {
@@ -226,8 +229,7 @@ class RunnerOutputTests(unittest.TestCase):
                     },
                 ],
             }
-            with open(previous_path, "w") as handle:
-                json.dump(previous, handle)
+            env.previous_path.write_text(json.dumps(previous), encoding="utf-8")
 
             def partial_group():
                 runner.common.log_source_error("Lohmar", TimeoutError("read timed out"))
@@ -236,10 +238,8 @@ class RunnerOutputTests(unittest.TestCase):
                     "date": "2026-06-09", "score": 1.0, "city": "Bornheim",
                 }]
 
-            context = RunContext(
-                config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
-                "retention-test", configure_logging("retention-test", "ERROR", "", ""),
+            context = env.context(
+                "retention-test",
                 clock=lambda: datetime(2026, 6, 8, 5),
             )
             result = runner.run_import(context, {"Regional HTML calendars": partial_group})
@@ -377,7 +377,7 @@ class RunnerOutputTests(unittest.TestCase):
 
             context = RunContext(
                 config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                default_window(),
                 "recovery-test", configure_logging("recovery-test", "ERROR", "", ""),
             )
             result = runner.run_import(context, {"Lohmar": lambda: [{
@@ -420,7 +420,7 @@ class RunnerOutputTests(unittest.TestCase):
 
             context = RunContext(
                 config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                default_window(),
                 "child-id-test", configure_logging("child-id-test", "ERROR", "", ""),
             )
             result = runner.run_import(context, {"ionas4 regional": partial_ionas})
@@ -464,7 +464,7 @@ class RunnerOutputTests(unittest.TestCase):
 
             context = RunContext(
                 config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                default_window(),
                 "sitekit-child-test", configure_logging("sitekit-child-test", "ERROR", "", ""),
             )
             result = runner.run_import(context, {"SiteKit regional": partial_sitekit})
@@ -534,7 +534,7 @@ class RunnerOutputTests(unittest.TestCase):
 
             context = RunContext(
                 config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                default_window(),
                 "sitekit-consecutive-test",
                 configure_logging("sitekit-consecutive-test", "ERROR", "", ""),
             )
@@ -562,7 +562,7 @@ class RunnerOutputTests(unittest.TestCase):
 
             context = RunContext(
                 config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                default_window(),
                 "upper-window-test", configure_logging("upper-window-test", "ERROR", "", ""),
             )
             result = runner.run_import(
@@ -613,7 +613,7 @@ class RunnerOutputTests(unittest.TestCase):
 
             context = RunContext(
                 config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                default_window(),
                 "partial-test",
                 configure_logging("partial-test", "ERROR", "", ""),
             )
@@ -667,7 +667,7 @@ class RunnerOutputTests(unittest.TestCase):
 
             context = RunContext(
                 config.RuntimeConfig(previous_meta_json=previous_path),
-                EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+                default_window(),
                 "fresh-wins-test", configure_logging("fresh-wins-test", "ERROR", "", ""),
             )
             result = runner.run_import(
@@ -681,6 +681,8 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.retention["fresh_event_count"], 1)
         self.assertEqual(result.retention["retained_event_count"], 0)
 
+
+class EventQualityTests(unittest.TestCase):
     def test_expected_quality_rejections_do_not_degrade_source_health(self):
         result, events = runner._run_source("Filtered", lambda: [
             {"title": "Concert", "source": "Filtered", "date": common.TODAY.strftime("%Y-%m-%d"),
@@ -772,6 +774,11 @@ class RunnerOutputTests(unittest.TestCase):
             "error": f"title may be truncated: {title}",
         }])
 
+    def setUp(self):
+        patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 10))
+
+
+class SnapshotPublicationTests(unittest.TestCase):
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 10))
 

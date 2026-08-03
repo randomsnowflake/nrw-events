@@ -417,7 +417,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `0` | Optionale Obergrenze für den aus einer Bonn.de-Detailseite übernommenen Text. Standardmäßig werden alle erklärenden Absätze und Aufzählungen vollständig übernommen; Logistikblöcke werden weiterhin übersprungen. Ein positiver Wert aktiviert eine satz- bzw. wortnahe Kürzung. |
 | `NRW_EVENTS_JSON_OUT`         | Benutzer-State-Verzeichnis | Zielpfad für die Eventliste als JSON-Array. |
 | `NRW_EVENTS_META_JSON_OUT`    | Benutzer-State-Verzeichnis | Zielpfad für Metadaten, Quellenstatistik und Warnungen. |
-| `NRW_EVENTS_LOG_LEVEL`        | `INFO` | Log-Level (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `NRW_EVENTS_LOG_LEVEL`        | `INFO` | Log-Level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
 | `NRW_EVENTS_LOG_FILE`         | nicht gesetzt | Optionaler persistenter Text-Logpfad. |
 | `NRW_EVENTS_JSON_LOG_FILE`    | nicht gesetzt | Optionaler JSON-Lines-Logpfad für Monitoring. |
 | `NRW_EVENTS_ENV_FILE`         | nicht gesetzt | Expliziter Pfad zu einer `.env`-Datei. |
