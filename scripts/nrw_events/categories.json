@@ -1,0 +1,3176 @@
+{
+  "version": 1,
+  "heuristic_confidence_threshold": 0.6,
+  "forced_rules": [
+    {
+      "key": "cinema",
+      "keywords": [
+        {
+          "value": "cinema-special",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "activities",
+      "keywords": [
+        {
+          "value": "fotoclub",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "foto club",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "concert",
+      "keywords": [
+        {
+          "value": "kunst!rasen",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "kunstrasen",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "talk",
+      "keywords": [
+        {
+          "value": "livetalk",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "live-talk",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "outdoor",
+      "keywords": [
+        {
+          "value": "soundwalk",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "sports",
+      "keywords": [
+        {
+          "value": "gymnastik",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "pilates",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "hatha yoga",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "festival",
+      "keywords": [
+        {
+          "value": "biker-treffen",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "fiat-treffen",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "exhibition",
+      "keywords": [
+        {
+          "value": "karikatur",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "cinema",
+      "keywords": [
+        {
+          "value": "openair-kino",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "open-air kino",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "open air kino",
+          "match_mode": "substring",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    }
+  ],
+  "contexts": {
+    "low_value_title": [
+      {
+        "value": "treff",
+        "match_mode": "word_suffix",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "frühstück",
+        "match_mode": "word_prefix",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "senioren",
+        "match_mode": "word_prefix",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "cafe",
+        "match_mode": "word_suffix",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "café",
+        "match_mode": "word_suffix",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "sprachkurs",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "deutschkurs",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "english club",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "sprechstunde",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "beratung",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "rat",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "sitzung",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "ausschuss",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "verwaltungsrat",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "netzwerktreffen",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "kaffeenachmittag",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      },
+      {
+        "value": "mittagstisch",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "low-value title context"
+      }
+    ],
+    "destination_title": [
+      {
+        "value": "festival",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "flohmarkt",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "konzert",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "theater",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "kino",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "ausstellung",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "vernissage",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "führung",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "tour",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "soundwalk",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "tag der offenen tür",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "repair café",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "repair cafe",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "reparatur-café",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "reparatur-cafe",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      },
+      {
+        "value": "biker-treffen",
+        "match_mode": "word",
+        "scope": "all",
+        "weight": 1.0,
+        "comment": "destination title exception"
+      }
+    ],
+    "strong_market_title": [
+      {
+        "value": "flohmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "trödelmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "antikmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "basar",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "feierabendmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "jahrmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "krammarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "viehmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "designmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "weihnachtsmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "adventsmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "nikolausmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "dreikönigsmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "herbstmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "frühlingsmarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "martinimarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "töpfermarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "kunsthandwerkermarkt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "schallplattenbörse",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      },
+      {
+        "value": "fashion, family & kids markt",
+        "match_mode": "substring",
+        "scope": "title",
+        "weight": 1.0,
+        "comment": "strong market title"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "key": "market",
+      "priority": 14,
+      "keywords": [
+        {
+          "value": "flohmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kindersachen flohmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "trödel",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "wochenmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "freitagsmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "frischemarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "feierabendmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "jahrmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "krammarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "viehmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "stoffmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "büchermarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kunstmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "designmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spezialmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "antikmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kreativmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lebenskunstmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "weihnachtsmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "adventsmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "nikolausmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "dreikönigsmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "herbstmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "frühlingsmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "martinimarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "töpfermarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kunsthandwerkermarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "schallplattenbörse",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kindersachenbasar",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kinderbasar",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "fashion, family & kids markt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "market",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "markt",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "basar",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "antik",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "food",
+      "priority": 13,
+      "keywords": [
+        {
+          "value": "streetfood-festival",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "streetfood",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "street food",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "foodtruck",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kulinar",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "genuss",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "schlemmer",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "grillen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "dîner",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "diner en blanc",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "wine",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "winzer",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "weinprobe",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "weinfest",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "weinmoment",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "weinlounge",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "biergarten",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tasting",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "wein",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bier",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "kids",
+      "priority": 12,
+      "keywords": [
+        {
+          "value": "kinder",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kids",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "familie",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "family",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "jugend",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "familienprogramm",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "familienbegleitung",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "mitmach",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "märchen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "puppentheater",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "puppenspiel",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kinderbühne",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kasper",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "vorlesen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lese-abenteuer",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "sommerleseclub",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lesesommer",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "vorlesesommer",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "vorlesehund",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "feriencamp",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "ferienaktion",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "ferienprogramm",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "ferienspaß",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kuscheltierübernachtung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bambini",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "krabbel",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lego",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "zauberwürfel",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "storytime",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "martinszug",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "dino",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "workshop",
+      "priority": 11,
+      "keywords": [
+        {
+          "value": "workshop",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "workshop",
+          "match_mode": "compound_word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "werkstatt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "digitale werkstatt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kurs",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "seminar",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "training",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "summer school",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "zeichnen lernen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gag-schreiben",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "repair",
+          "match_mode": "word_prefix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "reparatur-café",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "reparatur-cafe",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "sprechstunde",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "weiterbildung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bildungsurlaub",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "vhs",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bastel",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "schmücken",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "keramik",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "malen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kreativ",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kunstprojekt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "brotbacken",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "backkurs",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "hilfestellung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "onleihe",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "e-medien",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "emedien",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "libby",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "makerspace",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "3d-druck",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lasercutter",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "quilting",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "quiltingtreff",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "quilten",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "talk",
+      "priority": 10,
+      "keywords": [
+        {
+          "value": "lesung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lesung",
+          "match_mode": "compound_word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lesekreis",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lesezirkel",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "buchtreff",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "buchvorstellung",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "vorlesung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "vortrag",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lecture",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "diskussion",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tagung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kongress",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "konferenz",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "conference",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "symposium",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "podium",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "patiententag",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bürgerinformation",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "literatur",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "speaker",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "speakers",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "liest",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bildung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "informationsveranstaltung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "präventionsabend",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "philosophisch",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "künstliche intelligenz",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "ki",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "chatgpt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "canva",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "digital",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "hackerspace",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "digi:snack",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "cloud tech",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "azure",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gespräch",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "politik",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "forum",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "talk",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "info",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "meetup",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "community meeting",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "sports",
+      "priority": 9,
+      "keywords": [
+        {
+          "value": "sport",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "sportveranstaltung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "sportwoche",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "sportwochenende",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tennis",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "volleyball",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lauf",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "joggen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "running",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "rennen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "marathon",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "handball",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "final4",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "yoga",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "fitness",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tanzen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tanzkurs",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "radtour",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "radlertreff",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "fahrrad",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "rennrad",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "rennradeln",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "stadtradeln",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "radeln",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "pedelec",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "paddeln",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "klettern",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "schwimmen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "boule",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "schach",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "schachxperten",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "cinema",
+      "priority": 8,
+      "keywords": [
+        {
+          "value": "kino",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "film",
+          "match_mode": "compound_word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "film",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 0.5,
+          "comment": "classifier"
+        },
+        {
+          "value": "movie",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "cinema",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "open-air kino",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "open air kino",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "filmabend",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "screening",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "concert",
+      "priority": 7,
+      "keywords": [
+        {
+          "value": "konzert",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "concert",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "livemusik",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "live-musik",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "live musik",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "livekonzert",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "live-konzert",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "live-band",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "live band",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "release show",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "musik",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "music",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "jazz",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "samba",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "forro",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "forró",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "orchester",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "sinfonie",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "symphon",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "klavier",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "recital",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "dirigent",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "flöte",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "singen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "chor",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "band",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "swing",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "nightlife",
+      "priority": 6,
+      "keywords": [
+        {
+          "value": "techno",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "electronic",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "elektro",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 0.5,
+          "comment": "classifier"
+        },
+        {
+          "value": "party",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "afterjobparty",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "landjugendparty",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "treckerparty",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "clubnacht",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "clubabend",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "club party",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "dj",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "nightlife",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "rave",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "disco",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "beats",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lounge",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "barhopping",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "speeddating",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "singles",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bar",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "stage",
+      "priority": 5,
+      "keywords": [
+        {
+          "value": "theater",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "theater",
+          "match_mode": "compound_word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bühne",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kabarett",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "comedy",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "comedian",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kleinkunst",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "stand-up",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "standup",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "satire",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "impro",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "improtheater",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "improvisationstheater",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "variete",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "varieté",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "revue",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "poetry slam",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "poetryslam",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "lachen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "zirkus",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "cirque",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tanz",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "dance",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "musical",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "show",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "performance",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "oper",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "stage",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "slam",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "exhibition",
+      "priority": 4,
+      "keywords": [
+        {
+          "value": "ausstellung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "ausstellung",
+          "match_mode": "compound_word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "exhibition",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "museum",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "galerie",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gallery",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kunst",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "karikatur",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "vernissage",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "atelier",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "installation",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "activities",
+      "priority": 3,
+      "keywords": [
+        {
+          "value": "aktivität",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "treff",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "treffen",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spiele",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spieletreff",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spieleabend",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spielnachmittag",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spielenachmittag",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spiele-nachmittag",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "brettspiel",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "board game",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "board games",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "skat-treff",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "bingo",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gaming",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "quiz",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kaffeeklatsch",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gemeindecafé",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gemeindecafe",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "trauercafé",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "trauer-café",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "friedhofscafé",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "friedhofscafe",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gartencafe",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gartencafé",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "mittagstisch",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "mitbringbrunch",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "selbsthilfegruppe",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gemeinsam statt einsam",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "gemeinsam freizeit",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "cleanup",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "clean-up",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "outdoor",
+      "priority": 2,
+      "keywords": [
+        {
+          "value": "outdoor",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "draußen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "garden party",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "führung",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tour",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "feierabendtour",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "blick hinter die kulissen",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "wander",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "spaziergang",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "rundgang",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "rundfahrt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "herbstfahrt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "natur",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "garten",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 0.5,
+          "comment": "classifier"
+        },
+        {
+          "value": "exkursion",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "ausflug",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "hohes venn",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "park",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "streuobst",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "wildkräuter",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "straßenbäume",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "stolpersteine",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "freiluga",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "festungstage",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    },
+    {
+      "key": "festival",
+      "priority": 1,
+      "keywords": [
+        {
+          "value": "fest",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "festival",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "journalismusfestival",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kirmes",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kerb",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "meile",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "karneval",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "weihnachtsfeier",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "public viewing",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "convention",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "sommernacht",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tag der offenen tür",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "tag des offenen denkmals",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "stadtteilfest",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "straßenfest",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "dorffest",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        }
+      ]
+    }
+  ]
+}

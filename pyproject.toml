@@ -29,7 +29,7 @@ where = ["scripts"]
 include = ["nrw_events*"]
 
 [tool.setuptools.package-data]
-nrw_events = ["verified_venue_locations.json", "sources/registry.json"]
+nrw_events = ["categories.json", "verified_venue_locations.json", "sources/registry.json"]
 
 [tool.mypy]
 python_version = "3.10"
