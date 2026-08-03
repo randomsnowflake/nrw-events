@@ -34,7 +34,6 @@ class Keyword:
     word_prefix: bool = False
     word_suffix: bool = False
     compound_word: bool = False
-    substring: bool = False
     weak: bool = False
 
 
@@ -65,7 +64,7 @@ CATEGORIES: list[Category] = [
 
 CATEGORY_BY_KEY = {category["key"]: category for category in CATEGORIES}
 _POLICY_PATH = Path(__file__).with_name("categories.json")
-_MATCH_MODES = frozenset({"word", "word_prefix", "word_suffix", "compound_word", "substring"})
+_MATCH_MODES = frozenset({"word", "word_prefix", "word_suffix", "compound_word"})
 
 
 def _keyword_from_spec(raw: object) -> Keyword:
@@ -94,7 +93,6 @@ def _keyword_from_spec(raw: object) -> Keyword:
         word_prefix=mode == "word_prefix",
         word_suffix=mode == "word_suffix",
         compound_word=mode == "compound_word",
-        substring=mode == "substring",
         weak=weight < 1,
     )
 
@@ -178,7 +176,7 @@ def _fallback_category(source_id: str, title: str) -> CategoryResult | None:
     return _FALLBACK_CACHE.get(category_cache_key(source_id, title))
 
 
-_NON_WORD = r"[^\wäöüÄÖÜß]"
+_NON_WORD = r"[^\w]"
 
 
 def normalize_text(value: str) -> str:
@@ -202,13 +200,13 @@ def _contains_word(text: str, needle: str) -> bool:
 def _contains_word_suffix(text: str, needle: str) -> bool:
     text = comparison_text(text)
     escaped = re.escape(comparison_text(needle))
-    return re.search(rf"(^|{_NON_WORD})[\wäöüÄÖÜß]*{escaped}($|{_NON_WORD})", text) is not None
+    return re.search(rf"(^|{_NON_WORD})\w*{escaped}($|{_NON_WORD})", text) is not None
 
 
 def _contains_word_prefix(text: str, needle: str) -> bool:
     text = comparison_text(text)
     escaped = re.escape(comparison_text(needle))
-    return re.search(rf"(^|{_NON_WORD}){escaped}[\wäöüÄÖÜß]*($|{_NON_WORD})", text) is not None
+    return re.search(rf"(^|{_NON_WORD}){escaped}\w*($|{_NON_WORD})", text) is not None
 
 
 def _contains_compound_word(text: str, needle: str) -> bool:
@@ -216,7 +214,7 @@ def _contains_compound_word(text: str, needle: str) -> bool:
     normalized_needle = comparison_text(needle)
     return any(
         normalized_needle in token and token != normalized_needle
-        for token in re.findall(r"[\wäöüÄÖÜß]+", text)
+        for token in re.findall(r"\w+", text)
     )
 
 
@@ -225,8 +223,6 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
         return _contains_word(text, keyword)
     if keyword.title_only and not is_title:
         return False
-    if keyword.substring:
-        return comparison_text(keyword.value) in comparison_text(text)
     if keyword.word_prefix:
         return _contains_word_prefix(text, keyword.value)
     if keyword.word_suffix:
@@ -610,7 +606,7 @@ def categorize_event(
             "reason": "forced:indoor-museum-guided-tour",
         }
 
-    title_format = _forced_title_format(title_text)
+    title_format = explicit_title_format
     if title_format:
         category = CATEGORY_BY_KEY[title_format]
         return {

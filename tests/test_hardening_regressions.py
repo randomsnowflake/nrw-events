@@ -156,6 +156,43 @@ class HardeningRegressionTests(unittest.TestCase):
         dates.configure_reference_date(datetime(2026, 12, 30))
         self.assertEqual(common.parse_date("3. Januar"), datetime(2027, 1, 3))
 
+    def test_date_formats_use_explicit_prefixes_and_shared_month_aliases(self):
+        self.assertEqual(dates.parse_date("2026-08-03 extra"), datetime(2026, 8, 3))
+        self.assertEqual(dates.parse_date("3. Sept 2026"), datetime(2026, 9, 3))
+        self.assertIsNone(dates.parse_date("3. Mae 2026"))
+
+    def test_late_artifact_time_rounding_never_wraps_to_same_day_midnight(self):
+        self.assertEqual(common.normalize_time_fields("23:53 - 23:59"), ("23:45", ""))
+
+    def test_parse_failures_are_attributed_to_the_active_source(self):
+        with mock.patch.object(common, "log_source_error") as log_error:
+            self.assertEqual(common.extract_json_array("not-json"), [])
+            self.assertEqual(
+                common.jsonld_event_items(
+                    '<script type="application/ld+json">{not-json}</script>'
+                ),
+                [],
+            )
+            parsed = common._ical_parse_dt(
+                "20260803T120000", "DTSTART;TZID=Unknown/Nowhere"
+            )
+
+        self.assertEqual(parsed, datetime(2026, 8, 3, 12))
+        self.assertEqual(
+            [call.args[0] for call in log_error.call_args_list],
+            ["Search JSON response", "JSON-LD", "iCal timezone"],
+        )
+
+    def test_malformed_ical_timezone_keeps_the_naive_timestamp(self):
+        with mock.patch.object(common, "log_source_error") as log_error:
+            parsed = common._ical_parse_dt(
+                "20260803T120000", "DTSTART;TZID=/Europe/Berlin"
+            )
+
+        self.assertEqual(parsed, datetime(2026, 8, 3, 12))
+        log_error.assert_called_once()
+        self.assertEqual(log_error.call_args.args[0], "iCal timezone")
+
     def test_runtime_window_uses_the_berlin_calendar_day(self):
         window = EventWindow.from_days(
             2, datetime(2026, 7, 18, 23, 30, tzinfo=timezone.utc)

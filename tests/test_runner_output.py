@@ -67,15 +67,19 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(events, [])
 
     def test_runner_rejects_non_object_records_before_window_filtering(self):
-        result, events = runner._run_source("Malformed", lambda: [
-            None,
-            {"title": "Event", "source": "Malformed", "date": common.TODAY.strftime("%Y-%m-%d"),
-             "score": 1.0, "city": "Bonn"},
-        ])
+        with mock.patch.object(
+            runner, "validate_event", wraps=runner.validate_event
+        ) as validate:
+            result, events = runner._run_source("Malformed", lambda: [
+                None,
+                {"title": "Event", "source": "Malformed", "date": common.TODAY.strftime("%Y-%m-%d"),
+                 "score": 1.0, "city": "Bonn"},
+            ])
 
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
         self.assertEqual(len(events), 1)
+        self.assertEqual(validate.call_count, 1)
 
     def test_runner_rejects_malformed_date_types_without_dropping_valid_siblings(self):
         current_date = common.TODAY.strftime("%Y-%m-%d")

@@ -384,18 +384,17 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
         )
 
     recurring = re.search(
-        r"\b(?:jeden|jeden\s+\w+|wöchentlich|woechentlich|regelmäßig|regelmaessig)\b",
+        r"\b(?:jeden\s+\w+|jeden|wöchentlich|woechentlich|regelmäßig|regelmaessig)\b",
         description,
     )
-    routine_sale = re.search(r"\b(?:verkauf|ausgabe)\b", text) and re.search(
-        r"\b(?:gespendet|kleidung|kleider|sachen)\b", text
-    )
+    sale_match = re.search(r"\b\w*(?:verkauf|ausgabe)\w*\b", text)
+    routine_sale = sale_match and re.search(r"\b(?:gespendet|kleidung|kleider|sachen)\b", text)
     if recurring and routine_sale:
         return QualityDecision(
             QualityAction.DROP,
             "civic.recurring-service",
             "recurring community service is not a destination event",
-            (recurring.group(0), "verkauf"),
+            (recurring.group(0), sale_match.group(0)),
         )
 
     if legacy := legacy_junk_decision(event):

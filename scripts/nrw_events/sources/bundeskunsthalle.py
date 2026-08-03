@@ -219,7 +219,13 @@ def _fetch_program_events(source: str) -> list:
             value = common.END_DATE.strftime("%Y-%m-%d")
         dated_fields.append((name, value))
     api_url = common.urllib.parse.urljoin(_EVENTS_URL, api_path)
-    payload = common.post_form(api_url, dated_fields, timeout=25, headers={"Referer": _EVENTS_URL})
+    payload = common.post_form(
+        api_url,
+        dated_fields,
+        timeout=25,
+        headers={"Referer": _EVENTS_URL},
+        retry_safe=True,
+    )
     content = ((payload.get("data") or {}).get("content") or "") if isinstance(payload, dict) else ""
     return _events_from_search_results(content, source)
 

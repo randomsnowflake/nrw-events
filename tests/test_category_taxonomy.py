@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from nrw_events import category_taxonomy as taxonomy
@@ -58,6 +59,15 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertTrue(policy_by_term["wochenmarkt"].drop_as_routine_market)
         self.assertTrue(policy_by_term["frischemarkt"].classify_as_market)
         self.assertTrue(policy_by_term["frischemarkt"].drop_as_routine_market)
+
+    def test_forced_title_format_is_computed_once_per_event(self):
+        with mock.patch(
+            "nrw_events.category_taxonomy._forced_title_format",
+            return_value="",
+        ) as forced:
+            categorize_event("", "Sondertermin", "")
+
+        forced.assert_called_once()
 
     def test_compound_event_formats_classify_without_source_bags(self):
         cases = (

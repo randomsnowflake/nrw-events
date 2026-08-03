@@ -172,10 +172,7 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
         }
         for event in events:
             if not isinstance(event, dict):
-                try:
-                    validate_event(event)
-                except EventValidationError as exc:
-                    result.reject(str(exc))
+                result.reject("record_not_object")
                 continue
             # Adapter feeds often include archives or future listings. Their
             # structural defects are irrelevant to the published window and
