@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from .. import common
+from ..dates import resolve_yearless_date
 from . import regional_common as rc
 
 
@@ -295,17 +296,20 @@ def _rex_datetime(match: re.Match, *, hour: int | None = None, minute: int | Non
             if month is None:
                 return None
         raw_year = match.group("year")
-        year = int(raw_year) if raw_year else common.TODAY.year
-        if raw_year and year < 100:
-            year += 2000
-        if not raw_year and month < common.TODAY.month:
-            year += 1
-        return datetime(
-            year,
-            month,
-            day,
-            int(match.group("hour")) if "hour" in match.re.groupindex else int(hour or 0),
-            int(match.group("minute") or 0) if "minute" in match.re.groupindex else int(minute or 0),
+        if raw_year:
+            year = int(raw_year)
+            if year < 100:
+                year += 2000
+            resolved = datetime(year, month, day)
+        else:
+            resolution = resolve_yearless_date(day, month, common.TODAY)
+            if resolution is None:
+                return None
+            resolved = resolution.value
+        return resolved.replace(
+            hour=int(match.group("hour")) if "hour" in match.re.groupindex else int(hour or 0),
+            minute=int(match.group("minute") or 0)
+            if "minute" in match.re.groupindex else int(minute or 0),
         )
     except (TypeError, ValueError):
         return None

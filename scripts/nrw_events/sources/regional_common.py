@@ -7,7 +7,7 @@ from datetime import datetime
 from html import unescape
 from html.parser import HTMLParser
 from .. import common
-from ..dates import MONTH_DE, MONTH_EN
+from ..dates import MONTH_DE, MONTH_EN, resolve_yearless_date
 from ..source_types import TextParser
 
 
@@ -236,21 +236,9 @@ def with_time(dt, text: str):
 
 
 def date_for_window(day: int, month: int):
-    """Resolve a yearless day/month to the year that keeps it current.
-
-    Listings that omit the year (e.g. the LVR calendar) otherwise default to
-    ``TODAY.year``; during a late-December run a January date then lands in the
-    year that is ending and gets dropped as stale. Pick the first of this year /
-    next year that is not already past so the New-Year rollover is handled.
-    """
-    for year in (common.TODAY.year, common.TODAY.year + 1):
-        try:
-            dt = datetime(year, month, day)
-        except ValueError:
-            return None
-        if dt >= common.TODAY:
-            return dt
-    return None
+    """Resolve a yearless date through the shared rollover/grace policy."""
+    resolution = resolve_yearless_date(day, month, common.TODAY)
+    return resolution.value if resolution else None
 
 
 def time_text(text: str) -> str:

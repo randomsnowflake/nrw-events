@@ -106,6 +106,20 @@ class HardeningRegressionTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual(dates.parse_date(value), expected)
 
+    def test_yearless_dates_keep_recent_occurrences_and_expose_resolution_basis(self):
+        resolution = dates.resolve_yearless_date(3, 8, datetime(2026, 8, 10))
+        self.assertIsNotNone(resolution)
+        self.assertEqual(resolution and resolution.value, datetime(2026, 8, 3))
+        self.assertEqual(resolution and resolution.basis, "grace-window")
+        self.assertEqual(
+            dates.parse_date("3. August", reference_date=datetime(2026, 8, 10)),
+            datetime(2026, 8, 3),
+        )
+
+    def test_regional_yearless_leap_day_continues_to_the_next_valid_year(self):
+        with mock.patch.object(common, "TODAY", datetime(2027, 1, 10)):
+            self.assertEqual(regional_common.date_for_window(29, 2), datetime(2028, 2, 29))
+
     def test_common_date_parser_uses_the_configured_report_window_start(self):
         previous = dates._REFERENCE_DATE
         self.addCleanup(setattr, dates, "_REFERENCE_DATE", previous)

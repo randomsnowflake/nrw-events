@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -11,6 +12,15 @@ from zoneinfo import ZoneInfo
 
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
 _REFERENCE_DATE: Optional[datetime] = None
+YEARLESS_GRACE_DAYS = 30
+
+
+@dataclass(frozen=True, slots=True)
+class YearlessDateResolution:
+    """A resolved day/month plus provenance for the inferred year choice."""
+
+    value: datetime
+    basis: str
 
 
 def _local_naive(value: datetime) -> datetime:
@@ -51,16 +61,24 @@ def parse_iso_date(text: str) -> Optional[datetime]:
             return None
 
 
-def _next_yearless_occurrence(day: int, month: int, reference_date: datetime) -> Optional[datetime]:
-    """Return the next calendar occurrence, including today, for a day/month pair."""
+def resolve_yearless_date(
+    day: int,
+    month: int,
+    reference_date: datetime,
+    *,
+    grace_days: int = YEARLESS_GRACE_DAYS,
+) -> Optional[YearlessDateResolution]:
+    """Resolve a day/month near the report date and record why its year won."""
     reference_date = _local_naive(reference_date)
-    for year in range(reference_date.year, reference_date.year + 9):
+    lower_bound = reference_date - timedelta(days=grace_days)
+    for year in range(reference_date.year - 1, reference_date.year + 9):
         try:
             candidate = datetime(year, month, day)
         except ValueError:
             continue
-        if candidate.date() >= reference_date.date():
-            return candidate
+        if candidate.date() >= lower_bound.date():
+            basis = "grace-window" if candidate.date() < reference_date.date() else "upcoming"
+            return YearlessDateResolution(candidate, basis)
     return None
 
 
@@ -101,6 +119,12 @@ def _range_start(text: str) -> str:
             start_month = MONTH_DE.get(key) or MONTH_EN.get(key)
         return f"{start} {inherited_year(start_month)}"
     return start
+
+
+def _next_yearless_occurrence(day: int, month: int, reference_date: datetime) -> Optional[datetime]:
+    """Compatibility wrapper returning only the resolved calendar occurrence."""
+    resolution = resolve_yearless_date(day, month, reference_date)
+    return resolution.value if resolution else None
 
 
 def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optional[datetime]:
