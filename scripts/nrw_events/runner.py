@@ -13,7 +13,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -810,12 +810,21 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     all_events: list[CanonicalEvent] = []
     source_results: dict[str, SourceResult] = {}
     worker_count = min(settings.source_workers, max(len(sources), 1))
-    with executor_factory(max_workers=worker_count) as pool:
+    pool = executor_factory(max_workers=worker_count)
+    try:
         futures = {
             pool.submit(_run_source, name, fetch, settings.source_timeout_seconds): name
             for name, fetch in sources.items()
         }
-        for future in as_completed(futures):
+        completed = []
+        deadline = time.monotonic() + settings.source_timeout_seconds
+        try:
+            completed.extend(as_completed(
+                futures, timeout=max(0.0, deadline - time.monotonic()),
+            ))
+        except FuturesTimeoutError:
+            pass
+        for future in completed:
             name = futures[future]
             result, events = future.result()
             source_results[name] = result
@@ -830,6 +839,24 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
                 f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
                 run_id=run_id, source=name)
             all_events.extend(events)
+        for future, name in futures.items():
+            if future in completed:
+                continue
+            future.cancel()
+            result = SourceResult(source=name)
+            result.error = {
+                "error_type": "TimeoutError",
+                "error": f"source exceeded {settings.source_timeout_seconds:g}s wall-clock budget",
+            }
+            result.duration_ms = round(settings.source_timeout_seconds * 1000)
+            result.finish([])
+            source_results[name] = result
+            log(
+                logger, 40, result.error["error"], run_id=run_id, source=name,
+                error_type=result.error["error_type"],
+            )
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:

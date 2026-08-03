@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from unittest import mock
 from datetime import date, datetime
@@ -24,6 +25,28 @@ def raw_event(title="Flohmarkt Rheinaue", day="2026-08-15", **overrides):
 
 
 class OpenIssueContractTests(unittest.TestCase):
+    def test_source_wall_clock_timeout_returns_without_waiting_for_stalled_parser(self):
+        settings = config.RuntimeConfig(
+            score_floor=0, source_timeout_seconds=0.05, series_ledger_json="",
+        )
+        context = RunContext(
+            settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
+            "timeout", configure_logging("timeout", "ERROR", "", ""),
+        )
+
+        started = time.monotonic()
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}):
+            result = runner.run_import(context, {
+                "Fast": lambda: [raw_event()],
+                "Stalled": lambda: (time.sleep(0.2), [])[1],
+            })
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 0.15)
+        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
+        self.assertEqual(result.source_results["Stalled"].status, runner.SourceStatus.FAILED)
+        self.assertEqual(result.source_results["Stalled"].error["error_type"], "TimeoutError")
+
     def test_snapshot_exports_editorial_features_without_changing_score(self):
         canonical = runner.validate_event(raw_event())
         context = RunContext(

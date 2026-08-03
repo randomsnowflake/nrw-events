@@ -155,9 +155,10 @@ def set_source_context(result: Optional[SourceResult], timeout_seconds: float | 
     _SOURCE_CONTEXT.result = result
     if result is not None and timeout_seconds is not None:
         _SOURCE_CONTEXT.timeout_seconds = timeout_seconds
-        _SOURCE_CONTEXT.deadline = time.perf_counter() + timeout_seconds
+        _SOURCE_CONTEXT.hard_deadline = time.perf_counter() + timeout_seconds
+        _SOURCE_CONTEXT.deadline = _SOURCE_CONTEXT.hard_deadline
     else:
-        for attribute_name in ("timeout_seconds", "deadline"):
+        for attribute_name in ("timeout_seconds", "deadline", "hard_deadline"):
             if hasattr(_SOURCE_CONTEXT, attribute_name):
                 delattr(_SOURCE_CONTEXT, attribute_name)
 
@@ -209,9 +210,9 @@ def _record_endpoint(url: str, **details) -> None:
     status = details.get("status")
     timeout_seconds = getattr(_SOURCE_CONTEXT, "timeout_seconds", None)
     if isinstance(status, int) and 200 <= status < 400 and timeout_seconds is not None:
-        # Large adapters can legitimately process many pages. Treat the source
-        # limit as an inactivity budget, not a wall-clock runtime ceiling.
-        _SOURCE_CONTEXT.deadline = time.perf_counter() + timeout_seconds
+        hard_deadline = getattr(_SOURCE_CONTEXT, "hard_deadline", None)
+        renewed_deadline = time.perf_counter() + timeout_seconds
+        _SOURCE_CONTEXT.deadline = min(renewed_deadline, hard_deadline) if hard_deadline else renewed_deadline
 
 
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
@@ -238,7 +239,9 @@ def _throttle_before_request(url: str) -> None:
 def _request_deadline() -> float:
     deadline = time.perf_counter() + _HTTP_REQUEST_BUDGET_SECONDS
     source_deadline = getattr(_SOURCE_CONTEXT, "deadline", None)
-    return min(deadline, source_deadline) if source_deadline is not None else deadline
+    hard_deadline = getattr(_SOURCE_CONTEXT, "hard_deadline", None)
+    candidates = [value for value in (deadline, source_deadline, hard_deadline) if value is not None]
+    return min(candidates)
 
 
 def _remaining_timeout(deadline: float, requested_timeout: float) -> float:
