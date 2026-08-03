@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 from collections import Counter
 from datetime import date, timedelta
 from hashlib import sha256
@@ -16,6 +17,11 @@ from .normalization import comparison_text
 
 
 LEDGER_SCHEMA_VERSION = 1
+
+
+def _clamped_date(year: int, month: int, day: int) -> date:
+    """Build a date while keeping seasonal estimates inside the month."""
+    return date(year, month, min(day, calendar.monthrange(year, month)[1]))
 
 
 def _stem(title: str) -> str:
@@ -225,9 +231,10 @@ def enrich_events(
         estimated = None
         if state == "dormant_seasonal" and season_start is not None:
             first_days = [value.day for value in known_dates if value.month == season_start]
-            candidate = date(today.year, season_start, round(median(first_days)))
+            candidate_day = round(median(first_days))
+            candidate = _clamped_date(today.year, season_start, candidate_day)
             if candidate <= today:
-                candidate = candidate.replace(year=candidate.year + 1)
+                candidate = _clamped_date(candidate.year + 1, season_start, candidate_day)
             estimated = candidate.isoformat()
         item = {
             "series_id": series_id,

@@ -117,6 +117,49 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual(winter["season_start_month"], 4)
         self.assertEqual(winter["season_end_month"], 10)
 
+    def test_series_season_estimate_clamps_leap_day_in_both_candidate_years(self):
+        ledger = {"schema_version": 1, "series": {"leap-day": {
+            "series_id": "leap-day", "title": "Schalttag-Reihe", "venue": "Haus",
+            "canonical_venue_id": "haus", "city": "Bonn", "category_key": "talk",
+            "first_seen": "2016-02-29T00:00:00", "last_seen": "2020-02-29T00:00:00",
+            "occurrences": {"a": "2016-02-29", "b": "2020-02-29"},
+            "announced_dates": [],
+        }}}
+
+        _, [non_leap_current], _ = series.enrich_events(
+            [], ledger, today=date(2026, 1, 1), generated_at="2026-01-01T00:00:00",
+        )
+        _, [non_leap_next], _ = series.enrich_events(
+            [], ledger, today=date(2024, 8, 1), generated_at="2024-08-01T00:00:00",
+        )
+
+        self.assertEqual(non_leap_current["next_occurrence_estimated"], "2026-02-28")
+        self.assertEqual(non_leap_next["next_occurrence_estimated"], "2025-02-28")
+
+    def test_series_enrichment_failure_does_not_abort_import(self):
+        settings = config.RuntimeConfig(score_floor=0, series_ledger_json="")
+        context = RunContext(
+            settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
+            "series-failure", configure_logging("series-failure", "ERROR", "", ""),
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(runner.series_entities, "enrich_events", side_effect=ValueError("bad season")):
+            result = runner.run_import(context, {"Bonn.de Events": lambda: [raw_event()]})
+
+        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
+        self.assertEqual(result.series, ())
+        self.assertEqual(result.run_status, "degraded")
+        snapshot = runner.build_snapshot(result, context)
+        self.assertIn(
+            {
+                "source": "series",
+                "error_type": "ValueError",
+                "error": "series enrichment failed: bad season",
+            },
+            snapshot.metadata["source_warnings"],
+        )
+
     def test_series_realistic_groups_cadence_conclusion_and_announced_dates(self):
         events = [
             raw_event("Feierabendmarkt Bonn", value, venue="Marktplatz Bonn", venue_id="")
