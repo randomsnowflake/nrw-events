@@ -321,6 +321,30 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertEqual(category.get("confidence"), 1.0)
         self.assertEqual(category.get("reason"), "forced:talk")
 
+    def test_forced_rules_ignore_incidental_description_words(self):
+        cases = [
+            (
+                "Konzert", "Sommerkonzert des Chors",
+                "Danach gibt es Pilates im Park.", "concert",
+            ),
+            (
+                "", "Livemusik im Garten",
+                "Der Künstler zeigt auch eine Karikatur.", "concert",
+            ),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                result = categorize_event(source_category, title, description)
+                self.assertEqual(result["key"], expected)
+                self.assertFalse(result.get("reason", "").startswith("forced:"))
+
+    def test_forced_rules_use_word_boundaries(self):
+        result = categorize_event("", "Pilatesabendliches Konzert", "Livemusik")
+
+        self.assertEqual(result["key"], "concert")
+        self.assertNotEqual(result.get("reason"), "forced:sports")
+
     def test_plain_keywords_do_not_match_inside_unrelated_words(self):
         cases = [
             ("Sonstige Veranstaltung", "Ablauf der Mitgliederversammlung", "", "other"),
