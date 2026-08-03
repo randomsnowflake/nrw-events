@@ -133,6 +133,8 @@ def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: loggi
     _HTTP_RETRY_MAX_DELAY_SECONDS = settings.http_retry_max_delay_seconds
     _HTTP_MAX_RESPONSE_BYTES = settings.http_max_response_bytes
     _HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"] = settings.bonn_de_delay_seconds
+    with _HOST_SLOT_LOCK:
+        _HOST_SLOTS.clear()
     _RUN_ID = run_id
     _LOGGER = logger
     MAX_RADIUS_KM = settings.radius_km
@@ -252,13 +254,16 @@ def _remaining_timeout(deadline: float, requested_timeout: float) -> float:
 def _host_request_slot(url: str, deadline: float):
     """Serialize one host without preventing requests to other hosts."""
     hostname = (urllib.parse.urlsplit(url).hostname or "<missing>").lower()
+    throttle_bucket, _ = _throttle_bucket(url)
+    slot_key = throttle_bucket or hostname
     with _HOST_SLOT_LOCK:
-        slot = _HOST_SLOTS.setdefault(hostname, threading.Lock())
+        slot = _HOST_SLOTS.setdefault(slot_key, threading.Lock())
     wait = _remaining_timeout(deadline, deadline - time.perf_counter())
     if not slot.acquire(timeout=wait):
         raise TimeoutError(f"timed out waiting for request slot on {hostname}")
     try:
         _throttle_before_request(url)
+        _remaining_timeout(deadline, deadline - time.perf_counter())
         yield
     finally:
         slot.release()
