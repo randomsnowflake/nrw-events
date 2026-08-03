@@ -2,11 +2,12 @@
 
 from typing import List, Protocol
 
+from .health import SourceFetchResult
 from .models import EventRecord
 
 
 class SourceFetcher(Protocol):
-    def __call__(self) -> List[EventRecord]: ...
+    def __call__(self) -> SourceFetchResult: ...
 
 
 class TextParser(Protocol):
