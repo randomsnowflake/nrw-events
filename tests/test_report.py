@@ -4,6 +4,105 @@ from nrw_events import common, report
 
 
 class ReportTests(unittest.TestCase):
+    def test_malformed_one_character_venue_does_not_split_a_cross_source_occurrence(self):
+        base = {
+            "title": "Digital Independence Day", "date": "2026-08-02",
+            "start_date": "2026-08-02", "end_date": "2026-08-02",
+            "start_at": "2026-08-02T14:00+02:00", "end_at": "2026-08-02T14:00+02:00",
+            "city": "Bonn", "category_key": "talk", "description": "", "price": "",
+            "time": "14:00", "score": 1.0,
+        }
+        deduped = report.deduplicate([
+            {
+                **base, "venue": "Kulturzentrum Brotfabrik Bonn", "source": "Bonn.jetzt",
+                "venue_id": "kulturzentrum-brotfabrik",
+                "venue_address": "Kreuzstraße 16, 53225 Bonn",
+                "venue_district": "Bonn-Beuel",
+                "venue_type": "cultural_center",
+                "venue_latitude": 50.74091,
+                "venue_longitude": 7.12369,
+                "distance_km": 2.1,
+                "location_confidence": "exact",
+                "location_source": "venue_registry",
+                "link": "https://bonn.jetzt/event/digital-independence-day-1",
+            },
+            {
+                **base, "venue": "g", "source": "Brotfabrik Bonn", "score": 1.1,
+                "venue_id": "",
+                "venue_address": "",
+                "venue_district": "",
+                "venue_type": "",
+                "venue_latitude": None,
+                "venue_longitude": None,
+                "distance_km": 0,
+                "location_confidence": "known_city",
+                "location_source": "configured_city",
+                "link": "https://klimaviertel-beuel.de/termine/",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Brotfabrik Bonn")
+        self.assertEqual(deduped[0]["venue"], "Kulturzentrum Brotfabrik Bonn")
+        self.assertEqual(deduped[0]["venue_id"], "kulturzentrum-brotfabrik")
+        self.assertEqual(deduped[0]["venue_address"], "Kreuzstraße 16, 53225 Bonn")
+        self.assertEqual(deduped[0]["venue_district"], "Bonn-Beuel")
+        self.assertEqual(deduped[0]["venue_type"], "cultural_center")
+        self.assertEqual(deduped[0]["venue_latitude"], 50.74091)
+        self.assertEqual(deduped[0]["venue_longitude"], 7.12369)
+        self.assertEqual(deduped[0]["distance_km"], 2.1)
+        self.assertEqual(deduped[0]["location_confidence"], "exact")
+        self.assertEqual(deduped[0]["location_source"], "venue_registry")
+
+    def test_citywide_street_food_festival_collapses_broad_venue_aliases(self):
+        base = {
+            "title": "Street Food Festival", "date": "2026-08-28",
+            "start_date": "2026-08-28", "end_date": "2026-08-30", "start_at": "", "end_at": "",
+            "city": "Bonn-Bad Godesberg", "category_key": "food", "description": "",
+            "price": "", "time": "", "score": 1.0,
+        }
+        deduped = report.deduplicate([
+            {
+                **base, "venue": "Theaterplatz", "source": "Bonn district festivals",
+                "link": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+            },
+            {
+                **base, "venue": "Bad Godesberger Innenstadt", "source": "Bad Godesberg Stadtmarketing",
+                "link": "https://bad-godesberg.info/veranstaltungen_st/street-food-festival",
+            },
+            {
+                **base, "date": "2026-08-29", "start_date": "2026-08-29", "end_date": "2026-08-29",
+                "start_at": "2026-08-29T12:00+02:00", "end_at": "2026-08-29T20:00+02:00",
+                "venue": "Bad Godesberger Innenstadt", "source": "Bonn.de Events",
+                "link": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Street-Food-Festival.php",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 2)
+        multi_day = next(event for event in deduped if event["start_date"] == "2026-08-28")
+        self.assertEqual(multi_day["source"], "Bad Godesberg Stadtmarketing")
+
+    def test_citywide_title_does_not_override_distinct_concrete_venues(self):
+        base = {
+            "title": "Street Food Festival", "date": "2026-08-28",
+            "start_date": "2026-08-28", "end_date": "2026-08-30",
+            "city": "Bonn", "category_key": "food", "description": "",
+            "price": "", "time": "", "score": 1.0,
+        }
+
+        deduped = report.deduplicate([
+            {
+                **base, "venue": "Rheinaue", "source": "Veranstalter Nord",
+                "link": "https://north.test/street-food",
+            },
+            {
+                **base, "venue": "Telekom Dome", "source": "Veranstalter Süd",
+                "link": "https://south.test/street-food",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 2)
+
     def test_civic_market_absorbs_directory_title_variant_at_same_venue(self):
         base = {
             "start_date": "2026-08-23", "end_date": "2026-08-23",
