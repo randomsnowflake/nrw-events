@@ -31,6 +31,15 @@ include = ["nrw_events*"]
 [tool.setuptools.package-data]
 nrw_events = ["verified_venue_locations.json", "sources/registry.json"]
 
+[tool.mypy]
+python_version = "3.10"
+files = ["scripts/nrw_events/core.py"]
+follow_imports = "skip"
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+
 [tool.ruff]
 target-version = "py310"
 line-length = 120
