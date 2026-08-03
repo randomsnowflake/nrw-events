@@ -1,8 +1,10 @@
 import ast
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -17,6 +19,18 @@ from nrw_events.sources import SOURCES, SOURCE_FETCHERS, SOURCE_IDS, SOURCE_SPEC
 
 
 class ModuleBoundaryTests(unittest.TestCase):
+    def test_quality_import_does_not_load_core(self):
+        scripts = Path(__file__).resolve().parents[1] / "scripts"
+        environment = {**os.environ, "PYTHONPATH": str(scripts)}
+        completed = subprocess.run(
+            [sys.executable, "-c", "import sys; import nrw_events.quality; assert 'nrw_events.core' not in sys.modules"],
+            check=False,
+            capture_output=True,
+            env=environment,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def test_common_compatibility_import_has_one_canonical_module_identity(self):
         self.assertIs(importlib.import_module("nrw_events.common"), common)
         self.assertEqual(common.__name__, "nrw_events.core")
