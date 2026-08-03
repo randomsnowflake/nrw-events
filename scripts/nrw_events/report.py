@@ -255,8 +255,6 @@ def _duration_days(ev: dict) -> int:
 
 def _titles_match(left: dict, right: dict) -> bool:
     """Match exact titles and very close cross-source title variants."""
-    if _series_tokens(left.get("title", "")) != _series_tokens(right.get("title", "")):
-        return False
     left_title = normalize_title(left.get("title", ""))
     right_title = normalize_title(right.get("title", ""))
     if left_title == right_title:
@@ -679,6 +677,9 @@ def ranking_features(ev: dict) -> dict[str, float]:
 
 
 def _priority_bonus(ev: dict) -> float:
+    stored = ev.get("priority_bonus")
+    if isinstance(stored, (int, float)) and not isinstance(stored, bool):
+        return float(stored)
     return sum(ranking_features(ev).values())
 
 

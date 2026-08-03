@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from nrw_events import common, report
 
@@ -251,6 +252,20 @@ class ReportTests(unittest.TestCase):
         features = report.ranking_features({"title": "Flohmarkt", "category": "market",
                                             "description": "", "city": "Bonn"})
         self.assertEqual(features, {"flea_market": 0.5, "bonn_local": 0.1})
+
+    def test_format_report_uses_stored_priority_bonus(self):
+        event = {
+            "title": "Stored ranking", "source": "Test", "score": 1.0,
+            "priority_bonus": 0.7, "category_key": "other", "city": "Bonn",
+            "description": "", "category": "", "distance_km": 0,
+        }
+
+        with mock.patch.object(
+            report, "ranking_features", side_effect=AssertionError("ranking recomputed"),
+        ):
+            rendered = report.format_report([event])
+
+        self.assertIn("Stored ranking", rendered)
 
     def test_source_authority_handles_source_family_variants(self):
         self.assertEqual(report.source_authority("Bundeskunsthalle"), 3)
