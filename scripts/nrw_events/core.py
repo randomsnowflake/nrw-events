@@ -1834,8 +1834,16 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
 
     for m in re.finditer(r"<script[^>]+application/ld\+json[^>]*>(.*?)</script>", html, re.S | re.I):
         raw = m.group(1).strip()
+        # Some consent plugins incorrectly label executable JavaScript as
+        # application/ld+json. JSON-LD roots must be objects or arrays, so
+        # these blocks are not parse failures and should not create warnings.
+        if not raw or raw[0] not in "[{":
+            continue
         try:
-            walk(json.loads(raw))
+            # Real publisher pages occasionally contain literal newlines or
+            # tabs inside JSON strings. Browsers accept these blocks, and the
+            # rest of the document remains useful, so parse them permissively.
+            walk(json.loads(raw, strict=False))
         except json.JSONDecodeError as exc:
             log_source_error("JSON-LD", exc)
             continue
@@ -2550,8 +2558,13 @@ def log_source_error(source: str, err: Exception, *, source_id: str = "") -> Non
     if source_id:
         warning["source_id"] = source_id
     result = getattr(_SOURCE_CONTEXT, "result", None)
+    should_log = True
     if result is not None:
-        result.warning(source, type(err).__name__, message, source_id=source_id)
+        should_log = result.warning(
+            source, type(err).__name__, message, source_id=source_id
+        )
+    if not should_log:
+        return
     runtime = _runtime_state()
     log(runtime.logger, logging.WARNING, message, run_id=runtime.run_id,
         source=source, error_type=type(err).__name__)
@@ -2562,11 +2575,3 @@ def log_source_quality_skip(source: str, reason: str) -> None:
     result = getattr(_SOURCE_CONTEXT, "result", None)
     if result is not None:
         result.reject(f"quality:{reason}")
-    runtime = _runtime_state()
-    log(
-        runtime.logger,
-        logging.INFO,
-        f"skipped source record: {reason}",
-        run_id=runtime.run_id,
-        source=source,
-    )

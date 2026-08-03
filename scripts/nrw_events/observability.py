@@ -14,6 +14,28 @@ LOGGER_NAME = "nrw_events"
 _SENSITIVE = re.compile(r"([?&](?:api[_-]?key|token|key|authorization)=)[^&\s]+", re.IGNORECASE)
 
 
+class _DuplicateWarningFilter(logging.Filter):
+    """Keep repeated worker warnings from drowning the per-source summary."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._seen: set[tuple[str, str, str, str]] = set()
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno != logging.WARNING:
+            return True
+        key = (
+            str(getattr(record, "run_id", "")),
+            str(getattr(record, "source", "")),
+            str(getattr(record, "error_type", "")),
+            record.getMessage(),
+        )
+        if key in self._seen:
+            return False
+        self._seen.add(key)
+        return True
+
+
 def redact(value: object) -> str:
     """Remove credential-like query values from diagnostics before logging."""
     return _SENSITIVE.sub(r"\1[REDACTED]", str(value))
@@ -39,6 +61,8 @@ def configure_logging(run_id: str, level: str, log_path: str = "", json_log_path
     """Configure stderr plus optional durable text/JSON-lines log files."""
     logger = logging.getLogger(LOGGER_NAME)
     logger.handlers.clear()
+    logger.filters.clear()
+    logger.addFilter(_DuplicateWarningFilter())
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
     logger.propagate = False
 

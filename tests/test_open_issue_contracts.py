@@ -93,7 +93,8 @@ class OpenIssueContractTests(unittest.TestCase):
         )
         unresolved = raw_event("Unklarer Ort", distance_km=None, location_confidence="unresolved", venue="", venue_id="")
         outside = raw_event("Weit weg", city="Köln", venue="", venue_id="", distance_km=20)
-        with mock.patch.object(runner.common, "MAX_RADIUS_KM", runner.common.MAX_RADIUS_KM), \
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(runner.common, "MAX_RADIUS_KM", runner.common.MAX_RADIUS_KM), \
                 mock.patch.object(config, "MAX_RADIUS_KM", config.MAX_RADIUS_KM):
             result = runner.run_import(context, {"Bonn.de Events": lambda: [unresolved, outside]})
         self.assertEqual([event.title for event in result.events], ["Unklarer Ort"])
@@ -108,9 +109,10 @@ class OpenIssueContractTests(unittest.TestCase):
         )
         scheduled = raw_event()
         cancelled = raw_event(status="cancelled", description="Die Veranstaltung ist abgesagt.")
-        result = runner.run_import(
-            context, {"Bonn.de Events": lambda: [scheduled, cancelled]},
-        )
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}):
+            result = runner.run_import(
+                context, {"Bonn.de Events": lambda: [scheduled, cancelled]},
+            )
         snapshot = runner.build_snapshot(result, context)
 
         [event] = snapshot.events

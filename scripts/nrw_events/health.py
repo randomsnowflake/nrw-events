@@ -81,11 +81,14 @@ class SourceResult:
     error: Optional[dict[str, str]] = None
     status_reason: str = ""
 
-    def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> None:
+    def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> bool:
         warning = {"source": source, "error_type": error_type, "error": message}
         if source_id:
             warning["source_id"] = source_id
+        if warning in self.warnings:
+            return False
         self.warnings.append(warning)
+        return True
 
     def reject(self, reason: str) -> None:
         self.rejected_event_count += 1

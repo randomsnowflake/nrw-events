@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import sys
@@ -6,16 +7,54 @@ import unittest
 from datetime import datetime
 from unittest import mock
 
-from nrw_events import common, report, runner
+from nrw_events import common, core, report, runner
 from nrw_events.health import SourceFetchResult, SourceStatus
 from nrw_events import config
-from nrw_events.observability import configure_logging
+from nrw_events.observability import configure_logging, log
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.sources import bonn_districts, regional_sitekit
 from tests.helpers import default_window, make_runner_env, patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_logger_emits_identical_worker_warning_once_but_keeps_info_progress(self):
+        with mock.patch("sys.stderr", new=io.StringIO()):
+            logger = configure_logging("dedupe", "INFO", "", "")
+        stream = io.StringIO()
+        logger.handlers[0].setStream(stream)
+
+        for _ in range(2):
+            log(logger, 30, "request budget exhausted", run_id="dedupe", source="Detail")
+            log(logger, 20, "progress", run_id="dedupe", source="Detail")
+
+        output = stream.getvalue()
+        self.assertEqual(output.count("request budget exhausted"), 1)
+        self.assertEqual(output.count("progress"), 2)
+
+    def test_repeated_source_warning_is_recorded_and_logged_once(self):
+        def noisy_source():
+            common.log_source_error("Noisy detail", TimeoutError("request budget exhausted"))
+            common.log_source_error("Noisy detail", TimeoutError("request budget exhausted"))
+            return []
+
+        with mock.patch.object(core, "log") as emit:
+            result, _ = runner._run_source("Noisy", noisy_source)
+
+        self.assertEqual(len(result.warnings), 1)
+        emit.assert_called_once()
+
+    def test_expected_quality_rejections_are_summarized_without_per_record_logs(self):
+        def filtered_source():
+            common.log_source_quality_skip("Filtered", "civic.course")
+            common.log_source_quality_skip("Filtered", "civic.course")
+            return []
+
+        with mock.patch.object(core, "log") as emit:
+            result, _ = runner._run_source("Filtered", filtered_source)
+
+        self.assertEqual(result.rejection_reasons, {"quality:civic.course": 2})
+        emit.assert_not_called()
+
     def test_run_import_flushes_shared_detail_caches_once_after_all_sources(self):
         context = RunContext(
             config.RuntimeConfig(series_ledger_json=""),
@@ -1126,6 +1165,29 @@ class SnapshotPublicationTests(unittest.TestCase):
         uncapped = report.format_report(uncapped_events)
         self.assertGreater(len(uncapped), 16_000)
         self.assertIn("Ungekürztes Konzert 59", uncapped)
+
+    def test_report_ends_with_actionable_metadata_gap_hints(self):
+        events = [
+            {
+                "title": "Unklarer Termin", "source": "Sparse Source",
+                "category_key": "other", "location_confidence": "unresolved",
+                "city": "Beispielort", "venue": "", "date": "2026-08-03",
+                "score": 1.0, "distance_km": None, "description": "", "link": "",
+            },
+            {
+                "title": "Zweiter Termin", "source": "Sparse Source",
+                "category_key": "concert", "location_confidence": "known_city",
+                "city": "Bonn", "venue": "", "date": "2026-08-04",
+                "score": 1.0, "distance_km": 0, "description": "", "link": "",
+            },
+        ]
+
+        rendered = report.format_report(events)
+
+        self.assertIn("### Ergänzungshinweise", rendered)
+        self.assertIn("Kategorie ergänzen: Termine auf Sonstiges: 1", rendered)
+        self.assertIn("Ortschaft prüfen: geografisch nicht aufgelöste Termine: 1", rendered)
+        self.assertIn("Veranstaltungsort ergänzen: Termine ohne Venue: 2", rendered)
 
 
 if __name__ == "__main__":

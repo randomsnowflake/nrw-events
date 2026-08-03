@@ -183,6 +183,22 @@ class HardeningRegressionTests(unittest.TestCase):
             ["Search JSON response", "JSON-LD", "iCal timezone"],
         )
 
+    def test_jsonld_ignores_empty_blocks_and_accepts_literal_control_characters(self):
+        html = """
+        <script type="application/ld+json"> </script>
+        <script type="application/ld+json">(()=> consentManager())()</script>
+        <script type="application/ld+json">
+          {"@type":"Event","name":"Line one
+          line two"}
+        </script>
+        """
+        with mock.patch.object(common, "log_source_error") as log_error:
+            items = common.jsonld_event_items(html)
+
+        self.assertEqual(len(items), 1)
+        self.assertIn("line two", items[0]["name"])
+        log_error.assert_not_called()
+
     def test_malformed_ical_timezone_keeps_the_naive_timestamp(self):
         with mock.patch.object(common, "log_source_error") as log_error:
             parsed = common._ical_parse_dt(

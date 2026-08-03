@@ -973,4 +973,38 @@ def format_report(events: list, *, window_start: datetime | None = None,
     for src, count in sorted(source_counts.items(), key=lambda x: (-x[1], x[0])):
         lines.append(f"- {_escape_markdown(src)}: {count} events")
 
+    uncategorized = [event for event in events if event.get("category_key") == "other"]
+    unresolved = [
+        event for event in events
+        if event.get("location_confidence") == "unresolved"
+    ]
+    missing_venue = [event for event in events if not str(event.get("venue") or "").strip()]
+    if uncategorized or unresolved or missing_venue:
+        lines.extend(["", "### Ergänzungshinweise"])
+    if uncategorized:
+        examples = "; ".join(
+            f"{_escape_markdown(event.get('title', 'Ohne Titel'))} ({_escape_markdown(event.get('source', 'unbekannte Quelle'))})"
+            for event in uncategorized[:5]
+        )
+        lines.append(
+            f"- Kategorie ergänzen: Termine auf Sonstiges: {len(uncategorized)}. Beispiele: {examples}."
+        )
+    if unresolved:
+        examples = "; ".join(
+            f"{_escape_markdown(event.get('title', 'Ohne Titel'))} ({_escape_markdown(event.get('city', 'Ort fehlt'))})"
+            for event in unresolved[:5]
+        )
+        lines.append(
+            f"- Ortschaft prüfen: geografisch nicht aufgelöste Termine: {len(unresolved)}. Beispiele: {examples}."
+        )
+    if missing_venue:
+        counts = Counter(str(event.get("source") or "unbekannte Quelle") for event in missing_venue)
+        sources = "; ".join(
+            f"{_escape_markdown(source)} ({count})"
+            for source, count in counts.most_common(5)
+        )
+        lines.append(
+            f"- Veranstaltungsort ergänzen: Termine ohne Venue: {len(missing_venue)}; größte Lücken: {sources}."
+        )
+
     return _bounded_report(lines, max_chars, len(events)) if max_chars > 0 else "\n".join(lines)
