@@ -720,7 +720,9 @@ class CrossRunRetentionTests(unittest.TestCase):
 
         self.assertEqual(len(result.events), 1)
         self.assertEqual(result.events[0].source, "Meetup")
-        self.assertEqual(result.events[0].description, "Fresh description.")
+        self.assertNotIn("Fresh description", result.events[0].description)
+        self.assertIn("Shared Event", result.events[0].description)
+        self.assertEqual(result.events[0].description_source, "generated")
         self.assertEqual(result.retention["fresh_event_count"], 1)
         self.assertEqual(result.retention["retained_event_count"], 0)
 

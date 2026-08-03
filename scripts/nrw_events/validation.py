@@ -18,6 +18,16 @@ class EventValidationError(ValueError):
     """A source record could not be safely published."""
 
 
+def _requires_master_data_only(event: dict[str, Any]) -> bool:
+    source_id = str(event.get("source_id") or "").casefold()
+    source = str(event.get("source") or "").casefold()
+    return (
+        source_id in {"marktcom", "ruhr-guide", "beuel-net", "meetup"}
+        or source_id.startswith("meetup-")
+        or source in {"marktcom", "meetup", "ruhr-guide", "beuel.net"}
+    )
+
+
 def _text(event: dict[str, Any], field: str, limit: int, required: bool = False) -> str:
     value = event.get(field, "")
     if value is None:
@@ -257,6 +267,11 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     decision = evaluate_event_quality(event)
     if decision.should_drop:
         raise EventValidationError(f"quality:{decision.rule_id}")
+    # Retention can reintroduce an older snapshot after a live source failure.
+    # Enforce the source policy at the final canonical boundary as well as in
+    # the adapters so historical prose can never be republished.
+    if _requires_master_data_only(event):
+        common.keep_only_event_master_data(event)
     return CanonicalEvent(**{
         field: event.get(field, definition.default)
         for field, definition in CanonicalEvent.__dataclass_fields__.items()

@@ -90,6 +90,28 @@ class DescriptionMetadataTests(unittest.TestCase):
         with self.assertRaisesRegex(EventValidationError, "description_source_invalid"):
             canonicalize_event(invalid)
 
+    def test_canonical_boundary_cleans_retained_risky_source_copy(self):
+        start = common.TODAY + timedelta(days=1)
+        for source, source_id in (
+            ("marktcom", "marktcom"),
+            ("Meetup", "meetup-bonn-group"),
+            ("Ruhr-Guide", "ruhr-guide"),
+            ("beuelhats.de", "beuel-net"),
+        ):
+            with self.subTest(source_id=source_id):
+                event = common.make_event(
+                    "Testtermin", start, None, "Testhalle", "Bonn",
+                    "Urheberrechtlich riskanter Alttext. Eintritt frei.",
+                    "https://example.test/event", source, "Kultur",
+                    source_id=source_id,
+                )
+
+                canonical = canonicalize_event(event)
+
+                self.assertNotIn("Alttext", canonical.description)
+                self.assertEqual(canonical.description_source, "generated")
+                self.assertEqual(canonical.price, "kostenlos")
+
 
 
 class DescriptionParagraphTests(unittest.TestCase):
