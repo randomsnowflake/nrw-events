@@ -440,7 +440,9 @@ Distanzscore × Kategoriegewicht × Quellenvertrauen
 
 - **Distanz:** Bonn-Zentrum = 1.0, linear fallend bis zum Rand des 75-km-Radius.
 - **Kategorie:** Gewichtungen in `config.CATEGORY_WEIGHT`, z.B. elektronische Musik,
-  Architektur, Weinwanderungen, Konzerte, Ausstellungen, Märkte und Outdoor.
+  Architektur, Weinwanderungen, Konzerte, Ausstellungen, Märkte und Outdoor. Wenn
+  mehrere Begriffe passen, werden die stärkste Aufwertung und die stärkste
+  Abwertung multipliziert; damit wirken auch Gewichte unter 0,8 tatsächlich.
 - **Quellenvertrauen:** strukturierte APIs und iCal/JSON-LD sind höher gewichtet
   als fragile HTML-Scrapes oder Suchtreffer.
 
