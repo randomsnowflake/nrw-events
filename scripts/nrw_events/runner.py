@@ -1029,7 +1029,8 @@ def cli(argv: list[str]) -> int:
     try:
         config.load_env_file()
         days_ahead, query, overrides = _parse_cli(argv)
-        settings = replace(config.runtime_config(days_ahead), **overrides)
+        import_settings = config.runtime_config(days_ahead)
+        settings = replace(import_settings, **overrides)
         settings = replace(settings, categories=_category_keys(",".join(settings.categories)))
         if not settings.json_stdout:
             _validate_output_paths(settings)
@@ -1039,19 +1040,20 @@ def cli(argv: list[str]) -> int:
 
     run_id = uuid.uuid4().hex
     logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
-    context = RunContext(settings, EventWindow.from_days(settings.days_ahead), run_id, logger)
+    context = RunContext(import_settings, EventWindow.from_days(import_settings.days_ahead), run_id, logger)
     try:
         common.configure_context(context)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return EXIT_FAILED
     import_result = run_import(context, SOURCES)
-    import_result = filter_import_result(import_result, settings, query, context.window.start)
     snapshot = build_snapshot(import_result, context)
+    presentation_result = filter_import_result(import_result, settings, query, context.window.start)
     if settings.json_stdout:
-        print(json.dumps(snapshot.events, ensure_ascii=False, indent=2))
+        presentation_snapshot = build_snapshot(presentation_result, context)
+        print(json.dumps(presentation_snapshot.events, ensure_ascii=False, indent=2))
     else:
-        print(report.format_report(list(import_result.events)))
+        print(report.format_report(list(presentation_result.events)))
     for issue in snapshot.metadata["import_issues"]:
         log(logger, 30 if issue["severity"] == "warning" else 40,
             f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))
