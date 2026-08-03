@@ -17,6 +17,7 @@ from .normalization import comparison_text
 
 
 LEDGER_SCHEMA_VERSION = 1
+LEDGER_RETENTION_DAYS = 400
 
 
 def _clamped_date(year: int, month: int, day: int) -> date:
@@ -32,19 +33,58 @@ def _stem(title: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _series_key(event: Mapping[str, Any]) -> tuple[str, str, str] | None:
-    venue = str(event.get("venue_id") or comparison_text(str(event.get("venue") or ""))).strip()
+def _series_key(event: Mapping[str, Any]) -> tuple[str, str] | None:
+    venue = str(
+        event.get("venue_id")
+        or event.get("canonical_venue_id")
+        or comparison_text(str(event.get("venue") or ""))
+    ).strip()
     title = _stem(str(event.get("series_title") or event.get("title") or ""))
-    category = str(event.get("category_key") or "other")
     if not venue or len(title) < 4:
         return None
-    return venue, title, category
+    return venue, title
 
 
-def _identifier(key: tuple[str, str, str]) -> str:
+def _identifier(key: tuple[str, str]) -> str:
     digest = sha256("\n".join(key).encode("utf-8")).hexdigest()[:12]
     slug = re.sub(r"[^a-z0-9]+", "-", key[1]).strip("-")[:48]
     return f"{slug}-{digest}"
+
+
+def _canonicalize_stored(records: Mapping[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Migrate category-dependent IDs and merge records for the same series."""
+    canonical: dict[str, dict[str, Any]] = {}
+    for old_id, raw in records.items():
+        record = dict(raw)
+        key = _series_key(record)
+        series_id = _identifier(key) if key else old_id
+        existing = canonical.get(series_id)
+        if existing is None:
+            record["series_id"] = series_id
+            canonical[series_id] = record
+            continue
+        existing.setdefault("occurrences", {}).update(record.get("occurrences") or {})
+        existing["announced_dates"] = sorted(set(
+            (existing.get("announced_dates") or []) + (record.get("announced_dates") or [])
+        ))
+        existing["first_seen"] = min(
+            str(existing.get("first_seen") or "9999"), str(record.get("first_seen") or "9999")
+        )
+        existing["last_seen"] = max(
+            str(existing.get("last_seen") or ""), str(record.get("last_seen") or "")
+        )
+    return canonical
+
+
+def _is_retained(record: Mapping[str, Any], today: date) -> bool:
+    announced = _parse_dates(record.get("announced_dates") or [])
+    if any(value >= today for value in announced):
+        return True
+    try:
+        last_seen = date.fromisoformat(str(record.get("last_seen") or "")[:10])
+    except ValueError:
+        return True
+    return today - last_seen <= timedelta(days=LEDGER_RETENTION_DAYS)
 
 
 def load_ledger(path: str) -> dict[str, Any]:
@@ -133,10 +173,10 @@ def enrich_events(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """Attach series/run IDs and return metadata plus an updated durable ledger."""
     rows = [dict(event) for event in events]
-    stored = {
+    stored = _canonicalize_stored({
         key: dict(value) for key, value in (ledger.get("series") or {}).items()
         if isinstance(value, dict)
-    }
+    })
     current_groups: dict[str, list[dict[str, Any]]] = {}
     for event in rows:
         key = _series_key(event)
@@ -157,6 +197,7 @@ def enrich_events(
         })
         occurrences = record.setdefault("occurrences", {})
         occurrences[event_id(event)] = str(event.get("start_date") or event.get("date") or "")
+        record["category_key"] = str(event.get("category_key") or "other")
         record["last_seen"] = generated_at
 
     announced_rows = [dict(event) for event in announced_events]
@@ -208,6 +249,11 @@ def enrich_events(
         if announced_date not in announced:
             announced.append(announced_date)
         record["last_seen"] = generated_at
+
+    stored = {
+        series_id: record for series_id, record in stored.items()
+        if _is_retained(record, today)
+    }
 
     metadata: list[dict[str, Any]] = []
     event_to_run: dict[tuple[str, str], str] = {}
