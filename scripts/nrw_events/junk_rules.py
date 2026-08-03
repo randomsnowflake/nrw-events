@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 from typing import Any, Callable, Mapping
 
+from .event_vocabulary import ROUTINE_MARKET_DROP_TERMS
+
 
 Decision = tuple[str, str, tuple[str, ...]]
 Predicate = Callable[["EventText"], tuple[str, ...] | None]
@@ -29,7 +31,6 @@ GOVERNANCE_TERMS = _TERMS["governance"]
 ROUTINE_PHRASE_TERMS = _TERMS["routine_phrase"]
 CULTURAL_EVENT_TERMS = _TERMS["cultural_event"]
 RECURRING_DESTINATION_TERMS = _TERMS["recurring_destination"]
-ROUTINE_MARKET_TERMS = _TERMS["routine_market"]
 ROUTINE_COURSE_TERMS = _TERMS["routine_course"]
 RECURRING_COURSE_MARKERS = _TERMS["recurring_course_marker"]
 COURSE_CONTEXT_TERMS = _TERMS["course_context"]
@@ -178,7 +179,7 @@ def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
 
 
 def _routine_market(context: EventText) -> tuple[str, ...] | None:
-    matched = _first(ROUTINE_MARKET_TERMS, context.text)
+    matched = _first(ROUTINE_MARKET_DROP_TERMS, context.text)
     return (matched,) if matched and not context.destination_market else None
 
 
