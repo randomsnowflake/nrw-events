@@ -64,7 +64,78 @@ CATEGORIES: list[Category] = [
 ]
 
 CATEGORY_BY_KEY = {category["key"]: category for category in CATEGORIES}
-HEURISTIC_CONFIDENCE_THRESHOLD = 0.5
+_POLICY_PATH = Path(__file__).with_name("categories.json")
+_MATCH_MODES = frozenset({"word", "word_prefix", "word_suffix", "compound_word", "substring"})
+
+
+def _keyword_from_spec(raw: object) -> Keyword:
+    """Validate and compile one data-owned keyword specification."""
+    required = {"value", "match_mode", "scope", "weight", "comment"}
+    if not isinstance(raw, dict) or not required <= raw.keys():
+        raise ValueError(f"category keyword must define {sorted(required)}")
+    value = raw["value"]
+    mode = raw["match_mode"]
+    scope = raw["scope"]
+    weight = raw["weight"]
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("category keyword value must be a non-empty string")
+    if mode not in _MATCH_MODES:
+        raise ValueError(f"unsupported category keyword match_mode {mode!r}")
+    if scope not in {"all", "title"}:
+        raise ValueError(f"unsupported category keyword scope {scope!r}")
+    if not isinstance(weight, (int, float)) or not 0 < weight <= 1:
+        raise ValueError("category keyword weight must be greater than zero and at most one")
+    if not isinstance(raw["comment"], str):
+        raise ValueError("category keyword comment must be a string")
+    return Keyword(
+        value=value,
+        title_only=scope == "title",
+        word=mode == "word",
+        word_prefix=mode == "word_prefix",
+        word_suffix=mode == "word_suffix",
+        compound_word=mode == "compound_word",
+        substring=mode == "substring",
+        weak=weight < 1,
+    )
+
+
+def _load_policy() -> dict:
+    payload = json.loads(_POLICY_PATH.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("version") != 1:
+        raise ValueError("category policy must use schema version 1")
+    for field in ("forced_rules", "contexts", "rules"):
+        if field not in payload:
+            raise ValueError(f"category policy is missing {field!r}")
+    return payload
+
+
+_CATEGORY_POLICY = _load_policy()
+HEURISTIC_CONFIDENCE_THRESHOLD = float(_CATEGORY_POLICY["heuristic_confidence_threshold"])
+FORCED_CATEGORY_RULES = tuple(
+    (entry["key"], tuple(_keyword_from_spec(keyword) for keyword in entry["keywords"]))
+    for entry in _CATEGORY_POLICY["forced_rules"]
+)
+LOW_VALUE_TITLE_CONTEXT = tuple(
+    _keyword_from_spec(keyword) for keyword in _CATEGORY_POLICY["contexts"]["low_value_title"]
+)
+DESTINATION_TITLE_CONTEXT = tuple(
+    _keyword_from_spec(keyword) for keyword in _CATEGORY_POLICY["contexts"]["destination_title"]
+)
+STRONG_MARKET_TITLE_CONTEXT = tuple(
+    keyword["value"] for keyword in _CATEGORY_POLICY["contexts"]["strong_market_title"]
+)
+RULES = tuple(sorted(
+    (
+        Rule(
+            entry["key"],
+            int(entry["priority"]),
+            tuple(_keyword_from_spec(keyword) for keyword in entry["keywords"]),
+        )
+        for entry in _CATEGORY_POLICY["rules"]
+    ),
+    key=lambda rule: rule.priority,
+    reverse=True,
+))
 _FALLBACK_CACHE: dict[str, CategoryResult] = {}
 
 
@@ -107,156 +178,6 @@ def _fallback_category(source_id: str, title: str) -> CategoryResult | None:
     return _FALLBACK_CACHE.get(category_cache_key(source_id, title))
 
 
-def word(value: str, *, weak: bool = False) -> Keyword:
-    return Keyword(value=value, word=True, weak=weak)
-
-
-def suffix_word(value: str, *, weak: bool = False) -> Keyword:
-    return Keyword(value=value, word_suffix=True, weak=weak)
-
-
-def prefix_word(value: str, *, weak: bool = False) -> Keyword:
-    return Keyword(value=value, word_prefix=True, weak=weak)
-
-
-def compound_word(value: str, *, weak: bool = False) -> Keyword:
-    return Keyword(value=value, compound_word=True, weak=weak)
-
-
-def substring(value: str, *, weak: bool = False) -> Keyword:
-    return Keyword(value=value, substring=True, weak=weak)
-
-
-def title_only(value: str) -> Keyword:
-    return Keyword(value=value, title_only=True)
-
-
-FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str | Keyword, ...]], ...] = (
-    # Source adapters use this internal marker only after proving that an item
-    # belongs to a curated cinema format, so incidental words in a synopsis
-    # (such as "Sportlehrerin") cannot move the event into another category.
-    ("cinema", ("cinema-special",)),
-    # Photo-club meetings are recurring community activities, not club nights.
-    ("activities", ("fotoclub", "foto club")),
-    # KUNST!RASEN is a Bonn concert venue; the "kunst" substring is not an
-    # exhibition signal in aggregator-style "artist @ venue" titles.
-    ("concert", ("kunst!rasen", "kunstrasen")),
-    # Public health / expert livestream formats tend to carry generic source
-    # bags like "Kultur Konzert". The title is the useful signal here: it is a
-    # talk, not a concert just because it contains "live".
-    ("talk", ("livetalk", "live-talk")),
-    # Walking/listening formats are tours even when a place name contains
-    # "markt" (e.g. Cologne's Waidmarkt) or the source uses a broad culture bag.
-    ("outdoor", ("soundwalk",)),
-    # Basic movement/gymnastics terms should not be mistaken for talks
-    # ("Rückbildung") or exhibitions (English "art" inside German prose).
-    ("sports", (suffix_word("gymnastik"), "pilates", "hatha yoga")),
-    # Meetups around vehicles are destination-style local gatherings, but not
-    # concerts just because the description mentions live music later in the day.
-    ("festival", ("biker-treffen", "fiat-treffen")),
-    # Caricature shows are exhibitions even when the body text discusses
-    # politics or digital collections.
-    ("exhibition", ("karikatur",)),
-    # A screening remains a cinema event when an accompanying discussion is
-    # also advertised.
-    ("cinema", ("openair-kino", "open-air kino", "open air kino")),
-)
-
-LOW_VALUE_TITLE_CONTEXT = (
-    suffix_word("treff"), prefix_word("frühstück"), prefix_word("fruehstueck"),
-    prefix_word("senioren"), suffix_word("cafe"), suffix_word("café"),
-    "sprachkurs", "deutschkurs", "english club", "sprechstunde", "beratung",
-    "rat", "sitzung", "ausschuss", "verwaltungsrat", "netzwerktreffen",
-    "kaffeenachmittag", "mittagstisch",
-)
-
-DESTINATION_TITLE_CONTEXT = (
-    "festival", "flohmarkt", "konzert", "theater", "kino", "ausstellung", "vernissage",
-    "führung", "fuehrung", "tour", "soundwalk", "tag der offenen tür", "tag der offenen tuer",
-    "repair café", "repair cafe", "reparatur-café", "reparatur-cafe", "biker-treffen",
-)
-
-STRONG_MARKET_TITLE_CONTEXT = (
-    "flohmarkt", "trödelmarkt", "troedelmarkt", "antikmarkt", "basar",
-    "feierabendmarkt", "jahrmarkt", "krammarkt", "viehmarkt",
-    "designmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt",
-    "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt",
-    "fruehlingsmarkt", "martinimarkt", "töpfermarkt", "toepfermarkt",
-    "kunsthandwerkermarkt",
-    "schallplattenbörse", "schallplattenboerse",
-    "fashion, family & kids markt",
-)
-
-
-# The priority only breaks equal scores. More specific commercial/category intent
-# should beat broad family/culture words in ties: e.g. "Kinderbücher-Flohmarkt"
-# is a flea market first, not a generic family event.
-RULES: tuple[Rule, ...] = (
-    Rule("market", 14, ("flohmarkt", "kindersachen flohmarkt", suffix_word("trödel"), suffix_word("troedel"), "wochenmarkt", "freitagsmarkt", "frischemarkt", "feierabendmarkt", "jahrmarkt", "krammarkt", "viehmarkt", "stoffmarkt", "büchermarkt", "buechermarkt", "kunstmarkt", "designmarkt", "spezialmarkt", "antikmarkt", "kreativmarkt", "lebenskunstmarkt", "weihnachtsmarkt", "adventsmarkt", "nikolausmarkt", "dreikönigsmarkt", "dreikoenigsmarkt", "herbstmarkt", "frühlingsmarkt", "fruehlingsmarkt", "martinimarkt", "töpfermarkt", "toepfermarkt", "kunsthandwerkermarkt", "schallplattenbörse", "schallplattenboerse", "kindersachenbasar", "kinderbasar", "fashion, family & kids markt", word("market"), Keyword("markt", title_only=True, word=True), Keyword("basar", title_only=True, word_suffix=True), Keyword("antik", title_only=True, word=True))),
-    Rule("food", 13, ("streetfood-festival", "streetfood", "street food", "foodtruck", prefix_word("kulinar"), "genuss", prefix_word("schlemmer"), "grillen", "dîner", "diner en blanc", "wine", "winzer", "weinprobe", "weinfest", prefix_word("weinmoment"), "weinlounge", "biergarten", "tasting", word("wein"), word("bier"))),
-    Rule(
-        "kids",
-        12,
-        (
-            "kinder", "kids", "familie", "family", "jugend", "familienprogramm", prefix_word("familienbegleitung"),
-            "mitmach", "märchen", "maerchen", "puppentheater", "puppenspiel", "kinderbühne", "kinderbuehne", "kasper", "vorlesen", "lese-abenteuer",
-            "sommerleseclub", "lesesommer", "vorlesesommer", "vorlesehund",
-            "feriencamp", suffix_word("ferienaktion"), "ferienprogramm",
-            "ferienspaß", "ferienspass", "kuscheltierübernachtung",
-            "bambini", "krabbel", "lego", "zauberwürfel", "zauberwuerfel",
-            "storytime", "martinszug", word("dino"),
-        ),
-    ),
-    Rule("workshop", 11, ("workshop", compound_word("workshop"), "werkstatt", "digitale werkstatt", "kurs", "seminar", "training", "summer school", "zeichnen lernen", "gag-schreiben", Keyword("repair", title_only=True, word_prefix=True), "reparatur-café", "reparatur-cafe", "sprechstunde", "weiterbildung", "bildungsurlaub", "vhs", "bastel", "schmücken", "schmuecken", "keramik", "malen", prefix_word("kreativ"), "kunstprojekt", "brotbacken", "backkurs", "hilfestellung", "onleihe", "e-medien", "emedien", "libby", "makerspace", "3d-druck", "lasercutter", "quilting", "quiltingtreff", "quilten")),
-    Rule("talk", 10, ("lesung", compound_word("lesung"), "lesekreis", "lesezirkel", "buchtreff", prefix_word("buchvorstellung"), "vorlesung", "vortrag", "lecture", prefix_word("diskussion"), "tagung", "kongress", "konferenz", "conference", "symposium", "podium", "patiententag", "bürgerinformation", "buergerinformation", "literatur", word("speaker"), word("speakers"), word("liest"), word("bildung"), "informationsveranstaltung", "präventionsabend", "praeventionsabend", prefix_word("philosophisch"), "künstliche intelligenz", "kuenstliche intelligenz", word("ki"), "chatgpt", "canva", "digital", "hackerspace", "digi:snack", "cloud tech", "azure", "gespräch", "gespraech", "politik", word("forum"), word("talk"), Keyword("info", title_only=True, word=True), title_only("meetup"), title_only("community meeting"))),
-    Rule("sports", 9, (word("sport"), "sportveranstaltung", "sportwoche", "sportwochenende", "tennis", "volleyball", "lauf", "joggen", "running", "rennen", "marathon", "handball", "final4", "yoga", "fitness", "tanzen", "tanzkurs", "radtour", "radlertreff", "fahrrad", "rennrad", "rennradeln", "stadtradeln", "radeln", "pedelec", "paddeln", "klettern", "schwimmen", "boule", "schach", "schachxperten")),
-    Rule("cinema", 8, ("kino", compound_word("film"), word("film", weak=True), "movie", "cinema", "open-air kino", "open air kino", "filmabend", "screening")),
-    Rule("concert", 7, (suffix_word("konzert"), "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", prefix_word("klavier"), "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
-    Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro", weak=True), word("party"), "afterjobparty", "landjugendparty", "treckerparty", "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
-    Rule("stage", 5, ("theater", compound_word("theater"), "bühne", "buehne", "kabarett", "comedy", "comedian", "kleinkunst", "stand-up", "standup", "satire", "impro", "improtheater", "improvisationstheater", "variete", "varieté", "revue", "poetry slam", "poetryslam", "lachen", "zirkus", "cirque", word("tanz"), word("dance"), "musical", "show", word("performance"), word("oper"), word("stage"), word("slam"))),
-    Rule("exhibition", 4, ("ausstellung", compound_word("ausstellung"), "exhibition", "museum", "galerie", "gallery", "kunst", prefix_word("karikatur"), "vernissage", "atelier", "installation")),
-    Rule(
-        "activities",
-        3,
-        (
-            Keyword("aktivität", title_only=True, word_suffix=True),
-            Keyword("treff", title_only=True, word_suffix=True),
-            Keyword("treffen", title_only=True, word_suffix=True),
-            Keyword("spiele", title_only=True, word=True),
-            title_only("spieletreff"),
-            title_only("spieleabend"),
-            title_only("spielnachmittag"),
-            title_only("spielenachmittag"),
-            title_only("spiele-nachmittag"),
-            title_only("brettspiel"),
-            title_only("board game"),
-            title_only("board games"),
-            title_only("skat-treff"),
-            Keyword("bingo", title_only=True, word=True),
-            Keyword("gaming", title_only=True, word=True),
-            Keyword("quiz", title_only=True, word=True),
-            title_only("kaffeeklatsch"),
-            title_only("gemeindecafé"),
-            title_only("gemeindecafe"),
-            title_only("trauercafé"),
-            title_only("trauer-café"),
-            title_only("friedhofscafé"),
-            title_only("friedhofscafe"),
-            title_only("gartencafe"),
-            title_only("gartencafé"),
-            title_only("mittagstisch"),
-            title_only("mitbringbrunch"),
-            title_only("selbsthilfegruppe"),
-            title_only("gemeinsam statt einsam"),
-            title_only("gemeinsam freizeit"),
-            title_only("cleanup"),
-            title_only("clean-up"),
-        ),
-    ),
-    Rule("outdoor", 2, ("outdoor", "draußen", "draussen", "garden party", prefix_word("führung"), prefix_word("fuehrung"), "tour", "feierabendtour", "blick hinter die kulissen", prefix_word("wander"), "spaziergang", "rundgang", "rundfahrt", "herbstfahrt", "natur", suffix_word("garten", weak=True), "exkursion", "ausflug", "hohes venn", suffix_word("park"), "streuobst", "wildkräuter", "wildkraeuter", "straßenbäume", "strassenbaeume", "stolpersteine", "freiluga", "festungstage")),
-    Rule("festival", 1, (suffix_word("fest"), "festival", "journalismusfestival", Keyword("kirmes", word_suffix=True), "kerb", "meile", "karneval", "weihnachtsfeier", "public viewing", "convention", "sommernacht", "tag der offenen tür", "tag der offenen tuer", "tag des offenen denkmals", "stadtteilfest", "straßenfest", "strassenfest", "dorffest")),
-)
-
 _NON_WORD = r"[^\wäöüÄÖÜß]"
 
 
@@ -266,23 +187,33 @@ def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
+def comparison_text(value: str) -> str:
+    """Normalize German spelling variants once instead of duplicating policy terms."""
+    normalized = normalize_text(value)
+    return normalized.translate(str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}))
+
+
 def _contains_word(text: str, needle: str) -> bool:
-    escaped = re.escape(normalize_text(needle))
+    text = comparison_text(text)
+    escaped = re.escape(comparison_text(needle))
     return re.search(rf"(^|{_NON_WORD}){escaped}($|{_NON_WORD})", text) is not None
 
 
 def _contains_word_suffix(text: str, needle: str) -> bool:
-    escaped = re.escape(normalize_text(needle))
+    text = comparison_text(text)
+    escaped = re.escape(comparison_text(needle))
     return re.search(rf"(^|{_NON_WORD})[\wäöüÄÖÜß]*{escaped}($|{_NON_WORD})", text) is not None
 
 
 def _contains_word_prefix(text: str, needle: str) -> bool:
-    escaped = re.escape(normalize_text(needle))
+    text = comparison_text(text)
+    escaped = re.escape(comparison_text(needle))
     return re.search(rf"(^|{_NON_WORD}){escaped}[\wäöüÄÖÜß]*($|{_NON_WORD})", text) is not None
 
 
 def _contains_compound_word(text: str, needle: str) -> bool:
-    normalized_needle = normalize_text(needle)
+    text = comparison_text(text)
+    normalized_needle = comparison_text(needle)
     return any(
         normalized_needle in token and token != normalized_needle
         for token in re.findall(r"[\wäöüÄÖÜß]+", text)
@@ -295,7 +226,7 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
     if keyword.title_only and not is_title:
         return False
     if keyword.substring:
-        return keyword.value in text
+        return comparison_text(keyword.value) in comparison_text(text)
     if keyword.word_prefix:
         return _contains_word_prefix(text, keyword.value)
     if keyword.word_suffix:
@@ -559,7 +490,9 @@ def _heuristic_confidence(
     if title_matches:
         confidence = 0.72 + min(max(len(title_matches) - 1, 0), 2) * 0.08
     elif description_matches:
-        confidence = 0.58
+        # Match the publication quality gate: a supported classification is
+        # never emitted with a confidence that the same pipeline calls low.
+        confidence = HEURISTIC_CONFIDENCE_THRESHOLD
     elif hint_matches:
         # A single focused source tag survives the broad-bag guard above and is
         # useful evidence, but remains weaker than visitor-facing title copy.
@@ -700,7 +633,8 @@ def categorize_event(
 
     # Explicit market formats in the title remain markets even when their copy
     # naturally repeats broad family words several times.
-    if any(bit in title_text for bit in STRONG_MARKET_TITLE_CONTEXT):
+    title_comparison = comparison_text(title_text)
+    if any(comparison_text(bit) in title_comparison for bit in STRONG_MARKET_TITLE_CONTEXT):
         category = CATEGORY_BY_KEY["market"]
         return {
             "key": category["key"],
@@ -804,27 +738,6 @@ def categorize_event(
         best_description_matches,
         best_hint_matches,
     )
-    if best_key != "other" and confidence < HEURISTIC_CONFIDENCE_THRESHOLD:
-        if fallback:
-            return dict(fallback)
-        contextual_format = _contextual_event_format(title_text, description_text)
-        if contextual_format:
-            key, reason, contextual_confidence = contextual_format
-            category = CATEGORY_BY_KEY[key]
-            return {
-                "key": category["key"],
-                "label": category["label"],
-                "confidence": contextual_confidence,
-                "reason": reason,
-            }
-        other = CATEGORY_BY_KEY["other"]
-        return {
-            "key": other["key"],
-            "label": other["label"],
-            "confidence": 0.0,
-            "reason": f"other:below-threshold:{best_key}:{confidence:.2f}",
-        }
-
     category = CATEGORY_BY_KEY[best_key]
     return {
         "key": category["key"],

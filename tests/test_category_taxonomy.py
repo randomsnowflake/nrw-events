@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from nrw_events import category_taxonomy as taxonomy
 from nrw_events.category_taxonomy import (
     CATEGORIES,
     category_cache_key,
@@ -14,6 +15,30 @@ from nrw_events.category_taxonomy import (
 class CategoryTaxonomyTests(unittest.TestCase):
     def tearDown(self):
         configure_fallback_cache()
+
+    def test_data_policy_has_explicit_schema_and_priority_order(self):
+        payload = json.loads(
+            Path(taxonomy.__file__).with_name("categories.json").read_text(encoding="utf-8")
+        )
+        required = {"value", "match_mode", "scope", "weight", "comment"}
+        keyword_groups = [entry["keywords"] for entry in payload["forced_rules"]]
+        keyword_groups.extend(payload["contexts"].values())
+        keyword_groups.extend(entry["keywords"] for entry in payload["rules"])
+        self.assertTrue(all(required <= keyword.keys() for group in keyword_groups for keyword in group))
+        priorities = [rule.priority for rule in taxonomy.RULES]
+        self.assertEqual(priorities, sorted(priorities, reverse=True))
+
+    def test_comparison_text_handles_umlaut_variants_without_duplicate_policy_terms(self):
+        self.assertEqual(categorize_event("", "Töpfermarkt")["key"], "market")
+        self.assertEqual(categorize_event("", "Toepfermarkt")["key"], "market")
+        market = next(entry for entry in taxonomy._CATEGORY_POLICY["rules"] if entry["key"] == "market")
+        normalized = [taxonomy.comparison_text(keyword["value"]) for keyword in market["keywords"]]
+        self.assertEqual(len(normalized), len(set(normalized)))
+
+    def test_supported_description_classification_meets_quality_threshold(self):
+        result = categorize_event("", "Sommerabend", "Ein Vortrag über Bienen.")
+        self.assertEqual(result["key"], "talk")
+        self.assertGreaterEqual(result["confidence"], taxonomy.HEURISTIC_CONFIDENCE_THRESHOLD)
 
     def test_compound_event_formats_classify_without_source_bags(self):
         cases = (
