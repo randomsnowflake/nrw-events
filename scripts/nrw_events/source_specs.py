@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 import importlib
 import json
 from pathlib import Path
 import re
 from typing import Callable
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from . import common
 from .models import AdmissionDefault, RawEvent, normalize_source_id
@@ -43,6 +44,74 @@ class SourceSpec:
     selectors: tuple[tuple[str, str], ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class CardSpec:
+    """Declarative extraction rules for a repeated HTML event card."""
+
+    item: str
+    fields: tuple[tuple[str, str], ...]
+    source_id: str
+    display_name: str
+    city: str
+    category_hint: str
+    trust: float
+    source_url: str
+    default_category_key: str = ""
+    category_locked: bool = False
+    date_parser: Callable[[str], object] = common.parse_date
+
+    @classmethod
+    def from_source_spec(cls, spec: SourceSpec, source_url: str) -> "CardSpec":
+        selectors = dict(spec.selectors)
+        item = selectors.pop("item", "")
+        if not item:
+            raise ValueError(f"HTML source {spec.id} requires an item selector")
+        return cls(
+            item=item, fields=tuple(selectors.items()), source_id=spec.id,
+            display_name=spec.display_name, city=spec.city,
+            category_hint=spec.category_hint, trust=spec.trust,
+            source_url=source_url, default_category_key=spec.default_category_key,
+            category_locked=spec.category_locked,
+        )
+
+
+def events_from_cards(document: str, spec: CardSpec) -> list[RawEvent]:
+    """Parse a repeated-card document through one shared extraction pipeline."""
+    events: list[RawEvent] = []
+    selectors = dict(spec.fields)
+    for match in re.finditer(spec.item, document, flags=re.IGNORECASE | re.DOTALL):
+        card = match.group(1) if match.lastindex else match.group(0)
+        fields: dict[str, str] = {}
+        for name, pattern in selectors.items():
+            field_match = re.search(pattern, card, flags=re.IGNORECASE | re.DOTALL)
+            fields[name] = common.clean_html(field_match.group(1)) if field_match else ""
+        title = fields.get("title", "")
+        parsed = spec.date_parser(fields.get("date", ""))
+        if not title or not parsed:
+            continue
+        time_text = fields.get("time", "")
+        canonical_time, _ = common.normalize_time_fields(time_text)
+        time_match = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", canonical_time)
+        if isinstance(parsed, datetime) and time_match:
+            parsed = parsed.replace(
+                hour=int(time_match.group(1)), minute=int(time_match.group(2)),
+            )
+        end = spec.date_parser(fields.get("end_date", "")) if fields.get("end_date") else None
+        event = common.make_event(
+            title, parsed, end, fields.get("venue", ""),
+            fields.get("city", "") or spec.city,
+            fields.get("description", "") or common.clean_html(card),
+            urljoin(spec.source_url, fields.get("link", "")) if fields.get("link") else spec.source_url,
+            spec.display_name, fields.get("category", "") or spec.category_hint,
+            spec.trust, time_text=time_text, source_id=spec.source_id,
+            default_category_key=spec.default_category_key,
+            category_locked=spec.category_locked,
+        )
+        if event:
+            events.append(event)
+    return events
+
+
 def _python_callable(reference: str) -> Callable[[], list[RawEvent]]:
     module_name, separator, attribute_path = reference.partition(":")
     if not separator or not module_name.startswith("nrw_events.sources."):
@@ -57,31 +126,7 @@ def _python_callable(reference: str) -> Callable[[], list[RawEvent]]:
 
 def _html_events(document: str, spec: SourceSpec, source_url: str) -> list[RawEvent]:
     """Parse regex-selector fixtures for simple card-shaped HTML sources."""
-    selectors = dict(spec.selectors)
-    item_pattern = selectors.pop("item", "")
-    if not item_pattern:
-        raise ValueError(f"HTML source {spec.id} requires an item selector")
-    events: list[RawEvent] = []
-    for item in re.findall(item_pattern, document, flags=re.IGNORECASE | re.DOTALL):
-        card = item if isinstance(item, str) else " ".join(item)
-        fields = {}
-        for name, pattern in selectors.items():
-            match = re.search(pattern, card, flags=re.IGNORECASE | re.DOTALL)
-            fields[name] = common.clean_html(match.group(1)) if match else ""
-        parsed = common.parse_date(fields.get("date", ""))
-        if not parsed:
-            continue
-        event = common.make_event(
-            fields.get("title", ""), parsed, None, fields.get("venue", ""),
-            fields.get("city", "") or spec.city, fields.get("description", ""),
-            fields.get("link", "") or source_url, spec.display_name,
-            spec.category_hint, spec.trust, source_id=spec.id,
-            default_category_key=spec.default_category_key,
-            category_locked=spec.category_locked,
-        )
-        if event:
-            events.append(event)
-    return events
+    return events_from_cards(document, CardSpec.from_source_spec(spec, source_url))
 
 
 def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
@@ -111,7 +156,16 @@ def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
                     category_locked=spec.category_locked,
                 ))
             elif spec.adapter is AdapterType.HTML:
-                events.extend(_html_events(document, spec, url))
+                with common.capture_parser_metrics() as metrics:
+                    parsed_events = _html_events(document, spec, url)
+                parser_empty = not parsed_events and metrics["out_of_window_count"] == 0
+                common._record_endpoint(
+                    url, parser_type="html",
+                    candidate_count=metrics["candidate_count"],
+                    out_of_window_count=metrics["out_of_window_count"],
+                    parsed_event_count=len(parsed_events), parser_empty=parser_empty,
+                )
+                events.extend(parsed_events)
         # Optional static detail endpoints use the shared persistent TTL cache.
         for url in spec.detail_urls:
             document = common.fetch_detail_url(
