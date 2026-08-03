@@ -34,11 +34,11 @@ def _stem(title: str) -> str:
 
 
 def _series_key(event: Mapping[str, Any]) -> tuple[str, str] | None:
-    venue = str(
-        event.get("venue_id")
-        or event.get("canonical_venue_id")
-        or comparison_text(str(event.get("venue") or ""))
-    ).strip()
+    venue = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
+    if not venue:
+        venue_name = comparison_text(str(event.get("venue") or ""))
+        city = comparison_text(str(event.get("city") or ""))
+        venue = f"{city}\n{venue_name}" if city else venue_name
     title = _stem(str(event.get("series_title") or event.get("title") or ""))
     if not venue or len(title) < 4:
         return None

@@ -168,7 +168,7 @@ class OpenIssueContractTests(unittest.TestCase):
         ledger = {"schema_version": 1, "series": {"leap-day": {
             "series_id": "leap-day", "title": "Schalttag-Reihe", "venue": "Haus",
             "canonical_venue_id": "haus", "city": "Bonn", "category_key": "talk",
-            "first_seen": "2016-02-29T00:00:00", "last_seen": "2020-02-29T00:00:00",
+            "first_seen": "2016-02-29T00:00:00", "last_seen": "2025-01-01T00:00:00",
             "occurrences": {"a": "2016-02-29", "b": "2020-02-29"},
             "announced_dates": [],
         }}}
@@ -282,6 +282,21 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual(len(updated["series"]), 1)
         self.assertEqual(len(metadata), 1)
         self.assertEqual(metadata[0]["occurrence_dates"], ["2026-07-01", "2026-07-08"])
+
+    def test_series_fallback_venue_identity_is_scoped_to_city(self):
+        events = [
+            raw_event("Sommerfest", "2026-08-02", venue="Marktplatz", venue_id="", city="Bonn"),
+            raw_event("Sommerfest", "2026-08-09", venue="Marktplatz", venue_id="", city="Bonn"),
+            raw_event("Sommerfest", "2026-08-03", venue="Marktplatz", venue_id="", city="Siegburg"),
+            raw_event("Sommerfest", "2026-08-10", venue="Marktplatz", venue_id="", city="Siegburg"),
+        ]
+
+        rows, _metadata, _updated = series.enrich_events(
+            events, {"schema_version": 1, "series": {}},
+            today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
+        )
+
+        self.assertEqual(len({row["series_id"] for row in rows}), 2)
 
     def test_announced_future_date_is_the_confirmed_next_occurrence(self):
         ledger = {"schema_version": 1, "series": {"market": {
