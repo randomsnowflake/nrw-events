@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from nrw_events import common, report
+from nrw_events.identity import event_id
 
 
 class ReportTests(unittest.TestCase):
@@ -157,6 +158,25 @@ class ReportTests(unittest.TestCase):
 
         self.assertLess(len(keys), 2_000)
         self.assertIn("century:20", report._occurrence_date_keys(event))
+
+    def test_metadata_merge_preserves_winner_time_and_venue_identity(self):
+        winner = {
+            "title": "Sommerkonzert", "start_date": "2026-08-15", "end_date": "2026-08-15",
+            "date": "2026-08-15", "city": "Bonn", "venue": "", "time": "",
+            "start_at": "", "end_at": "", "source": "Veranstalter", "score": 1.0,
+            "description": "", "price": "", "link": "https://direct.test/event",
+        }
+        duplicate = {
+            **winner, "venue": "Rheinaue", "time": "20:00", "start_at": "2026-08-15T20:00:00+02:00",
+            "source": "Radio Bonn/Rhein-Sieg", "score": 0.8,
+            "link": "https://radio.test/event",
+        }
+
+        [merged] = report.deduplicate([winner, duplicate])
+
+        self.assertEqual(merged["venue"], "Rheinaue")
+        self.assertEqual(merged["time"], "20:00")
+        self.assertEqual(event_id(merged), event_id(winner))
 
     def test_civic_market_absorbs_directory_title_variant_at_same_venue(self):
         base = {

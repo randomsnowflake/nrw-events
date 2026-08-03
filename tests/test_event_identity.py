@@ -174,6 +174,22 @@ class AssignEventIdsTests(unittest.TestCase):
         self.assertNotIn("identity_venue", assigned[0])
         self.assertNotIn("identity_venue_locked", assigned[0])
 
+    def test_internal_identity_time_is_not_published(self):
+        assigned = assign_event_ids([
+            occurrence(identity_time="11:30", identity_time_locked=True),
+        ])
+
+        self.assertNotIn("identity_time", assigned[0])
+        self.assertNotIn("identity_time_locked", assigned[0])
+
+    def test_retained_published_id_is_preserved_but_internal_marker_is_not(self):
+        assigned = assign_event_ids([
+            occurrence(preserved_event_id="already-published-id"),
+        ])
+
+        self.assertEqual(assigned[0]["event_id"], "already-published-id")
+        self.assertNotIn("preserved_event_id", assigned[0])
+
 
 class EventIdVectorTests(unittest.TestCase):
     """Golden vectors shared verbatim with the website implementation."""
