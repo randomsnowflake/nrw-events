@@ -245,6 +245,31 @@ class MarktcomSourceTests(unittest.TestCase):
                 self.assertEqual(event["price"], "")
                 self.assertEqual(event["admission_basis"], "")
 
+    def test_free_by_nature_format_respects_ticketed_market_markers(self):
+        for marker in (
+            "Nachtflohmarkt",
+            "Indoor-Flohmarkt",
+            "Stadthalle",
+            "Eventhalle",
+            "Tickets im Vorverkauf",
+        ):
+            with self.subTest(marker=marker):
+                html = _listing(_event_block(
+                    f"ticketed-{marker.casefold()}-in-53121-bonn",
+                    f"{marker} Bonn",
+                    "53121",
+                    "Bonn",
+                    "Veranstalter",
+                    "08.08.2026",
+                    1,
+                    f"{marker}: weitere Informationen folgen.",
+                ))
+
+                [event] = marktcom.events_from_listing(html, 1)
+
+                self.assertEqual(event["price"], "")
+                self.assertEqual(event["admission_basis"], "")
+
     def test_truncated_listing_title_is_completed_from_the_detail_heading(self):
         html = _listing(_event_block(
             "neuss-kaufland-parkplatz-in-41462-neuss",

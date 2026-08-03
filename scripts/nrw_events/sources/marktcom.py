@@ -59,6 +59,11 @@ WANTED_CATEGORIES = {
 # visitor charges still override this default in common.make_event; seller fees do
 # not, because they are not admission.
 _FREE_BY_NATURE_CATEGORIES = frozenset({1, 35, 39, 42})
+_FREE_BY_NATURE_EXCLUSION_PATTERN = re.compile(
+    r"\b(?:nachtflohmarkt|indoor[-\s]?(?:floh|trödel|troedel)?markt|messe|"
+    r"stadthalle|eventhalle|ticket(?:s|preis)?|besucher(?:eintritt|preis))\b",
+    re.IGNORECASE,
+)
 
 # Organizers already read first hand. A directory copy of their markets adds no
 # coverage and cannot be title-matched against the first-party record, so it is
@@ -191,6 +196,12 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
         title = _market_title(venue, category_label, city)
         description = raw_description or common.factual_event_description(
             title, date_value=start, venue=venue, city=city)
+        default_free_admission = (
+            badge_category_id in _FREE_BY_NATURE_CATEGORIES
+            and not _FREE_BY_NATURE_EXCLUSION_PATTERN.search(
+                " ".join((title, description, venue, organizer))
+            )
+        )
         event = common.make_event(
             title,
             start,
@@ -205,7 +216,7 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
             source_id=_SOURCE_ID,
             admission=(
                 AdmissionDefault.FREE_BY_NATURE
-                if badge_category_id in _FREE_BY_NATURE_CATEGORIES
+                if default_free_admission
                 else None
             ),
         )
