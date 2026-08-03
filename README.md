@@ -1,7 +1,5 @@
 # NRW Events
 
-[![CI](https://github.com/randomsnowflake/nrw-events/actions/workflows/ci.yml/badge.svg)](https://github.com/randomsnowflake/nrw-events/actions/workflows/ci.yml)
-
 **NRW Events** ist ein kostenloses Open-Source-Tool zur Event-Recherche für
 **Bonn und die Umgebung**. Der Schwerpunkt liegt bewusst auf Bonn: Innenstadt,
 Poppelsdorf, Endenich, Beuel, Bad Godesberg, Ippendorf, Dransdorf, Rheinaue,
@@ -289,7 +287,8 @@ geladen. Echte Umgebungsvariablen gewinnen immer.
 ## Konfiguration über Umgebungsvariablen
 
 Die vollständig kommentierte [`.env.example`](.env.example) ist die kanonische
-Liste aller Einstellungen; CI prüft sie gegen die Zugriffe im Python-Code.
+Liste aller Einstellungen; `python3 scripts/check_env_docs.py` prüft sie lokal
+gegen die Zugriffe im Python-Code.
 
 Die Standardwerte bevorzugen **Vollständigkeit vor Kürze**. Ohne explizite
 Begrenzung werden alle gefundenen, deduplizierten und relevanten Events gezeigt.
@@ -323,6 +322,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_CATEGORIES`       | nicht gesetzt | Kommagetrennte Kategorie-Keys; entspricht `--kategorie`. |
 | `NRW_EVENTS_FREE_ONLY`        | `0`      | Nur explizit kostenlose Events; entspricht `--kostenlos`. |
 | `NRW_EVENTS_JSON_STDOUT`      | `0`      | Eventliste als reines JSON auf stdout, ohne Snapshot-Publikation; entspricht `--json`. |
+| `NRW_EVENTS_DESCRIPTION_MAX_CHARS` | `700` | Allgemeine Obergrenze für normalisierte Beschreibungstexte. |
 | `NRW_EVENTS_HIGHLIGHTS_JSON_OUT` | State-Verzeichnis/`highlights.json` | Deterministisches Highlight-Artefakt derselben Snapshot-Generation. |
 | `NRW_EVENTS_SERIES_LEDGER_JSON` | State-Verzeichnis/`series-ledger.json` | Dauerhafte Occurrence-Historie für Serien, Runs und Saisonalität. |
 | `NRW_EVENTS_CATEGORY_FALLBACK_CACHE` | nicht gesetzt | Optionaler geprüfter Cache für unklare Serien (`source_id` + normalisierter Titel). Es erfolgt kein LLM- oder Netzwerkaufruf. |
@@ -338,9 +338,12 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `180.0` | Inaktivitätsbudget einer Quelle. Jeder erfolgreiche Endpunkt erneuert es; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
+| `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES` | `30` | Sicherheitsgrenze für paginierte Bonn.de-Kalenderseiten. |
 | `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` | nicht gesetzt | Bright-Data-Web-Unlocker-Zugang. vomFASS wird montags ausschließlich darüber aktualisiert; Hofflohmärkte Köln nutzt ihn nach direkten HTTP-429- oder Timeout-Fehlern als Fallback. Die fünf IONAS4-Regionalkalender nutzen ihn nur nach direkten Timeouts oder transienten HTTP-Fehlern. Alle Fallbacks bleiben auf die jeweils fest konfigurierten Quellhosts beschränkt. |
 | `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. |
 | `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS` | `24` | TTL für HTML-Detailseiten-Abrufe. Bonn.de nutzt diese Seiten für strukturierte Veranstaltungsorte und Adressen aller aktuellen Kalendereinträge; wiederkehrende Termine und parallele Bonn-Listen teilen denselben persistenten Cache. Um das feste Abruflimit einzuhalten, werden bei Bonn.de auch fehlgeschlagene Versuche bis zum TTL-Ablauf negativ gecacht. Weitere Nutzer sind unter anderem Siegburg, Much, Königswinter, Naturregion Sieg, Linz, IONAS-Kommunen und einzelne Veranstaltungsorte. `0` deaktiviert Speicher- und Platten-Cache. Listen, APIs und Feeds bleiben ungecacht und werden bei jedem Import frisch geladen. |
+| `NRW_EVENTS_DETAIL_ENRICHMENT` | `1` | Gemeinsame, gecachte Anreicherung aus primären Detailseiten; `0` deaktiviert sie. |
+| `XDG_CACHE_HOME` | `~/.cache` | Standardbasis für persistente Detail-Caches, wenn `NRW_EVENTS_CACHE_DIR` fehlt. |
 | `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `0` | Optionale Obergrenze für den aus einer Bonn.de-Detailseite übernommenen Text. Standardmäßig werden alle erklärenden Absätze und Aufzählungen vollständig übernommen; Logistikblöcke werden weiterhin übersprungen. Ein positiver Wert aktiviert eine satz- bzw. wortnahe Kürzung. |
 | `NRW_EVENTS_JSON_OUT`         | Benutzer-State-Verzeichnis | Zielpfad für die Eventliste als JSON-Array. |
 | `NRW_EVENTS_META_JSON_OUT`    | Benutzer-State-Verzeichnis | Zielpfad für Metadaten, Quellenstatistik und Warnungen. |
@@ -576,8 +579,8 @@ Häufige Anpassungen:
 
 ## Entwicklung und Qualitätssicherung
 
-Die Laufzeit selbst braucht keine Drittanbieter-Pakete. Der kanonische, auch in
-CI verwendete Testlauf ist:
+Die Laufzeit selbst braucht keine Drittanbieter-Pakete. Der kanonische lokale
+Testlauf ist:
 
 ```bash
 bash scripts/test.sh
