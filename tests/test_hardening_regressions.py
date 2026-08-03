@@ -18,6 +18,27 @@ from nrw_events.sources import regional_common
 
 
 class HardeningRegressionTests(unittest.TestCase):
+    def test_ambiguous_city_names_require_location_context(self):
+        for text in (
+            "Wissen für alle", "So much fun", "Linzertorte backen",
+            "Geschichte der Grafschaft",
+        ):
+            with self.subTest(text=text):
+                self.assertIsNone(location.guess_city_from_text(text))
+
+        cases = {
+            "Vortrag in Wissen": "wissen",
+            "Jugendzentrum, Much": "much",
+            "53545 Linz": "linz",
+            "53501 Grafschaft-Lantershofen": "grafschaft",
+            "Linz am Rhein": "linz am rhein",
+            "Linz, Marktplatz": "linz",
+            "Much, Hauptstraße 12": "much",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(location.guess_city_from_text(text), expected)
+
     def test_clean_html_removes_complete_comments_with_embedded_angle_brackets(self):
         self.assertEqual(
             common.clean_html("Vorher<!-- internal > metadata -->Nachher"),
