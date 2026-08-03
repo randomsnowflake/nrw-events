@@ -21,6 +21,18 @@ HARDTBERG_API = "https://www.hardtbergkultur.de/wp-json/wp/v2/posts"
 ROLEBER_ICAL = "https://bsvroleber.de/events/?ical=1"
 _ROLEBER_SCORE_FLOOR = 0.45
 HOLZLAR_URL = "https://bv-holzlar.de/veranstaltungen"
+BRUESER_BERG_URL = "https://veranstaltungen-am-b-xnoe.bolt.host/"
+_BRUESER_BERG_SOURCE = "Veranstaltungen Brüser Berg"
+_BRUESER_BERG_SOURCE_ID = "veranstaltungen-brueser-berg"
+_BRUESER_BERG_LOCAL_VENUES = (
+    "brüser berg",
+    "brueser berg",
+    "atelier der stadtteilkultur",
+    "begegnungsort auf der wiese in der fußgängerzone",
+    "begegnungsort auf der wiese in der fussgängerzone",
+    "hardtberghalle",
+    "telekom dome",
+)
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -37,6 +49,97 @@ def _ensure_descriptions(events: list) -> list:
         )
         event["description_source"] = "generated"
     return events
+
+
+def _brueser_berg_link(row: dict) -> str:
+    for key in ("contribution_link", "pdf_url"):
+        candidate = str(row.get(key) or "").strip()
+        parsed = urllib.parse.urlsplit(candidate)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return candidate
+    return BRUESER_BERG_URL
+
+
+def _is_brueser_berg_row(row: dict) -> bool:
+    venue = regional_common.clean(str(row.get("location") or "")).casefold()
+    return any(regional_common.clean(marker).casefold() in venue for marker in _BRUESER_BERG_LOCAL_VENUES)
+
+
+def events_from_brueser_berg_json(raw: str) -> list:
+    try:
+        rows = json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise regional_common.ParserEmptyError("invalid events JSON") from exc
+    if not isinstance(rows, list) or not rows:
+        raise regional_common.ParserEmptyError("events API returned no rows")
+
+    local_rows = sorted(
+        (row for row in rows if isinstance(row, dict) and _is_brueser_berg_row(row)),
+        key=lambda row: (
+            str(row.get("event_date") or ""),
+            str(row.get("event_time") or ""),
+            str(row.get("title") or "").casefold(),
+        ),
+    )
+    if not local_rows:
+        raise regional_common.ParserEmptyError("events API returned no Brüser Berg rows")
+
+    events = []
+    for row in local_rows:
+        title = common.clean_html(str(row.get("title") or ""))
+        date_text = str(row.get("event_date") or "").strip()
+        time_text = common.sanitize_time_text(str(row.get("event_time") or ""))
+        try:
+            start = datetime.fromisoformat(f"{date_text}T{time_text or '00:00'}")
+        except ValueError:
+            continue
+        venue = common.clean_html(str(row.get("location") or ""))
+        description = common.concise_description(str(row.get("description") or ""))
+        if not description:
+            description = common.factual_event_description(
+                title, date_value=start, time_text=time_text, venue=venue, city="Bonn-Brüser Berg",
+            )
+        event = common.make_event(
+            title, start, None, venue, "Bonn-Brüser Berg", description,
+            _brueser_berg_link(row), _BRUESER_BERG_SOURCE,
+            "stadtteil nachbarschaft kultur familie bildung beratung spiele workshop",
+            0.8, time_text=time_text, all_day=not bool(time_text),
+        )
+        if event:
+            events.append(event)
+    return regional_common.dedupe(events)
+
+
+def fetch_brueser_berg() -> list:
+    try:
+        html = common.fetch_url(BRUESER_BERG_URL, timeout=20)
+        script_match = re.search(
+            r'<script[^>]+src=["\']([^"\']*/assets/index-[^"\']+\.js)["\']',
+            html,
+            re.IGNORECASE,
+        )
+        if not script_match:
+            raise regional_common.ParserEmptyError("application bundle not found")
+        script_url = urllib.parse.urljoin(BRUESER_BERG_URL, script_match.group(1))
+        bundle = common.fetch_url(script_url, timeout=20)
+        config_match = re.search(
+            r'"(https://[a-z0-9]+\.supabase\.co)"[^\n]{0,1200}?"(eyJ[A-Za-z0-9._-]+)"',
+            bundle,
+        )
+        if not config_match:
+            raise regional_common.ParserEmptyError("public events API configuration not found")
+        api_base, anon_key = config_match.groups()
+        query = urllib.parse.urlencode({"select": "*", "order": "event_date.asc,event_time.asc"})
+        payload = common.fetch_url(
+            f"{api_base}/rest/v1/events?{query}",
+            timeout=20,
+            headers={"apikey": anon_key, "Authorization": f"Bearer {anon_key}"},
+            expected_content_types=("application/json",),
+        )
+        return events_from_brueser_berg_json(payload)
+    except Exception as exc:
+        common.log_source_error(_BRUESER_BERG_SOURCE, exc, source_id=_BRUESER_BERG_SOURCE_ID)
+        return []
 
 
 def fetch_vilich_mueldorf() -> list:

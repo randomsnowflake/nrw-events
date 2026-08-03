@@ -547,6 +547,7 @@ Redaktionsentscheidungen.
 | bonn-region | TiK Theater im Keller | `tik-theater-im-keller` | `python` |
 | bonn-region | Troisdorf | `troisdorf` | `ical` |
 | bonn-region | Universität Bonn | `uni-bonn` | `python` |
+| bonn-region | Veranstaltungen Brüser Berg | `veranstaltungen-brueser-berg` | `python` |
 | bonn-region | vomFASS Bonn | `vomfass-bonn` | `python` |
 | bonn-region | VVS Siebengebirge | `vvs-siebengebirge` | `python` |
 | bonn-region | Wachtberg | `wachtberg` | `ical` |

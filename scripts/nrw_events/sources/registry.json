@@ -633,6 +633,13 @@
       "callable": "nrw_events.sources.bonn_districts:fetch_holzlar"
     },
     {
+      "id": "veranstaltungen-brueser-berg",
+      "display_name": "Veranstaltungen Brüser Berg",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_districts:fetch_brueser_berg"
+    },
+    {
       "id": "literaturhaus-bonn",
       "display_name": "Literaturhaus Bonn",
       "region": "bonn-region",

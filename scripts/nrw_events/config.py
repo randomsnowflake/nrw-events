@@ -251,6 +251,8 @@ VENUE_COORDS = {
     "venusberg": (50.7047, 7.0968), "lannesdorf": (50.6606, 7.1556),
     "rheinaue": (50.7106, 7.1283), "freizeitpark rheinaue": (50.7106, 7.1283),
     "bonn-hardtberg": (50.7108, 7.0378),
+    "brüser berg": (50.698578, 7.056228), "brueser berg": (50.698578, 7.056228),
+    "bonn-brüser berg": (50.698578, 7.056228), "bonn-brueser berg": (50.698578, 7.056228),
     # Siebengebirge
     "siebengebirge": (50.6710, 7.2370), "kottenforst": (50.6670, 7.0400),
     "drachenfels": (50.6652, 7.2107), "petersberg": (50.6869, 7.2078),
