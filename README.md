@@ -259,6 +259,7 @@ scripts/nrw_events/
     coelln_antik_design.py
     coelln_konzept.py
     deutsches_museum_bonn.py
+    fixed_markets.py
     flohmarkt.py
     geide.py
     grote_hiller.py
@@ -534,6 +535,7 @@ Redaktionsentscheidungen.
 | bonn-region | Standard regional feeds | `standard-regional-feeds` | `python` |
 | bonn-region | Street Food Bonn | `street-food-bonn` | `python` |
 | bonn-region | Street Food Festival Original | `street-food-festival-original` | `python` |
+| bonn-region | Swisttal | `swisttal` | `html` |
 | bonn-region | Tanzschule Max7 | `tanzschule-max7` | `python` |
 | bonn-region | Theater Bonn | `theater-bonn` | `python` |
 | bonn-region | Theater im Ballsaal | `theater-im-ballsaal` | `python` |

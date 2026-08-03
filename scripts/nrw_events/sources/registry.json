@@ -403,7 +403,11 @@
       "display_name": "SiteKit regional",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.regional_sitekit:fetch"
+      "callable": "nrw_events.sources.regional_sitekit:fetch",
+      "component_ids": [
+        "sitekit-bruehl", "sitekit-wesseling", "sitekit-frechen",
+        "sitekit-huerth", "sitekit-erftstadt", "sitekit-zuelpich"
+      ]
     },
     {
       "id": "standard-regional-feeds",
@@ -437,35 +441,54 @@
       "display_name": "Regional HTML calendars",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.regional_html:fetch"
+      "callable": "nrw_events.sources.regional_html:fetch",
+      "component_ids": [
+        "alfter-events", "lohmar-events", "bornheim-events",
+        "eitorf-events", "broeltal-ruppichteroth-events"
+      ]
     },
     {
       "id": "deskline-regional",
       "display_name": "Deskline regional",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.regional_tourism:fetch"
+      "callable": "nrw_events.sources.regional_tourism:fetch",
+      "component_ids": [
+        "ahrtal-tourismus", "bad-muenstereifel-tourismus", "kultur-euskirchen"
+      ]
     },
     {
       "id": "regional-venues",
       "display_name": "Regional venues",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.regional_venues:fetch"
+      "callable": "nrw_events.sources.regional_venues:fetch",
+      "component_ids": [
+        "rhein-sieg-forum", "rheinbach-events", "arp-museum", "andernach-events",
+        "lvr-landesmuseum-bonn"
+      ]
     },
     {
       "id": "requested-venue-calendars",
       "display_name": "Requested venue calendars",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.requested_venues:fetch"
+      "callable": "nrw_events.sources.requested_venues:fetch",
+      "component_ids": [
+        "kunstmuseum-bonn", "sankt-augustin-events", "pantheon-bonn",
+        "haus-der-springmaus", "brueckenforum-bonn"
+      ]
     },
     {
       "id": "bonn-venue-calendars",
       "display_name": "Bonn venue calendars",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.bonn_venues:fetch"
+      "callable": "nrw_events.sources.bonn_venues:fetch",
+      "component_ids": [
+        "kult41", "repair-cafes-bonn", "botanische-gaerten-bonn",
+        "rhein-in-flammen-bonn", "brotfabrik-bonn"
+      ]
     },
     {
       "id": "curated-cinema-specials",

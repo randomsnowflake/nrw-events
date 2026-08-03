@@ -24,22 +24,22 @@ def fetch() -> list:
             detail_fetcher=lambda link: common.fetch_detail_url(
                 link, cache_namespace="lohmar", timeout=15),
         ),
-    ))
+     source_id="lohmar-events"))
     events.extend(rc.fetch_html_events(
         "Bornheim",
         "https://www.bornheim.de/veranstaltungskalender",
         _events_from_bornheim,
-    ))
+     source_id="bornheim-events"))
     events.extend(rc.fetch_html_events(
         "Eitorf",
         "https://www.eitorf.de/veranstaltungen/",
         lambda html: _events_from_eitorf_cards(html, "https://www.eitorf.de"),
-    ))
+     source_id="eitorf-events"))
     events.extend(rc.fetch_html_events(
         "Bröltal / Ruppichteroth",
         "https://www.broeltal.de/aktuelles/termine.html",
         lambda html: _events_from_broeltal(html, "https://www.broeltal.de"),
-    ))
+     source_id="broeltal-ruppichteroth-events"))
     return rc.dedupe(events)
 
 
@@ -60,7 +60,7 @@ def _fetch_alfter() -> list:
             anchor_pattern=r'<h3>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>',
         )
 
-    return rc.fetch_html_events("Alfter", url, parse)
+    return rc.fetch_html_events("Alfter", url, parse, source_id="alfter-events")
 
 
 def _events_from_lohmar(html: str, detail_fetcher=None) -> list:

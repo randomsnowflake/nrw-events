@@ -231,7 +231,7 @@ def events_from_beuel_html(html: str) -> list:
 
 
 def fetch_beuel() -> list:
-    return regional_common.fetch_html_events("Beuel.net", BEUEL_URL, events_from_beuel_html)
+    return regional_common.fetch_html_events("Beuel.net", BEUEL_URL, events_from_beuel_html, source_id="beuel-net")
 
 
 class _BadGodesbergCalendarParser(HTMLParser):
@@ -516,4 +516,4 @@ def events_from_holzlar_html(html: str) -> list:
 
 
 def fetch_holzlar() -> list:
-    return regional_common.fetch_html_events("BV Holzlar", HOLZLAR_URL, events_from_holzlar_html)
+    return regional_common.fetch_html_events("BV Holzlar", HOLZLAR_URL, events_from_holzlar_html, source_id="bv-holzlar")

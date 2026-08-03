@@ -13,7 +13,7 @@ def fetch() -> list:
         "Rhein Sieg Forum",
         "https://www.rhein-sieg-forum.de/de/programm",
         _events_from_rhein_sieg_forum,
-    ))
+     source_id="rhein-sieg-forum"))
     events.extend(rc.fetch_html_events(
         "Rheinbach",
         "https://www.rheinbach.de/veranstaltungen",
@@ -22,23 +22,23 @@ def fetch() -> list:
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="rheinbach", timeout=15),
         ),
-    ))
+     source_id="rheinbach-events"))
     events.extend(rc.fetch_html_events(
         "Arp Museum",
         "https://arpmuseum.org/veranstaltungen.html",
         _events_from_arp,
-    ))
+     source_id="arp-museum"))
     clickaround_url = "https://events.click-around.systems/core/19b47bb1-7fba-40a0-a4a8-8d35589b4fce/events/standard/de"
     events.extend(rc.fetch_html_events(
         "Andernach",
         clickaround_url,
         lambda html: _events_from_clickaround(html, clickaround_url),
-    ))
+     source_id="andernach-events"))
     events.extend(rc.fetch_html_events(
         "LVR-LandesMuseum",
         "https://landesmuseum-bonn.lvr.de/de/veranstaltungen/veranstaltungen_2/alleveranstaltungen.html",
         _events_from_lvr,
-    ))
+     source_id="lvr-landesmuseum-bonn"))
     return rc.dedupe(events)
 
 

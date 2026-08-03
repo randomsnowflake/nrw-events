@@ -41,11 +41,11 @@ def fetch_craftquelle() -> list:
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="craftquelle-bonn", timeout=20),
         ),
-    )
+     source_id="craftquelle-bonn")
 
 
 def fetch_bff() -> list:
-    return rc.fetch_html_events("BFF Bonner Schifffahrt", _BFF_URL, events_from_bff)
+    return rc.fetch_html_events("BFF Bonner Schifffahrt", _BFF_URL, events_from_bff, source_id="bff-bonner-schifffahrt")
 
 
 def fetch_vomfass() -> list | SourceFetchResult:
@@ -65,7 +65,7 @@ def fetch_vomfass() -> list | SourceFetchResult:
                 required_body_markers=("application/ld+json",)),
         ),
         fetcher=_fetch_vomfass_listing,
-    )
+     source_id="vomfass-bonn")
 
 
 def _fetch_vomfass_listing(url: str, timeout: int) -> str:
@@ -102,7 +102,7 @@ def _fetch_vomfass_listing(url: str, timeout: int) -> str:
 
 
 def fetch_biertasting() -> list:
-    return rc.fetch_html_events("Biertasting Bonn", _BIERTASTING_URL, events_from_biertasting)
+    return rc.fetch_html_events("Biertasting Bonn", _BIERTASTING_URL, events_from_biertasting, source_id="biertasting-bonn")
 
 
 def fetch_ludwigs() -> list:
@@ -114,7 +114,7 @@ def fetch_ludwigs() -> list:
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="ludwigs-bonn", timeout=20),
         ),
-    )
+ source_id="ludwig-s-bonn")
 
 
 def fetch_reduettchen() -> list:
@@ -126,7 +126,7 @@ def fetch_reduettchen() -> list:
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="reduettchen", timeout=20),
         ),
-    )
+ source_id="red-ttchen")
 
 
 def fetch_street_food() -> list:
@@ -138,7 +138,7 @@ def fetch_street_food() -> list:
             lambda html, source_url=page_url: events_from_street_food(
                 html, source_url=source_url,
             ),
-        ))
+         source_id="street-food-bonn"))
     return rc.dedupe(events)
 
 
@@ -146,11 +146,11 @@ def fetch_original_street_food() -> list:
     return rc.fetch_html_events(
         "Street Food Festival Original", _ORIGINAL_STREET_FOOD_URL,
         events_from_original_street_food,
-    )
+     source_id="street-food-festival-original")
 
 
 def fetch_choco_dealer() -> list:
-    return rc.fetch_html_events("Choco Dealer", _CHOCO_DEALER_URL, events_from_choco_dealer)
+    return rc.fetch_html_events("Choco Dealer", _CHOCO_DEALER_URL, events_from_choco_dealer, source_id="choco-dealer")
 
 
 def events_from_craftquelle(html: str, detail_fetcher=None) -> list:

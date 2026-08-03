@@ -26,12 +26,12 @@ def fetch() -> list:
             "KULT41",
             f"{_KULT41_URL}?mo={month}&yr={year}",
             events_from_kult41,
-        ))
+         source_id="kult41"))
         events.extend(rc.fetch_html_events(
             "Repair Cafés Bonn",
             f"{_REPAIR_CAFES_URL}?time=month&yr={year}&month={month}",
             events_from_repair_cafes,
-        ))
+         source_id="repair-cafes-bonn"))
     events.extend(_fetch_brotfabrik())
     events.extend(_fetch_volkssternwarte())
     events.extend(rc.fetch_html_events(
@@ -42,14 +42,14 @@ def fetch() -> list:
             detail_fetcher=lambda url: common.fetch_detail_url(
                 url, cache_namespace="botanische-gaerten-bonn", timeout=20),
         ),
-    ))
+     source_id="botanische-gaerten-bonn"))
     events.extend(_fetch_vox_bona())
     events.extend(_fetch_bonner_muenster())
     events.extend(rc.fetch_html_events(
         "Rhein in Flammen Bonn",
         _RHEIN_IN_FLAMMEN_URL,
         events_from_rhein_in_flammen,
-    ))
+     source_id="rhein-in-flammen-bonn"))
     return rc.dedupe(events)
 
 
@@ -341,7 +341,7 @@ def _fetch_brotfabrik() -> list:
             return events
     except Exception as e:
         common.log_source_error("Brotfabrik Bonn API", e)
-    return rc.fetch_html_events("Brotfabrik Bonn", _BROTFABRIK_URL, events_from_brotfabrik)
+    return rc.fetch_html_events("Brotfabrik Bonn", _BROTFABRIK_URL, events_from_brotfabrik, source_id="brotfabrik-bonn")
 
 
 def _fetch_vox_bona() -> list:
