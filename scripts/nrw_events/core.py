@@ -1914,6 +1914,44 @@ def _jsonld_location(loc) -> tuple:
     return venue, city
 
 
+def _jsonld_entity_names(value, *, max_length: int = 500) -> str:
+    """Return bounded schema.org person or organization names in source order."""
+    candidates = value if isinstance(value, list) else [value]
+    names = []
+    for candidate in candidates:
+        if isinstance(candidate, dict):
+            entity_type = candidate.get("@type")
+            entity_types = entity_type if isinstance(entity_type, list) else [entity_type]
+            explicit_types = {
+                str(value).rstrip("/").rsplit("/", 1)[-1]
+                for value in entity_types
+                if value
+            }
+            if explicit_types and explicit_types.isdisjoint({"Organization", "Person"}):
+                continue
+            candidate = candidate.get("name", "")
+        if not isinstance(candidate, str):
+            continue
+        name = clean_html(candidate).strip()
+        if not name or name in names:
+            continue
+        joined_length = sum(map(len, names)) + 2 * len(names) + len(name)
+        if joined_length <= max_length:
+            names.append(name)
+    return "; ".join(names)
+
+
+def _apply_jsonld_provenance(
+    event: dict, *, organizer: str, admission_price: Optional[str],
+) -> None:
+    """Attach optional source evidence without duplicating occurrence paths."""
+    if organizer:
+        event["organizer"] = organizer
+    if admission_price is not None:
+        event["price"] = admission_price
+        event["admission_basis"] = "explicit"
+
+
 def _jsonld_schedule_items(schedule) -> list:
     """Return schema.org Schedule objects as a list, preserving source order."""
     if isinstance(schedule, list):
@@ -2019,6 +2057,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         desc = item.get("description", "")
         link = item.get("url") or default_link
         admission_price = _jsonld_admission_price(item)
+        organizer = _jsonld_entity_names(item.get("organizer"))
 
         schedules = _jsonld_schedule_items(item.get("eventSchedule"))
         if schedules:
@@ -2033,9 +2072,9 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                     category_locked=category_locked,
                 )
                 if ev:
-                    if admission_price is not None:
-                        ev["price"] = admission_price
-                        ev["admission_basis"] = "explicit"
+                    _apply_jsonld_provenance(
+                        ev, organizer=organizer, admission_price=admission_price,
+                    )
                     events.append(ev)
             # Explicit schedule entries are the real appointments. The top-level
             # start/end often describes only a season span, e.g. Rheinauen-Flohmarkt
@@ -2049,9 +2088,9 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             category_locked=category_locked,
         )
         if ev:
-            if admission_price is not None:
-                ev["price"] = admission_price
-                ev["admission_basis"] = "explicit"
+            _apply_jsonld_provenance(
+                ev, organizer=organizer, admission_price=admission_price,
+            )
             events.append(ev)
     return events
 

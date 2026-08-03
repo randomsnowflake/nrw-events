@@ -99,6 +99,68 @@ class JsonLdScheduleTests(unittest.TestCase):
         self.assertEqual(current["time"], "08:00–18:00")
         self.assertNotIn("2026-04-18–2026-10-17", [ev["date"] for ev in events])
 
+    def test_jsonld_organizer_survives_the_canonical_public_contract(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Organizer test event",
+            "startDate": "2026-06-12T19:00:00+02:00",
+            "organizer": [
+                {"@type": "Organization", "name": "Kulturverein Bonn e.V."},
+                {"@type": "Person", "name": "Erika Beispiel"},
+            ],
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        [event] = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+        )
+        canonical = canonicalize_event(event)
+
+        self.assertEqual(event["organizer"], "Kulturverein Bonn e.V.; Erika Beispiel")
+        self.assertEqual(canonical.organizer, "Kulturverein Bonn e.V.; Erika Beispiel")
+        self.assertEqual(canonical.to_dict()["organizer"], "Kulturverein Bonn e.V.; Erika Beispiel")
+
+    def test_jsonld_organizer_ignores_other_entity_types(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Organizer type test",
+            "startDate": "2026-06-12T19:00:00+02:00",
+            "organizer": [
+                {"@type": "Place", "name": "Not an organizer"},
+                {"@type": "Organization", "name": "Kulturverein Bonn"},
+            ],
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        [event] = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+        )
+
+        self.assertEqual(event["organizer"], "Kulturverein Bonn")
+
+    def test_jsonld_organizer_overflow_does_not_drop_the_event(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Many organizers",
+            "startDate": "2026-06-12T19:00:00+02:00",
+            "organizer": [
+                {"@type": "Organization", "name": f"Organizer {index} " + "x" * 80}
+                for index in range(10)
+            ],
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        [event] = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+        )
+        canonical = canonicalize_event(event)
+
+        self.assertLessEqual(len(canonical.organizer), 500)
+        self.assertTrue(canonical.organizer.startswith("Organizer 0 "))
+
     def test_jsonld_structured_admission_overrides_text_inference(self):
         fixtures = [
             (
