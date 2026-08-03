@@ -832,7 +832,7 @@ def _matches_query(event: CanonicalEvent, settings: config.RuntimeConfig, query:
         return False
     if query.verb == "heute-abend":
         times = [int(hour) * 60 + int(minute) for hour, minute in re.findall(r"(\d{2}):(\d{2})", event.time)]
-        if not times or max(times) < 17 * 60:
+        if not times or times[0] < 17 * 60:
             return False
     return True
 

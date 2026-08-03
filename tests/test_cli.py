@@ -54,7 +54,8 @@ class CliTests(unittest.TestCase):
             event("Paid market", "2026-07-31", time="19:00", category="market", distance=5),
             event("Far concert", "2026-07-31", time="20:00", category="concert", distance=30, free=True),
             event("Morning market", "2026-07-31", time="10:00", category="market", distance=5, free=True),
-        ), {}, 4, "healthy")
+            event("Day market", "2026-07-31", time="10:00–18:00", category="market", distance=5, free=True),
+        ), {}, 5, "healthy")
         settings = config.RuntimeConfig(
             radius_km=15,
             categories=("market",),
