@@ -103,7 +103,7 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         result.finish(events)
         if typed_status in {
-            SourceStatus.DISABLED, SourceStatus.SCHEDULED_SKIP,
+            SourceStatus.HEALTHY_EMPTY, SourceStatus.DISABLED, SourceStatus.SCHEDULED_SKIP,
             SourceStatus.PARSER_EMPTY, SourceStatus.DEGRADED,
         }:
             result.status = typed_status

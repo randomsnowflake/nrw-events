@@ -117,11 +117,9 @@ def fetch() -> list:
 
 
 def _fetch_optional_html(name: str, source_id: str, url: str, parser) -> list:
-    try:
-        return parser(common.fetch_url(url, timeout=25))
-    except Exception as exc:
-        common.log_source_error(name, exc, source_id=source_id)
-        return []
+    return rc.fetch_html_events(
+        name, url, parser, source_id=source_id, empty_is_healthy=True,
+    )
 
 
 def _events_from_bonner_kinemathek(html: str, detail_fetcher=None) -> list:
