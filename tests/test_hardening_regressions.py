@@ -4,6 +4,7 @@ import os
 import socket
 import tempfile
 import threading
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -38,6 +39,25 @@ class HardeningRegressionTests(unittest.TestCase):
         for text, expected in cases.items():
             with self.subTest(text=text):
                 self.assertEqual(location.guess_city_from_text(text), expected)
+    def test_host_slots_share_the_throttle_suffix_across_subdomains(self):
+        with mock.patch.dict(common._HOST_THROTTLE_SECONDS_BY_SUFFIX, {"bonn.de": 0.0}, clear=True), \
+                mock.patch.dict(common._HOST_SLOTS, {}, clear=True):
+            with common._host_request_slot("https://bonn.de/events", time.perf_counter() + 1):
+                pass
+            with common._host_request_slot("https://www.bonn.de/events", time.perf_counter() + 1):
+                pass
+
+            self.assertEqual(set(common._HOST_SLOTS), {"bonn.de"})
+
+    def test_host_slot_rechecks_deadline_after_throttle_wait(self):
+        with mock.patch.object(
+            common, "_remaining_timeout", side_effect=[1.0, TimeoutError("budget exhausted")],
+        ) as remaining, mock.patch.object(common, "_throttle_before_request"):
+            with self.assertRaisesRegex(TimeoutError, "budget exhausted"):
+                with common._host_request_slot("https://example.test/events", 100.0):
+                    self.fail("expired request entered the network section")
+
+        self.assertEqual(remaining.call_count, 2)
 
     def test_clean_html_removes_complete_comments_with_embedded_angle_brackets(self):
         self.assertEqual(
