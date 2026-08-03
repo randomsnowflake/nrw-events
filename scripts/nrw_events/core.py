@@ -25,6 +25,8 @@ import urllib.request
 import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
 import urllib.error
 from contextlib import closing, contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
@@ -63,8 +65,8 @@ _configure_date_reference(TODAY)
 
 # Re-export common config values for convenience.
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
-MAX_RADIUS_KM: float = config.MAX_RADIUS_KM
-DESCRIPTION_MAX_CHARS = max(int(os.environ.get("NRW_EVENTS_DESCRIPTION_MAX_CHARS", "700")), 0)
+MAX_RADIUS_KM = config.MAX_RADIUS_KM
+DESCRIPTION_MAX_CHARS = 700
 
 # Per-run source telemetry. Source modules intentionally keep the overall import
 # alive when one remote page breaks; this records those partial failures so the
@@ -72,6 +74,40 @@ DESCRIPTION_MAX_CHARS = max(int(os.environ.get("NRW_EVENTS_DESCRIPTION_MAX_CHARS
 _SOURCE_CONTEXT = threading.local()
 _RUN_ID = ""
 _LOGGER = logging.getLogger(LOGGER_NAME)
+
+
+@dataclass(frozen=True, slots=True)
+class _RuntimeState:
+    settings: config.RuntimeConfig
+    run_id: str
+    logger: logging.Logger
+
+
+_RUNTIME_STATE: ContextVar[_RuntimeState | None] = ContextVar("nrw_events_runtime", default=None)
+
+
+def _runtime_state() -> _RuntimeState:
+    state = _RUNTIME_STATE.get()
+    if state is not None:
+        return state
+    # Compatibility defaults for direct source/parser calls that do not create
+    # a runner context. Legacy tests may still narrow these constants locally.
+    settings = config.RuntimeConfig(
+        radius_km=MAX_RADIUS_KM,
+        description_max_chars=DESCRIPTION_MAX_CHARS,
+        http_retry_attempts=_HTTP_RETRY_ATTEMPTS,
+        http_retry_base_seconds=_HTTP_RETRY_BASE_SECONDS,
+        http_request_budget_seconds=_HTTP_REQUEST_BUDGET_SECONDS,
+        http_retry_max_delay_seconds=_HTTP_RETRY_MAX_DELAY_SECONDS,
+        http_max_response_bytes=_HTTP_MAX_RESPONSE_BYTES,
+        bonn_de_delay_seconds=_HOST_THROTTLE_SECONDS_BY_SUFFIX.get("bonn.de", 2.0),
+    )
+    return _RuntimeState(settings, _RUN_ID, _LOGGER)
+
+
+def runtime_radius_km() -> float:
+    """Return the radius belonging to the current import context."""
+    return _runtime_state().settings.radius_km
 
 
 # ── HTTP ────────────────────────────────────────────────────────────
@@ -128,32 +164,26 @@ _HOST_SLOT_LOCK = threading.Lock()
 _HOST_SLOTS: dict[str, threading.Lock] = {}
 
 
-def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger) -> None:
+def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger):
     """Apply validated settings after the optional env file has been loaded."""
-    global _HTTP_RETRY_ATTEMPTS, _HTTP_RETRY_BASE_SECONDS, _HTTP_REQUEST_BUDGET_SECONDS, _HTTP_RETRY_MAX_DELAY_SECONDS, _HTTP_MAX_RESPONSE_BYTES, _RUN_ID, _LOGGER, MAX_RADIUS_KM
-    _HTTP_RETRY_ATTEMPTS = settings.http_retry_attempts
-    _HTTP_RETRY_BASE_SECONDS = settings.http_retry_base_seconds
-    _HTTP_REQUEST_BUDGET_SECONDS = settings.http_request_budget_seconds
-    _HTTP_RETRY_MAX_DELAY_SECONDS = settings.http_retry_max_delay_seconds
-    _HTTP_MAX_RESPONSE_BYTES = settings.http_max_response_bytes
-    _HOST_THROTTLE_SECONDS_BY_SUFFIX["bonn.de"] = settings.bonn_de_delay_seconds
-    with _HOST_SLOT_LOCK:
-        _HOST_SLOTS.clear()
-    _RUN_ID = run_id
-    _LOGGER = logger
-    MAX_RADIUS_KM = settings.radius_km
-    config.MAX_RADIUS_KM = settings.radius_km
     category_taxonomy.configure_fallback_cache(settings.category_fallback_cache)
+    return _RUNTIME_STATE.set(_RuntimeState(settings, run_id, logger))
 
 
-def configure_context(context: RunContext) -> None:
+def reset_runtime(token) -> None:
+    """Restore the caller's runtime context after an isolated import."""
+    _RUNTIME_STATE.reset(token)
+
+
+def configure_context(context: RunContext):
     """Compatibility composition hook while source adapters migrate to context."""
-    configure_runtime(context.settings, context.run_id, context.logger)
+    token = configure_runtime(context.settings, context.run_id, context.logger)
     global DAYS_AHEAD, TODAY, END_DATE
     DAYS_AHEAD = context.settings.days_ahead
     TODAY = context.window.start
     END_DATE = context.window.end
     _configure_date_reference(TODAY)
+    return token
 
 
 def set_source_context(result: Optional[SourceResult], timeout_seconds: float | None = None) -> None:
@@ -198,7 +228,8 @@ def log_source_disabled(source: str, reason: str) -> None:
     result = getattr(_SOURCE_CONTEXT, "result", None)
     if result is not None:
         result.status = SourceStatus.DISABLED
-    log(_LOGGER, logging.INFO, reason, run_id=_RUN_ID, source=source)
+    runtime = _runtime_state()
+    log(runtime.logger, logging.INFO, reason, run_id=runtime.run_id, source=source)
 
 
 class ResponseTooLargeError(ValueError):
@@ -223,7 +254,12 @@ def _record_endpoint(url: str, **details: Any) -> None:
 
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
     hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
-    for suffix, delay in _HOST_THROTTLE_SECONDS_BY_SUFFIX.items():
+    state = _RUNTIME_STATE.get()
+    delays = (
+        {"bonn.de": state.settings.bonn_de_delay_seconds}
+        if state is not None else _HOST_THROTTLE_SECONDS_BY_SUFFIX
+    )
+    for suffix, delay in delays.items():
         if hostname == suffix or hostname.endswith(f".{suffix}"):
             return suffix, delay
     return None, 0.0
@@ -243,7 +279,7 @@ def _throttle_before_request(url: str) -> None:
 
 
 def _request_deadline() -> float:
-    deadline = time.perf_counter() + _HTTP_REQUEST_BUDGET_SECONDS
+    deadline = time.perf_counter() + _runtime_state().settings.http_request_budget_seconds
     source_deadline = getattr(_SOURCE_CONTEXT, "deadline", None)
     hard_deadline = getattr(_SOURCE_CONTEXT, "hard_deadline", None)
     candidates = [value for value in (deadline, source_deadline, hard_deadline) if value is not None]
@@ -291,8 +327,10 @@ def _retry_delay(exc: Exception, attempt_index: int) -> float:
                 return max(float(retry_after), 0.0)
             except ValueError:
                 pass
-    jitter = random.SystemRandom().uniform(0, _HTTP_RETRY_BASE_SECONDS / 2) if _HTTP_RETRY_BASE_SECONDS else 0.0
-    return min(_HTTP_RETRY_BASE_SECONDS * (2 ** attempt_index) + jitter, _HTTP_RETRY_MAX_DELAY_SECONDS)
+    settings = _runtime_state().settings
+    base = settings.http_retry_base_seconds
+    jitter = random.SystemRandom().uniform(0, base / 2) if base else 0.0
+    return min(base * (2 ** attempt_index) + jitter, settings.http_retry_max_delay_seconds)
 
 
 def _is_retryable_fetch_error(exc: Exception) -> bool:
@@ -363,7 +401,8 @@ def fetch_url(
         extra=headers,
     )
     deadline = _request_deadline()
-    for attempt in range(_HTTP_RETRY_ATTEMPTS):
+    settings = _runtime_state().settings
+    for attempt in range(settings.http_retry_attempts):
         try:
             started = time.perf_counter()
             req = urllib.request.Request(url, headers=hdrs)
@@ -379,9 +418,11 @@ def fetch_url(
                         content_type = ""
                     if expected_content_types and content_type and not any(content_type.startswith(item) for item in expected_content_types):
                         raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
-                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                    body = resp.read(settings.http_max_response_bytes + 1)
+                    if len(body) > settings.http_max_response_bytes:
+                        raise ResponseTooLargeError(
+                            f"response exceeds {settings.http_max_response_bytes} bytes"
+                        )
                     charset = (
                         headers_obj.get_content_charset()
                         if headers_obj is not None and hasattr(headers_obj, "get_content_charset")
@@ -406,7 +447,7 @@ def fetch_url(
                 )
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
-            retry = attempt < _HTTP_RETRY_ATTEMPTS - 1 and _is_retryable_fetch_error(exc)
+            retry = attempt < settings.http_retry_attempts - 1 and _is_retryable_fetch_error(exc)
             delay = _retry_delay(exc, attempt) if retry else 0
             _close_http_error(exc)
             if not retry:
@@ -480,15 +521,16 @@ def fetch_url_with_brightdata(
         if fresh_request_budget
         else _request_deadline()
     )
+    settings = _runtime_state().settings
     try:
         with _host_request_slot(_BRIGHT_DATA_API_URL, deadline):
             with closing(urllib.request.urlopen(
                 request,
                 timeout=_remaining_timeout(deadline, max(timeout, 120)),
             )) as response:
-                raw = response.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                if len(raw) > _HTTP_MAX_RESPONSE_BYTES:
-                    raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                raw = response.read(settings.http_max_response_bytes + 1)
+                if len(raw) > settings.http_max_response_bytes:
+                    raise ResponseTooLargeError(f"response exceeds {settings.http_max_response_bytes} bytes")
                 api_status = getattr(response, "status", 200)
     except Exception as exc:
         _raise_brightdata_failure(url, started, exc)
@@ -881,16 +923,17 @@ def post_json(url: str, payload: dict[str, Any], timeout: int = 45,
     )
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
-    attempts = _HTTP_RETRY_ATTEMPTS if retry_safe else 1
+    settings = _runtime_state().settings
+    attempts = settings.http_retry_attempts if retry_safe else 1
     deadline = _request_deadline()
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
             with _host_request_slot(url, deadline):
                 with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                    body = resp.read(settings.http_max_response_bytes + 1)
+                    if len(body) > settings.http_max_response_bytes:
+                        raise ResponseTooLargeError(f"response exceeds {settings.http_max_response_bytes} bytes")
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
@@ -917,16 +960,17 @@ def post_form(url: str, fields: Any, timeout: int = 45,
     )
     data = urllib.parse.urlencode(fields, doseq=True).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
-    attempts = _HTTP_RETRY_ATTEMPTS if retry_safe else 1
+    settings = _runtime_state().settings
+    attempts = settings.http_retry_attempts if retry_safe else 1
     deadline = _request_deadline()
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
             with _host_request_slot(url, deadline):
                 with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = resp.read(_HTTP_MAX_RESPONSE_BYTES + 1)
-                    if len(body) > _HTTP_MAX_RESPONSE_BYTES:
-                        raise ResponseTooLargeError(f"response exceeds {_HTTP_MAX_RESPONSE_BYTES} bytes")
+                    body = resp.read(settings.http_max_response_bytes + 1)
+                    if len(body) > settings.http_max_response_bytes:
+                        raise ResponseTooLargeError(f"response exceeds {settings.http_max_response_bytes} bytes")
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
@@ -1107,7 +1151,7 @@ def concise_description(value: str, max_chars: int | None = None) -> str:
     # two characters "\" and "n"; it means the same thing the tag did.
     cleaned = re.sub(r"\\r\\n|\\[rn]", "\n", cleaned)
     cleaned = normalize_block_text(cleaned)
-    limit = DESCRIPTION_MAX_CHARS if max_chars is None else max_chars
+    limit = _runtime_state().settings.description_max_chars if max_chars is None else max_chars
     if not limit or len(cleaned) <= limit:
         shortened = cleaned
     else:
@@ -1309,7 +1353,7 @@ def event_in_window_and_radius(
     resolved_coords, _, _ = resolve_location(city, coords)
     if not resolved_coords:
         return True
-    return haversine(BONN_LAT, BONN_LON, *resolved_coords) <= MAX_RADIUS_KM
+    return haversine(BONN_LAT, BONN_LON, *resolved_coords) <= runtime_radius_km()
 
 
 _SIMPLE_TIME_PATTERN = re.compile(
@@ -1673,7 +1717,7 @@ def build_event(draft: EventDraft) -> RawEvent | None:
         "distance_km": round(km, 1) if km is not None else None,
         "location_confidence": location_confidence,
         "location_source": location_source,
-        "score": round(distance_score(km) * category_score(full_text) * trust, 2) if km is not None
+        "score": round(distance_score(km, runtime_radius_km()) * category_score(full_text) * trust, 2) if km is not None
                  else round(0.3 * category_score(full_text) * trust, 2),
         "source": source,
         "source_id": source_id,
@@ -2482,7 +2526,9 @@ def log_source_error(source: str, err: Exception, *, source_id: str = "") -> Non
     result = getattr(_SOURCE_CONTEXT, "result", None)
     if result is not None:
         result.warning(source, type(err).__name__, message, source_id=source_id)
-    log(_LOGGER, logging.WARNING, message, run_id=_RUN_ID, source=source, error_type=type(err).__name__)
+    runtime = _runtime_state()
+    log(runtime.logger, logging.WARNING, message, run_id=runtime.run_id,
+        source=source, error_type=type(err).__name__)
 
 
 def log_source_quality_skip(source: str, reason: str) -> None:
@@ -2490,10 +2536,11 @@ def log_source_quality_skip(source: str, reason: str) -> None:
     result = getattr(_SOURCE_CONTEXT, "result", None)
     if result is not None:
         result.reject(f"quality:{reason}")
+    runtime = _runtime_state()
     log(
-        _LOGGER,
+        runtime.logger,
         logging.INFO,
         f"skipped source record: {reason}",
-        run_id=_RUN_ID,
+        run_id=runtime.run_id,
         source=source,
     )

@@ -26,6 +26,7 @@ class RuntimeConfig:
     days_ahead: int = 3
     score_floor: float = 0.4
     radius_km: float = 75.0
+    description_max_chars: int = 700
     categories: tuple[str, ...] = ()
     free_only: bool = False
     json_stdout: bool = False
@@ -125,6 +126,7 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         days_ahead=configured_days,
         score_floor=_float("NRW_EVENTS_SCORE_FLOOR", 0.4, 0.0, 10.0),
         radius_km=_float("NRW_EVENTS_RADIUS_KM", 75.0, 0.1, 500.0),
+        description_max_chars=_int("NRW_EVENTS_DESCRIPTION_MAX_CHARS", 700, 0, 100_000),
         categories=_categories("NRW_EVENTS_CATEGORIES"),
         free_only=_bool("NRW_EVENTS_FREE_ONLY"),
         json_stdout=_bool("NRW_EVENTS_JSON_STDOUT"),

@@ -800,7 +800,7 @@ class RunnerOutputTests(unittest.TestCase):
                 "NRW_EVENTS_META_JSON_OUT": meta_out,
             }, clear=False):
                 with mock.patch.object(runner, "SOURCES", {"Test": fetch_event}):
-                    with mock.patch.object(runner.report, "format_report", lambda events: ""):
+                    with mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""):
                         with mock.patch.object(sys, "argv", ["runner"]):
                             runner.main()
 
@@ -854,7 +854,7 @@ class RunnerOutputTests(unittest.TestCase):
                     "Fragile Source": fetch_with_warning,
                     "Healthy Source": fetch_event,
                 }):
-                    with mock.patch.object(runner.report, "format_report", lambda events: ""):
+                    with mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""):
                         with mock.patch.object(sys, "argv", ["runner"]):
                             runner.main()
 
@@ -899,7 +899,7 @@ class RunnerOutputTests(unittest.TestCase):
             }, clear=False), mock.patch.object(runner, "SOURCES", {
                 "Broken Source": broken_fetch,
                 "Healthy Source": fetch_event,
-            }), mock.patch.object(runner.report, "format_report", lambda events: ""), \
+            }), mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""), \
                     mock.patch.object(sys, "argv", ["runner"]):
                 self.assertEqual(runner.main(), runner.EXIT_SUCCESS)
 
@@ -930,7 +930,7 @@ class RunnerOutputTests(unittest.TestCase):
                 "NRW_EVENTS_JSON_OUT": json_out,
                 "NRW_EVENTS_META_JSON_OUT": meta_out,
             }, clear=False), mock.patch.object(runner, "SOURCES", {"Bonn.de Events": broken_fetch}), \
-                    mock.patch.object(runner.report, "format_report", lambda events: ""), \
+                    mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""), \
                     mock.patch.object(sys, "argv", ["runner"]):
                 self.assertEqual(runner.main(), runner.EXIT_FAILED)
 
@@ -1010,7 +1010,7 @@ class RunnerOutputTests(unittest.TestCase):
                 "Healthy Source": fetch_event,
                 "Optional Source": disabled_fetch,
             }), \
-                    mock.patch.object(runner.report, "format_report", lambda events: ""), \
+                    mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""), \
                     mock.patch.object(sys, "argv", ["runner"]):
                 self.assertEqual(runner.main(), runner.EXIT_SUCCESS)
 
@@ -1031,7 +1031,7 @@ class RunnerOutputTests(unittest.TestCase):
                 "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
                 "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
             }, clear=False), mock.patch.object(runner, "SOURCES", {"Mixed": mixed_fetch}), \
-                    mock.patch.object(runner.report, "format_report", lambda events: ""), \
+                    mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""), \
                     mock.patch.object(sys, "argv", ["runner"]):
                 self.assertEqual(runner.main(), runner.EXIT_DEGRADED)
 
