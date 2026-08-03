@@ -41,6 +41,26 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
 )
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 _REUSED_OVERVIEW_LINK_THRESHOLD = 5
+_CITYWIDE_VENUE_ALIAS_FAMILIES = {
+    "street-food-festival": (
+        frozenset({
+            "theaterplatz",
+            "bad godesberger innenstadt",
+            "innenstadt bad godesberg",
+        }),
+    ),
+}
+_VENUE_LOCATION_FIELDS = (
+    "venue_id",
+    "venue_address",
+    "venue_district",
+    "venue_type",
+    "venue_latitude",
+    "venue_longitude",
+    "distance_km",
+    "location_confidence",
+    "location_source",
+)
 
 
 def source_authority(source: str) -> int:
@@ -144,6 +164,17 @@ def _citywide_title_family(title: str) -> str:
     return ""
 
 
+def _citywide_venue_alias_family(event: dict, title_family: str) -> int | None:
+    """Return the reviewed area-alias group for a citywide event format."""
+    venue = _venue_comparison_text(event)
+    for index, aliases in enumerate(
+        _CITYWIDE_VENUE_ALIAS_FAMILIES.get(title_family, ())
+    ):
+        if venue in aliases:
+            return index
+    return None
+
+
 def _locations_compatible(left: dict, right: dict) -> bool:
     left_venue_text = _venue_comparison_text(left)
     right_venue_text = _venue_comparison_text(right)
@@ -168,13 +199,17 @@ def _locations_compatible(left: dict, right: dict) -> bool:
             )
         ):
             return True
-        if (
-            left_title == right_title
-            and _citywide_title_family(left.get("title", ""))
-            == _citywide_title_family(right.get("title", ""))
-            != ""
-        ):
-            return True
+        left_citywide_family = _citywide_title_family(left.get("title", ""))
+        right_citywide_family = _citywide_title_family(right.get("title", ""))
+        if left_title == right_title and left_citywide_family == right_citywide_family:
+            left_alias_family = _citywide_venue_alias_family(
+                left, left_citywide_family
+            )
+            right_alias_family = _citywide_venue_alias_family(
+                right, right_citywide_family
+            )
+            if left_alias_family is not None and left_alias_family == right_alias_family:
+                return True
         if not left_venue or not right_venue:
             return True
         if (
@@ -431,6 +466,9 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
             if field == "price":
                 updates["admission_basis"] = duplicate.get("admission_basis", "")
                 updates["admission"] = duplicate.get("admission")
+            elif winner_venue_is_implausible:
+                for location_field in _VENUE_LOCATION_FIELDS:
+                    updates[location_field] = duplicate.get(location_field)
 
     if (
         winner.get("price")

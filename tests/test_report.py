@@ -15,10 +15,28 @@ class ReportTests(unittest.TestCase):
         deduped = report.deduplicate([
             {
                 **base, "venue": "Kulturzentrum Brotfabrik Bonn", "source": "Bonn.jetzt",
+                "venue_id": "kulturzentrum-brotfabrik",
+                "venue_address": "Kreuzstraße 16, 53225 Bonn",
+                "venue_district": "Bonn-Beuel",
+                "venue_type": "cultural_center",
+                "venue_latitude": 50.74091,
+                "venue_longitude": 7.12369,
+                "distance_km": 2.1,
+                "location_confidence": "exact",
+                "location_source": "venue_registry",
                 "link": "https://bonn.jetzt/event/digital-independence-day-1",
             },
             {
                 **base, "venue": "g", "source": "Brotfabrik Bonn", "score": 1.1,
+                "venue_id": "",
+                "venue_address": "",
+                "venue_district": "",
+                "venue_type": "",
+                "venue_latitude": None,
+                "venue_longitude": None,
+                "distance_km": 0,
+                "location_confidence": "known_city",
+                "location_source": "configured_city",
                 "link": "https://klimaviertel-beuel.de/termine/",
             },
         ])
@@ -26,6 +44,15 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["source"], "Brotfabrik Bonn")
         self.assertEqual(deduped[0]["venue"], "Kulturzentrum Brotfabrik Bonn")
+        self.assertEqual(deduped[0]["venue_id"], "kulturzentrum-brotfabrik")
+        self.assertEqual(deduped[0]["venue_address"], "Kreuzstraße 16, 53225 Bonn")
+        self.assertEqual(deduped[0]["venue_district"], "Bonn-Beuel")
+        self.assertEqual(deduped[0]["venue_type"], "cultural_center")
+        self.assertEqual(deduped[0]["venue_latitude"], 50.74091)
+        self.assertEqual(deduped[0]["venue_longitude"], 7.12369)
+        self.assertEqual(deduped[0]["distance_km"], 2.1)
+        self.assertEqual(deduped[0]["location_confidence"], "exact")
+        self.assertEqual(deduped[0]["location_source"], "venue_registry")
 
     def test_citywide_street_food_festival_collapses_broad_venue_aliases(self):
         base = {
@@ -54,6 +81,27 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(len(deduped), 2)
         multi_day = next(event for event in deduped if event["start_date"] == "2026-08-28")
         self.assertEqual(multi_day["source"], "Bad Godesberg Stadtmarketing")
+
+    def test_citywide_title_does_not_override_distinct_concrete_venues(self):
+        base = {
+            "title": "Street Food Festival", "date": "2026-08-28",
+            "start_date": "2026-08-28", "end_date": "2026-08-30",
+            "city": "Bonn", "category_key": "food", "description": "",
+            "price": "", "time": "", "score": 1.0,
+        }
+
+        deduped = report.deduplicate([
+            {
+                **base, "venue": "Rheinaue", "source": "Veranstalter Nord",
+                "link": "https://north.test/street-food",
+            },
+            {
+                **base, "venue": "Telekom Dome", "source": "Veranstalter Süd",
+                "link": "https://south.test/street-food",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 2)
 
     def test_civic_market_absorbs_directory_title_variant_at_same_venue(self):
         base = {
