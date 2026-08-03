@@ -210,7 +210,7 @@ class OpenIssueContractTests(unittest.TestCase):
         fixture = json.loads(path.read_text(encoding="utf-8"))
         specs = load_source_specs(path)
         self.assertEqual(fixture["schema_version"], 1)
-        self.assertEqual(len(specs), 81)
+        self.assertEqual(len(specs), 82)
         self.assertGreaterEqual(len(specs), 40)
         self.assertTrue(all(spec.region for spec in specs))
         self.assertTrue(all(isinstance(spec.adapter, AdapterType) for spec in specs))
@@ -238,6 +238,27 @@ class OpenIssueContractTests(unittest.TestCase):
         )):
             [parsed] = adapter_for(html)()
         self.assertEqual(parsed["title"], "Sommerfest")
+
+        cards = SourceSpec(
+            "cards-rich", "Cards Rich", ("https://example.test/events/",), AdapterType.HTML,
+            "Bonn", category_hint="concert", selectors=(
+                ("item", r"(<article>.*?</article>)"),
+                ("title", r"<h2>(.*?)</h2>"),
+                ("date", r"<time>(.*?)</time>"),
+                ("time", r"<span class='time'>(.*?)</span>"),
+                ("link", r"href='(.*?)'"),
+                ("venue", r"<address>(.*?)</address>"),
+            ),
+        )
+        with mock.patch("nrw_events.source_specs.common.fetch_url", return_value=(
+            "<article><h2>Abendkonzert</h2><time>15.08.2026</time>"
+            "<span class='time'>19:30</span><a href='detail'>Mehr</a>"
+            "<address>Rheinaue</address><p>Live-Musik.</p></article>"
+        )):
+            [rich] = adapter_for(cards)()
+        self.assertEqual(rich["time"], "19:30")
+        self.assertEqual(rich["venue"], "Rheinaue")
+        self.assertEqual(rich["link"], "https://example.test/events/detail")
 
         detail = SourceSpec(
             "detail", "Detail", ("https://example.test/index",), AdapterType.JSON_LD,

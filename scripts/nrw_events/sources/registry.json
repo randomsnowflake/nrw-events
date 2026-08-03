@@ -413,6 +413,26 @@
       "callable": "nrw_events.sources.regional_feeds:fetch"
     },
     {
+      "id": "swisttal",
+      "display_name": "Swisttal",
+      "region": "bonn-region",
+      "adapter": "html",
+      "urls": [
+        "https://www.swisttal.de/veranstaltungen/"
+      ],
+      "city": "Swisttal",
+      "category_hint": "swisttal lokal markt kultur konzert fest",
+      "trust": 0.86,
+      "timeout": 25,
+      "selectors": [
+        ["item", "(<article class=\"event-template.*?</article>)"],
+        ["date", "<time[^>]+datetime=\"([^\"]+)\""],
+        ["title", "class=\"post-title\"[^>]*>(.*?)</a>"],
+        ["link", "class=\"post-title\"[^>]+href=\"([^\"]+)\""],
+        ["venue", "class=\"host-location\">\\s*(.*?)\\s*</div>"]
+      ]
+    },
+    {
       "id": "regional-html-calendars",
       "display_name": "Regional HTML calendars",
       "region": "bonn-region",

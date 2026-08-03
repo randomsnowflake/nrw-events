@@ -15,11 +15,6 @@ _LOHMAR_CALENDAR_URL = urllib.parse.urljoin(
 
 def fetch() -> list:
     events = []
-    events.extend(rc.fetch_html_events(
-        "Swisttal",
-        "https://www.swisttal.de/veranstaltungen/",
-        _events_from_swisttal,
-    ))
     events.extend(_fetch_alfter())
     events.extend(rc.fetch_html_events(
         "Lohmar",
@@ -175,32 +170,6 @@ def _lohmar_fallback_description(title: str, time_text: str, venue: str) -> str:
     if venue:
         details += f" am Veranstaltungsort „{venue}“"
     return f"„{title}“ ist im Lohmarer Veranstaltungskalender{details} angekündigt."
-
-
-def _events_from_swisttal(html: str) -> list:
-    events = []
-    for block in re.findall(r'<article class="event-template.*?</article>', html, re.S | re.I):
-        date = re.search(r'<time[^>]+datetime="([^"]+)"', block, re.S | re.I)
-        title = re.search(r'class="post-title"[^>]*>(.*?)</a>', block, re.S | re.I)
-        href = re.search(r'class="post-title"[^>]+href="([^"]+)"', block, re.S | re.I)
-        venue = re.search(r'class="host-location">\s*(.*?)\s*</div>', block, re.S | re.I)
-        if not (date and title):
-            continue
-        ev = common.make_event(
-            rc.clean(title.group(1)),
-            common.parse_date(date.group(1)),
-            None,
-            rc.clean(venue.group(1) if venue else ""),
-            "Swisttal",
-            rc.clean(block),
-            href.group(1) if href else "https://www.swisttal.de/veranstaltungen/",
-            "Swisttal",
-            "swisttal lokal markt kultur konzert fest",
-            0.86,
-        )
-        if ev:
-            events.append(ev)
-    return events
 
 
 def _events_from_bornheim(html: str) -> list:
