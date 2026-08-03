@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common
+from nrw_events import common, normalization
 from nrw_events.sources import SOURCES, bonn_districts
 
 
@@ -102,6 +102,12 @@ class BrueserBergSourceTests(unittest.TestCase):
         self.assertIsNotNone(coordinates)
         self.assertEqual(confidence, "known_city")
         self.assertEqual(source, "configured_city")
+
+    def test_neighborhood_centre_has_verified_venue_identity(self):
+        venue = normalization.resolve_venue("NBB", "Bonn-Brüser Berg")
+        self.assertEqual(venue.venue_id, "bonn-nachbarschaftszentrum-brueser-berg")
+        self.assertEqual(venue.venue_address, "Fahrenheitstraße 49, 53125 Bonn")
+        self.assertEqual(venue.venue_district, "Bonn-Brüser Berg")
 
 
 if __name__ == "__main__":

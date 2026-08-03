@@ -132,6 +132,7 @@ VENUE_REGISTRY: tuple[VenueRecord, ...] = (
     _venue("rheinaue-bonn", "Rheinaue", "Freizeitpark Rheinaue", city="Bonn", venue_type="park", coordinates=(50.7106, 7.1283)),
     _venue("haus-der-jugend-bonn", "Haus der Jugend", city="Bonn", venue_type="cultural_center", address="Reuterstraße 100, 53129 Bonn"),
     _venue("kulturzentrum-hardtberg", "Kulturzentrum Hardtberg", "Hardtberger Kulturzentrum", "Kulturzentrum Hardtberg e.v.", city="Bonn", district="Bonn-Hardtberg", venue_type="cultural_center"),
+    _venue("bonn-nachbarschaftszentrum-brueser-berg", "Nachbarschaftszentrum Brüser Berg", "NBB", "NBB Nachbarschaftszentrum Brüser Berg", "Ortsteilzentrum Brüser Berg", city="Bonn", district="Bonn-Brüser Berg", venue_type="cultural_center", address="Fahrenheitstraße 49, 53125 Bonn", coordinates=(50.697645, 7.057573)),
     _venue("museum-august-macke-haus", "Museum August Macke Haus", city="Bonn", venue_type="museum"),
     _venue("rhein-sieg-forum", "RHEIN SIEG FORUM", city="Siegburg", venue_type="event_venue"),
     _venue("stadthalle-remagen", "Stadthalle Remagen", city="Remagen", venue_type="event_venue"),
