@@ -1,0 +1,14 @@
+{
+  "sources": {
+    "uni-bonn": [
+      {
+        "url": "https://www.uni-bonn.de/de/veranstaltungen?ical_download=1",
+        "path": "uni-bonn/calendar.ics"
+      },
+      {
+        "url": "https://www.uni-bonn.de/de/veranstaltungen/sommerkonzert-internationaler-chor-1",
+        "path": "uni-bonn/choir-detail.html"
+      }
+    ]
+  }
+}

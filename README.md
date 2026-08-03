@@ -565,6 +565,27 @@ liegen unter `https://www.meetup.com/<slug>/events/ical/`.
   `failed` bleibt für Läufe ohne veröffentlichbare Events oder
   Infrastruktur-/Konfigurationsfehler reserviert.
 
+Der lokale Canary ruft die öffentlichen Quellen live ab und vergleicht ihre
+Rohzählungen mit dem letzten gesunden Metadaten-Snapshot. Er schreibt bei
+`degraded`, `failed`, `parser_empty` oder einer Baseline-Anomalie einen
+Markdown-Bericht und beendet sich mit Status 1. GitHub Actions sind für dieses
+Repository deaktiviert; der Canary wird daher bewusst lokal oder über einen
+eigenen Scheduler ausgeführt:
+
+```bash
+bash scripts/run_canary.sh
+# optionales persistentes Zustandsverzeichnis
+bash scripts/run_canary.sh /pfad/zum/canary-state
+```
+
+Parser-Fixtures lassen sich ausschließlich für die in
+`tests/fixtures/manifest.json` allowlisteten URLs aktualisieren:
+
+```bash
+python scripts/refresh_fixtures.py --source uni-bonn
+python scripts/refresh_fixtures.py --source uni-bonn --dry-run
+```
+
 Standardmäßig wird die vollständige Liste ausgegeben. Gekürzt wird nur, wenn
 `NRW_EVENTS_MAX_PER_SECTION` explizit gesetzt wird.
 
