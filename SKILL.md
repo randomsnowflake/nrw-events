@@ -63,27 +63,201 @@ that bigger feeds miss. Scores by distance (Bonn=1.0, Königswinter≈0.9,
 Ahrweiler≈0.74, Köln=0.7, Düsseldorf=0.4) × category preference
 (electronic/techno=1.8x, wine/winery/wine-walk=1.4–1.55x, hiking/guided
 walks/Drachenfels/Siebengebirge=1.3–1.45x, architecture=1.6x, concerts=1.5x,
-exhibitions=1.4x, kids-only=0.2x). Output: markdown report grouped by category +
+exhibitions=1.4x, kids-only=0.25x). Output: markdown report grouped by category +
 JSON event list plus metadata defaulting to the user's XDG state directory
 (`~/.local/state/nrw-events` when `XDG_STATE_HOME` is unset).
 
+### Registered sources
+
+<!-- BEGIN GENERATED SOURCES -->
+| Region | Quelle | ID | Adapter |
+|---|---|---|---|
+| bonn-region | AfterJobParty Bonn | `afterjobparty-bonn` | `python` |
+| bonn-region | Bad Godesberg Stadtmarketing | `bad-godesberg-stadtmarketing` | `python` |
+| bonn-region | Beuel.net | `beuel-net` | `python` |
+| bonn-region | BFF Bonner Schifffahrt | `bff-bonner-schifffahrt` | `python` |
+| bonn-region | Biertasting Bonn | `biertasting-bonn` | `python` |
+| bonn-region | Bonn district festivals | `bonn-district-festivals` | `python` |
+| bonn-region | Bonn venue calendars | `bonn-venue-calendars` | `python` |
+| bonn-region | Bonn.de Events | `bonn-de-events` | `python` |
+| bonn-region | Bonn.de Sports | `bonn-de-sports` | `python` |
+| bonn-region | Bonn.jetzt | `bonn-jetzt` | `python` |
+| bonn-region | Bonner Weihnachtsmarkt | `bonner-weihnachtsmarkt` | `python` |
+| bonn-region | BSV Roleber | `bsv-roleber` | `python` |
+| bonn-region | Bundeskunsthalle | `bundeskunsthalle` | `python` |
+| bonn-region | BV Holzlar | `bv-holzlar` | `python` |
+| bonn-region | Bürgerverein Vilich-Müldorf | `b-rgerverein-vilich-m-ldorf` | `python` |
+| bonn-region | Choco Dealer | `choco-dealer` | `python` |
+| bonn-region | Craftquelle Bonn | `craftquelle-bonn` | `python` |
+| bonn-region | Curated cinema specials | `curated-cinema-specials` | `python` |
+| bonn-region | Cölln Antik&Design | `c-lln-antik-design` | `python` |
+| bonn-region | Cölln Konzept | `c-lln-konzept` | `python` |
+| bonn-region | Deskline regional | `deskline-regional` | `python` |
+| bonn-region | Deutsches Museum Bonn | `deutsches-museum-bonn` | `python` |
+| bonn-region | Exa Search | `exa-search` | `python` |
+| bonn-region | Geide Märkte | `geide-m-rkte` | `python` |
+| bonn-region | Grok Search | `grok-search` | `python` |
+| bonn-region | Grote & Hiller | `grote-hiller` | `python` |
+| bonn-region | Hardtberg Kultur | `hardtberg-kultur` | `python` |
+| bonn-region | Harmonie Bonn | `harmonie-bonn` | `python` |
+| bonn-region | Haus der Geschichte | `haus-der-geschichte` | `python` |
+| bonn-region | Haus der Geschichte Begleitungen | `haus-der-geschichte-begleitungen` | `python` |
+| bonn-region | Hennef | `hennef` | `json_ld` |
+| bonn-region | HofFloh Bonn | `hoffloh-bonn` | `python` |
+| bonn-region | Hofflohmärkte Köln | `hofflohm-rkte-k-ln` | `python` |
+| bonn-region | ionas4 regional | `ionas4-regional` | `python` |
+| bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
+| bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
+| bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
+| bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
+| bonn-region | Krewelshof Kindersachen-Flohmarkt | `krewelshof-kindersachen-flohmarkt` | `python` |
+| bonn-region | Köln Open Data | `k-ln-open-data` | `python` |
+| bonn-region | Königswinter | `k-nigswinter` | `python` |
+| bonn-region | Lampert Märkte | `lampert-m-rkte` | `python` |
+| bonn-region | Literaturhaus Bonn | `literaturhaus-bonn` | `python` |
+| bonn-region | Ludwig's Bonn | `ludwig-s-bonn` | `python` |
+| bonn-region | marktcom | `marktcom` | `python` |
+| bonn-region | Meckenheim | `meckenheim` | `python` |
+| bonn-region | Meetup | `meetup` | `python` |
+| bonn-region | Melan Märkte | `melan-m-rkte` | `python` |
+| bonn-region | Much | `much` | `python` |
+| bonn-region | Municipal MEC markets | `municipal-mec-markets` | `python` |
+| bonn-region | Museum Koenig Bonn | `museum-koenig-bonn` | `python` |
+| bonn-region | Naturregion Sieg | `naturregion-sieg` | `python` |
+| bonn-region | Okken Märkte | `okken-m-rkte` | `python` |
+| bonn-region | Parkbuchhandlung | `parkbuchhandlung` | `python` |
+| bonn-region | Radio Bonn/Rhein-Sieg | `radio-bonn-rhein-sieg` | `python` |
+| bonn-region | Redüttchen | `red-ttchen` | `python` |
+| bonn-region | Regional HTML calendars | `regional-html-calendars` | `python` |
+| bonn-region | Regional venues | `regional-venues` | `python` |
+| bonn-region | Requested venue calendars | `requested-venue-calendars` | `python` |
+| bonn-region | Rhein Antik | `rhein-antik` | `python` |
+| bonn-region | Rheinauen-Flohmarkt | `rheinauen-flohmarkt` | `python` |
+| bonn-region | Rheinbach Flohmarkt | `rheinbach-flohmarkt` | `python` |
+| bonn-region | RheinEvents | `rheinevents` | `python` |
+| bonn-region | Ruhr-Guide | `ruhr-guide` | `python` |
+| bonn-region | Salsa in Bonn | `salsa-in-bonn` | `python` |
+| bonn-region | Siegburg | `siegburg` | `python` |
+| bonn-region | SiteKit regional | `sitekit-regional` | `python` |
+| bonn-region | Standard regional feeds | `standard-regional-feeds` | `python` |
+| bonn-region | Street Food Bonn | `street-food-bonn` | `python` |
+| bonn-region | Street Food Festival Original | `street-food-festival-original` | `python` |
+| bonn-region | Tanzschule Max7 | `tanzschule-max7` | `python` |
+| bonn-region | Theater Bonn | `theater-bonn` | `python` |
+| bonn-region | Theater im Ballsaal | `theater-im-ballsaal` | `python` |
+| bonn-region | Theater Marabu | `theater-marabu` | `python` |
+| bonn-region | TiK Theater im Keller | `tik-theater-im-keller` | `python` |
+| bonn-region | Troisdorf | `troisdorf` | `ical` |
+| bonn-region | Universität Bonn | `uni-bonn` | `python` |
+| bonn-region | vomFASS Bonn | `vomfass-bonn` | `python` |
+| bonn-region | VVS Siebengebirge | `vvs-siebengebirge` | `python` |
+| bonn-region | Wachtberg | `wachtberg` | `ical` |
+| bonn-region | Waldbröl | `waldbroel` | `ical` |
+<!-- END GENERATED SOURCES -->
+
 ## Architecture (one file per source)
 
-The script is a small package, not a monolith. To understand or change a source,
-open just its file:
+The full module inventory is generated from the package. Responsibilities and
+dependency direction are documented in `docs/ARCHITECTURE.md`.
 
-```
+<!-- BEGIN GENERATED MODULES -->
+```text
 scripts/nrw_events/
-  config.py    — geography, category weights, venue coords, Meetup group list
-  models.py    — typed event contract shared by sources and the pipeline
-  location.py / scoring.py — reusable geographic resolution and ranking
-  source_types.py — source and parser interfaces
-  common.py    — HTTP, parsing, detail-cache, and quality facade
-  report.py    — dedup + Markdown rendering
-  runner.py    — orchestration (fan-out, filter, dedup, output)
-  sources/     — one module per source, each a fetch() -> list[dict]
-    __init__.py  — SOURCES registry (display name -> fetch function)
+  __init__.py
+  category_taxonomy.py
+  common.py
+  config.py
+  core.py
+  dates.py
+  detail_enrichment.py
+  event_builder.py
+  health.py
+  highlights.py
+  http.py
+  ical.py
+  identity.py
+  jsonld.py
+  location.py
+  models.py
+  normalization.py
+  observability.py
+  quality.py
+  report.py
+  richtext.py
+  runner.py
+  runtime.py
+  scoring.py
+  series.py
+  source_specs.py
+  source_types.py
+  text.py
+  title_normalization.py
+  validation.py
+  sources/
+    registry.json
+    __init__.py
+    afterjobparty.py
+    bonn.py
+    bonn_districts.py
+    bonn_food.py
+    bonn_literature.py
+    bonn_venues.py
+    bonner_weihnachtsmarkt.py
+    bonnjetzt.py
+    bundeskunsthalle.py
+    cinema_specials.py
+    coelln_antik_design.py
+    coelln_konzept.py
+    deutsches_museum_bonn.py
+    flohmarkt.py
+    geide.py
+    grote_hiller.py
+    harmonie.py
+    haus_der_geschichte.py
+    hoffloh_bonn.py
+    hofflohmaerkte.py
+    junges_theater_bonn.py
+    katharinenhof.py
+    kinderflohmarkt.py
+    kleines_theater.py
+    koeln.py
+    koenigswinter.py
+    krewelshof.py
+    lampert.py
+    marktcom.py
+    max7.py
+    mec_municipal.py
+    meckenheim.py
+    meetup.py
+    melan.py
+    much.py
+    museum_koenig.py
+    naturregion_sieg.py
+    okken.py
+    radiobonn.py
+    regional_common.py
+    regional_feeds.py
+    regional_html.py
+    regional_ionas4.py
+    regional_sitekit.py
+    regional_tourism.py
+    regional_venues.py
+    requested_venues.py
+    rhein_antik.py
+    rheinbach_flohmarkt.py
+    rheinevents.py
+    ruhrguide.py
+    salsainbonn.py
+    search.py
+    siebengebirge.py
+    siegburg.py
+    theater_bonn.py
+    theater_im_ballsaal.py
+    theater_marabu.py
+    tik_bonn.py
+    uni_bonn.py
 ```
+<!-- END GENERATED MODULES -->
 
 To add a standard iCal or JSON-LD source, add one typed `SourceSpec` plus a
 fixture/contract test. Add a dedicated `fetch()` module only for proprietary
