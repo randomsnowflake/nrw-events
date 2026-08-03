@@ -7,7 +7,7 @@ import re
 import urllib.parse
 from typing import Any
 
-from . import category_taxonomy, common, richtext
+from . import ai_enrichment, category_taxonomy, common, richtext
 from .models import CanonicalEvent, RawEvent, normalize_source_id
 from .normalization import canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
@@ -18,11 +18,22 @@ class EventValidationError(ValueError):
     """A source record could not be safely published."""
 
 
+_MARKTCOM_SELLER_FEE = re.compile(
+    r"\b(?:standgebühr|standpreis|lfdm|laufend(?:er|en)?\s+(?:front)?meter|reinigungskaution|"
+    r"verkäufergebühr|händlergebühr)\b",
+    re.IGNORECASE,
+)
+_VISITOR_ADMISSION = re.compile(
+    r"\b(?:besucher(?:eintritt|preis)|eintritt(?:spreis)?|ticket(?:preis)?)\b",
+    re.IGNORECASE,
+)
+
+
 def _requires_master_data_only(event: dict[str, Any]) -> bool:
     source_id = str(event.get("source_id") or "").casefold()
     source = str(event.get("source") or "").casefold()
     return (
-        source_id in {"marktcom", "ruhr-guide", "beuel-net", "meetup"}
+        source_id in {"ruhr-guide", "beuel-net", "meetup"}
         or source_id.startswith("meetup-")
         or source in {"marktcom", "meetup", "ruhr-guide", "beuel.net"}
     )
@@ -85,9 +96,19 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         _text(event, "source_id", 200) or event["source"]
     )
     inferred_description_source = common.description_source_for(event.get("description", ""))
-    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000),
+    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    # marktcom descriptions mix seller logistics with visitor information.
+    # A stall fee is explicit, but it is not an admission price and must never
+    # drive the visitor-facing price badge — including in retained snapshots.
+    if (
+        event["source_id"] == "marktcom"
+        and _MARKTCOM_SELLER_FEE.search(event["price"])
+        and not _VISITOR_ADMISSION.search(event["price"])
+    ):
+        event["price"] = ""
+        event["admission_basis"] = ""
     # Re-built from the allowed vocabulary at the canonical boundary, so a
     # source that sets this field directly cannot smuggle markup past it, and
     # discarded outright when it no longer renders the description it belongs to.
@@ -272,6 +293,8 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     # the adapters so historical prose can never be republished.
     if _requires_master_data_only(event):
         common.keep_only_event_master_data(event)
+    if ai_enrichment.is_target_event(event):
+        ai_enrichment.strip_restricted_copy(event)
     return CanonicalEvent(**{
         field: event.get(field, definition.default)
         for field, definition in CanonicalEvent.__dataclass_fields__.items()

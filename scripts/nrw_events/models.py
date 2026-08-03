@@ -48,6 +48,7 @@ class RawEvent(TypedDict, total=False):
     description: str
     description_html: str
     description_source: str
+    ai_summary: str
     price: str
     admission_basis: str
     admission: dict[str, Any]
@@ -148,6 +149,7 @@ class CanonicalEvent(Mapping[str, Any]):
     """The same copy as the allowed HTML subset; see ``richtext``."""
     description_html: str = ""
     description_source: str = "scraped"
+    ai_summary: str = ""
     price: str = ""
     admission_basis: str = ""
     admission: dict[str, Any] = field(default_factory=_empty_admission)

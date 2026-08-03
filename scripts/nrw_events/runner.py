@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import common, config, detail_enrichment, highlights as highlight_selection, report, series as series_entities
+from . import ai_enrichment, common, config, detail_enrichment, highlights as highlight_selection, report, series as series_entities
 from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .identity import assign_event_ids, content_hash, event_id
@@ -149,6 +149,9 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
                 events,
                 cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
             )
+        # Restricted source prose is used only as private AI input. The helper
+        # always removes it, even when AI is disabled, unavailable or fails.
+        events = ai_enrichment.enrich_events(events)
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         result.finish(events)
         explicit_parser_empty = any(

@@ -223,7 +223,9 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
         if event:
             if organizer:
                 event["organizer"] = organizer
-            events.append(common.keep_only_event_master_data(event))
+            # Keep source prose private until the common AI extraction pass.
+            # The canonical boundary guarantees it can never be published.
+            events.append(event)
     return events
 
 

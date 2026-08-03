@@ -67,6 +67,15 @@ exhibitions=1.4x, kids-only=0.25x). Output: markdown report grouped by category 
 JSON event list plus metadata defaulting to the user's XDG state directory
 (`~/.local/state/nrw-events` when `XDG_STATE_HOME` is unset).
 
+For the restricted sources Bonn.de Events/Sports, marktcom and Radio
+Bonn/Rhein-Sieg, source prose is never published. With `OPENAI_API_KEY` and
+`NRW_EVENTS_AI_ENRICHMENT=1`, two separate `gpt-5.6-luna` Responses API calls
+extract facts and then write `ai_summary`; otherwise the summary stays empty.
+The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
+`NRW_EVENTS_CACHE_DIR`, `NRW_EVENTS_AI_MAX_ATTEMPTS`,
+`NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS`, `NRW_EVENTS_AI_TIMEOUT_SECONDS`,
+`NRW_EVENTS_AI_MAX_EVENTS`, and `NRW_EVENTS_AI_MODEL`.
+
 ### Registered sources
 
 <!-- BEGIN GENERATED SOURCES -->
@@ -166,6 +175,7 @@ dependency direction are documented in `docs/ARCHITECTURE.md`.
 ```text
 scripts/nrw_events/
   __init__.py
+  ai_enrichment.py
   category_taxonomy.py
   common.py
   config.py

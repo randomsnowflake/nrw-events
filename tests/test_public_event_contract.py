@@ -18,7 +18,7 @@ from nrw_events.runtime import EventWindow, RunContext
 #: or renaming one is a breaking change for a published URL.
 PUBLIC_EVENT_FIELDS = frozenset({
     "event_id",
-    "title", "description", "link",
+    "title", "description", "ai_summary", "link",
     "date", "start_date", "end_date", "start_at", "end_at",
     "time", "time_note", "all_day", "ongoing", "timezone", "status",
     "venue", "venue_id", "venue_address", "venue_district", "venue_type",

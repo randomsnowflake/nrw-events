@@ -12,6 +12,7 @@ from unittest import mock
 from nrw_events import common, report
 from nrw_events.health import SourceResult, SourceStatus
 from nrw_events.sources import SOURCES, marktcom
+from nrw_events.validation import validate_event
 from tests.helpers import patch_window
 
 
@@ -176,11 +177,14 @@ class MarktcomSourceTests(unittest.TestCase):
             with self.subTest(title=event["title"]):
                 self.assertNotIn("Beschreibung des Marktes", event["title"])
 
-    def test_directory_copy_is_reduced_to_master_data(self):
+    def test_directory_copy_is_retained_only_until_the_common_ai_boundary(self):
         event = next(e for e in self._events() if e["city"] == "Köln")
 
-        self.assertNotIn("Beschreibung des Marktes", event["description"])
-        self.assertEqual(event["description_source"], "generated")
+        self.assertIn("Beschreibung des Marktes", event["description"])
+        published = validate_event(event).to_dict()
+        self.assertEqual("", published["description"])
+        self.assertEqual("", published["description_html"])
+        self.assertEqual("", published["ai_summary"])
         self.assertEqual(event["organizer"], "Trödelfabrik Köln")
 
     def test_free_by_nature_market_format_marks_venue_named_event_free(self):
@@ -233,6 +237,25 @@ class MarktcomSourceTests(unittest.TestCase):
 
         self.assertEqual(event["price"], "kostenlos")
         self.assertEqual(event["admission_basis"], "implicit")
+
+    def test_canonical_boundary_never_treats_a_stall_fee_as_visitor_admission(self):
+        html = _listing(_event_block(
+            "indoor-market-in-53121-bonn",
+            "Halle am Park",
+            "53121",
+            "Bonn",
+            "Veranstalter",
+            "08.08.2026",
+            34,
+            "Standgebühr: 9 Euro pro laufendem Meter plus 5 Euro Reinigungskaution.",
+        ))
+
+        [event] = marktcom.events_from_listing(html, 34)
+        event["price"] = "Standgebühr: 9 Euro pro laufendem Meter"
+        published = validate_event(event)
+
+        self.assertEqual("", published.price)
+        self.assertIsNone(published.admission["isFree"])
 
     def test_ticketed_market_formats_do_not_get_the_default(self):
         for category_id in (14, 34, 47):
