@@ -64,13 +64,55 @@ def _next_yearless_occurrence(day: int, month: int, reference_date: datetime) ->
     return None
 
 
+def _range_start(text: str) -> str:
+    """Return a range's start while inheriting missing month/year context."""
+    parts = re.split(r"\s*(?:[–—]|\bbis(?:\s+zum)?\b|\s-\s)\s*", text, maxsplit=1, flags=re.I)
+    if len(parts) == 1:
+        return text
+    start, end = (part.strip() for part in parts)
+    year_match = re.search(r"\b(20\d{2})\b", end)
+    year = int(year_match.group(1)) if year_match else None
+    numeric_end_month = re.search(r"\b\d{1,2}\.(\d{1,2})\.?(?:20\d{2})?\b", end)
+    word_end_month = re.search(r"\b([A-Za-zäöüÄÖÜ]+)\b", end)
+    end_month = int(numeric_end_month.group(1)) if numeric_end_month else None
+    if end_month is None and word_end_month:
+        key = word_end_month.group(1).lower().rstrip(".")
+        end_month = MONTH_DE.get(key) or MONTH_EN.get(key)
+
+    def inherited_year(start_month: int | None) -> str:
+        if year is None:
+            return ""
+        return str(year - 1 if start_month and end_month and start_month > end_month else year)
+
+    if re.fullmatch(r"\d{1,2}\.\d{1,2}\.?", start) and year:
+        start_month = int(re.search(r"\.(\d{1,2})", start).group(1))
+        separator = "" if start.endswith(".") else "."
+        return f"{start}{separator}{inherited_year(start_month)}"
+    if re.fullmatch(r"\d{1,2}\.?", start):
+        if end_month:
+            day = start.rstrip(".")
+            suffix = inherited_year(end_month)
+            return f"{day}.{end_month:02d}.{suffix}".rstrip(".")
+    if year and not re.search(r"\b20\d{2}\b", start):
+        word_start_month = re.search(r"\b([A-Za-zäöüÄÖÜ]+)\b", start)
+        start_month = None
+        if word_start_month:
+            key = word_start_month.group(1).lower().rstrip(".")
+            start_month = MONTH_DE.get(key) or MONTH_EN.get(key)
+        return f"{start} {inherited_year(start_month)}"
+    return start
+
+
 def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optional[datetime]:
     """Parse common ISO, numeric, English, and German event dates."""
     text = (text or "").strip()
     if not text:
         return None
-    text = re.split(r"\s*(?:–|\bbis\b)\s*", text, maxsplit=1)[0].strip()
-    text = re.sub(r"^(?:mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\.?,?\s*", "", text, flags=re.I)
+    text = re.sub(
+        r"^(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|mo|di|mi|do|fr|sa|so)\b\.?,?\s*",
+        "", text, flags=re.I,
+    )
+    text = _range_start(text)
     if "," in text:
         try:
             parsed = parsedate_to_datetime(text)
@@ -84,7 +126,7 @@ def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optio
             return _local_naive(datetime.strptime(candidate, fmt))
         except (ValueError, IndexError):
             continue
-    match = re.search(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
+    match = re.match(r"(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
     if match:
         try:
             day, month, year = map(int, match.groups())
