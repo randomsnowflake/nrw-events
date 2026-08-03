@@ -168,7 +168,7 @@ class OpenIssueContractTests(unittest.TestCase):
         ledger = {"schema_version": 1, "series": {"leap-day": {
             "series_id": "leap-day", "title": "Schalttag-Reihe", "venue": "Haus",
             "canonical_venue_id": "haus", "city": "Bonn", "category_key": "talk",
-            "first_seen": "2016-02-29T00:00:00", "last_seen": "2020-02-29T00:00:00",
+            "first_seen": "2016-02-29T00:00:00", "last_seen": "2025-01-01T00:00:00",
             "occurrences": {"a": "2016-02-29", "b": "2020-02-29"},
             "announced_dates": [],
         }}}
@@ -232,13 +232,71 @@ class OpenIssueContractTests(unittest.TestCase):
         old = {"schema_version": 1, "series": {"old-series": {
             "series_id": "old-series", "title": "Befristete Lesereihe", "venue": "Haus",
             "canonical_venue_id": "haus", "city": "Bonn", "category_key": "talk",
-            "first_seen": "2024-01-01T00:00:00", "last_seen": "2024-02-01T00:00:00",
+            "first_seen": "2024-01-01T00:00:00", "last_seen": "2025-06-01T00:00:00",
             "occurrences": {"a": "2024-01-07", "b": "2024-02-04"}, "announced_dates": [],
         }}}
         _, [concluded], _ = series.enrich_events(
             [], old, today=date(2026, 5, 1), generated_at="2026-05-01T00:00:00",
         )
         self.assertEqual(concluded["series_state"], "concluded")
+
+    def test_series_ledger_prunes_stale_rows_and_ignores_category_in_identity(self):
+        stale = raw_event("Monatsmarkt", "2024-01-01", venue="Marktplatz", venue_id="market")
+        old_key = series._identifier(("market", series._stem("Monatsmarkt")))
+        ledger = {"schema_version": 1, "series": {old_key: {
+            "series_id": old_key, "title": "Monatsmarkt", "venue": "Marktplatz",
+            "canonical_venue_id": "market", "city": "Bonn", "category_key": "market",
+            "first_seen": "2024-01-01T00:00:00", "last_seen": "2024-01-01T00:00:00",
+            "occurrences": {"old": stale["start_date"]}, "announced_dates": [],
+        }}}
+
+        current = [
+            raw_event("Lesereihe", "2026-08-02", venue="Haus", venue_id="haus", category_key="talk"),
+            raw_event("Lesereihe", "2026-08-09", venue="Haus", venue_id="haus", category_key="other"),
+        ]
+        rows, _metadata, updated = series.enrich_events(
+            current, ledger, today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
+        )
+
+        self.assertEqual(len({row["series_id"] for row in rows}), 1)
+        self.assertNotIn(old_key, updated["series"])
+
+    def test_category_dependent_legacy_ids_are_migrated_and_merged(self):
+        title = "Lesereihe"
+        venue = "haus"
+        legacy = {}
+        for category, day in (("talk", "2026-07-01"), ("other", "2026-07-08")):
+            legacy_id = series._identifier((venue, series._stem(title))) + "-" + category
+            legacy[legacy_id] = {
+                "series_id": legacy_id, "title": title, "venue": "Haus",
+                "canonical_venue_id": venue, "city": "Bonn", "category_key": category,
+                "first_seen": f"{day}T00:00:00", "last_seen": f"{day}T00:00:00",
+                "occurrences": {category: day}, "announced_dates": [],
+            }
+
+        _, metadata, updated = series.enrich_events(
+            [], {"schema_version": 1, "series": legacy},
+            today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
+        )
+
+        self.assertEqual(len(updated["series"]), 1)
+        self.assertEqual(len(metadata), 1)
+        self.assertEqual(metadata[0]["occurrence_dates"], ["2026-07-01", "2026-07-08"])
+
+    def test_series_fallback_venue_identity_is_scoped_to_city(self):
+        events = [
+            raw_event("Sommerfest", "2026-08-02", venue="Marktplatz", venue_id="", city="Bonn"),
+            raw_event("Sommerfest", "2026-08-09", venue="Marktplatz", venue_id="", city="Bonn"),
+            raw_event("Sommerfest", "2026-08-03", venue="Marktplatz", venue_id="", city="Siegburg"),
+            raw_event("Sommerfest", "2026-08-10", venue="Marktplatz", venue_id="", city="Siegburg"),
+        ]
+
+        rows, _metadata, _updated = series.enrich_events(
+            events, {"schema_version": 1, "series": {}},
+            today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
+        )
+
+        self.assertEqual(len({row["series_id"] for row in rows}), 2)
 
     def test_announced_future_date_is_the_confirmed_next_occurrence(self):
         ledger = {"schema_version": 1, "series": {"market": {
@@ -267,7 +325,7 @@ class OpenIssueContractTests(unittest.TestCase):
                 raw_event("Wintermarkt", "2026-09-01", venue="Marktplatz", venue_id="marktplatz"),
             ],
         )
-        _, [market], updated = series.enrich_events(
+        _, metadata, updated = series.enrich_events(
             [], ledger, today=date(2026, 8, 2), generated_at="2026-08-02T00:00:00",
             announced_events=[
                 raw_event(
@@ -276,10 +334,8 @@ class OpenIssueContractTests(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual(market["series_state"], "concluded")
-        self.assertIsNone(market["next_occurrence"])
-        self.assertEqual(market["announced_dates"], [])
-        self.assertEqual(next(iter(updated["series"].values()))["announced_dates"], [])
+        self.assertEqual(metadata, [])
+        self.assertEqual(updated["series"], {})
 
     def test_highlights_are_reproducible_and_apply_generic_diversity_caps(self):
         events = []
