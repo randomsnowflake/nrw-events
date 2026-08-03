@@ -23,6 +23,8 @@ USER_AGENT = "veranstaltungen-bonn-venue-research/1.0 (https://www.veranstaltung
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 PHOTON_URL = "https://photon.komoot.io/api/"
 MIN_REQUEST_INTERVAL_SECONDS = 1.1
+TRANSIENT_RETRY_ATTEMPTS = 3
+TRANSIENT_RETRY_BASE_SECONDS = 1.1
 
 
 def normalized(value: str) -> str:
@@ -245,6 +247,31 @@ def atomic_write(path: Path, value) -> None:
     temporary.replace(path)
 
 
+def cache_buckets(cache: dict) -> tuple[dict, dict]:
+    """Return successful queries and errors, migrating legacy cached failures."""
+    queries = cache.setdefault("queries", {})
+    errors = cache.setdefault("errors", {})
+    for query, entry in list(queries.items()):
+        if isinstance(entry, dict) and entry.get("error"):
+            errors[query] = {
+                "failedAt": entry.get("fetchedAt"),
+                "error": entry.get("error"),
+            }
+            del queries[query]
+    return queries, errors
+
+
+def fetch_with_backoff(fetcher, query: str):
+    """Retry transient transport failures without turning them into no-results."""
+    for attempt in range(TRANSIENT_RETRY_ATTEMPTS):
+        try:
+            return fetcher(query)
+        except (urllib.error.URLError, TimeoutError):
+            if attempt + 1 >= TRANSIENT_RETRY_ATTEMPTS:
+                raise
+            time.sleep(TRANSIENT_RETRY_BASE_SECONDS * (2 ** attempt))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("audit", type=Path)
@@ -257,8 +284,8 @@ def main() -> int:
     audit = load_json(args.audit, {})
     cache = load_json(args.cache, {"queries": {}})
     photon_cache = load_json(args.photon_cache, {"queries": {}})
-    cached_queries = cache.setdefault("queries", {})
-    cached_photon_queries = photon_cache.setdefault("queries", {})
+    cached_queries, query_errors = cache_buckets(cache)
+    cached_photon_queries, photon_errors = cache_buckets(photon_cache)
     proposals = []
     last_request_at = 0.0
     candidates = [candidate for candidate in audit.get("candidates", []) if candidate.get("classification") == "candidate"][: args.limit]
@@ -272,16 +299,23 @@ def main() -> int:
             if delay > 0:
                 time.sleep(delay)
             try:
-                cached_queries[query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "results": fetch(query)}
+                cached_queries[query] = {
+                    "fetchedAt": datetime.now(timezone.utc).isoformat(),
+                    "results": fetch_with_backoff(fetch, query),
+                }
+                query_errors.pop(query, None)
                 last_request_at = time.monotonic()
             except (urllib.error.URLError, TimeoutError) as error:
-                cached_queries[query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "error": str(error), "results": []}
+                query_errors[query] = {
+                    "failedAt": datetime.now(timezone.utc).isoformat(),
+                    "error": str(error),
+                }
                 last_request_at = time.monotonic()
             atomic_write(args.cache, cache)
 
         ranked = []
         for query in queries:
-            for result in cached_queries[query].get("results", []):
+            for result in cached_queries.get(query, {}).get("results", []):
                 score, reasons = candidate_score(group, result)
                 ranked.append((score, reasons, result, query))
         ranked.sort(key=lambda item: item[0], reverse=True)
@@ -294,13 +328,20 @@ def main() -> int:
                 if delay > 0:
                     time.sleep(delay)
                 try:
-                    cached_photon_queries[photon_query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "results": fetch_photon(photon_query)}
+                    cached_photon_queries[photon_query] = {
+                        "fetchedAt": datetime.now(timezone.utc).isoformat(),
+                        "results": fetch_with_backoff(fetch_photon, photon_query),
+                    }
+                    photon_errors.pop(photon_query, None)
                     last_request_at = time.monotonic()
                 except (urllib.error.URLError, TimeoutError) as error:
-                    cached_photon_queries[photon_query] = {"fetchedAt": datetime.now(timezone.utc).isoformat(), "error": str(error), "results": []}
+                    photon_errors[photon_query] = {
+                        "failedAt": datetime.now(timezone.utc).isoformat(),
+                        "error": str(error),
+                    }
                     last_request_at = time.monotonic()
                 atomic_write(args.photon_cache, photon_cache)
-            for result in cached_photon_queries[photon_query].get("results", []):
+            for result in cached_photon_queries.get(photon_query, {}).get("results", []):
                 score, reasons = candidate_score(group, result)
                 ranked.append((score, reasons, result, photon_query))
             ranked.sort(key=lambda item: item[0], reverse=True)
