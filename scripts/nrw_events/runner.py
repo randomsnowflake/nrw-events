@@ -881,17 +881,27 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     deduped = [*fresh_deduped, *retained_only]
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
-    series_rows, series_metadata, series_ledger = series_entities.enrich_events(
-        (event.to_dict() for event in deduped),
-        series_entities.load_ledger(settings.series_ledger_json),
-        today=context.window.start.date(),
-        generated_at=generated_at,
-        announced_events=(
-            event
-            for result in source_results.values()
-            for event in result.announced_events
-        ),
-    )
+    loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)
+    try:
+        series_rows, series_metadata, series_ledger = series_entities.enrich_events(
+            (event.to_dict() for event in deduped),
+            loaded_series_ledger,
+            today=context.window.start.date(),
+            generated_at=generated_at,
+            announced_events=(
+                event
+                for result in source_results.values()
+                for event in result.announced_events
+            ),
+        )
+    except Exception as exc:
+        log(
+            logger, 40, f"series enrichment failed: {exc}",
+            run_id=run_id, source="series", error_type=type(exc).__name__,
+        )
+        series_rows = [event.to_dict() for event in deduped]
+        series_metadata = []
+        series_ledger = loaded_series_ledger
     deduped = [
         replace(
             event,
