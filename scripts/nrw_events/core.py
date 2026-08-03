@@ -1914,6 +1914,21 @@ def _jsonld_location(loc) -> tuple:
     return venue, city
 
 
+def _jsonld_schema_token(value, allowed: tuple[str, ...]) -> str:
+    """Return a recognized bare or schema.org vocabulary token."""
+    raw = str(value or "").strip().rstrip("/")
+    if raw in allowed:
+        return raw
+    parsed = urllib.parse.urlsplit(raw)
+    if (
+        parsed.scheme in {"http", "https"}
+        and parsed.netloc.casefold() in {"schema.org", "www.schema.org"}
+    ):
+        token = parsed.path.rsplit("/", 1)[-1]
+        return token if token in allowed else ""
+    return ""
+
+
 def _jsonld_entity_names(value, *, max_length: int = 500) -> str:
     """Return bounded schema.org person or organization names in source order."""
     candidates = value if isinstance(value, list) else [value]
@@ -1922,12 +1937,11 @@ def _jsonld_entity_names(value, *, max_length: int = 500) -> str:
         if isinstance(candidate, dict):
             entity_type = candidate.get("@type")
             entity_types = entity_type if isinstance(entity_type, list) else [entity_type]
-            explicit_types = {
-                str(value).rstrip("/").rsplit("/", 1)[-1]
-                for value in entity_types
-                if value
-            }
-            if explicit_types and explicit_types.isdisjoint({"Organization", "Person"}):
+            explicit_types = [value for value in entity_types if value]
+            if explicit_types and not any(
+                _jsonld_schema_token(value, ("Organization", "Person"))
+                for value in explicit_types
+            ):
                 continue
             candidate = candidate.get("name", "")
         if not isinstance(candidate, str):
@@ -1942,7 +1956,7 @@ def _jsonld_entity_names(value, *, max_length: int = 500) -> str:
 
 
 def _apply_jsonld_provenance(
-    event: dict, *, organizer: str, admission_price: Optional[str],
+    event: dict, *, organizer: str, admission_price: Optional[str], availability: str,
 ) -> None:
     """Attach optional source evidence without duplicating occurrence paths."""
     if organizer:
@@ -1950,6 +1964,8 @@ def _apply_jsonld_provenance(
     if admission_price is not None:
         event["price"] = admission_price
         event["admission_basis"] = "explicit"
+    if availability:
+        event["availability"] = availability
 
 
 def _jsonld_schedule_items(schedule) -> list:
@@ -2030,6 +2046,23 @@ def _jsonld_offer_price(offers) -> Optional[str]:
     return "kostenlos" if has_explicitly_free_offer else None
 
 
+def _jsonld_offer_availability(offers) -> str:
+    """Return an explicit schema.org availability, preferring a purchasable tier."""
+    candidates = offers if isinstance(offers, list) else [offers]
+    recognized = []
+    allowed = ("InStock", "LimitedAvailability", "PreOrder", "SoldOut")
+    for offer in candidates:
+        if not isinstance(offer, dict):
+            continue
+        value = _jsonld_schema_token(offer.get("availability"), allowed)
+        if value in allowed:
+            recognized.append(value)
+    for value in allowed:
+        if value in recognized:
+            return value
+    return ""
+
+
 def _jsonld_admission_price(item: dict) -> Optional[str]:
     """Resolve structured admission, with the direct free-access flag authoritative."""
     accessible_for_free = _jsonld_accessible_for_free(item.get("isAccessibleForFree"))
@@ -2058,6 +2091,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         link = item.get("url") or default_link
         admission_price = _jsonld_admission_price(item)
         organizer = _jsonld_entity_names(item.get("organizer"))
+        availability = _jsonld_offer_availability(item.get("offers"))
 
         schedules = _jsonld_schedule_items(item.get("eventSchedule"))
         if schedules:
@@ -2073,7 +2107,10 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                 )
                 if ev:
                     _apply_jsonld_provenance(
-                        ev, organizer=organizer, admission_price=admission_price,
+                        ev,
+                        organizer=organizer,
+                        admission_price=admission_price,
+                        availability=availability,
                     )
                     events.append(ev)
             # Explicit schedule entries are the real appointments. The top-level
@@ -2089,7 +2126,10 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         )
         if ev:
             _apply_jsonld_provenance(
-                ev, organizer=organizer, admission_price=admission_price,
+                ev,
+                organizer=organizer,
+                admission_price=admission_price,
+                availability=availability,
             )
             events.append(ev)
     return events

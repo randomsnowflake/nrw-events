@@ -2,7 +2,7 @@ import json
 import unittest
 from datetime import datetime
 
-from nrw_events import common
+from nrw_events import common, report
 from nrw_events.validation import canonicalize_event
 from tests.helpers import patch_window
 
@@ -74,6 +74,11 @@ class JsonLdScheduleTests(unittest.TestCase):
             "name": "Rheinauen-Flohmarkt",
             "url": "https://www.bonn.de/flohmarkt-rheinaue.php",
             "description": "Flohmarkt in der Rheinaue",
+            "organizer": {"@type": "Organization", "name": "Stadt Bonn"},
+            "offers": {
+                "@type": "Offer",
+                "availability": "https://schema.org/InStock",
+            },
             "location": {
                 "@type": "Place",
                 "name": "Rheinaue",
@@ -97,6 +102,8 @@ class JsonLdScheduleTests(unittest.TestCase):
         )
         current = next(ev for ev in events if ev["date"] == "2026-06-20")
         self.assertEqual(current["time"], "08:00–18:00")
+        self.assertEqual(current["organizer"], "Stadt Bonn")
+        self.assertEqual(current["availability"], "InStock")
         self.assertNotIn("2026-04-18–2026-10-17", [ev["date"] for ev in events])
 
     def test_jsonld_organizer_survives_the_canonical_public_contract(self):
@@ -160,6 +167,92 @@ class JsonLdScheduleTests(unittest.TestCase):
 
         self.assertLessEqual(len(canonical.organizer), 500)
         self.assertTrue(canonical.organizer.startswith("Organizer 0 "))
+
+    def test_jsonld_offer_availability_survives_only_as_explicit_evidence(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Availability test event",
+            "startDate": "2026-06-12T19:00:00+02:00",
+            "offers": {
+                "@type": "Offer",
+                "price": 12,
+                "priceCurrency": "EUR",
+                "availability": "https://schema.org/LimitedAvailability",
+            },
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        [event] = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+        )
+        canonical = canonicalize_event(event)
+
+        self.assertEqual(event["availability"], "LimitedAvailability")
+        self.assertEqual(canonical.availability, "LimitedAvailability")
+        self.assertEqual(canonical.to_dict()["availability"], "LimitedAvailability")
+
+    def test_jsonld_offer_availability_prefers_a_purchasable_tier(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Mixed availability event",
+            "startDate": "2026-06-12T19:00:00+02:00",
+            "offers": [
+                {"@type": "Offer", "availability": "https://schema.org/SoldOut"},
+                {"@type": "Offer", "availability": "InStock"},
+            ],
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        [event] = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+        )
+
+        self.assertEqual(event["availability"], "InStock")
+
+    def test_jsonld_offer_availability_rejects_non_schema_urls(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Untrusted availability event",
+            "startDate": "2026-06-12T19:00:00+02:00",
+            "offers": {
+                "@type": "Offer",
+                "availability": "https://example.test/InStock",
+            },
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        [event] = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test/event"
+        )
+        canonical = canonicalize_event(event)
+
+        self.assertNotIn("availability", event)
+        self.assertEqual(canonical.availability, "")
+
+    def test_duplicate_enrichment_carries_explicit_provenance_fields(self):
+        base = {
+            "title": "Provenance event", "date": "2026-06-12",
+            "start_date": "2026-06-12", "end_date": "2026-06-12",
+            "city": "Bonn", "venue": "Rheinaue", "time": "19:00",
+            "start_at": "2026-06-12T19:00:00+02:00", "end_at": "",
+            "description": "", "price": "", "link": "https://example.test/event",
+        }
+        winner = {
+            **base, "source": "Official source", "score": 2.0,
+            "organizer": "", "availability": "",
+        }
+        duplicate = {
+            **base, "source": "Structured source", "score": 1.0,
+            "organizer": "Kulturverein Bonn", "availability": "LimitedAvailability",
+        }
+
+        [merged] = report.deduplicate([winner, duplicate])
+
+        self.assertEqual(merged["organizer"], "Kulturverein Bonn")
+        self.assertEqual(merged["availability"], "LimitedAvailability")
 
     def test_jsonld_structured_admission_overrides_text_inference(self):
         fixtures = [
