@@ -1076,6 +1076,46 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertIn("Talks, Community & Culture (1)", rendered)
         self.assertNotIn("Nightlife & Electronic (1)", rendered)
 
+    def test_report_escapes_remote_markdown_and_wraps_links(self):
+        event = common.make_event(
+            "# Stern_*[Titel]`", common.TODAY, common.TODAY,
+            "Saal_[1]", "Bonn", "Text_mit *Markup* und `Code`.",
+            "https://example.test/a_(b)", "Source_[remote]", "Konzert",
+        )
+
+        rendered = report.format_report([event])
+
+        self.assertIn(r"\# Stern\_\*\[Titel\]\`", rendered)
+        self.assertIn(r"Saal\_\[1\]", rendered)
+        self.assertIn(r"Text\_mit \*Markup\* und \`Code\`", rendered)
+        self.assertIn("<https://example.test/a_(b)>", rendered)
+        self.assertIn(r"Source\_\[remote\]", rendered)
+
+    def test_report_obeys_character_and_section_limits(self):
+        events = []
+        for index in range(12):
+            event = common.make_event(
+                f"Konzert {index}", common.TODAY, common.TODAY,
+                "Saal", "Bonn", "Lange Beschreibung " * 20,
+                f"https://example.test/{index}", "Source", "Konzert",
+            )
+            events.append(event)
+
+        section_limited = report.format_report(events, max_per_section=2)
+        char_limited = report.format_report(events, max_chars=500)
+
+        self.assertIn("… und 10 weitere", section_limited)
+        self.assertLessEqual(len(char_limited), 500)
+        self.assertRegex(char_limited, r"… und \d+ weitere Events \(Ausgabe gekürzt\)")
+
+        uncapped_events = [
+            {**events[0], "title": f"Ungekürztes Konzert {index}"}
+            for index in range(60)
+        ]
+        uncapped = report.format_report(uncapped_events)
+        self.assertGreater(len(uncapped), 16_000)
+        self.assertIn("Ungekürztes Konzert 59", uncapped)
+
 
 if __name__ == "__main__":
     unittest.main()

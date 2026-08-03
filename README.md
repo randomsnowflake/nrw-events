@@ -384,6 +384,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | Variable                      | Standard | Wirkung |
 |-------------------------------|----------|---------|
 | `NRW_EVENTS_MAX_PER_SECTION`  | `0`      | Optionale Begrenzung pro Kategorie. `0`/nicht gesetzt = alle Events anzeigen. |
+| `NRW_EVENTS_REPORT_MAX_CHARS` | `0`      | Optionale Gesamtlänge des Markdown-Reports. `0`/nicht gesetzt = vollständige Ausgabe. |
 | `NRW_EVENTS_DAYS_AHEAD`       | `3`      | Standard-Zeitfenster, wenn kein CLI-Argument gesetzt ist (1–90). |
 | `NRW_EVENTS_SCORE_FLOOR`      | `0.4`    | Mindestscore. Niedriger = mehr Treffer und mehr Rauschen. |
 | `NRW_EVENTS_RADIUS_KM`        | `75`     | Maximaler Umkreis ab Bonn; entspricht `--umkreis`. |

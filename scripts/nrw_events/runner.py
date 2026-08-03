@@ -743,6 +743,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--umkreis", metavar="KM", help="maximum distance from Bonn, e.g. 15km")
     parser.add_argument("--kostenlos", action="store_true", help="return only events with explicit free admission")
     parser.add_argument("--kategorie", metavar="KEYS", help="comma-separated category keys or German names")
+    parser.add_argument("--max-per-section", type=int, metavar="N", help="maximum events per report section")
+    parser.add_argument("--max-chars", type=int, metavar="N", help="maximum Markdown report length")
     return parser
 
 
@@ -812,6 +814,14 @@ def _parse_cli(argv: list[str], now: datetime | None = None) -> tuple[Optional[i
         overrides["free_only"] = True
     if args.kategorie:
         overrides["categories"] = _category_keys(args.kategorie)
+    if args.max_per_section is not None:
+        if args.max_per_section < 0:
+            raise ValueError("--max-per-section must be zero or greater")
+        overrides["max_per_section"] = args.max_per_section
+    if args.max_chars is not None:
+        if args.max_chars < 200:
+            raise ValueError("--max-chars must be at least 200")
+        overrides["report_max_chars"] = args.max_chars
     return explicit_days, CliQuery(verb), overrides
 
 
@@ -1167,7 +1177,12 @@ def cli(argv: list[str]) -> int:
         presentation_snapshot = build_snapshot(presentation_result, context)
         print(json.dumps(presentation_snapshot.events, ensure_ascii=False, indent=2))
     else:
-        print(report.format_report(list(presentation_result.events), radius_km=settings.radius_km))
+        report_options = {"radius_km": settings.radius_km}
+        if settings.max_per_section:
+            report_options["max_per_section"] = settings.max_per_section
+        if settings.report_max_chars:
+            report_options["max_chars"] = settings.report_max_chars
+        print(report.format_report(list(presentation_result.events), **report_options))
     for issue in snapshot.metadata["import_issues"]:
         log(logger, 30 if issue["severity"] == "warning" else 40,
             f"import issue: {issue['message']}", run_id=run_id, source=str(issue["source"]))

@@ -30,6 +30,8 @@ class RuntimeConfig:
     categories: tuple[str, ...] = ()
     free_only: bool = False
     json_stdout: bool = False
+    max_per_section: int = 0
+    report_max_chars: int = 0
     category_fallback_cache: str = ""
     http_retry_attempts: int = 5
     http_retry_base_seconds: float = 1.0
@@ -130,6 +132,8 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         categories=_categories("NRW_EVENTS_CATEGORIES"),
         free_only=_bool("NRW_EVENTS_FREE_ONLY"),
         json_stdout=_bool("NRW_EVENTS_JSON_STDOUT"),
+        max_per_section=_int("NRW_EVENTS_MAX_PER_SECTION", 0, 0, 10_000),
+        report_max_chars=_int("NRW_EVENTS_REPORT_MAX_CHARS", 0, 0, 1_000_000),
         category_fallback_cache=os.environ.get("NRW_EVENTS_CATEGORY_FALLBACK_CACHE", ""),
         http_retry_attempts=_int("NRW_EVENTS_HTTP_RETRY_ATTEMPTS", 5, 1, 10),
         http_retry_base_seconds=_float("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", 1.0, 0.0, 60.0),

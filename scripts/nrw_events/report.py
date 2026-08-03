@@ -4,7 +4,6 @@ Deduplication, ranking, and Markdown report rendering.
 Pure presentation + post-processing. No network, no source-specific logic.
 """
 
-import os
 import re
 from collections import Counter, defaultdict
 from dataclasses import replace
@@ -873,9 +872,31 @@ PREFERRED_ORDER = [
 ]
 
 
+def _escape_markdown(value: object) -> str:
+    """Escape untrusted text for the inline Markdown contexts used below."""
+    text = str(value)
+    for character in ("\\", "*", "_", "`", "[", "]", "#"):
+        text = text.replace(character, f"\\{character}")
+    return text
+
+
+def _bounded_report(lines: list[str], max_chars: int, total_events: int) -> str:
+    rendered = "\n".join(lines)
+    if len(rendered) <= max_chars:
+        return rendered
+    suffix_template = "\n\n… und {omitted} weitere Events (Ausgabe gekürzt)"
+    budget = max(max_chars - len(suffix_template.format(omitted=total_events)), 0)
+    prefix = rendered[:budget].rsplit("\n", 1)[0].rstrip()
+    rendered_events = sum(line.startswith("- **") for line in prefix.splitlines())
+    suffix = suffix_template.format(omitted=max(total_events - rendered_events, 0))
+    while len(prefix) + len(suffix) > max_chars and "\n" in prefix:
+        prefix = prefix.rsplit("\n", 1)[0].rstrip()
+    return prefix + suffix
+
+
 def format_report(events: list, *, window_start: datetime | None = None,
-                  window_end: datetime | None = None, max_per_section: int | None = None,
-                  radius_km: float | None = None) -> str:
+                  window_end: datetime | None = None, max_per_section: int = 0,
+                  max_chars: int = 0, radius_km: float | None = None) -> str:
     """Render the deduplicated, scored event list into a grouped Markdown report."""
     start = window_start or common.TODAY
     end = window_end or common.END_DATE
@@ -893,12 +914,6 @@ def format_report(events: list, *, window_start: datetime | None = None,
                                             x.get("distance_km") if x.get("distance_km") is not None else 999,
                                             x.get("title", ""))):
         grouped[_bucket(ev)].append(ev)
-
-    if max_per_section is None:
-        try:
-            max_per_section = int(os.environ.get("NRW_EVENTS_MAX_PER_SECTION", "0"))
-        except ValueError:
-            max_per_section = 0
 
     def format_when(ev: dict) -> str:
         parts = []
@@ -926,20 +941,25 @@ def format_report(events: list, *, window_start: datetime | None = None,
             if when:
                 meta.append(when)
             if ev.get("venue"):
-                meta.append(ev["venue"])
+                meta.append(_escape_markdown(ev["venue"]))
             if ev.get("city"):
-                meta.append(ev["city"])
+                meta.append(_escape_markdown(ev["city"]))
             meta.append(dist_tag)
             meta.append(score_bar)
-            lines.append(f"- **{ev['title']}**")
+            lines.append(f"- **{_escape_markdown(ev['title'])}**")
             lines.append(f"  {' · '.join(meta)}")
             if ev.get("description"):
                 # One markdown list item per event: a real break here would end
                 # the emphasis run and split the bullet.
                 flat = " ".join(ev["description"].split())
-                lines.append(f"  _{flat}_")
+                lines.append(f"  _{_escape_markdown(flat)}_")
             if ev.get("link"):
-                lines.append(f"  🔗 {ev['link']}")
+                link = str(ev["link"]).replace(">", "%3E").replace("<", "%3C")
+                lines.append(f"  🔗 <{link}>")
+            lines.append("")
+        omitted = len(items) - len(shown)
+        if omitted:
+            lines.append(f"- … und {omitted} weitere")
             lines.append("")
 
     for name, emoji in PREFERRED_ORDER:
@@ -951,6 +971,6 @@ def format_report(events: list, *, window_start: datetime | None = None,
     for e in events:
         source_counts[e["source"]] = source_counts.get(e["source"], 0) + 1
     for src, count in sorted(source_counts.items(), key=lambda x: (-x[1], x[0])):
-        lines.append(f"- {src}: {count} events")
+        lines.append(f"- {_escape_markdown(src)}: {count} events")
 
-    return "\n".join(lines)
+    return _bounded_report(lines, max_chars, len(events)) if max_chars > 0 else "\n".join(lines)

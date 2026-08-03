@@ -124,11 +124,20 @@ class CliTests(unittest.TestCase):
         }, clear=True):
             _, _, overrides = runner._parse_cli([
                 "nrw-events", "--umkreis", "15km", "--kategorie", "markt,festival", "--kostenlos",
+                "--max-per-section", "4", "--max-chars", "12000",
             ])
 
         self.assertEqual(overrides["radius_km"], 15)
         self.assertEqual(overrides["categories"], ("market", "festival"))
         self.assertTrue(overrides["free_only"])
+        self.assertEqual(overrides["max_per_section"], 4)
+        self.assertEqual(overrides["report_max_chars"], 12000)
+
+    def test_report_limit_flags_are_validated(self):
+        with self.assertRaisesRegex(ValueError, "max-per-section"):
+            runner._parse_cli(["nrw-events", "--max-per-section", "-1"])
+        with self.assertRaisesRegex(ValueError, "max-chars"):
+            runner._parse_cli(["nrw-events", "--max-chars", "199"])
 
 
 if __name__ == "__main__":
