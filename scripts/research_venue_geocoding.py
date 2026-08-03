@@ -341,7 +341,7 @@ def main() -> int:
                     }
                     last_request_at = time.monotonic()
                 atomic_write(args.photon_cache, photon_cache)
-            for result in cached_photon_queries[photon_query].get("results", []):
+            for result in cached_photon_queries.get(photon_query, {}).get("results", []):
                 score, reasons = candidate_score(group, result)
                 ranked.append((score, reasons, result, photon_query))
             ranked.sort(key=lambda item: item[0], reverse=True)
