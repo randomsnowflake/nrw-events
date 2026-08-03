@@ -180,7 +180,6 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
         return result, []
     finally:
         result.duration_ms = round((time.monotonic() - started) * 1000)
-        common.flush_detail_page_caches()
         common.set_source_context(None)
 
 
@@ -810,26 +809,32 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     all_events: list[CanonicalEvent] = []
     source_results: dict[str, SourceResult] = {}
     worker_count = min(settings.source_workers, max(len(sources), 1))
-    with executor_factory(max_workers=worker_count) as pool:
-        futures = {
-            pool.submit(_run_source, name, fetch, settings.source_timeout_seconds): name
-            for name, fetch in sources.items()
-        }
-        for future in as_completed(futures):
-            name = futures[future]
-            result, events = future.result()
-            source_results[name] = result
-            if result.error:
-                log(logger, 40, result.error["error"], run_id=run_id, source=name,
-                    error_type=result.error["error_type"])
-            marker = "✓" if result.status in {
-                SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY,
-                SourceStatus.SCHEDULED_SKIP, SourceStatus.DISABLED,
-            } else "!"
-            log(logger, 20 if marker == "✓" else 30,
-                f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
-                run_id=run_id, source=name)
-            all_events.extend(events)
+    try:
+        with executor_factory(max_workers=worker_count) as pool:
+            futures = {
+                pool.submit(_run_source, name, fetch, settings.source_timeout_seconds): name
+                for name, fetch in sources.items()
+            }
+            for future in as_completed(futures):
+                name = futures[future]
+                result, events = future.result()
+                source_results[name] = result
+                if result.error:
+                    log(logger, 40, result.error["error"], run_id=run_id, source=name,
+                        error_type=result.error["error_type"])
+                marker = "✓" if result.status in {
+                    SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY,
+                    SourceStatus.SCHEDULED_SKIP, SourceStatus.DISABLED,
+                } else "!"
+                log(logger, 20 if marker == "✓" else 30,
+                    f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
+                    run_id=run_id, source=name)
+                all_events.extend(events)
+    finally:
+        # Source workers share the detail-cache lock. Persist dirty namespaces
+        # once after all workers finish instead of serializing every source at
+        # its boundary while other workers still need cache lookups.
+        common.flush_detail_page_caches()
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:
