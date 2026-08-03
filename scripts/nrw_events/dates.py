@@ -71,17 +71,35 @@ def _range_start(text: str) -> str:
         return text
     start, end = (part.strip() for part in parts)
     year_match = re.search(r"\b(20\d{2})\b", end)
-    year = year_match.group(1) if year_match else ""
+    year = int(year_match.group(1)) if year_match else None
+    numeric_end_month = re.search(r"\b\d{1,2}\.(\d{1,2})\.?(?:20\d{2})?\b", end)
+    word_end_month = re.search(r"\b([A-Za-zäöüÄÖÜ]+)\b", end)
+    end_month = int(numeric_end_month.group(1)) if numeric_end_month else None
+    if end_month is None and word_end_month:
+        key = word_end_month.group(1).lower().rstrip(".")
+        end_month = MONTH_DE.get(key) or MONTH_EN.get(key)
+
+    def inherited_year(start_month: int | None) -> str:
+        if year is None:
+            return ""
+        return str(year - 1 if start_month and end_month and start_month > end_month else year)
+
     if re.fullmatch(r"\d{1,2}\.\d{1,2}\.?", start) and year:
+        start_month = int(re.search(r"\.(\d{1,2})", start).group(1))
         separator = "" if start.endswith(".") else "."
-        return f"{start}{separator}{year}"
+        return f"{start}{separator}{inherited_year(start_month)}"
     if re.fullmatch(r"\d{1,2}\.?", start):
-        month_match = re.search(r"\b([A-Za-zäöüÄÖÜ]+)\b", end)
-        if month_match:
-            suffix = f"{month_match.group(1)} {year}".strip()
-            return f"{start} {suffix}"
+        if end_month:
+            day = start.rstrip(".")
+            suffix = inherited_year(end_month)
+            return f"{day}.{end_month:02d}.{suffix}".rstrip(".")
     if year and not re.search(r"\b20\d{2}\b", start):
-        return f"{start} {year}"
+        word_start_month = re.search(r"\b([A-Za-zäöüÄÖÜ]+)\b", start)
+        start_month = None
+        if word_start_month:
+            key = word_start_month.group(1).lower().rstrip(".")
+            start_month = MONTH_DE.get(key) or MONTH_EN.get(key)
+        return f"{start} {inherited_year(start_month)}"
     return start
 
 

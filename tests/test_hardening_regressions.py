@@ -56,7 +56,9 @@ class HardeningRegressionTests(unittest.TestCase):
             "01.08.—05.08.2026": datetime(2026, 8, 1),
             "1. bis 5. August 2026": datetime(2026, 8, 1),
             "1. bis zum 5. August 2026": datetime(2026, 8, 1),
+            "28. - 30.08.2026": datetime(2026, 8, 28),
             "30. Juli – 2. August 2026": datetime(2026, 7, 30),
+            "30. Dezember – 2. Januar 2027": datetime(2026, 12, 30),
             "Dienstag, 14.07.2026": datetime(2026, 7, 14),
         }
         for value, expected in cases.items():
