@@ -13,6 +13,7 @@ from .normalization import comparison_text
 
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
 MAX_RADIUS_KM = config.MAX_RADIUS_KM
+_AMBIGUOUS_CITY_NAMES = frozenset({"grafschaft", "linz", "much", "wissen"})
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -52,7 +53,15 @@ def guess_city_from_text(text: str) -> Optional[str]:
     text_lower = re.sub(r"bundesstadt\s+bonn", " ", (text or "").lower())
     cities = sorted(config.VENUE_COORDS, key=lambda city: (city == "bonn", -len(city)))
     for city in cities:
-        if re.search(rf"(?<![a-zäöüß]){re.escape(city)}(?![a-zäöüß])", text_lower):
+        city_pattern = rf"(?<![a-zäöüß]){re.escape(city)}(?![a-zäöüß])"
+        if city not in _AMBIGUOUS_CITY_NAMES and re.search(city_pattern, text_lower):
+            return city
+        if city in _AMBIGUOUS_CITY_NAMES and (
+            text_lower.strip(" ,;-") == city
+            or re.search(rf"\b\d{{5}}\s+{re.escape(city)}(?![a-zäöüß])", text_lower)
+            or re.search(rf",\s*{re.escape(city)}(?![a-zäöüß])", text_lower)
+            or re.search(rf"\bin\s+{re.escape(city)}(?![a-zäöüß])", text_lower)
+        ):
             return city
     return None
 
