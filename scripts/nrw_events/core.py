@@ -1716,6 +1716,74 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     return ev
 
 
+_JUNK_TITLE_BITS = frozenset({
+    "privacy policy", "faq", "frequently asked questions", "contact", "kontakt",
+    "imprint", "impressum", "corruption prevention", "accessibility statement",
+    "newsletter", "jobs", "sitemap", "terms of use", "datenschutz",
+    "veranstaltungen aktuell", "auf einen blick", "10 best", "the best events",
+    "alle veranstaltungen", "veranstaltungskalender", "event calendar",
+    "straßenreinigung", "strassenreinigung", "venen aktionstag",
+})
+_JUNK_LINK_BITS = frozenset({
+    "/privacy", "/faq", "/contact", "/imprint", "/jobs", "/search", "/sitemap",
+    "eventim.de/city", "livegigs.de", "news.de/lokales", "/metro-areas/",
+})
+_NARROW_PRIVATE_EVENT_BITS = frozenset({
+    "abiball", "abi-ball", "abi ball", "abschlussball", "abschluss-ball",
+    "abiturball", "abitur-ball",
+})
+_HARD_BLOCK_BITS = frozenset({"phantasialand", "phantasia land", "phantasia-land"})
+_ROUTINE_OR_POLITICAL_BITS = frozenset({
+    "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
+    "fraktion", "infostand", "kreistag", "mitgliederversammlung", "ortsbeirat", "parteitag",
+    "ratssitzung", "ratsinformationssystem", "seniorenbeirat", "seniorenvertretung", "sitzung",
+    "sprechstunde", "sprechtag", "stadtrat", "stadtverordnete", "tagesordnung",
+    "telefon-hotline bürgermeister", "telefon-hotline buergermeister",
+    "verwaltungsrat", "wahlkampf", "wahlstand",
+})
+_ROUTINE_PHRASE_BITS = frozenset({
+    "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
+    "frauentreff", "handarbeitstreff", "frühstückstreff", "fruehstueckstreff", "frühstückszeit",
+    "fruehstueckszeit", "frauenfrühstück", "frauenfruehstueck", "häkel-treff", "haekel-treff",
+    "kindertreff", "offener treff", "offener puzzle-treff", "offenes ohr", "klaaferei",
+    "seniorencafe", "seniorencafé", "seniorennachmittag", "seniorengymnastik", "spielezeit",
+    "stammtisch", "stricken und klönen", "stricken und kloenen",
+    "treffen der bad honnefer funkamateure", "treffen pflegender angehöriger",
+    "treffen pflegender angehoeriger", "veranstaltung der senioreninformation",
+})
+_CULTURAL_EVENT_BITS = frozenset({
+    "ausstellung", "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt",
+    "lesung", "lesekreis", "lesezirkel", "live-musik", "museum", "theater", "vernissage",
+    "wanderung", "tag der offenen tür", "tag der offenen tuer",
+})
+_RECURRING_DESTINATION_BITS = frozenset({
+    "feierabendtour", "repair café", "repair cafe", "repaircafé", "repaircafe",
+    "kristallklangschalenreise",
+})
+_REGULAR_LOW_VALUE_BITS = frozenset({
+    "frischemarkt", "wochenmarkt", "bauernmarkt", "biomarkt", "abendmarkt", "zwiebelmarkt",
+})
+_GENERIC_LOW_VALUE_BITS = frozenset({
+    "fortgeschrittene", "sprachkurs", "englischkurs", "yogakurs", "offene sprechstunde",
+    "beratung", "frauen in bewegung", "gedächtnistraining", "gedaechtnistraining", "deutschkurs",
+    "pilates-training", "sitzgymnastik", "rückbildungsgymnastik", "rueckbildungsgymnastik",
+    "wirbelsäulengymnastik", "wirbelsaeulengymnastik", "patientenveranstaltung",
+    "english club am vormittag", "gymnastik mal", "yoga mit kleinkindern", "feldenkrais-kurs",
+    "gleichgewichtstraining", "seniorenyoga", "umgang mit smartphone, tablet und pc",
+    "handy-hilfe für seniorinnen und senioren", "kaffeekränzchen", "seniorenkaffee",
+    "ein nachmittag mit kaffee, kuchen", "singangebot mit", "eltern-kind-spielgruppe",
+    "strick- und häkelkurs", "clubabend",
+})
+_RECURRING_COURSE_BITS = frozenset({
+    "der kurs findet immer", "der kurs kostet", "kurseinheiten",
+    "anmeldungen werden unter der telefonnummer", "begegnungsstätte club",
+})
+_COURSE_CONTEXT_BITS = frozenset({
+    "kurs", "training", "gymnastik", "yoga", "feldenkrais", "smartphone", "tablet", "pc",
+    "kaffee und kuchen", "singangebot", "clubabend",
+})
+
+
 def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]]:
     """Return the named decision for the remaining compatibility policy."""
     title = (ev.get("title") or "").lower()
@@ -1730,28 +1798,14 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
     title_desc_text = f"{title} {desc}"
     destination_market = _is_destination_market(content_text)
 
-    junk_title_bits = {
-        "privacy policy", "faq", "frequently asked questions", "contact", "kontakt",
-        "imprint", "impressum", "corruption prevention", "accessibility statement",
-        "newsletter", "jobs", "sitemap", "terms of use", "datenschutz",
-        "veranstaltungen aktuell", "auf einen blick", "10 best", "the best events",
-        "alle veranstaltungen", "veranstaltungskalender", "event calendar",
-        # Administrative notices and pharmacy campaigns from regional calendar
-        # feeds are not destination events.
-        "straßenreinigung", "strassenreinigung", "venen aktionstag",
-    }
-    if matched := next((bit for bit in junk_title_bits if bit in title), ""):
+    if matched := next((bit for bit in _JUNK_TITLE_BITS if bit in title), ""):
         return (
             "metadata.navigation-page",
             "navigation or legal page is not an event",
             (matched,),
         )
 
-    junk_link_bits = {
-        "/privacy", "/faq", "/contact", "/imprint", "/jobs", "/search", "/sitemap",
-        "eventim.de/city", "livegigs.de", "news.de/lokales", "/metro-areas/",
-    }
-    if matched := next((bit for bit in junk_link_bits if bit in link), ""):
+    if matched := next((bit for bit in _JUNK_LINK_BITS if bit in link), ""):
         return (
             "metadata.directory-link",
             "link points to navigation, a directory, or a generic listing",
@@ -1765,11 +1819,7 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
             ("grüne jugend" if "grüne jugend" in text else "gruene jugend",),
         )
 
-    narrow_private_event_bits = {
-        "abiball", "abi-ball", "abi ball", "abschlussball", "abschluss-ball",
-        "abiturball", "abitur-ball",
-    }
-    if matched := next((bit for bit in narrow_private_event_bits if bit in text), ""):
+    if matched := next((bit for bit in _NARROW_PRIVATE_EVENT_BITS if bit in text), ""):
         return (
             "editorial.private-graduation",
             "private graduation celebration is not a public destination event",
@@ -1786,121 +1836,52 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
             (),
         )
 
-    hard_block_bits = {
-        # Static attraction pages and routine social meetups kept leaking from
-        # municipal calendars as if they were one-off events. These are not
-        # useful destination listings for veranstaltungen-bonn.de.
-        "phantasialand",
-        "phantasia land",
-        "phantasia-land",
-    }
-    if matched := next((bit for bit in hard_block_bits if bit in text), ""):
+    if matched := next((bit for bit in _HARD_BLOCK_BITS if bit in text), ""):
         return (
             "editorial.static-attraction",
             "static attraction page is not a dated destination event",
             (matched,),
         )
 
-    routine_or_political_bits = {
-        "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
-        "fraktion", "infostand", "kreistag", "mitgliederversammlung", "ortsbeirat", "parteitag",
-        "ratssitzung", "ratsinformationssystem", "seniorenbeirat", "seniorenvertretung", "sitzung",
-        "sprechstunde", "sprechtag", "stadtrat", "stadtverordnete", "tagesordnung",
-        "telefon-hotline bürgermeister", "telefon-hotline buergermeister",
-        "verwaltungsrat", "wahlkampf", "wahlstand",
-    }
-    routine_phrase_bits = {
-        "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
-        "frauentreff", "handarbeitstreff", "frühstückstreff", "fruehstueckstreff", "frühstückszeit",
-        "fruehstueckszeit", "frauenfrühstück", "frauenfruehstueck", "häkel-treff", "haekel-treff", "kindertreff", "offener treff",
-        "offener puzzle-treff", "offenes ohr", "klaaferei", "seniorencafe", "seniorencafé",
-        "seniorennachmittag", "seniorengymnastik", "spielezeit", "stammtisch", "stricken und klönen",
-        "stricken und kloenen", "treffen der bad honnefer funkamateure",
-        "treffen pflegender angehöriger", "treffen pflegender angehoeriger",
-        "veranstaltung der senioreninformation",
-    }
-    cultural_event_bits = {
-        "ausstellung", "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt",
-        "lesung", "lesekreis", "lesezirkel", "live-musik", "museum", "theater", "vernissage", "wanderung",
-        "tag der offenen tür", "tag der offenen tuer",
-    }
-    recurring_destination_bits = {
-        # These remain useful public activities even when an official calendar
-        # describes their cadence or stores them below a recurring-event URL.
-        "feierabendtour", "repair café", "repair cafe", "repaircafé", "repaircafe",
-        # A named one-off programme; do not let incidental prose about the
-        # organizer's regular group turn it into a routine meetup.
-        "kristallklangschalenreise",
-    }
     # Matched against everything except the free prose: a committee meeting says
     # so in its title, its category or the room it books, while a description
     # naming one is usually crediting a co-organizer ("gemeinsam mit dem
     # Seniorenbeirat"). Scanning the description dropped public events — a
     # sports course, a summer festival — for the body that helped host them.
     governance_text = f"{title} {category} {venue} {link}"
+    governance_match = next(
+        (bit for bit in _ROUTINE_OR_POLITICAL_BITS if bit in governance_text), "",
+    )
     if ("cinema-special" not in category
-            and any(bit in governance_text for bit in routine_or_political_bits)
+            and governance_match
             and not destination_market
-            and not any(bit in title_desc_text for bit in cultural_event_bits)):
-        matched = next(bit for bit in routine_or_political_bits if bit in governance_text)
+            and not any(bit in title_desc_text for bit in _CULTURAL_EVENT_BITS)):
         return (
             "civic.governance",
             "routine political or administrative meeting is outside the editorial scope",
-            (matched,),
+            (governance_match,),
         )
+    routine_match = next((bit for bit in _ROUTINE_PHRASE_BITS if bit in text), "")
     if ("cinema-special" not in category
-            and any(bit in text for bit in routine_phrase_bits)
+            and routine_match
             and not destination_market
-            and not any(bit in title for bit in recurring_destination_bits)
-            and not any(bit in title_desc_text for bit in cultural_event_bits)):
-        matched = next(bit for bit in routine_phrase_bits if bit in text)
+            and not any(bit in title for bit in _RECURRING_DESTINATION_BITS)
+            and not any(bit in title_desc_text for bit in _CULTURAL_EVENT_BITS)):
         return (
             "civic.routine-meetup",
             "recurring low-signal meetup is not a destination event",
-            (matched,),
+            (routine_match,),
         )
 
-    regular_low_value_bits = {
-        # Recurring basic markets are useful civic infrastructure, not a
-        # destination-worthy event for this report. Keep explicit flea/special
-        # markets covered by the normal market/festival signals.
-        #
-        # Produce-oriented markets belong here for the same reason: the market
-        # section exists for flea, antique and collector formats, and third-party
-        # market directories mix produce markets into the same category feeds.
-        # ``krammarkt`` is deliberately absent: a "Antik- und Krammarkt" is a
-        # wanted second-hand format, so the substring would drop real hits.
-        #
-        # ``feierabendmarkt`` is listed in ``_DESTINATION_MARKET_PATTERN`` and is
-        # therefore kept by the destination-market override below, even though
-        # ``abendmarkt`` matches it as a substring. That whitelist entry is an
-        # editorial decision owned elsewhere; this set does not try to override it.
-        "frischemarkt", "wochenmarkt", "bauernmarkt", "biomarkt",
-        "abendmarkt", "zwiebelmarkt",
-    }
-    if (any(bit in text for bit in regular_low_value_bits)
-            and not destination_market):
-        matched = next(bit for bit in regular_low_value_bits if bit in text)
+    regular_market_match = next((bit for bit in _REGULAR_LOW_VALUE_BITS if bit in text), "")
+    if regular_market_match and not destination_market:
         return (
             "civic.routine-market",
             "routine produce market is civic infrastructure, not a special market event",
-            (matched,),
+            (regular_market_match,),
         )
 
-    generic_low_value_bits = {
-        "fortgeschrittene", "sprachkurs", "englischkurs",
-        "yogakurs", "offene sprechstunde", "beratung", "frauen in bewegung",
-        "gedächtnistraining", "gedaechtnistraining", "deutschkurs", "pilates-training",
-        "sitzgymnastik", "rückbildungsgymnastik", "rueckbildungsgymnastik",
-        "wirbelsäulengymnastik", "wirbelsaeulengymnastik", "patientenveranstaltung",
-        "english club am vormittag", "gymnastik mal", "yoga mit kleinkindern",
-        "feldenkrais-kurs", "gleichgewichtstraining", "seniorenyoga",
-        "umgang mit smartphone, tablet und pc", "handy-hilfe für seniorinnen und senioren",
-        "kaffeekränzchen", "seniorenkaffee", "ein nachmittag mit kaffee, kuchen",
-        "singangebot mit", "eltern-kind-spielgruppe", "strick- und häkelkurs",
-        "clubabend",
-    }
-    if matched := next((bit for bit in generic_low_value_bits if bit in text), ""):
+    if matched := next((bit for bit in _GENERIC_LOW_VALUE_BITS if bit in text), ""):
         return (
             "civic.course",
             "routine course or support offer is not a destination event",
@@ -1919,19 +1900,11 @@ def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]
             (language_name.group(0), language_course_context.group(0)),
         )
 
-    recurring_course_bits = {
-        "der kurs findet immer", "der kurs kostet", "kurseinheiten",
-        "anmeldungen werden unter der telefonnummer", "begegnungsstätte club",
-    }
-    course_context_bits = {
-        "kurs", "training", "gymnastik", "yoga", "feldenkrais", "smartphone",
-        "tablet", "pc", "kaffee und kuchen", "singangebot", "clubabend",
-    }
-    if (any(bit in text for bit in recurring_course_bits)
-            and any(bit in text for bit in course_context_bits)
-            and not any(bit in content_text for bit in cultural_event_bits)):
-        recurring_match = next(bit for bit in recurring_course_bits if bit in text)
-        context_match = next(bit for bit in course_context_bits if bit in text)
+    recurring_match = next((bit for bit in _RECURRING_COURSE_BITS if bit in text), "")
+    context_match = next((bit for bit in _COURSE_CONTEXT_BITS if bit in text), "")
+    if (recurring_match
+            and context_match
+            and not any(bit in content_text for bit in _CULTURAL_EVENT_BITS)):
         return (
             "civic.recurring-course",
             "recurring course series is not a destination event",
@@ -2309,12 +2282,18 @@ def events_from_time_listing(html: str, source: str, default_city: str, category
         "zum kalender", "veranstaltungsliste", "impressum", "anmelden", "suche")
     events, seen = [], set()
     for tp, dt in times:
-        cand = sorted((abs(ap - tp), href, t) for ap, href, t in anchors
-                      if abs(ap - tp) < max_chars and len(t) >= min_title
-                      and not any(b in t.lower() for b in bad))
-        if not cand:
+        candidate = min(
+            (
+                (abs(ap - tp), href, title)
+                for ap, href, title in anchors
+                if abs(ap - tp) < max_chars and len(title) >= min_title
+                and not any(marker in title.lower() for marker in bad)
+            ),
+            default=None,
+        )
+        if candidate is None:
             continue
-        _, href, title = cand[0]
+        _, href, title = candidate
         key = (title.lower(), dt[:10])
         if key in seen:
             continue

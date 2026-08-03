@@ -156,6 +156,15 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
         } or (typed_status == SourceStatus.HEALTHY_EMPTY and not explicit_parser_empty):
             result.status = typed_status
         accepted = []
+        known_cancellation_keys = {
+            (
+                normalize_source_id(item.get("source_id") or item.get("source")),
+                str(item.get("title") or ""),
+                str(item.get("start_date") or item.get("date") or ""),
+                str(item.get("status") or ""),
+            )
+            for item in result.cancelled_events
+        }
         for event in events:
             if not isinstance(event, dict):
                 try:
@@ -196,17 +205,9 @@ def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | N
                         canonical_event.start_date,
                         canonical_event.status,
                     )
-                    known_cancellation_keys = {
-                        (
-                            normalize_source_id(item.get("source_id") or item.get("source")),
-                            str(item.get("title") or ""),
-                            str(item.get("start_date") or item.get("date") or ""),
-                            str(item.get("status") or ""),
-                        )
-                        for item in result.cancelled_events
-                    }
                     if cancellation_key not in known_cancellation_keys:
                         result.cancelled_events.append(canonical_event.to_dict())
+                        known_cancellation_keys.add(cancellation_key)
                 accepted.append(canonical_event)
             except EventValidationError as exc:
                 result.reject(str(exc))
