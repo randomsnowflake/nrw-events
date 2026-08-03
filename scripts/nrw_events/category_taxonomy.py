@@ -131,7 +131,7 @@ def title_only(value: str) -> Keyword:
     return Keyword(value=value, title_only=True)
 
 
-FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str | Keyword, ...]], ...] = (
     # Source adapters use this internal marker only after proving that an item
     # belongs to a curated cinema format, so incidental words in a synopsis
     # (such as "Sportlehrerin") cannot move the event into another category.
@@ -150,7 +150,7 @@ FORCED_CATEGORY_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("outdoor", ("soundwalk",)),
     # Basic movement/gymnastics terms should not be mistaken for talks
     # ("Rückbildung") or exhibitions (English "art" inside German prose).
-    ("sports", ("gymnastik", "pilates", "hatha yoga")),
+    ("sports", (suffix_word("gymnastik"), "pilates", "hatha yoga")),
     # Meetups around vehicles are destination-style local gatherings, but not
     # concerts just because the description mentions live music later in the day.
     ("festival", ("biker-treffen", "fiat-treffen")),
@@ -214,7 +214,7 @@ RULES: tuple[Rule, ...] = (
     Rule("concert", 7, (suffix_word("konzert"), "concert", "livemusik", "live-musik", "live musik", "livekonzert", "live-konzert", "live-band", "live band", "release show", "musik", "music", "jazz", "samba", "forro", "forró", "orchester", "sinfonie", "symphon", prefix_word("klavier"), "recital", "dirigent", "flöte", "floete", "singen", word("chor"), word("band"), word("swing"))),
     Rule("nightlife", 6, (word("techno"), word("electronic"), word("elektro", weak=True), word("party"), "afterjobparty", "landjugendparty", "treckerparty", "clubnacht", "clubabend", "club party", word("dj"), word("nightlife"), word("rave"), word("disco"), word("beats"), word("lounge"), word("barhopping"), word("speeddating"), word("singles"), Keyword("bar", title_only=True, word=True))),
     Rule("stage", 5, ("theater", compound_word("theater"), "bühne", "buehne", "kabarett", "comedy", "comedian", "kleinkunst", "stand-up", "standup", "satire", "impro", "improtheater", "improvisationstheater", "variete", "varieté", "revue", "poetry slam", "poetryslam", "lachen", "zirkus", "cirque", word("tanz"), word("dance"), "musical", "show", word("performance"), word("oper"), word("stage"), word("slam"))),
-    Rule("exhibition", 4, ("ausstellung", compound_word("ausstellung"), "exhibition", "museum", "galerie", "gallery", "kunst", "karikatur", "vernissage", "atelier", "installation")),
+    Rule("exhibition", 4, ("ausstellung", compound_word("ausstellung"), "exhibition", "museum", "galerie", "gallery", "kunst", prefix_word("karikatur"), "vernissage", "atelier", "installation")),
     Rule(
         "activities",
         3,
@@ -709,9 +709,12 @@ def categorize_event(
             "reason": "forced:market-title",
         }
 
-    combined_text = f"{title_text} {description_text} {hint_text}"
     for forced_key, needles in FORCED_CATEGORY_RULES:
-        if any(needle in combined_text for needle in needles):
+        if any(
+            _matches(text, needle, is_title=is_title)
+            for text, is_title in ((title_text, True), (hint_text, False))
+            for needle in needles
+        ):
             category = CATEGORY_BY_KEY[forced_key]
             return {
                 "key": category["key"],
