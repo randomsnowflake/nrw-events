@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterable, Mapping
 
-from .core import _legacy_junk_decision, event_status
+from .junk_rules import legacy_junk_decision
 
 
 class QualityAction(str, Enum):
@@ -308,9 +308,8 @@ def _unavailable_status_marker(title: str, description: str) -> str:
 def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     """Evaluate the ordered compatibility policy and explain its outcome.
 
-    The compatibility policy is imported from the implementation module rather
-    than through ``common``, keeping the public facade out of the dependency
-    graph and making this module independently importable.
+    The compatibility policy lives in a standalone, data-backed rule module so
+    this module remains independently importable.
     """
     title = str(event.get("title") or "").lower()
     description = str(event.get("description") or "").lower()
@@ -399,10 +398,7 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
             (recurring.group(0), "verkauf"),
         )
 
-    compatibility_event = dict(event)
-    if event_status(title, description) == "postponed":
-        compatibility_event["status"] = "postponed"
-    if legacy := _legacy_junk_decision(compatibility_event):
+    if legacy := legacy_junk_decision(event):
         rule_id, reason, matched_terms = legacy
         return QualityDecision(QualityAction.DROP, rule_id, reason, matched_terms)
     return QualityDecision(QualityAction.KEEP, "quality.accepted",

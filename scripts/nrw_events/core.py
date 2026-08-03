@@ -28,13 +28,15 @@ from contextlib import closing, contextmanager
 from datetime import datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterator, NoReturn, Optional, TypedDict
+from typing import Any, Callable, Iterator, NoReturn, Optional, TypedDict
 from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, config, richtext
 from .health import SourceResult, SourceStatus
 from .location import coords_for_city as coords_for_city
 from .location import refine_city_from_text as refine_city_from_text
+from .junk_rules import legacy_junk_decision
+from .quality import evaluate_event_quality
 from .location import refine_bonn_location as refine_bonn_location
 from .location import guess_city_from_text, haversine, resolve_location
 from .models import AdmissionDefault, RawEvent
@@ -48,9 +50,6 @@ from .dates import MONTH_DE as MONTH_DE
 from .dates import MONTH_EN as MONTH_EN
 from .dates import parse_date
 from .dates import parse_iso_date
-
-if TYPE_CHECKING:
-    from .quality import QualityDecision
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -1489,26 +1488,6 @@ _VISITOR_ADMISSION_AMOUNT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-_DESTINATION_MARKET_PATTERN = re.compile(
-    r"\b(?:abendflohmarkt|antikmarkt|feierabendmarkt|flohmarkt|garagenflohmarkt|hausflohmarkt|"
-    r"hofflohmarkt|hof[-\s]?flohmarkt|jahrmarkt|kunstmarkt|nachbarschaftsmarkt|"
-    r"nachtflohmarkt|spezialmarkt|stadtflohmarkt|stadtteilmarkt|straßenflohmarkt|strassenflohmarkt|"
-    r"trödelmarkt|troedelmarkt|krammarkt|viehmarkt|weihnachtsmarkt)\b",
-    re.IGNORECASE,
-)
-_DESTINATION_MARKET_EVENT_BITS = {
-    "festival", "kirmes", "stadtteilfest", "strassenfest", "straßenfest", "street food",
-}
-
-
-def _is_destination_market(text: str) -> bool:
-    """Return whether event content names a destination-worthy market format."""
-    normalized = clean_html(text or "").lower()
-    return bool(_DESTINATION_MARKET_PATTERN.search(normalized)) or any(
-        bit in normalized for bit in _DESTINATION_MARKET_EVENT_BITS
-    )
-
-
 def infer_admission(
     title: str,
     description: str,
@@ -1731,255 +1710,9 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
     return ev
 
 
-_JUNK_TITLE_BITS = frozenset({
-    "privacy policy", "faq", "frequently asked questions", "contact", "kontakt",
-    "imprint", "impressum", "corruption prevention", "accessibility statement",
-    "newsletter", "jobs", "sitemap", "terms of use", "datenschutz",
-    "veranstaltungen aktuell", "auf einen blick", "10 best", "the best events",
-    "alle veranstaltungen", "veranstaltungskalender", "event calendar",
-    "straßenreinigung", "strassenreinigung", "venen aktionstag",
-})
-_JUNK_LINK_BITS = frozenset({
-    "/privacy", "/faq", "/contact", "/imprint", "/jobs", "/search", "/sitemap",
-    "eventim.de/city", "livegigs.de", "news.de/lokales", "/metro-areas/",
-})
-_NARROW_PRIVATE_EVENT_BITS = frozenset({
-    "abiball", "abi-ball", "abi ball", "abschlussball", "abschluss-ball",
-    "abiturball", "abitur-ball",
-})
-_HARD_BLOCK_BITS = frozenset({"phantasialand", "phantasia land", "phantasia-land"})
-_ROUTINE_OR_POLITICAL_BITS = frozenset({
-    "ausschuss", "ausschusssitzung", "beirat", "bürgerfragestunde", "buergerfragestunde",
-    "fraktion", "infostand", "kreistag", "mitgliederversammlung", "ortsbeirat", "parteitag",
-    "ratssitzung", "ratsinformationssystem", "seniorenbeirat", "seniorenvertretung", "sitzung",
-    "sprechstunde", "sprechtag", "stadtrat", "stadtverordnete", "tagesordnung",
-    "telefon-hotline bürgermeister", "telefon-hotline buergermeister",
-    "verwaltungsrat", "wahlkampf", "wahlstand",
-})
-_ROUTINE_PHRASE_BITS = frozenset({
-    "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
-    "frauentreff", "handarbeitstreff", "frühstückstreff", "fruehstueckstreff", "frühstückszeit",
-    "fruehstueckszeit", "frauenfrühstück", "frauenfruehstueck", "häkel-treff", "haekel-treff",
-    "kindertreff", "offener treff", "offener puzzle-treff", "offenes ohr", "klaaferei",
-    "seniorencafe", "seniorencafé", "seniorennachmittag", "seniorengymnastik", "spielezeit",
-    "stammtisch", "stricken und klönen", "stricken und kloenen",
-    "treffen der bad honnefer funkamateure", "treffen pflegender angehöriger",
-    "treffen pflegender angehoeriger", "veranstaltung der senioreninformation",
-})
-_CULTURAL_EVENT_BITS = frozenset({
-    "ausstellung", "festival", "flohmarkt", "kabarett", "konzert", "kunstmarkt",
-    "lesung", "lesekreis", "lesezirkel", "live-musik", "museum", "theater", "vernissage",
-    "wanderung", "tag der offenen tür", "tag der offenen tuer",
-})
-_RECURRING_DESTINATION_BITS = frozenset({
-    "feierabendtour", "repair café", "repair cafe", "repaircafé", "repaircafe",
-    "kristallklangschalenreise",
-})
-_REGULAR_LOW_VALUE_BITS = frozenset({
-    "frischemarkt", "wochenmarkt", "bauernmarkt", "biomarkt", "abendmarkt", "zwiebelmarkt",
-})
-_GENERIC_LOW_VALUE_BITS = frozenset({
-    "fortgeschrittene", "sprachkurs", "englischkurs", "yogakurs", "offene sprechstunde",
-    "beratung", "frauen in bewegung", "gedächtnistraining", "gedaechtnistraining", "deutschkurs",
-    "pilates-training", "sitzgymnastik", "rückbildungsgymnastik", "rueckbildungsgymnastik",
-    "wirbelsäulengymnastik", "wirbelsaeulengymnastik", "patientenveranstaltung",
-    "english club am vormittag", "gymnastik mal", "yoga mit kleinkindern", "feldenkrais-kurs",
-    "gleichgewichtstraining", "seniorenyoga", "umgang mit smartphone, tablet und pc",
-    "handy-hilfe für seniorinnen und senioren", "kaffeekränzchen", "seniorenkaffee",
-    "ein nachmittag mit kaffee, kuchen", "singangebot mit", "eltern-kind-spielgruppe",
-    "strick- und häkelkurs", "clubabend",
-})
-_RECURRING_COURSE_BITS = frozenset({
-    "der kurs findet immer", "der kurs kostet", "kurseinheiten",
-    "anmeldungen werden unter der telefonnummer", "begegnungsstätte club",
-})
-_COURSE_CONTEXT_BITS = frozenset({
-    "kurs", "training", "gymnastik", "yoga", "feldenkrais", "smartphone", "tablet", "pc",
-    "kaffee und kuchen", "singangebot", "clubabend",
-})
-
-
-def _legacy_junk_decision(ev: dict) -> Optional[tuple[str, str, tuple[str, ...]]]:
-    """Return the named decision for the remaining compatibility policy."""
-    title = (ev.get("title") or "").lower()
-    desc = (ev.get("description") or "").lower()
-    venue = (ev.get("venue") or "").lower()
-    link = (ev.get("link") or "").lower()
-    category = (ev.get("category") or "").lower()
-    text = f"{title} {desc} {venue} {link}"
-    # Cultural exceptions should come from the event content/category, not from a
-    # venue name or URL path like `/museum/` that can also host civic meetings.
-    content_text = f"{title} {desc} {category}"
-    title_desc_text = f"{title} {desc}"
-    destination_market = _is_destination_market(content_text)
-
-    if matched := next((bit for bit in _JUNK_TITLE_BITS if bit in title), ""):
-        return (
-            "metadata.navigation-page",
-            "navigation or legal page is not an event",
-            (matched,),
-        )
-
-    if matched := next((bit for bit in _JUNK_LINK_BITS if bit in link), ""):
-        return (
-            "metadata.directory-link",
-            "link points to navigation, a directory, or a generic listing",
-            (matched,),
-        )
-
-    if "grüne jugend" in text or "gruene jugend" in text:
-        return (
-            "civic.partisan-organization",
-            "partisan organizational activity is outside the editorial scope",
-            ("grüne jugend" if "grüne jugend" in text else "gruene jugend",),
-        )
-
-    if matched := next((bit for bit in _NARROW_PRIVATE_EVENT_BITS if bit in text), ""):
-        return (
-            "editorial.private-graduation",
-            "private graduation celebration is not a public destination event",
-            (matched,),
-        )
-
-    if (
-        has_cancelled_status(ev.get("title") or "", ev.get("description") or "")
-        and ev.get("status") not in {"cancelled", "postponed"}
-    ):
-        return (
-            "schedule.cancelled",
-            "cancelled occurrence must not be published as scheduled",
-            (),
-        )
-
-    if matched := next((bit for bit in _HARD_BLOCK_BITS if bit in text), ""):
-        return (
-            "editorial.static-attraction",
-            "static attraction page is not a dated destination event",
-            (matched,),
-        )
-
-    # Matched against everything except the free prose: a committee meeting says
-    # so in its title, its category or the room it books, while a description
-    # naming one is usually crediting a co-organizer ("gemeinsam mit dem
-    # Seniorenbeirat"). Scanning the description dropped public events — a
-    # sports course, a summer festival — for the body that helped host them.
-    governance_text = f"{title} {category} {venue} {link}"
-    governance_match = next(
-        (bit for bit in _ROUTINE_OR_POLITICAL_BITS if bit in governance_text), "",
-    )
-    if ("cinema-special" not in category
-            and governance_match
-            and not destination_market
-            and not any(bit in title_desc_text for bit in _CULTURAL_EVENT_BITS)):
-        return (
-            "civic.governance",
-            "routine political or administrative meeting is outside the editorial scope",
-            (governance_match,),
-        )
-    routine_match = next((bit for bit in _ROUTINE_PHRASE_BITS if bit in text), "")
-    if ("cinema-special" not in category
-            and routine_match
-            and not destination_market
-            and not any(bit in title for bit in _RECURRING_DESTINATION_BITS)
-            and not any(bit in title_desc_text for bit in _CULTURAL_EVENT_BITS)):
-        return (
-            "civic.routine-meetup",
-            "recurring low-signal meetup is not a destination event",
-            (routine_match,),
-        )
-
-    regular_market_match = next((bit for bit in _REGULAR_LOW_VALUE_BITS if bit in text), "")
-    if regular_market_match and not destination_market:
-        return (
-            "civic.routine-market",
-            "routine produce market is civic infrastructure, not a special market event",
-            (regular_market_match,),
-        )
-
-    if matched := next((bit for bit in _GENERIC_LOW_VALUE_BITS if bit in text), ""):
-        return (
-            "civic.course",
-            "routine course or support offer is not a destination event",
-            (matched,),
-        )
-
-    language_name = re.search(r"\b(?:italienisch|französisch)\b", text)
-    language_course_context = re.search(
-        r"\b(?:anfänger|anfaenger|fortgeschrittene|kurs|lernen|sprachunterricht|unterricht|[abc][12])\b",
-        text,
-    )
-    if language_name and language_course_context:
-        return (
-            "civic.language-course",
-            "recurring language instruction is not a destination event",
-            (language_name.group(0), language_course_context.group(0)),
-        )
-
-    recurring_match = next((bit for bit in _RECURRING_COURSE_BITS if bit in text), "")
-    context_match = next((bit for bit in _COURSE_CONTEXT_BITS if bit in text), "")
-    if (recurring_match
-            and context_match
-            and not any(bit in content_text for bit in _CULTURAL_EVENT_BITS)):
-        return (
-            "civic.recurring-course",
-            "recurring course series is not a destination event",
-            (recurring_match, context_match),
-        )
-
-    # Web-search results are noisy: require topical + date/event signal, since they
-    # also return static venue/shop/route pages.
-    if ev.get("source") in {"Exa Search", "Grok Search"}:
-        strong_signal = destination_market or any(k in text for k in [
-            "konzert", "concert", "ausstellung", "museum", "festival", "party", "dj",
-            "techno", "electronic", "führung", "tour", "theater", "comedy", "lesung",
-            "wein", "winzer", "weingut", "wanderung", "wandern", "wander", "walk",
-            "ahrtal", "ahrweiler", "stadtteilfest", "straßenfest", "strassenfest",
-            "dorffest", "kirmes", "poppelsdorf", "endenich", "beuel", "bad godesberg",
-            "siebengebirge", "königswinter", "koenigswinter", "drachenfels",
-            "petersberg", "heisterbach", "andernach", "namedy", "linz", "unkel",
-            "remagen", "rolandseck", "bad honnef", "dernau", "mayschoss", "altenahr",
-            "walporzheim", "weinprobe", "weinfest", "kottenforst", "natur", "rundgang",
-            "genussmeile", "weinmeile",
-        ])
-        explicit_local_event = any(k in text for k in [
-            "weinmeile", "genussmeile", "stadtteilfest", "straßenfest", "strassenfest",
-            "dorffest", "kirmes", "weinfest", "wirtefestival", "promenadenfest",
-        ])
-        date_signal = bool(re.search(
-            r"\b(20\d{2}|\d{1,2}\.\d{1,2}\.|\d{1,2}\s*(?:jan|feb|mär|mae|apr|mai|jun|jul|aug|sep|okt|nov|dez)|"
-            r"montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|wochenende|heute|morgen|am\s+\d)",
-            text, re.IGNORECASE,
-        ))
-        static_page_bits = [
-            "öffnungszeiten", "route planen", "unser sortiment", "wanderwege in der nähe",
-            "die besten", "wiki", "website", "hotels", "immobilien",
-        ]
-        if any(bit in text for bit in static_page_bits) and not explicit_local_event:
-            matched = next(bit for bit in static_page_bits if bit in text)
-            return (
-                "search.static-page",
-                "search result describes a static page rather than a dated event",
-                (matched,),
-            )
-        if not strong_signal or (not date_signal and not explicit_local_event):
-            return (
-                "search.insufficient-event-evidence",
-                "search result lacks enough topical and dated event evidence",
-                (),
-            )
-
-    return None
-
-
 def _legacy_is_junk_event(ev: dict) -> bool:
     """Compatibility boolean for callers that have not migrated to decisions."""
-    return _legacy_junk_decision(ev) is not None
-
-
-def evaluate_event_quality(ev: dict[str, Any]) -> QualityDecision:
-    """Return the named quality decision for a candidate event."""
-    from .quality import evaluate_event_quality as evaluate
-    return evaluate(ev)
+    return legacy_junk_decision(ev) is not None
 
 
 def is_junk_event(ev: dict) -> bool:

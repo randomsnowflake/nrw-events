@@ -227,6 +227,7 @@ scripts/nrw_events/
   ical.py
   identity.py
   jsonld.py
+  junk_rules.py
   location.py
   models.py
   normalization.py
