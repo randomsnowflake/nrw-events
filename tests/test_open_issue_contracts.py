@@ -24,6 +24,10 @@ def raw_event(title="Flohmarkt Rheinaue", day="2026-08-15", **overrides):
 
 
 class OpenIssueContractTests(unittest.TestCase):
+    def test_highlight_rank_preserves_zero_distance(self):
+        self.assertEqual(highlights._rank({"distance_km": 0})[1], 0)
+        self.assertEqual(highlights._rank({"distance_km": None})[1], 999)
+
     def test_snapshot_exports_editorial_features_without_changing_score(self):
         canonical = runner.validate_event(raw_event())
         context = RunContext(
