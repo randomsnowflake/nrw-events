@@ -1276,7 +1276,9 @@ _FREE_ADMISSION_PATTERNS = (
     r"(?:keine anmeldung|ohne anmeldung)\b",
     r"(?:^|[.!?]\s*)kostenlos\s+und\s+unverbindlich\b",
     r"\b(?:kostenlos|kostenfrei)\s+ab\s+\d+\b",
-    r"\b(?:könnt|koennt|kann|können|koennen)\b[^.]{0,140}\b(?:kostenlos|kostenfrei)\b"
+    r"\b(?:du\s+kannst|kannst\s+du|ihr\s+(?:könnt|koennt)|(?:könnt|koennt)\s+ihr|"
+    r"sie\s+(?:können|koennen)|(?:können|koennen)\s+sie|man\s+kann)\b"
+    r"[^.]{0,140}\b(?:kostenlos|kostenfrei)\b"
     r"[^.]{0,60}\b(?:anhören|anhoeren|besuchen|teilnehmen|mitmachen)\b",
 )
 _FREE_TITLE_PATTERN = re.compile(r"^\s*(?:kostenlos|kostenfrei)\s+", re.IGNORECASE)
@@ -1285,7 +1287,8 @@ _FREE_TITLE_PATTERN = re.compile(r"^\s*(?:kostenlos|kostenfrei)\s+", re.IGNORECA
 # ordinary prose such as "Anmeldung nicht erforderlich: frei" is not evidence.
 _FREE_DESCRIPTION_BLOCK_PATTERN = re.compile(
     r"(?im)^\s*(?:"
-    r"(?:kostenlos|kostenfrei)(?:\s+natürlich|\s+natuerlich)?\s*(?:[.!](?=\s|$)|$)"
+    r"(?:kostenlos|kostenfrei)(?:\s+natürlich|\s+natuerlich)?\s*"
+    r"(?:[.!][ \t]*(?=\n|$)|$)"
     r"|frei\s*(?:[.!]?\s*$|,\s*(?:es\s+geht\s+der\s+hut\s+rum|hutspenden?\b|spenden?\b).*$)"
     r")",
 )
