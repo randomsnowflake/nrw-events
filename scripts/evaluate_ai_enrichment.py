@@ -78,6 +78,13 @@ def select_pilot(events: list[dict[str, Any]], limit: int) -> list[dict[str, Any
     return selected[:limit]
 
 
+def select_all(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        events,
+        key=lambda event: (str(event.get("source_id") or ""), event_id(event)),
+    )
+
+
 def select_reference_pilot(
     events: list[dict[str, Any]],
     cache_db: Path,
@@ -149,11 +156,19 @@ def main() -> int:
     parser.add_argument("input", type=Path, help="local importer/website event snapshot")
     parser.add_argument("--limit", type=int, default=36)
     parser.add_argument(
+        "--all",
+        dest="all_events",
+        action="store_true",
+        help="process every target-source event in the input instead of a pilot sample",
+    )
+    parser.add_argument(
         "--reference-pipeline-version",
         help="reuse the exact event IDs from a prior cached pilot",
     )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.all_events and args.reference_pipeline_version:
+        parser.error("--all and --reference-pipeline-version cannot be combined")
     if not 1 <= args.limit <= 200:
         parser.error("--limit must be between 1 and 200")
 
@@ -163,15 +178,16 @@ def main() -> int:
         key_name = "OPENROUTER_API_KEY" if settings.provider == "openrouter" else "OPENAI_API_KEY"
         parser.error(f"{key_name} is missing")
     available_events = _events(args.input)
-    candidates = (
-        select_reference_pilot(
+    if args.all_events:
+        candidates = select_all(available_events)
+    elif args.reference_pipeline_version:
+        candidates = select_reference_pilot(
             available_events,
             settings.cache_db,
             args.reference_pipeline_version,
         )
-        if args.reference_pipeline_version
-        else select_pilot(available_events, args.limit)
-    )
+    else:
+        candidates = select_pilot(available_events, args.limit)
     if args.reference_pipeline_version and len(candidates) != args.limit:
         parser.error(
             f"reference pilot contains {len(candidates)} events, expected --limit {args.limit}"
@@ -224,6 +240,8 @@ def main() -> int:
     report = {
         "provider": settings.provider,
         "model": settings.model,
+        "facts_reasoning_effort": settings.facts_reasoning_effort,
+        "summary_reasoning_effort": settings.summary_reasoning_effort,
         "pipeline_version": ai_enrichment.cache_pipeline_version(settings),
         "reference_pipeline_version": args.reference_pipeline_version,
         "selected": len(rows),

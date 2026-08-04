@@ -248,6 +248,39 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertEqual(canonical.venue_address, "Spicher Straße 101, 53844 Troisdorf")
         self.assertEqual(canonical.venue_id, "hit-markt-rotter-see")
 
+    def test_generic_verified_venue_does_not_override_another_branch_address(self):
+        canonical = canonicalize_event(event(
+            title="Flohmarkt, HIT Roitzheimer Str. 117, 53879 Euskirchen",
+            city="Euskirchen",
+            venue="Flohmarkt",
+            venue_address="HIT Roitzheimer Str. 117, 53879 Euskirchen",
+            category="Flohmarkt",
+        ))
+
+        self.assertEqual(canonical.venue, "Flohmarkt")
+        self.assertEqual(
+            canonical.venue_address,
+            "HIT Roitzheimer Str. 117, 53879 Euskirchen",
+        )
+        self.assertIsNone(canonical.venue_latitude)
+        self.assertIsNone(canonical.venue_longitude)
+
+    def test_generic_verified_venue_still_resolves_its_matching_branch_address(self):
+        canonical = canonicalize_event(event(
+            title="Flohmarkt, HIT Georgstr. 22, 53879 Euskirchen",
+            city="Euskirchen",
+            venue="Flohmarkt",
+            venue_address="HIT Georgstr. 22, 53879 Euskirchen",
+            category="Flohmarkt",
+        ))
+
+        self.assertEqual(
+            canonical.venue_address,
+            "HIT Georgstr. 22, 53879 Euskirchen",
+        )
+        self.assertAlmostEqual(canonical.venue_latitude or 0, 50.6539617)
+        self.assertAlmostEqual(canonical.venue_longitude or 0, 6.7704394)
+
 
 if __name__ == "__main__":
     unittest.main()

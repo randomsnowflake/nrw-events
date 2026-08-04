@@ -17,7 +17,10 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import sqlite3
+import threading
+import time
 from typing import Any, Callable, Iterator, Mapping, Protocol
 import urllib.error
 import urllib.request
@@ -34,7 +37,7 @@ TARGET_SOURCE_IDS = frozenset({
     "radio-bonn-rhein-sieg",
 })
 PIPELINE_VERSION = "event-facts-summary-v5"
-OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v6"
+OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v12"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash-0731"
 _OPENAI_API_URL = "https://api.openai.com/v1/responses"
@@ -45,6 +48,10 @@ _CATEGORY_KEYS = tuple(category["key"] for category in category_taxonomy.CATEGOR
 class AIEnrichmentError(RuntimeError):
     """One safe-to-retry AI enrichment operation failed."""
 
+    def __init__(self, message: str, *, usage: Any = None) -> None:
+        super().__init__(message)
+        self.usage = usage
+
 
 @dataclass(frozen=True, slots=True)
 class AISettings:
@@ -54,9 +61,12 @@ class AISettings:
     cache_db: Path
     provider: str = "openai"
     max_attempts: int = 2
-    negative_cache_hours: float = 24.0
-    timeout_seconds: float = 90.0
+    # Zero means permanent for this exact input hash and pipeline version.
+    negative_cache_hours: float = 0.0
+    timeout_seconds: float = 180.0
     max_events: int = 0
+    facts_reasoning_effort: str = "none"
+    summary_reasoning_effort: str = "none"
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +89,34 @@ class StructuredClient(Protocol):
     ) -> tuple[dict[str, Any], Usage]: ...
 
 
+@contextmanager
+def _hard_request_deadline(seconds: float) -> Iterator[None]:
+    """Enforce a total wall-clock deadline in addition to socket inactivity timeouts."""
+    if (
+        seconds <= 0
+        or threading.current_thread() is not threading.main_thread()
+        or not hasattr(signal, "setitimer")
+    ):
+        yield
+        return
+
+    def expired(_signum: int, _frame: Any) -> None:
+        raise TimeoutError("AI request exceeded its wall-clock deadline")
+
+    started = time.monotonic()
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, expired)
+    previous_timer = signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
+        if previous_timer[0] > 0:
+            remaining = max(previous_timer[0] - (time.monotonic() - started), 0.000001)
+            signal.setitimer(signal.ITIMER_REAL, remaining, previous_timer[1])
+
+
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
     if raw is None:
@@ -91,6 +129,14 @@ def _env_bool(name: str, default: bool) -> bool:
     raise ValueError(f"{name} must be a boolean (0/1, false/true), got {raw!r}")
 
 
+def _env_reasoning_effort(name: str, default: str = "none") -> str:
+    effort = os.environ.get(name, default).strip().casefold() or default
+    allowed = {"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+    if effort not in allowed:
+        raise ValueError(f"{name} must be one of {', '.join(sorted(allowed))}, got {effort!r}")
+    return effort
+
+
 def settings_from_env() -> AISettings:
     """Load bounded AI settings without ever logging the API key."""
     cache_dir = os.environ.get("NRW_EVENTS_CACHE_DIR", "").strip()
@@ -101,8 +147,8 @@ def settings_from_env() -> AISettings:
     )
     cache_db = Path(os.environ.get("NRW_EVENTS_AI_CACHE_DB", str(default_cache))).expanduser()
     max_attempts = int(os.environ.get("NRW_EVENTS_AI_MAX_ATTEMPTS", "2"))
-    negative_hours = float(os.environ.get("NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS", "24"))
-    timeout = float(os.environ.get("NRW_EVENTS_AI_TIMEOUT_SECONDS", "90"))
+    negative_hours = float(os.environ.get("NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS", "0"))
+    timeout = float(os.environ.get("NRW_EVENTS_AI_TIMEOUT_SECONDS", "180"))
     max_events = int(os.environ.get("NRW_EVENTS_AI_MAX_EVENTS", "0"))
     if not 1 <= max_attempts <= 5:
         raise ValueError("NRW_EVENTS_AI_MAX_ATTEMPTS must be between 1 and 5")
@@ -127,6 +173,11 @@ def settings_from_env() -> AISettings:
         negative_cache_hours=negative_hours,
         timeout_seconds=timeout,
         max_events=max_events,
+        facts_reasoning_effort=_env_reasoning_effort("NRW_EVENTS_AI_FACTS_REASONING_EFFORT"),
+        summary_reasoning_effort=_env_reasoning_effort(
+            "NRW_EVENTS_AI_SUMMARY_REASONING_EFFORT",
+            "low" if provider == "openrouter" else "none",
+        ),
     )
 
 
@@ -278,19 +329,40 @@ Setze is_concrete_event nur bei einem zeitlich begrenzten öffentlichen Termin a
 dauerhafte Verkaufsflächen und bloße Verzeichniseinträge sind keine Veranstaltung.
 Formuliere jeden Freitext als knappe atomare Tatsache, nicht als Prosa und nicht im Wortlaut der Quelle.
 Halte einzelne Listenpunkte möglichst unter 18 Wörtern und löse längere Quellsätze in mehrere Fakten auf.
+Alle Felder beziehen sich ausschließlich auf den ausgewählten Termin zwischen start_date und end_date.
+Ignoriere Programmpunkte und Öffnungstage mit anderen Daten, auch wenn sie zur selben Reihe oder Ausstellung gehören.
+admission, availability, registration und requirements gelten ausschließlich für Besucher. Entferne Standgebühren,
+Händlerpreise, Verkäuferbedingungen, Aufbauhinweise, Reisegewerbekarten und Standreservierungen aus allen Feldern.
+Förderer, Sponsoren und Kooperationspartner sind keine Programminhalte und werden nicht übernommen.
+Übernimm keine Wirkungs- oder Heilversprechen. Beschreibe nur die ausgeübte Tätigkeit.
+Setze organizer nur bei einer ausdrücklichen Kennzeichnung als Veranstalter oder organisiert von.
+Generische Zielgruppen wie Familien, Freunde, Kollegen, alle oder Interessierte sind keine Fakten.
+Setze language nur bei einer ausdrücklichen Angabe zur Veranstaltungssprache.
+Eine nicht erforderliche Anmeldung wird nicht als registration übernommen.
+event_evidence dient nur der internen Klassifikation und ist niemals Schreibstoff für den späteren Text.
 Bestehende strukturierte Felder sind Kontext; korrigiere sie nicht spekulativ."""
 
 _SUMMARY_PROMPT = """Du erhältst ausschließlich bereits extrahierte Fakten zu einer Veranstaltung.
 Schreibe daraus einen eigenständigen deutschen Informationstext, ohne Zugriff auf oder Nachahmung von Quellprosa.
 Ton: wie ein sachkundiger Freund – seriös, locker, natürlich und ehrlich. Keine Werbung, Empfehlung,
 Übertreibung, Einladung, Kaufaufforderung, Wertung oder unbelegte Behauptung. Verwende nur gelieferte Fakten.
-Normalerweise sind 120 bis 250 Wörter angemessen. Bei wenigen Fakten deutlich kürzer schreiben statt zu füllen.
+Schreibe nüchterne vollständige Aussagesätze ohne Metaphern, Szenesprache oder atmosphärische Ausschmückung.
+Passe die Länge an die Informationsdichte an: bei bis zu vier substanziellen Fakten 30 bis 60 Wörter,
+bei fünf bis acht Fakten 60 bis 110 Wörter, bei mehr Fakten 100 bis 170 Wörter. Niemals durch Allgemeinwissen,
+Vermutungen, fehlende Angaben, Kategorien oder wiederholte Logistik auffüllen.
 Nenne Datum, Uhrzeit und Ort nicht mechanisch doppelt. Erkläre Inhalt, Ablauf und relevante praktische Hinweise.
 Erwähne niemals, welche Angaben fehlen oder nicht vorliegen. Verändere Satzbau und Wortwahl gegenüber den
 Fakten deutlich, ohne Namen, Zahlen oder Fachbegriffe zu verfälschen.
-Sprich die Lesenden nicht direkt an. Vermeide insbesondere du, ihr, euch, man sollte, lädt ein, lockt,
+Sprich die Lesenden nicht direkt an, auch nicht mit Sie. Vermeide insbesondere du, ihr, euch, bitte beachten,
+man sollte, lädt ein, lockt,
 Gelegenheit, Erlebnis, Paradies, Geheimtipp, vormerken und jede Empfehlung. Verweise nie auf die Quelle,
 eine Website für weitere Informationen oder darauf, dass Veranstalter später noch Details mitteilen.
+Erwähne niemals Widersprüche zwischen Adressen oder Feldern und niemals Formulierungen wie die Ankündigung nennt,
+laut den Angaben oder als Veranstaltungsort wird angegeben. Verwende im Zweifel nur den gesperrten vorhandenen Wert.
+Schreibe keine Aussagen wie scheint, typischerweise, vermutlich, wahrscheinlich oder nicht gesichert.
+Verwende ausschließlich Fakten zum ausgewählten start_date/end_date-Termin; andere Termine derselben Reihe
+bleiben vollständig weg. Verkäufer-, Händler- und Standinformationen bleiben auch im Text vollständig weg.
+Gesundheitliche Wirkungsbehauptungen werden nicht wiedergegeben.
 Das Objekt field_policy nennt gesperrte vorhandene Werte. Widersprich ihnen weder im Text noch in Attributen;
 lasse einen Konflikt vollständig weg. Gesperrte Werte sind keine Schreibfakten: Verwende sie im Text nur, wenn
 dieselbe Angabe auch in facts steht. Preis meint ausschließlich den Eintritt für Besucher, niemals Standgebühren,
@@ -347,8 +419,9 @@ class ResponsesClient:
             method="POST",
         )
         try:
-            with self._opener(request, timeout=self.settings.timeout_seconds) as response:
-                raw = response.read().decode("utf-8")
+            with _hard_request_deadline(self.settings.timeout_seconds):
+                with self._opener(request, timeout=self.settings.timeout_seconds) as response:
+                    raw = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             raise AIEnrichmentError(f"OpenAI HTTP {exc.code}") from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
@@ -412,9 +485,14 @@ class OpenRouterClient:
                 },
             ],
             "max_tokens": 5000 if stage == "facts" else 3000,
-            # Extraction and rewriting do not benefit enough from hidden
-            # reasoning to justify billed output tokens.
-            "reasoning": {"effort": "none"},
+            "reasoning": {
+                "effort": (
+                    self.settings.facts_reasoning_effort
+                    if stage == "facts"
+                    else self.settings.summary_reasoning_effort
+                ),
+                "exclude": True,
+            },
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {
@@ -443,8 +521,9 @@ class OpenRouterClient:
             method="POST",
         )
         try:
-            with self._opener(request, timeout=self.settings.timeout_seconds) as response:
-                raw = response.read().decode("utf-8")
+            with _hard_request_deadline(self.settings.timeout_seconds):
+                with self._opener(request, timeout=self.settings.timeout_seconds) as response:
+                    raw = response.read().decode("utf-8")
         except urllib.error.HTTPError as exc:
             raise AIEnrichmentError(f"OpenRouter HTTP {exc.code}") from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
@@ -453,32 +532,43 @@ class OpenRouterClient:
             document = json.loads(raw)
         except json.JSONDecodeError as exc:
             raise AIEnrichmentError("OpenRouter returned invalid JSON") from exc
+        usage = _openrouter_usage(document)
         if document.get("error"):
             error = document["error"] if isinstance(document["error"], dict) else {}
-            raise AIEnrichmentError(f"OpenRouter error: {str(error.get('message') or 'unknown')[:300]}")
+            raise AIEnrichmentError(
+                f"OpenRouter error: {str(error.get('message') or 'unknown')[:300]}",
+                usage=usage,
+            )
         choices = document.get("choices") or []
         if not choices or not isinstance(choices[0], dict):
-            raise AIEnrichmentError("OpenRouter response contained no choice")
+            raise AIEnrichmentError("OpenRouter response contained no choice", usage=usage)
         if choices[0].get("finish_reason") != "stop":
-            raise AIEnrichmentError(f"OpenRouter response incomplete: {choices[0].get('finish_reason')}")
+            raise AIEnrichmentError(
+                f"OpenRouter response incomplete: {choices[0].get('finish_reason')}",
+                usage=usage,
+            )
         message = choices[0].get("message") or {}
         output_text = message.get("content") if isinstance(message, dict) else ""
         if not isinstance(output_text, str) or not output_text:
-            raise AIEnrichmentError("OpenRouter response contained no output text")
+            raise AIEnrichmentError("OpenRouter response contained no output text", usage=usage)
         try:
             parsed = json.loads(output_text)
         except json.JSONDecodeError as exc:
-            raise AIEnrichmentError("OpenRouter structured output was not JSON") from exc
+            raise AIEnrichmentError("OpenRouter structured output was not JSON", usage=usage) from exc
         if not isinstance(parsed, dict):
-            raise AIEnrichmentError("OpenRouter structured output was not an object")
-        usage = document.get("usage") or {}
-        input_details = usage.get("prompt_tokens_details") or {}
-        return parsed, Usage(
-            input_tokens=int(usage.get("prompt_tokens") or 0),
-            cached_input_tokens=int(input_details.get("cached_tokens") or 0),
-            output_tokens=int(usage.get("completion_tokens") or 0),
-            cost_usd=float(usage.get("cost") or 0),
-        )
+            raise AIEnrichmentError("OpenRouter structured output was not an object", usage=usage)
+        return parsed, usage
+
+
+def _openrouter_usage(document: Mapping[str, Any]) -> Usage:
+    raw = document.get("usage") or {}
+    input_details = raw.get("prompt_tokens_details") or {}
+    return Usage(
+        input_tokens=int(raw.get("prompt_tokens") or 0),
+        cached_input_tokens=int(input_details.get("cached_tokens") or 0),
+        output_tokens=int(raw.get("completion_tokens") or 0),
+        cost_usd=float(raw.get("cost") or 0),
+    )
 
 
 def _utc_now() -> datetime:
@@ -549,7 +639,10 @@ def cache_pipeline_version(settings: AISettings) -> str:
     """Keep existing OpenAI cache keys stable while isolating other providers."""
     if settings.provider == "openai":
         return f"{PIPELINE_VERSION}:{settings.model}"
-    return f"{OPENROUTER_PIPELINE_VERSION}:{settings.provider}:{settings.model}"
+    return (
+        f"{OPENROUTER_PIPELINE_VERSION}:{settings.provider}:{settings.model}:"
+        f"facts-{settings.facts_reasoning_effort}:summary-{settings.summary_reasoning_effort}"
+    )
 
 
 def _ensure_row(connection: sqlite3.Connection, *, event_key: str, digest: str, source_id: str, settings: AISettings, now: datetime) -> sqlite3.Row:
@@ -601,7 +694,13 @@ def _record_success(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: 
 
 def _record_failure(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: int, error: Exception, usage: Usage, settings: AISettings, now: datetime, terminal: bool) -> sqlite3.Row:
     attempts = "stage1_attempts" if stage == 1 else "stage2_attempts"
-    negative_until = _timestamp(now + timedelta(hours=settings.negative_cache_hours)) if terminal else ""
+    negative_until = ""
+    if terminal:
+        negative_until = (
+            _timestamp(now + timedelta(hours=settings.negative_cache_hours))
+            if settings.negative_cache_hours > 0
+            else "9999-12-31T23:59:59+00:00"
+        )
     connection.execute(
         f"""UPDATE ai_event_enrichment SET {attempts} = {attempts} + 1,
             negative_until = ?, last_error = ?, input_tokens = input_tokens + ?,
@@ -648,7 +747,10 @@ _MARKETING_PATTERN = re.compile(
     r"wer\b[^.!?]{0,100}\b(?:mag|möchte|lust\s+hat)|\b(?:du|ihr|euch|dein(?:e[rmns]?)?)\b|"
     r"\bsollte(?:st|n)?\b|könnte\b[^.!?]{0,100}\bfündig|vormerken|freihalten|"
     r"wermutstropfen|intime\s+atmosphäre|stimmungsvoll|ausgelassene?\s+(?:stimmung|fest)|"
-    r"gemütlich(?:e[snr]?)?|entspannt(?:e[snr]?)?|schnäppchen)\b",
+    r"gemütlich(?:e[snr]?)?|entspannt(?:e[snr]?)?|schnäppchen|geheimtipp|sehenswert(?:e[snr]?)?|"
+    r"abwechslungsreich(?:e[snr]?)?|vielseitig(?:e[snr]?)?|größten?\s+hits?|sorgt\s+für|geboten\s+wird|"
+    r"verwandelt\s+sich|kulinarische?\s+bühne|nostalgisch(?:e[snr]?)?|besonder(?:e[snr]?)?\s+tipp|"
+    r"gemeinschaftsleben|stadtteilleben)\b",
     re.IGNORECASE,
 )
 _MISSING_INFO_PATTERN = re.compile(
@@ -660,19 +762,256 @@ _MISSING_INFO_PATTERN = re.compile(
     r"|\b(?:genauer?|konkreter?)\s+(?:ort|treffpunkt|ablauf|öffnungszeiten?)\b"
     r"[^.!?]{0,120}\b(?:nicht\s+(?:bekannt|angegeben|bezeichnet|genannt)|fehlt|fehlen)\b"
     r"|\b(?:liegt|liegen|ist|sind|wurde|wurden)\b[^.!?]{0,80}\b"
-    r"nicht\s+(?:bekannt|angegeben|ausgewiesen|enthalten|genannt|bezeichnet|vorhanden)\b"
+    r"nicht\s+(?:bekannt|angegeben|ausgewiesen|enthalten|genannt|bezeichnet|vorhanden|"
+    r"hinterlegt|verfügbar|ersichtlich)\b"
     r"|\b(?:informiere|informiert|informieren)\b[^.!?]{0,100}\b(?:vorab|direkt|veranstalter|verein)\b",
     re.IGNORECASE,
 )
-_VENDOR_FEE_PATTERN = re.compile(
-    r"\b(?:stand(?:gebühr|preis|miete)|laufend(?:er|en)?\s+(?:front)?meter|lfdm|"
-    r"reinigungskaution|verkäufer(?:preis|gebühr)|händler(?:preis|gebühr))\b",
+_META_OR_SPECULATION_PATTERN = re.compile(
+    r"\b(?:scheint|typischerweise|vermutlich|wahrscheinlich|möglicherweise|offenbar)\b"
+    r"|\b(?:laut|nach)\s+(?:den\s+)?vorliegenden\s+(?:angaben|daten|informationen)\b"
+    r"|\ballgemeinen\s+informationen\b|\bnicht\s+als\s+gesicherte?\s+fakten?\b"
+    r"|\b(?:ankündigung|angaben|daten)\b[^.!?]{0,100}\b(?:nennt|angegeben|ausgewiesen)\b"
+    r"|\bals\s+(?:veranstaltungs)?ort\s+wird\b[^.!?]{0,100}\bangegeben\b"
+    r"|\bbitte\s+beachten\s+sie\b|\bzeitlich\s+begrenzter\s+öffentlicher\s+termin\b"
+    r"|\bfällt\s+in\s+(?:den\s+)?bereich\b"
+    r"|\b(?:gehört|zählt)\s+(?:zur|zu\s+der)\s+kategorie\b",
     re.IGNORECASE,
 )
+_VENDOR_FEE_PATTERN = re.compile(
+    r"\b(?:stand(?:gebühr\w*|preis\w*|miete\w*|platz\w*|plätze\w*|seite\w*|fläche\w*|betreiber\w*)|"
+    r"platzvergabe|laufend(?:er|en)?\s+(?:front)?meter|lfdm|"
+    r"reinigungskaution|verkäufer(?:preis|gebühr)|händler(?:preis|gebühr)|reisegewerbekarte|"
+    r"neuware\w*|stellfläche\w*|grundgebühr\w*)\b",
+    re.IGNORECASE,
+)
+_SPONSOR_PATTERN = re.compile(
+    r"\b(?:unterstütz\w*|gefördert|sponsor\w*|förderer|kooperationspartner|in\s+zusammenarbeit\s+mit)\b",
+    re.IGNORECASE,
+)
+_HEALTH_CLAIM_PATTERN = re.compile(
+    r"\b(?:lebensenergie|blockaden?\s+(?:lösen|auflösen)|meridian(?:e|en)|heil(?:en|t|ung)|"
+    r"entgift(?:en|ung)|stärkt\s+das\s+immunsystem|helfen\s+soll)\b",
+    re.IGNORECASE,
+)
+_VISITOR_FREE_PATTERN = re.compile(
+    r"\b(?:eintritt|besuch|teilnahme)\b[^.!?]{0,50}\b(?:frei|kostenlos|kostenfrei)\b"
+    r"|\b(?:frei(?:er)?\s+eintritt|kostenlos(?:er|e|es)?\s+(?:eintritt|besuch|teilnahme))\b",
+    re.IGNORECASE,
+)
+_VISITOR_PAID_PATTERN = re.compile(
+    r"\b(?:eintritt|ticket(?:preis)?|teilnahme(?:gebühr|preis)?)\b[^.!?]{0,60}\b\d+(?:[.,]\d{1,2})?\s*(?:€|euro)\b"
+    r"|\b\d+(?:[.,]\d{1,2})?\s*(?:€|euro)\b[^.!?]{0,60}\b(?:eintritt|ticket|teilnahme)\b",
+    re.IGNORECASE,
+)
+_REGISTRATION_PATTERN = re.compile(r"\b(?:anmeld\w*|reservier\w*|buch\w*)\b", re.IGNORECASE)
+_NEGATIVE_REGISTRATION_PATTERN = re.compile(
+    r"\b(?:keine\s+anmeldung|anmeldung\s+(?:ist\s+)?nicht\s+erforderlich)\b",
+    re.IGNORECASE,
+)
+_GENERIC_TARGET_GROUP_PATTERN = re.compile(
+    r"^(?:familien|freunde|kollegen|alle|interessierte|besucher(?:innen)?(?:\s+und\s+besucher)?)$",
+    re.IGNORECASE,
+)
+_LANGUAGE_EVIDENCE_PATTERN = re.compile(
+    r"\b(?:veranstaltungssprache|sprache\s*:|in\s+(?:deutscher|englischer)\s+sprache|"
+    r"auf\s+(?:deutsch|englisch))\b",
+    re.IGNORECASE,
+)
+_AVAILABILITY_PATTERNS = {
+    "SoldOut": re.compile(r"\b(?:ausverkauft|sold\s*out)\b", re.IGNORECASE),
+    "LimitedAvailability": re.compile(
+        r"\b(?:restkarten|wenige\s+(?:plätze|karten|tickets)|begrenzt\s+verfügbar)\b",
+        re.IGNORECASE,
+    ),
+    "PreOrder": re.compile(r"\b(?:vorverkauf|pre-?order)\b", re.IGNORECASE),
+    "InStock": re.compile(r"\b(?:tickets?\s+erhältlich|karten?\s+erhältlich)\b", re.IGNORECASE),
+}
+
+_GERMAN_MONTHS = {
+    "januar": 1, "februar": 2, "märz": 3, "april": 4, "mai": 5, "juni": 6,
+    "juli": 7, "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
+}
+_PROSE_DATE_PATTERN = re.compile(
+    r"\b(\d{1,2})\.\s*(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)"
+    r"(?:\s+(\d{4}))?\b",
+    re.IGNORECASE,
+)
+_WEEKDAY_PATTERN = re.compile(
+    r"\b(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)(?:s)?\b",
+    re.IGNORECASE,
+)
+_WEEKDAY_NUMBERS = {
+    "montag": 0, "dienstag": 1, "mittwoch": 2, "donnerstag": 3,
+    "freitag": 4, "samstag": 5, "sonntag": 6,
+}
 
 
 def _normalized_words(value: str) -> list[str]:
     return re.findall(r"[a-z0-9äöüß]+", value.casefold())
+
+
+def _mentions_date_outside_scope(summary: str, facts: Mapping[str, Any]) -> bool:
+    try:
+        start = datetime.fromisoformat(str(facts.get("_publication_start") or facts.get("start_date"))).date()
+        end = datetime.fromisoformat(
+            str(facts.get("_publication_end") or facts.get("end_date") or start.isoformat())
+        ).date()
+    except ValueError:
+        return False
+    allowed_dates = set()
+    for match in _PROSE_DATE_PATTERN.finditer(str(facts.get("registration") or "")):
+        year = int(match.group(3) or start.year)
+        try:
+            allowed_dates.add(
+                datetime(year, _GERMAN_MONTHS[match.group(2).casefold()], int(match.group(1))).date()
+            )
+        except ValueError:
+            continue
+    for match in _PROSE_DATE_PATTERN.finditer(summary):
+        year = int(match.group(3) or start.year)
+        try:
+            mentioned = datetime(year, _GERMAN_MONTHS[match.group(2).casefold()], int(match.group(1))).date()
+        except ValueError:
+            continue
+        if not start <= mentioned <= end and mentioned not in allowed_dates:
+            return True
+    return False
+
+
+def _mentions_weekday_outside_scope(value: str, payload: Mapping[str, Any]) -> bool:
+    try:
+        start = datetime.fromisoformat(str(payload.get("start_date") or "")).date()
+        end = datetime.fromisoformat(str(payload.get("end_date") or payload.get("start_date") or "")).date()
+    except ValueError:
+        return False
+    if end < start or (end - start).days > 31:
+        return False
+    allowed_weekdays = {(start + timedelta(days=offset)).weekday() for offset in range((end - start).days + 1)}
+    mentioned = {_WEEKDAY_NUMBERS[match.group(1).casefold()] for match in _WEEKDAY_PATTERN.finditer(value)}
+    return bool(mentioned - allowed_weekdays)
+
+
+def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, Any]) -> dict[str, Any]:
+    cleaned = dict(facts)
+    source_material = str(payload.get("source_material") or "")
+    structured_price = str(payload.get("price") or "")
+    evidence_text = f"{structured_price}\n{source_material}"
+    scope = {
+        **cleaned,
+        "_publication_start": payload.get("start_date"),
+        "_publication_end": payload.get("end_date") or payload.get("start_date"),
+    }
+
+    def allowed_fact(value: object, *, sponsors: bool = True, weekdays: bool = True) -> bool:
+        text = str(value or "").strip()
+        if not text:
+            return False
+        blocked = (
+            _VENDOR_FEE_PATTERN.search(text)
+            or _MISSING_INFO_PATTERN.search(text)
+            or _META_OR_SPECULATION_PATTERN.search(text)
+            or _HEALTH_CLAIM_PATTERN.search(text)
+            or _mentions_date_outside_scope(text, scope)
+            or (weekdays and _mentions_weekday_outside_scope(text, payload))
+        )
+        if sponsors:
+            blocked = blocked or _SPONSOR_PATTERN.search(text)
+        return not bool(blocked)
+
+    for field in (
+        "program", "participants", "target_group", "language", "accessibility",
+        "requirements", "special_features", "neutral_facts",
+    ):
+        values = cleaned.get(field)
+        if isinstance(values, list):
+            cleaned[field] = [value for value in values if allowed_fact(value)]
+    target_groups = cleaned.get("target_group") if isinstance(cleaned.get("target_group"), list) else []
+    cleaned["target_group"] = [
+        value for value in target_groups
+        if not _GENERIC_TARGET_GROUP_PATTERN.fullmatch(str(value).strip())
+    ]
+    if not _LANGUAGE_EVIDENCE_PATTERN.search(source_material):
+        cleaned["language"] = []
+
+    for field in ("time_note", "registration", "age_information", "duration"):
+        value = cleaned.get(field)
+        if value and not allowed_fact(value, sponsors=False, weekdays=False):
+            cleaned[field] = None
+    registration = str(cleaned.get("registration") or "")
+    if registration and (
+        not _REGISTRATION_PATTERN.search(registration)
+        or _NEGATIVE_REGISTRATION_PATTERN.search(registration)
+    ):
+        cleaned["registration"] = None
+
+    organizer = str(cleaned.get("organizer") or "").strip()
+    structured_organizer = str(payload.get("organizer") or "").strip()
+    explicit_organizer_label = bool(
+        re.search(r"\b(?:veranstalter|organisiert\s+von)\b", source_material, re.IGNORECASE)
+    )
+    organizer_in_source = bool(organizer and organizer.casefold() in source_material.casefold())
+    if organizer and not (
+        organizer.casefold() == structured_organizer.casefold()
+        or (explicit_organizer_label and organizer_in_source)
+    ):
+        cleaned["organizer"] = None
+
+    admission = dict(cleaned.get("admission")) if isinstance(cleaned.get("admission"), dict) else {}
+    note = str(admission.get("note") or "").strip()
+    if note and not allowed_fact(note, sponsors=False):
+        note = ""
+    conditional_free = bool(re.search(r"\bersten\s+sonntag\b", note, re.IGNORECASE))
+    selected_is_first_sunday = False
+    try:
+        selected_date = datetime.fromisoformat(str(payload.get("start_date") or "")).date()
+        selected_is_first_sunday = selected_date.weekday() == 6 and selected_date.day <= 7
+    except ValueError:
+        pass
+    explicit_free = bool(_VISITOR_FREE_PATTERN.search(evidence_text))
+    if conditional_free and not selected_is_first_sunday:
+        note = ""
+        explicit_free = bool(_VISITOR_FREE_PATTERN.search(structured_price))
+    amount = admission.get("amount")
+    if not isinstance(amount, (int, float)) or isinstance(amount, bool):
+        amount = None
+    if amount is not None and amount > 0 and not _VISITOR_PAID_PATTERN.search(evidence_text):
+        amount = None
+    is_free = admission.get("is_free") if isinstance(admission.get("is_free"), bool) else None
+    if is_free is True and not explicit_free:
+        is_free = None
+    if is_free is False and amount is None:
+        is_free = None
+    if amount == 0 and is_free is False:
+        amount = None
+        is_free = None
+    if amount == 0 and explicit_free:
+        is_free = True
+    if explicit_free:
+        is_free = True
+    admission.update({
+        "is_free": is_free,
+        "amount": amount,
+        "currency": "EUR" if amount is not None else None,
+        "note": note or None,
+        "donation_suggested": (
+            bool(admission.get("donation_suggested"))
+            if re.search(r"\bspende\w*\b", evidence_text, re.IGNORECASE)
+            else None
+        ),
+    })
+    cleaned["admission"] = admission
+
+    availability = cleaned.get("availability")
+    pattern = _AVAILABILITY_PATTERNS.get(str(availability))
+    if not pattern or not pattern.search(source_material):
+        cleaned["availability"] = None
+    if str(payload.get("source_id") or "") == "marktcom" and cleaned.get("time"):
+        time_match = re.fullmatch(r"(\d{2}):(\d{2})", str(cleaned["time"]))
+        time_pattern = rf"{time_match.group(1)}[:.]?{time_match.group(2)}" if time_match else r"(?!)"
+        if re.search(rf"\bplatzvergabe\b[^.!?]{{0,80}}\b{time_pattern}", source_material, re.IGNORECASE):
+            cleaned["time"] = None
+    return cleaned
 
 
 def _summary_quality(summary: object, source_material: str, facts: Mapping[str, Any]) -> str:
@@ -684,10 +1023,39 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
         return "summary is too short to be useful"
     if len(words) > 250:
         return "summary exceeds 250 words"
+    if not re.search(r'[.!?…](?:["”»])?$', clean):
+        return "summary ends mid-sentence"
+    if clean.count("„") != clean.count("“") or clean.count('"') % 2:
+        return "summary contains an unclosed quotation"
     if _MARKETING_PATTERN.search(clean):
         return "summary contains promotional language"
     if _MISSING_INFO_PATTERN.search(clean):
         return "summary talks about missing information"
+    if _META_OR_SPECULATION_PATTERN.search(clean):
+        return "summary contains speculation or meta commentary"
+    if _VENDOR_FEE_PATTERN.search(clean):
+        return "summary contains seller-facing information"
+    if _HEALTH_CLAIM_PATTERN.search(clean):
+        return "summary contains a health-effect claim"
+    if _SPONSOR_PATTERN.search(clean):
+        return "summary contains sponsor or cooperation copy"
+    if _mentions_date_outside_scope(clean, facts):
+        return "summary mentions a date outside the selected event"
+    if not facts.get("organizer") and re.search(
+        r"\b(?:veranstalter\s+ist|veranstaltet\s+von|organisiert\s+von)\b", clean, re.IGNORECASE,
+    ):
+        return "summary invents an organizer"
+    if not facts.get("registration") and _REGISTRATION_PATTERN.search(clean):
+        return "summary invents registration information"
+    admission = facts.get("admission") if isinstance(facts.get("admission"), dict) else {}
+    if admission.get("is_free") is not True and _VISITOR_FREE_PATTERN.search(clean):
+        return "summary invents free admission"
+    if not facts.get("target_group") and re.search(
+        r"\b(?:richtet\s+sich\s+an|für\s+alle\s+interessierten)\b", clean, re.IGNORECASE,
+    ):
+        return "summary invents a target group"
+    if not facts.get("language") and _LANGUAGE_EVIDENCE_PATTERN.search(clean):
+        return "summary invents a language"
     source_words = _normalized_words(source_material)
     if len(source_words) >= 12 and len(words) >= 12:
         source_shingles = {tuple(source_words[index:index + 12]) for index in range(len(source_words) - 11)}
@@ -741,12 +1109,34 @@ def _admission_conflicts(original: Mapping[str, Any], facts: Mapping[str, Any]) 
     )
 
 
-def _clean_summary_result(result: Mapping[str, Any], *, admission_conflict: bool) -> dict[str, Any]:
+def _clean_summary_result(
+    result: Mapping[str, Any],
+    *,
+    admission_conflict: bool,
+    facts: Mapping[str, Any],
+) -> dict[str, Any]:
     cleaned = dict(result)
     summary = str(cleaned.get("ai_summary") or "")
     summary = _without_sentences(summary, _MISSING_INFO_PATTERN)
+    summary = _without_sentences(summary, _META_OR_SPECULATION_PATTERN)
+    summary = _without_sentences(summary, _VENDOR_FEE_PATTERN)
     if admission_conflict:
         summary = _without_sentences(summary, _ADMISSION_SENTENCE_PATTERN)
+        cleaned["price"] = None
+    for field in ("time", "time_note", "venue", "venue_address", "city", "organizer", "series_title"):
+        cleaned[field] = facts.get(field) or None
+    cleaned["availability"] = facts.get("availability") or None
+    admission = facts.get("admission") if isinstance(facts.get("admission"), dict) else {}
+    if (
+        admission_conflict
+        or (
+            admission.get("is_free") is None
+            and admission.get("amount") is None
+            and not admission.get("donation_suggested")
+        )
+    ):
+        cleaned["price"] = None
+    elif _VENDOR_FEE_PATTERN.search(str(cleaned.get("price") or "")):
         cleaned["price"] = None
     cleaned["ai_summary"] = summary
     return cleaned
@@ -904,12 +1294,15 @@ def enrich_event(
         while facts is None and row["stage1_attempts"] < configured.max_attempts:
             usage = Usage()
             try:
-                facts, usage = api.structured(
+                extracted_facts, usage = api.structured(
                     stage="facts", system=_EXTRACT_PROMPT, payload=payload,
                     schema=_FACT_SCHEMA, attempt=row["stage1_attempts"] + 1,
                 )
+                facts = _sanitize_extracted_facts(extracted_facts, payload)
                 row = _record_success(connection, row, stage=1, payload=facts, usage=usage, now=current_time)
             except Exception as exc:
+                if isinstance(exc, AIEnrichmentError) and isinstance(exc.usage, Usage):
+                    usage = exc.usage
                 safe_error = exc if isinstance(exc, AIEnrichmentError) else AIEnrichmentError(type(exc).__name__)
                 terminal = row["stage1_attempts"] + 1 >= configured.max_attempts
                 row = _record_failure(
@@ -930,8 +1323,12 @@ def enrich_event(
                 "time": facts.get("time") or payload["time"] or None,
             }
 
+        writer_facts = {
+            key: value for key, value in facts.items()
+            if key not in {"is_concrete_event", "event_evidence"}
+        }
         stage2_payload = {
-            "facts": facts,
+            "facts": writer_facts,
             "existing_fields": {
                 key: payload[key] for key in (
                     "title", "start_date", "end_date", "time", "time_note", "venue",
@@ -995,14 +1392,22 @@ def enrich_event(
                 result = _clean_summary_result(
                     result,
                     admission_conflict=bool(stage2_payload["field_policy"]["admission_conflict"]),
+                    facts=facts,
                 )
-                quality_error = _summary_quality(result.get("ai_summary"), source_material, facts)
+                quality_facts = {
+                    **writer_facts,
+                    "_publication_start": payload["start_date"],
+                    "_publication_end": payload["end_date"] or payload["start_date"],
+                }
+                quality_error = _summary_quality(result.get("ai_summary"), source_material, quality_facts)
                 if quality_error:
                     quality_feedback = quality_error
                     raise AIEnrichmentError(quality_error)
                 row = _record_success(connection, row, stage=2, payload=result, usage=usage, now=current_time)
                 return _apply_result(event, result)
             except Exception as exc:
+                if isinstance(exc, AIEnrichmentError) and isinstance(exc.usage, Usage):
+                    usage = exc.usage
                 safe_error = exc if isinstance(exc, AIEnrichmentError) else AIEnrichmentError(type(exc).__name__)
                 terminal = row["stage2_attempts"] + 1 >= configured.max_attempts
                 row = _record_failure(

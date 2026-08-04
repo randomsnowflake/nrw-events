@@ -235,10 +235,24 @@ def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | Non
     for candidate in candidates:
         locations = _VERIFIED_LOCATION_BY_ALIAS.get(comparison_text(candidate), [])
         for location in locations:
-            if city and _compatible_city(location.city, city):
+            if city and not _compatible_city(location.city, city):
+                continue
+            # A generic first segment (for example ``Flohmarkt``) must not
+            # attach one branch's verified coordinates to another explicitly
+            # addressed branch in the same municipality.
+            if candidate != value:
+                _, explicit_address = _split_venue(value, city)
+                explicit_key = comparison_text(explicit_address)
+                verified_key = comparison_text(location.address)
+                if (
+                    explicit_key
+                    and verified_key
+                    and explicit_key not in verified_key
+                    and verified_key not in explicit_key
+                ):
+                    continue
+            if city or len(locations) == 1:
                 return location
-        if not city and len(locations) == 1:
-            return locations[0]
     return None
 
 

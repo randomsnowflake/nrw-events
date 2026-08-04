@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -50,11 +51,10 @@ SUMMARY = {
         "Bei Klangraum steht Kammermusik des 20. Jahrhunderts auf dem Programm. "
         "Das Ensemble Beispiel spielt im Alten Rathaus in Bonn; anschließend ist ein moderiertes "
         "Gespräch mit den Mitwirkenden vorgesehen. Die Veranstaltung beginnt um 19:30 Uhr und "
-        "dauert nach den vorliegenden Angaben etwa 90 Minuten. Veranstaltungssprache ist Deutsch. "
-        "Der Zugang ist stufenlos möglich. Der Eintritt ist frei, eine Anmeldung wird bis zum "
+        "dauert etwa 90 Minuten. Der Zugang ist stufenlos möglich. "
+        "Der Eintritt ist frei, eine Anmeldung wird bis zum "
         "8. August erbeten. Der Termin gehört zur Reihe Bonner Klangräume. Inhaltlich verbindet "
-        "der Abend das Konzertprogramm mit einem direkten Austausch. Als Veranstalter ist das "
-        "Kulturamt Bonn genannt; die Angaben richten sich an ein erwachsenes Publikum."
+        "der Abend das Konzertprogramm mit einem direkten Austausch."
     ),
     "time": "19:30",
     "time_note": None,
@@ -80,7 +80,8 @@ def event(**overrides):
         "venue": "",
         "description": (
             "Erleben Sie ein einzigartiges Konzert mit Kammermusik. Im Anschluss sprechen die "
-            "Mitwirkenden mit dem Publikum. Der Eintritt ist frei und eine Anmeldung ist nötig."
+            "Mitwirkenden mit dem Publikum. Der Eintritt ist frei und eine Anmeldung ist nötig. "
+            "Veranstalter: Kulturamt Bonn."
         ),
         "description_html": "<p>Erleben Sie ein einzigartiges Konzert mit Kammermusik.</p>",
         "score": 1.0,
@@ -128,6 +129,12 @@ class RecordingOpener:
         self.request = request
         self.timeout = timeout
         return FakeHTTPResponse(self.document)
+
+
+class SlowOpener:
+    def __call__(self, _request, *, timeout):
+        time.sleep(max(timeout * 4, 0.2))
+        return FakeHTTPResponse({})
 
 
 class AIEnrichmentTests(unittest.TestCase):
@@ -193,13 +200,59 @@ class AIEnrichmentTests(unittest.TestCase):
         body = json.loads(opener.request.data)
 
         self.assertEqual(FACTS, parsed)
-        self.assertEqual({"effort": "none"}, body["reasoning"])
+        self.assertEqual({"effort": "none", "exclude": True}, body["reasoning"])
         self.assertEqual(
             {"require_parameters": True, "data_collection": "deny", "zdr": True, "sort": "price"},
             body["provider"],
         )
         self.assertTrue(body["response_format"]["json_schema"]["strict"])
         self.assertEqual(ai_enrichment.Usage(120, 20, 80, 0.000025), usage)
+
+    def test_openrouter_total_wall_clock_timeout_is_enforced(self):
+        settings = replace(self.settings, provider="openrouter", timeout_seconds=0.05)
+
+        with self.assertRaisesRegex(ai_enrichment.AIEnrichmentError, "TimeoutError"):
+            ai_enrichment.OpenRouterClient(settings, opener=SlowOpener()).structured(
+                stage="facts",
+                system="Extract facts.",
+                payload={"source_material": "Private source copy."},
+                schema=ai_enrichment._FACT_SCHEMA,
+                attempt=1,
+            )
+
+    def test_openrouter_billed_incomplete_response_is_recorded(self):
+        opener = RecordingOpener({
+            "choices": [{
+                "finish_reason": "length",
+                "message": {"content": "{}"},
+            }],
+            "usage": {
+                "prompt_tokens": 120,
+                "completion_tokens": 80,
+                "cost": 0.00125,
+            },
+        })
+        settings = replace(
+            self.settings,
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            max_attempts=1,
+            negative_cache_hours=0,
+        )
+
+        result = ai_enrichment.enrich_event(
+            event(),
+            settings=settings,
+            client=ai_enrichment.OpenRouterClient(settings, opener=opener),
+            now=self.now,
+        )
+
+        self.assertEqual("", result["ai_summary"])
+        with closing(sqlite3.connect(settings.cache_db)) as connection:
+            cost = connection.execute(
+                "SELECT cost_usd FROM ai_event_enrichment"
+            ).fetchone()[0]
+        self.assertEqual(0.00125, cost)
 
     def test_disabled_or_missing_key_never_falls_back_to_source_copy(self):
         source = event()
@@ -252,13 +305,16 @@ class AIEnrichmentTests(unittest.TestCase):
             }
         self.assertEqual({
             f"{ai_enrichment.PIPELINE_VERSION}:gpt-5.6-luna",
-            f"{ai_enrichment.OPENROUTER_PIPELINE_VERSION}:openrouter:gpt-5.6-luna",
+            (
+                f"{ai_enrichment.OPENROUTER_PIPELINE_VERSION}:openrouter:gpt-5.6-luna:"
+                "facts-none:summary-none"
+            ),
         }, versions)
 
     def test_changed_source_content_gets_a_new_cache_version(self):
         first = FakeClient([FACTS, SUMMARY])
         ai_enrichment.enrich_event(event(), settings=self.settings, client=first, now=self.now)
-        changed = event(description="Neue bestätigte Programminformation mit einem anderen Ablauf.")
+        changed = event(description="Neue bestätigte Programminformation mit anderem Ablauf. Der Eintritt ist frei.")
         second = FakeClient([FACTS, SUMMARY])
         ai_enrichment.enrich_event(changed, settings=self.settings, client=second, now=self.now)
         self.assertEqual(2, len(second.calls))
@@ -288,6 +344,27 @@ class AIEnrichmentTests(unittest.TestCase):
         )
         self.assertEqual(["summary"], [call["stage"] for call in retry.calls])
         self.assertEqual(SUMMARY["ai_summary"], recovered["ai_summary"])
+
+    def test_default_terminal_failure_is_reused_forever(self):
+        settings = replace(self.settings, negative_cache_hours=0)
+        first = FakeClient([
+            FACTS,
+            ai_enrichment.AIEnrichmentError("temporary"),
+            ai_enrichment.AIEnrichmentError("temporary"),
+        ])
+        result = ai_enrichment.enrich_event(
+            event(), settings=settings, client=first, now=self.now,
+        )
+
+        blocked = FakeClient([])
+        cached = ai_enrichment.enrich_event(
+            event(), settings=settings, client=blocked,
+            now=self.now + timedelta(days=3_650),
+        )
+
+        self.assertEqual("", result["ai_summary"])
+        self.assertEqual("", cached["ai_summary"])
+        self.assertEqual([], blocked.calls)
 
     def test_marketing_or_copied_summary_is_rejected_and_negatively_cached(self):
         promotional = {**SUMMARY, "ai_summary": "Erleben Sie ein einzigartiges Konzert, das man nicht verpassen darf. " * 8}
@@ -331,6 +408,102 @@ class AIEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
         self.assertIn("retry_instruction", client.calls[2]["payload"])
+
+    def test_incomplete_summary_is_retried(self):
+        incomplete = {
+            **SUMMARY,
+            "ai_summary": "Das Konzert beginnt im Alten Rathaus unter dem Titel „Klangraum",
+        }
+        client = FakeClient([FACTS, incomplete, SUMMARY])
+
+        result = ai_enrichment.enrich_event(
+            event(), settings=self.settings, client=client, now=self.now,
+        )
+
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+        self.assertIn("summary ends mid-sentence", client.calls[2]["payload"]["retry_instruction"])
+
+    def test_seller_information_is_removed_from_summary(self):
+        seller_copy = {
+            **SUMMARY,
+            "ai_summary": (
+                "Der Flohmarkt findet am Sonntag in Bonn statt. "
+                "Die Standgebühr beträgt 12 Euro pro laufendem Meter. "
+                "Besucherinnen und Besucher zahlen keinen Eintritt."
+            ),
+        }
+        client = FakeClient([FACTS, seller_copy])
+
+        result = ai_enrichment.enrich_event(
+            event(), settings=self.settings, client=client, now=self.now,
+        )
+
+        self.assertNotIn("Standgebühr", result["ai_summary"])
+        self.assertIn("keinen Eintritt", result["ai_summary"])
+
+    def test_extracted_facts_are_reduced_to_visitor_facts_for_selected_date(self):
+        raw_facts = {
+            **FACTS,
+            "admission": {
+                "is_free": True,
+                "amount": None,
+                "currency": "EUR",
+                "note": "Standgebühr 12 Euro pro laufendem Meter",
+                "donation_suggested": False,
+            },
+            "availability": "SoldOut",
+            "registration": "Standplatzreservierung erforderlich",
+            "program": [
+                "Kammermusik des 20. Jahrhunderts",
+                "Workshop am 31. Mai 2026 in Köln",
+                "Standplätze ab drei Metern",
+            ],
+            "participants": ["Ensemble Beispiel", "Unterstützt durch Beispielstiftung"],
+            "neutral_facts": ["Die Übungen lösen Blockaden in den Meridianen."],
+        }
+        source = event(
+            price="",
+            description="Standgebühr 12 Euro pro laufendem Meter. Die Kartenlage wird nicht erwähnt.",
+        )
+        payload = ai_enrichment._input_payload(source, source["description"])
+
+        cleaned = ai_enrichment._sanitize_extracted_facts(raw_facts, payload)
+
+        self.assertEqual(["Kammermusik des 20. Jahrhunderts"], cleaned["program"])
+        self.assertEqual(["Ensemble Beispiel"], cleaned["participants"])
+        self.assertEqual([], cleaned["neutral_facts"])
+        self.assertIsNone(cleaned["registration"])
+        self.assertIsNone(cleaned["availability"])
+        self.assertEqual(
+            {
+                "is_free": None,
+                "amount": None,
+                "currency": None,
+                "note": None,
+                "donation_suggested": None,
+            },
+            cleaned["admission"],
+        )
+
+    def test_other_series_date_is_retried(self):
+        unrelated_date = {
+            **SUMMARY,
+            "ai_summary": (
+                "Klangraum beginnt am 9. August 2026 im Alten Rathaus in Bonn. "
+                "Ein weiterer Workshop findet am 31. Mai 2026 in Köln statt."
+            ),
+        }
+        client = FakeClient([FACTS, unrelated_date, SUMMARY])
+
+        result = ai_enrichment.enrich_event(
+            event(), settings=self.settings, client=client, now=self.now,
+        )
+
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+        self.assertIn(
+            "summary mentions a date outside the selected event",
+            client.calls[2]["payload"]["retry_instruction"],
+        )
 
     def test_varied_missing_detail_sentences_are_removed_before_quality_check(self):
         padded = {
@@ -391,7 +564,8 @@ class AIEnrichmentTests(unittest.TestCase):
         )
 
         self.assertEqual(["facts", "summary"], [call["stage"] for call in client.calls])
-        self.assertTrue(client.calls[1]["payload"]["facts"]["is_concrete_event"])
+        self.assertNotIn("is_concrete_event", client.calls[1]["payload"]["facts"])
+        self.assertNotIn("event_evidence", client.calls[1]["payload"]["facts"])
         self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
 
 

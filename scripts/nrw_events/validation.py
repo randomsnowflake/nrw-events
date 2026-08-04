@@ -131,7 +131,13 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     explicit_venue_type = _text(event, "venue_type", 80)
     explicit_venue_latitude = event.get("venue_latitude")
     explicit_venue_longitude = event.get("venue_longitude")
-    venue = resolve_venue(event["venue"], event["city"], explicit_id=explicit_venue_id)
+    # Keep a source-provided address in the resolution input. Otherwise a
+    # generic venue label can wrongly acquire another branch's address and
+    # coordinates during this second canonicalization pass.
+    venue_input = ", ".join(
+        part for part in (event["venue"], explicit_venue_address) if part
+    )
+    venue = resolve_venue(venue_input, event["city"], explicit_id=explicit_venue_id)
     event["venue"] = venue.venue
     event["venue_id"] = venue.venue_id or explicit_venue_id
     event["venue_address"] = venue.venue_address or explicit_venue_address

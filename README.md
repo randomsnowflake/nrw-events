@@ -402,10 +402,12 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_AI_PROVIDER` | `openai` | `openai` nutzt die Responses API; `openrouter` nutzt Chat Completions mit providergetrenntem Cache. |
 | `NRW_EVENTS_AI_ENRICHMENT` | `1` | Aktiviert die AI-Verarbeitung ausschließlich für `bonn-de-events`, `bonn-de-sports`, `marktcom` und `radio-bonn-rhein-sieg`. Die Quellprosa wird unabhängig davon nie veröffentlicht. |
 | `NRW_EVENTS_AI_MODEL` | providerabhängig | Standardmäßig `gpt-5.6-luna` für OpenAI und `deepseek/deepseek-v4-flash-0731` für OpenRouter. Beide Stufen verwenden dasselbe Modell. |
+| `NRW_EVENTS_AI_FACTS_REASONING_EFFORT` | `none` | OpenRouter-Reasoning für die Faktenextraktion. DeepSeek V4 Flash unterstützt `none`, `low`, `high` und `max`; jede Kombination verwendet einen getrennten Cache. |
+| `NRW_EVENTS_AI_SUMMARY_REASONING_EFFORT` | OpenRouter: `low`, sonst `none` | Reasoning für die neutrale Textstufe, unabhängig von der Faktenstufe. Der lokale DeepSeek-Vergleich zeigte bessere Texte mit `low`; Reasoning-Tokens werden als Output berechnet. |
 | `NRW_EVENTS_AI_CACHE_DB` | Cache-Verzeichnis/`ai-enrichment.sqlite3` | Persistente SQLite-Datenbank. Für Dokploy auf ein dauerhaftes Volume legen; standardmäßig wird `NRW_EVENTS_CACHE_DIR` verwendet. |
 | `NRW_EVENTS_AI_MAX_ATTEMPTS` | `2` | Höchstens zwei Versuche je AI-Stufe und Fehlerfenster. Eine erfolgreiche erste Stufe wird auch bei Fehlern der zweiten wiederverwendet. |
-| `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS` | `24` | Sperrzeit nach ausgeschöpften Versuchen; danach darf derselbe Inhalt erneut versucht werden. |
-| `NRW_EVENTS_AI_TIMEOUT_SECONDS` | `90` | Zeitlimit pro Responses-API-Aufruf. |
+| `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS` | `0` | Sperrzeit nach ausgeschöpften Versuchen. `0` hält ein abgelehntes, unverändertes Event dauerhaft leer; neue Quelldaten oder eine neue Pipeline-Version erzeugen einen neuen Cache-Eintrag. Ein positiver Wert erlaubt nach dieser Stundenzahl einen erneuten Versuch. |
+| `NRW_EVENTS_AI_TIMEOUT_SECONDS` | `180` | Hartes Gesamtzeitlimit pro AI-Aufruf; lässt DeepSeek Spielraum, verhindert aber endlos tröpfelnde HTTP-Antworten. |
 | `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales lokales Pilotlimit je Quellenlauf; `0` verarbeitet alle Zielevents. Nicht verarbeitete Zielevents bleiben ohne Beschreibung. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
