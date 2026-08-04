@@ -537,7 +537,6 @@ class OpenRouterClient:
                 "require_parameters": True,
                 "data_collection": "deny",
                 "zdr": True,
-                "sort": "price",
             },
         }
         request = urllib.request.Request(

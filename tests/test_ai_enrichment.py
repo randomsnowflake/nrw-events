@@ -203,9 +203,10 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual(5_000, body["max_tokens"])
         self.assertEqual({"effort": "none", "exclude": True}, body["reasoning"])
         self.assertEqual(
-            {"require_parameters": True, "data_collection": "deny", "zdr": True, "sort": "price"},
+            {"require_parameters": True, "data_collection": "deny", "zdr": True},
             body["provider"],
         )
+        self.assertNotIn("sort", body["provider"])
         self.assertTrue(body["response_format"]["json_schema"]["strict"])
         self.assertEqual(ai_enrichment.Usage(120, 20, 80, 0.000025), usage)
 
