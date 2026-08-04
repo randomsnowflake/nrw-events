@@ -892,13 +892,30 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     worker_count = min(settings.source_workers, max(len(sources), 1))
     cache_warnings: list[dict[str, str]] = []
     pool = executor_factory(max_workers=worker_count)
-    started: dict[str, tuple[float, threading.Thread, threading.Event]] = {}
+    started: dict[str, tuple[float, threading.Thread, threading.Event, float]] = {}
     started_lock = threading.Lock()
+    ai_settings = ai_enrichment.settings_from_env()
+    ai_target_source_ids = {
+        source_id for source_id in SOURCE_IDS.values()
+        if source_id in ai_enrichment.TARGET_SOURCE_IDS
+    }
 
     def run_source(name: str, fetch: Callable[[], list]):
         cancel_event = threading.Event()
+        source_timeout = settings.source_timeout_seconds
+        if (
+            ai_settings.enabled
+            and ai_settings.api_key
+            and SOURCE_IDS.get(name) in ai_target_source_ids
+        ):
+            # Scraping keeps its normal source deadline. Only the outer worker
+            # deadline receives extra time for the separately bounded AI pass,
+            # so a successful enrichment is not discarded as a source timeout.
+            source_timeout += settings.ai_source_timeout_grace_seconds
         with started_lock:
-            started[name] = (time.monotonic(), threading.current_thread(), cancel_event)
+            started[name] = (
+                time.monotonic(), threading.current_thread(), cancel_event, source_timeout,
+            )
         return _run_source(name, fetch, settings.source_timeout_seconds, cancel_event)
 
     def accept_result(name: str, future: Future) -> None:
@@ -937,7 +954,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             timed_out = [
                 future for future in pending
                 if futures[future] in started
-                and now - started[futures[future]][0] >= settings.source_timeout_seconds
+                and now - started[futures[future]][0] >= started[futures[future]][3]
             ]
             for future in timed_out:
                 pending.remove(future)
@@ -951,9 +968,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 result = SourceResult(source=name)
                 result.error = {
                     "error_type": "TimeoutError",
-                    "error": f"source exceeded {settings.source_timeout_seconds:g}s wall-clock budget",
+                    "error": f"source exceeded {started[name][3]:g}s wall-clock budget",
                 }
-                result.duration_ms = round(settings.source_timeout_seconds * 1000)
+                result.duration_ms = round(started[name][3] * 1000)
                 result.finish([])
                 source_results[name] = result
                 log(

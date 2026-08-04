@@ -72,6 +72,31 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual(result.source_results["Stalled"].status, runner.SourceStatus.FAILED)
         self.assertEqual(result.source_results["Fast"].status, runner.SourceStatus.HEALTHY)
 
+    def test_restricted_source_gets_separate_ai_worker_grace(self):
+        settings = config.RuntimeConfig(
+            score_floor=0, source_timeout_seconds=0.03,
+            ai_source_timeout_grace_seconds=0.1, series_ledger_json="",
+        )
+        context = RunContext(
+            settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
+            "ai-timeout-grace", configure_logging("ai-timeout-grace", "ERROR", "", ""),
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(
+                    runner.ai_enrichment, "settings_from_env",
+                    return_value=mock.Mock(enabled=True, api_key="test-key"),
+                ), \
+                mock.patch.object(
+                    runner.ai_enrichment, "enrich_events", side_effect=lambda events: events,
+                ):
+            result = runner.run_import(context, {
+                "Bonn.de Events": lambda: (time.sleep(0.06), [raw_event()])[1],
+            })
+
+        self.assertEqual(result.source_results["Bonn.de Events"].status, runner.SourceStatus.HEALTHY)
+        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
+
     def test_timed_out_source_cannot_start_fresh_proxy_fallbacks(self):
         settings = config.RuntimeConfig(
             score_floor=0, source_timeout_seconds=0.03, series_ledger_json="",
