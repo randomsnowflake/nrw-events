@@ -203,12 +203,49 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual(5_000, body["max_tokens"])
         self.assertEqual({"effort": "none", "exclude": True}, body["reasoning"])
         self.assertEqual(
-            {"require_parameters": True, "data_collection": "deny", "zdr": True},
+            {
+                "require_parameters": True,
+                "data_collection": "deny",
+                "zdr": True,
+                "sort": "throughput",
+            },
             body["provider"],
         )
-        self.assertNotIn("sort", body["provider"])
         self.assertTrue(body["response_format"]["json_schema"]["strict"])
         self.assertEqual(ai_enrichment.Usage(120, 20, 80, 0.000025), usage)
+
+    def test_openrouter_can_allow_provider_data_collection_without_zdr(self):
+        opener = RecordingOpener({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(FACTS)},
+            }],
+        })
+        settings = replace(
+            self.settings,
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            allow_data_collection=True,
+        )
+
+        ai_enrichment.OpenRouterClient(settings, opener=opener).structured(
+            stage="facts",
+            system="Extract facts.",
+            payload={"source_material": "Private source copy."},
+            schema=ai_enrichment._FACT_SCHEMA,
+            attempt=1,
+        )
+        body = json.loads(opener.request.data)
+
+        self.assertEqual(
+            {
+                "require_parameters": True,
+                "data_collection": "allow",
+                "sort": "throughput",
+            },
+            body["provider"],
+        )
+        self.assertNotIn("zdr", body["provider"])
 
     def test_openrouter_summary_keeps_reasoning_and_uses_larger_output_budget(self):
         opener = RecordingOpener({

@@ -69,6 +69,9 @@ class AISettings:
     max_events: int = 0
     facts_reasoning_effort: str = "none"
     summary_reasoning_effort: str = "none"
+    # Keep ZDR by default. This can be relaxed explicitly for controlled
+    # provider-routing experiments, but is not needed for normal operation.
+    allow_data_collection: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +183,7 @@ def settings_from_env() -> AISettings:
             "NRW_EVENTS_AI_SUMMARY_REASONING_EFFORT",
             "low" if provider == "openrouter" else "none",
         ),
+        allow_data_collection=_env_bool("NRW_EVENTS_AI_ALLOW_DATA_COLLECTION", False),
     )
 
 
@@ -533,11 +537,20 @@ class OpenRouterClient:
                     "schema": schema,
                 },
             },
-            "provider": {
-                "require_parameters": True,
-                "data_collection": "deny",
-                "zdr": True,
-            },
+            "provider": (
+                {
+                    "require_parameters": True,
+                    "data_collection": "allow",
+                    "sort": "throughput",
+                }
+                if self.settings.allow_data_collection
+                else {
+                    "require_parameters": True,
+                    "data_collection": "deny",
+                    "zdr": True,
+                    "sort": "throughput",
+                }
+            ),
         }
         request = urllib.request.Request(
             _OPENROUTER_API_URL,
