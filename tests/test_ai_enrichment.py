@@ -200,6 +200,7 @@ class AIEnrichmentTests(unittest.TestCase):
         body = json.loads(opener.request.data)
 
         self.assertEqual(FACTS, parsed)
+        self.assertEqual(5_000, body["max_tokens"])
         self.assertEqual({"effort": "none", "exclude": True}, body["reasoning"])
         self.assertEqual(
             {"require_parameters": True, "data_collection": "deny", "zdr": True, "sort": "price"},
@@ -207,6 +208,34 @@ class AIEnrichmentTests(unittest.TestCase):
         )
         self.assertTrue(body["response_format"]["json_schema"]["strict"])
         self.assertEqual(ai_enrichment.Usage(120, 20, 80, 0.000025), usage)
+
+    def test_openrouter_summary_keeps_reasoning_and_uses_larger_output_budget(self):
+        opener = RecordingOpener({
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"content": json.dumps(SUMMARY)},
+            }],
+            "usage": {"prompt_tokens": 120, "completion_tokens": 80},
+        })
+        settings = replace(
+            self.settings,
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            summary_reasoning_effort="low",
+        )
+
+        parsed, _usage = ai_enrichment.OpenRouterClient(settings, opener=opener).structured(
+            stage="summary",
+            system="Write a summary.",
+            payload={"facts": FACTS},
+            schema=ai_enrichment._SUMMARY_SCHEMA,
+            attempt=1,
+        )
+        body = json.loads(opener.request.data)
+
+        self.assertEqual(SUMMARY, parsed)
+        self.assertEqual(10_000, body["max_tokens"])
+        self.assertEqual({"effort": "low", "exclude": True}, body["reasoning"])
 
     def test_openrouter_total_wall_clock_timeout_is_enforced(self):
         settings = replace(self.settings, provider="openrouter", timeout_seconds=0.05)

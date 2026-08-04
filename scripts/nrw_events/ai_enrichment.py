@@ -40,6 +40,8 @@ PIPELINE_VERSION = "event-facts-summary-v5"
 OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v12"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash-0731"
+FACTS_OUTPUT_TOKEN_LIMIT = 5_000
+SUMMARY_OUTPUT_TOKEN_LIMIT = 10_000
 _OPENAI_API_URL = "https://api.openai.com/v1/responses"
 _OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 _CATEGORY_KEYS = tuple(category["key"] for category in category_taxonomy.CATEGORIES)
@@ -413,7 +415,9 @@ class ResponsesClient:
             "model": self.settings.model,
             "store": False,
             "reasoning": {"effort": "low"},
-            "max_output_tokens": 5000 if stage == "facts" else 3000,
+            "max_output_tokens": (
+                FACTS_OUTPUT_TOKEN_LIMIT if stage == "facts" else SUMMARY_OUTPUT_TOKEN_LIMIT
+            ),
             "input": [
                 {"role": "system", "content": system},
                 {
@@ -510,7 +514,9 @@ class OpenRouterClient:
                     ),
                 },
             ],
-            "max_tokens": 5000 if stage == "facts" else 3000,
+            "max_tokens": (
+                FACTS_OUTPUT_TOKEN_LIMIT if stage == "facts" else SUMMARY_OUTPUT_TOKEN_LIMIT
+            ),
             "reasoning": {
                 "effort": (
                     self.settings.facts_reasoning_effort
