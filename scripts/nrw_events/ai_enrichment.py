@@ -204,7 +204,33 @@ def _source_material(event: Mapping[str, Any]) -> str:
         clean = re.sub(r"\s+", " ", str(value or "")).strip()
         if clean and not any(clean.casefold() == existing.casefold() for existing in parts):
             parts.append(clean)
-    return "\n\n".join(parts)
+    if parts:
+        return "\n\n".join(parts)
+
+    # Some legally restricted calendars expose reliable structured fields but
+    # no reusable prose.  Those facts are still sufficient for a short,
+    # strictly factual summary; refusing the request entirely would leave the
+    # public event page blank.  Keep this label-bound and exclude URLs/source
+    # names so the model cannot treat transport metadata as editorial facts.
+    labels = (
+        ("Titel", event.get("title")),
+        ("Datum", event.get("start_date") or event.get("date")),
+        ("Enddatum", event.get("end_date")),
+        ("Uhrzeit", event.get("time")),
+        ("Zeithinweis", event.get("time_note")),
+        ("Ort", event.get("venue")),
+        ("Adresse", event.get("venue_address")),
+        ("Stadt", event.get("city")),
+        ("Veranstalter", event.get("organizer")),
+        ("Eintritt", event.get("price")),
+        ("Kategorie", event.get("category") or event.get("category_key")),
+        ("Reihe", event.get("series_title")),
+    )
+    return "\n".join(
+        f"{label}: {clean}"
+        for label, value in labels
+        if (clean := re.sub(r"\s+", " ", str(value or "")).strip())
+    )
 
 
 def _input_payload(event: Mapping[str, Any], source_material: str) -> dict[str, Any]:

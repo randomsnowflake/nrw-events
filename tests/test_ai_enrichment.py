@@ -265,6 +265,25 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("", result["description_html"])
         self.assertEqual("", result["ai_summary"])
 
+    def test_structured_facts_are_source_material_when_prose_is_missing(self):
+        material = ai_enrichment._source_material(event(
+            description="",
+            description_html="",
+            time="19:30",
+            venue="Altes Rathaus",
+            venue_address="Markt 2, 53111 Bonn",
+            price="Eintritt frei",
+            link="https://example.test/private-transport-url",
+        ))
+
+        self.assertIn("Titel: Klangraum", material)
+        self.assertIn("Datum: 2026-08-09", material)
+        self.assertIn("Uhrzeit: 19:30", material)
+        self.assertIn("Ort: Altes Rathaus", material)
+        self.assertIn("Eintritt: Eintritt frei", material)
+        self.assertNotIn("example.test", material)
+        self.assertNotIn("Bonn.de Events", material)
+
     def test_two_stages_are_separate_and_success_is_reused_forever(self):
         client = FakeClient([FACTS, SUMMARY])
         first = ai_enrichment.enrich_event(
