@@ -118,10 +118,15 @@ class SnapshotPayload:
     series_ledger: dict[str, object] = field(default_factory=dict)
 
 
-def _run_source(name: str, fetch: Callable[[], list], timeout_seconds: float | None = None) -> tuple[SourceResult, list[CanonicalEvent]]:
+def _run_source(
+    name: str,
+    fetch: Callable[[], list],
+    timeout_seconds: float | None = None,
+    cancel_event: threading.Event | None = None,
+) -> tuple[SourceResult, list[CanonicalEvent]]:
     result = SourceResult(source=name)
     started = time.monotonic()
-    common.set_source_context(result, timeout_seconds)
+    common.set_source_context(result, timeout_seconds, cancel_event)
     try:
         fetched = fetch()
         if isinstance(fetched, SourceFetchResult):
@@ -887,13 +892,14 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     worker_count = min(settings.source_workers, max(len(sources), 1))
     cache_warnings: list[dict[str, str]] = []
     pool = executor_factory(max_workers=worker_count)
-    started: dict[str, tuple[float, threading.Thread]] = {}
+    started: dict[str, tuple[float, threading.Thread, threading.Event]] = {}
     started_lock = threading.Lock()
 
     def run_source(name: str, fetch: Callable[[], list]):
+        cancel_event = threading.Event()
         with started_lock:
-            started[name] = (time.monotonic(), threading.current_thread())
-        return _run_source(name, fetch, settings.source_timeout_seconds)
+            started[name] = (time.monotonic(), threading.current_thread(), cancel_event)
+        return _run_source(name, fetch, settings.source_timeout_seconds, cancel_event)
 
     def accept_result(name: str, future: Future) -> None:
         result, events = future.result()
@@ -937,6 +943,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 pending.remove(future)
                 name = futures[future]
                 worker = started[name][1]
+                started[name][2].set()
                 future.cancel()
                 replace_worker = getattr(pool, "replace_stalled_worker", None)
                 if replace_worker is not None:

@@ -187,15 +187,20 @@ def configure_context(context: RunContext):
     return token
 
 
-def set_source_context(result: Optional[SourceResult], timeout_seconds: float | None = None) -> None:
+def set_source_context(
+    result: Optional[SourceResult],
+    timeout_seconds: float | None = None,
+    cancel_event: threading.Event | None = None,
+) -> None:
     """Attach warnings emitted by a legacy fetcher to its runner-owned result."""
     _SOURCE_CONTEXT.result = result
     if result is not None and timeout_seconds is not None:
         _SOURCE_CONTEXT.timeout_seconds = timeout_seconds
         _SOURCE_CONTEXT.hard_deadline = time.perf_counter() + timeout_seconds
         _SOURCE_CONTEXT.deadline = _SOURCE_CONTEXT.hard_deadline
+        _SOURCE_CONTEXT.cancel_event = cancel_event
     else:
-        for attribute_name in ("timeout_seconds", "deadline", "hard_deadline"):
+        for attribute_name in ("timeout_seconds", "deadline", "hard_deadline", "cancel_event"):
             if hasattr(_SOURCE_CONTEXT, attribute_name):
                 delattr(_SOURCE_CONTEXT, attribute_name)
 
@@ -280,6 +285,9 @@ def _throttle_before_request(url: str) -> None:
 
 
 def _request_deadline() -> float:
+    cancel_event = getattr(_SOURCE_CONTEXT, "cancel_event", None)
+    if cancel_event is not None and cancel_event.is_set():
+        raise TimeoutError("source wall-clock budget exhausted")
     deadline = time.perf_counter() + _runtime_state().settings.http_request_budget_seconds
     source_deadline = getattr(_SOURCE_CONTEXT, "deadline", None)
     hard_deadline = getattr(_SOURCE_CONTEXT, "hard_deadline", None)
@@ -604,6 +612,9 @@ def fetch_url_with_brightdata_fallback(
     try:
         return fetch_url(url, timeout=timeout, **fetch_kwargs)
     except (urllib.error.HTTPError, TimeoutError) as direct_error:
+        cancel_event = getattr(_SOURCE_CONTEXT, "cancel_event", None)
+        if cancel_event is not None and cancel_event.is_set():
+            raise
         api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
         zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
         hostname = (urllib.parse.urlsplit(url).hostname or "").lower()

@@ -5,7 +5,7 @@ from unittest import mock
 from datetime import date, datetime
 from pathlib import Path
 
-from nrw_events import config, highlights, runner, series
+from nrw_events import common, config, highlights, runner, series
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.source_specs import AdapterType, SourceSpec, adapter_for, load_source_specs, typed_adapter_for
@@ -71,6 +71,44 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
         self.assertEqual(result.source_results["Stalled"].status, runner.SourceStatus.FAILED)
         self.assertEqual(result.source_results["Fast"].status, runner.SourceStatus.HEALTHY)
+
+    def test_timed_out_source_cannot_start_fresh_proxy_fallbacks(self):
+        settings = config.RuntimeConfig(
+            score_floor=0, source_timeout_seconds=0.03, series_ledger_json="",
+        )
+        context = RunContext(
+            settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
+            "cancel-fallback", configure_logging("cancel-fallback", "ERROR", "", ""),
+        )
+        source_finished = mock.Mock()
+
+        def stalled_source():
+            time.sleep(0.06)
+            try:
+                common.fetch_url_with_brightdata_fallback(
+                    "https://example.test/events",
+                    allowed_hosts=("example.test",),
+                    fallback_on_timeout=True,
+                )
+            finally:
+                source_finished()
+            return []
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(common, "fetch_url", side_effect=TimeoutError("direct timeout")), \
+                mock.patch.object(common, "fetch_url_with_brightdata", return_value="proxy") as proxy, \
+                mock.patch.dict("os.environ", {
+                    "BRIGHT_DATA_API_KEY": "test-key", "BRIGHT_DATA_ZONE": "test-zone",
+                }):
+            result = runner.run_import(context, {"Stalled": stalled_source})
+            for _ in range(50):
+                if source_finished.called:
+                    break
+                time.sleep(0.01)
+
+        self.assertEqual(result.source_results["Stalled"].status, runner.SourceStatus.FAILED)
+        self.assertTrue(source_finished.called)
+        proxy.assert_not_called()
 
     def test_snapshot_exports_editorial_features_without_changing_score(self):
         canonical = runner.validate_event(raw_event())
