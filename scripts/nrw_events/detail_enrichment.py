@@ -67,6 +67,14 @@ def _candidate_url(url: str) -> bool:
     )
 
 
+def _needs_detail(event: dict) -> bool:
+    """Limit the expensive second pass to genuinely incomplete teasers."""
+    description = richtext.to_plain_text(str(
+        event.get("description_html") or event.get("description") or ""
+    )).strip()
+    return len(description) < 240 or not str(event.get("venue") or "").strip()
+
+
 def _attributes(attrs: list[tuple[str, str | None]]) -> dict[str, str]:
     return {name.casefold(): value or "" for name, value in attrs}
 
@@ -364,7 +372,7 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
         if not isinstance(event, dict):
             continue
         try:
-            if common.event_in_window(event):
+            if common.event_in_window(event) and _needs_detail(event):
                 eligible_ids.add(id(event))
         except (AttributeError, TypeError, ValueError):
             # Structurally invalid records are rejected by canonical validation;

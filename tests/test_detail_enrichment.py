@@ -84,6 +84,20 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched[1]["description"], "Kurzer Teaser.")
         self.assertEqual(enriched[2]["description"], "Kurzer Teaser.")
 
+    def test_skips_network_for_an_already_complete_event(self):
+        prose = "Vollständige Beschreibung mit belastbaren Besuchsinformationen. " * 8
+        complete = self.event(
+            description=prose,
+            description_html=f"<p>{prose}</p>",
+            venue="Historisches Archiv",
+        )
+
+        with patch.object(detail_enrichment.common, "fetch_detail_url") as fetch:
+            enriched = detail_enrichment.enrich_events([complete])
+
+        fetch.assert_not_called()
+        self.assertEqual(complete, enriched[0])
+
     def test_script_and_style_content_cannot_reach_stored_html(self):
         document = """
         <div itemprop="description">
