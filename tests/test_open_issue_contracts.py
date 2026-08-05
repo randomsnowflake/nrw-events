@@ -40,7 +40,8 @@ class OpenIssueContractTests(unittest.TestCase):
         )
 
         started = time.monotonic()
-        with mock.patch.object(runner, "_previous_snapshot", return_value={}):
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events: events):
             result = runner.run_import(context, {
                 "Fast": lambda: [raw_event()],
                 "Stalled": lambda: (time.sleep(1.0), [])[1],
@@ -66,7 +67,8 @@ class OpenIssueContractTests(unittest.TestCase):
             configure_logging("processing-grace", "ERROR", "", ""),
         )
 
-        with mock.patch.object(runner, "_previous_snapshot", return_value={}):
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events: events):
             result = runner.run_import(context, {
                 "Large": lambda: (time.sleep(0.08), [raw_event()])[1],
             })
@@ -84,7 +86,8 @@ class OpenIssueContractTests(unittest.TestCase):
             "queued-timeout", configure_logging("queued-timeout", "ERROR", "", ""),
         )
 
-        with mock.patch.object(runner, "_previous_snapshot", return_value={}):
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events: events):
             result = runner.run_import(context, {
                 "Stalled": lambda: (time.sleep(0.2), [])[1],
                 "Fast": lambda: [raw_event()],
@@ -107,13 +110,48 @@ class OpenIssueContractTests(unittest.TestCase):
         with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
                 mock.patch.object(
                     runner.ai_enrichment, "settings_from_env",
-                    return_value=mock.Mock(enabled=True, api_key="test-key"),
+                    return_value=mock.Mock(
+                        enabled=True, api_key="test-key", batch_timeout_seconds=0.05,
+                    ),
                 ), \
                 mock.patch.object(
                     runner.ai_enrichment, "enrich_events", side_effect=lambda events: events,
                 ):
             result = runner.run_import(context, {
                 "Bonn.de Events": lambda: (time.sleep(0.06), [raw_event()])[1],
+            })
+
+        self.assertEqual(result.source_results["Bonn.de Events"].status, runner.SourceStatus.HEALTHY)
+        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
+
+    def test_ai_batch_budget_cannot_exceed_outer_worker_allowance(self):
+        settings = config.RuntimeConfig(
+            score_floor=0,
+            source_timeout_seconds=0.03,
+            source_processing_grace_seconds=0,
+            ai_source_timeout_grace_seconds=0.02,
+            series_ledger_json="",
+        )
+        context = RunContext(
+            settings,
+            EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
+            "ai-batch-allowance",
+            configure_logging("ai-batch-allowance", "ERROR", "", ""),
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(
+                    runner.ai_enrichment,
+                    "settings_from_env",
+                    return_value=mock.Mock(
+                        enabled=True, api_key="test-key", batch_timeout_seconds=0.1,
+                    ),
+                ), \
+                mock.patch.object(
+                    runner.ai_enrichment, "enrich_events", side_effect=lambda events: events,
+                ):
+            result = runner.run_import(context, {
+                "Bonn.de Events": lambda: (time.sleep(0.08), [raw_event()])[1],
             })
 
         self.assertEqual(result.source_results["Bonn.de Events"].status, runner.SourceStatus.HEALTHY)

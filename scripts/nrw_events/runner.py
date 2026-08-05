@@ -913,9 +913,13 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             and SOURCE_IDS.get(name) in ai_target_source_ids
         ):
             # Scraping keeps its normal source deadline. Only the outer worker
-            # deadline receives extra time for the separately bounded AI pass,
-            # so a successful enrichment is not discarded as a source timeout.
-            source_timeout += settings.ai_source_timeout_grace_seconds
+            # deadline receives extra time for the separately bounded AI pass.
+            # A configured batch budget must never exceed that outer allowance,
+            # otherwise the runner can discard a source during valid AI work.
+            source_timeout += max(
+                settings.ai_source_timeout_grace_seconds,
+                ai_settings.batch_timeout_seconds,
+            )
         with started_lock:
             started[name] = (
                 time.monotonic(), threading.current_thread(), cancel_event, source_timeout,
