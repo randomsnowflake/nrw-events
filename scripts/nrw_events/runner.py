@@ -903,6 +903,10 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     def run_source(name: str, fetch: Callable[[], list]):
         cancel_event = threading.Event()
         source_timeout = settings.source_timeout_seconds
+        # Network work stays capped by source_timeout_seconds.  The worker gets
+        # a short grace period to canonicalize large successful payloads and
+        # return partial detail enrichment instead of discarding the source.
+        source_timeout += settings.source_processing_grace_seconds
         if (
             ai_settings.enabled
             and ai_settings.api_key

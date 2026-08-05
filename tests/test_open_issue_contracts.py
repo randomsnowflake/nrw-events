@@ -32,7 +32,7 @@ class OpenIssueContractTests(unittest.TestCase):
 
     def test_source_wall_clock_timeout_returns_without_waiting_for_stalled_parser(self):
         settings = config.RuntimeConfig(
-            score_floor=0, source_timeout_seconds=0.05, series_ledger_json="",
+            score_floor=0, source_timeout_seconds=0.2, series_ledger_json="",
         )
         context = RunContext(
             settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
@@ -43,14 +43,36 @@ class OpenIssueContractTests(unittest.TestCase):
         with mock.patch.object(runner, "_previous_snapshot", return_value={}):
             result = runner.run_import(context, {
                 "Fast": lambda: [raw_event()],
-                "Stalled": lambda: (time.sleep(0.2), [])[1],
+                "Stalled": lambda: (time.sleep(1.0), [])[1],
             })
         elapsed = time.monotonic() - started
 
-        self.assertLess(elapsed, 0.15)
+        self.assertLess(elapsed, 0.5)
         self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
         self.assertEqual(result.source_results["Stalled"].status, runner.SourceStatus.FAILED)
         self.assertEqual(result.source_results["Stalled"].error["error_type"], "TimeoutError")
+
+    def test_processing_grace_preserves_a_successful_large_source_result(self):
+        settings = config.RuntimeConfig(
+            score_floor=0,
+            source_timeout_seconds=0.03,
+            source_processing_grace_seconds=0.1,
+            series_ledger_json="",
+        )
+        context = RunContext(
+            settings,
+            EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
+            "processing-grace",
+            configure_logging("processing-grace", "ERROR", "", ""),
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}):
+            result = runner.run_import(context, {
+                "Large": lambda: (time.sleep(0.08), [raw_event()])[1],
+            })
+
+        self.assertEqual(result.source_results["Large"].status, runner.SourceStatus.HEALTHY)
+        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
 
     def test_queued_source_gets_its_own_budget_after_stalled_worker(self):
         settings = config.RuntimeConfig(
