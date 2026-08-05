@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -8,6 +9,7 @@ import tempfile
 import time
 import unittest
 from unittest import mock
+import urllib.request
 
 from nrw_events import ai_enrichment
 
@@ -131,10 +133,12 @@ class RecordingOpener:
         return FakeHTTPResponse(self.document)
 
 
-class SlowOpener:
-    def __call__(self, _request, *, timeout):
-        time.sleep(max(timeout * 4, 0.2))
-        return FakeHTTPResponse({})
+def slow_isolated_worker(sender, _request_spec, _socket_timeout):
+    try:
+        time.sleep(0.25)
+        sender.send(("ok", b"{}"))
+    finally:
+        sender.close()
 
 
 class AIEnrichmentTests(unittest.TestCase):
@@ -275,17 +279,40 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual(10_000, body["max_tokens"])
         self.assertEqual({"effort": "low", "exclude": True}, body["reasoning"])
 
-    def test_openrouter_total_wall_clock_timeout_is_enforced(self):
+    def test_default_transport_uses_killable_request_worker(self):
         settings = replace(self.settings, provider="openrouter", timeout_seconds=0.05)
 
-        with self.assertRaisesRegex(ai_enrichment.AIEnrichmentError, "TimeoutError"):
-            ai_enrichment.OpenRouterClient(settings, opener=SlowOpener()).structured(
-                stage="facts",
-                system="Extract facts.",
-                payload={"source_material": "Private source copy."},
-                schema=ai_enrichment._FACT_SCHEMA,
-                attempt=1,
+        with mock.patch.object(
+            ai_enrichment,
+            "_read_response_isolated",
+            side_effect=TimeoutError("AI request exceeded its wall-clock deadline"),
+        ) as read_response:
+            with self.assertRaisesRegex(ai_enrichment.AIEnrichmentError, "TimeoutError"):
+                ai_enrichment.OpenRouterClient(settings).structured(
+                    stage="facts",
+                    system="Extract facts.",
+                    payload={"source_material": "Private source copy."},
+                    schema=ai_enrichment._FACT_SCHEMA,
+                    attempt=1,
+                )
+
+        read_response.assert_called_once()
+
+    def test_process_deadline_is_enforced_from_worker_thread(self):
+        request = urllib.request.Request("https://example.test/slow", method="POST")
+        started = time.monotonic()
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                ai_enrichment._read_response_isolated,
+                request,
+                0.05,
+                slow_isolated_worker,
             )
+            with self.assertRaisesRegex(TimeoutError, "wall-clock deadline"):
+                future.result(timeout=1)
+
+        self.assertLess(time.monotonic() - started, 0.2)
 
     def test_openrouter_billed_incomplete_response_is_recorded(self):
         opener = RecordingOpener({

@@ -11,15 +11,15 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
+from email.message import Message
 import fcntl
 from hashlib import sha256
 import json
+import multiprocessing
 import os
 from pathlib import Path
 import re
-import signal
 import sqlite3
-import threading
 import time
 from typing import Any, Callable, Iterator, Mapping, Protocol
 import urllib.error
@@ -94,32 +94,89 @@ class StructuredClient(Protocol):
     ) -> tuple[dict[str, Any], Usage]: ...
 
 
-@contextmanager
-def _hard_request_deadline(seconds: float) -> Iterator[None]:
-    """Enforce a total wall-clock deadline in addition to socket inactivity timeouts."""
-    if (
-        seconds <= 0
-        or threading.current_thread() is not threading.main_thread()
-        or not hasattr(signal, "setitimer")
-    ):
-        yield
-        return
+def _isolated_http_worker(
+    sender: Any,
+    request_spec: Mapping[str, Any],
+    socket_timeout: float,
+) -> None:
+    """Perform one HTTP request in a disposable process."""
+    try:
+        request = urllib.request.Request(
+            str(request_spec["url"]),
+            data=request_spec.get("data"),
+            headers=dict(request_spec.get("headers") or {}),
+            method=str(request_spec["method"]),
+        )
+        with urllib.request.urlopen(request, timeout=socket_timeout) as response:
+            sender.send(("ok", response.read()))
+    except urllib.error.HTTPError as exc:
+        sender.send(("http_error", exc.code))
+    except BaseException as exc:
+        sender.send(("error", type(exc).__name__))
+    finally:
+        sender.close()
 
-    def expired(_signum: int, _frame: Any) -> None:
+
+def _read_response_isolated(
+    request: urllib.request.Request,
+    timeout_seconds: float,
+    worker: Callable[..., None] = _isolated_http_worker,
+) -> bytes:
+    """Read one response with a killable wall-clock deadline in every thread."""
+    if timeout_seconds <= 0:
         raise TimeoutError("AI request exceeded its wall-clock deadline")
 
+    request_spec = {
+        "url": request.full_url,
+        "data": request.data,
+        "headers": dict(request.header_items()),
+        "method": request.get_method(),
+    }
+    context = multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(
+        target=worker,
+        args=(sender, request_spec, timeout_seconds),
+        daemon=True,
+    )
     started = time.monotonic()
-    previous_handler = signal.getsignal(signal.SIGALRM)
-    signal.signal(signal.SIGALRM, expired)
-    previous_timer = signal.setitimer(signal.ITIMER_REAL, seconds)
     try:
-        yield
+        process.start()
+        sender.close()
+        remaining = max(timeout_seconds - (time.monotonic() - started), 0.0)
+        if not receiver.poll(remaining):
+            raise TimeoutError("AI request exceeded its wall-clock deadline")
+        try:
+            status, value = receiver.recv()
+        except EOFError as exc:
+            raise OSError("AI request worker exited without a result") from exc
+        if status == "ok":
+            return bytes(value)
+        if status == "http_error":
+            raise urllib.error.HTTPError(request.full_url, int(value), "", Message(), None)
+        raise OSError(f"AI request worker failed: {value}")
     finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous_handler)
-        if previous_timer[0] > 0:
-            remaining = max(previous_timer[0] - (time.monotonic() - started), 0.000001)
-            signal.setitimer(signal.ITIMER_REAL, remaining, previous_timer[1])
+        receiver.close()
+        if process.is_alive():
+            process.terminate()
+        process.join(timeout=1)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=1)
+        process.close()
+
+
+def _read_http_response(
+    request: urllib.request.Request,
+    timeout_seconds: float,
+    opener: Callable[..., Any] | None,
+) -> str:
+    if opener is None:
+        raw = _read_response_isolated(request, timeout_seconds)
+    else:
+        with opener(request, timeout=timeout_seconds) as response:
+            raw = response.read()
+    return bytes(raw).decode("utf-8")
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -409,7 +466,7 @@ class ResponsesClient:
     def __init__(
         self,
         settings: AISettings,
-        opener: Callable[..., Any] = urllib.request.urlopen,
+        opener: Callable[..., Any] | None = None,
     ) -> None:
         self.settings = settings
         self._opener = opener
@@ -453,9 +510,7 @@ class ResponsesClient:
             method="POST",
         )
         try:
-            with _hard_request_deadline(self.settings.timeout_seconds):
-                with self._opener(request, timeout=self.settings.timeout_seconds) as response:
-                    raw = response.read().decode("utf-8")
+            raw = _read_http_response(request, self.settings.timeout_seconds, self._opener)
         except urllib.error.HTTPError as exc:
             raise AIEnrichmentError(f"OpenAI HTTP {exc.code}") from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
@@ -499,7 +554,7 @@ class OpenRouterClient:
     def __init__(
         self,
         settings: AISettings,
-        opener: Callable[..., Any] = urllib.request.urlopen,
+        opener: Callable[..., Any] | None = None,
     ) -> None:
         self.settings = settings
         self._opener = opener
@@ -565,9 +620,7 @@ class OpenRouterClient:
             method="POST",
         )
         try:
-            with _hard_request_deadline(self.settings.timeout_seconds):
-                with self._opener(request, timeout=self.settings.timeout_seconds) as response:
-                    raw = response.read().decode("utf-8")
+            raw = _read_http_response(request, self.settings.timeout_seconds, self._opener)
         except urllib.error.HTTPError as exc:
             raise AIEnrichmentError(f"OpenRouter HTTP {exc.code}") from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
