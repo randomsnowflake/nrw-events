@@ -98,6 +98,24 @@ class DetailEnrichmentTests(unittest.TestCase):
         fetch.assert_not_called()
         self.assertEqual(complete, enriched[0])
 
+    def test_detail_batch_budget_keeps_unenriched_events_available(self):
+        first = self.event(title="Erster Termin")
+        second = self.event(
+            title="Zweiter Termin",
+            link="https://events.example.net/zweiter-termin",
+        )
+        document = '<div itemprop="description"><p>Ausführliche Veranstaltungsbeschreibung.</p></div>'
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "90"}), patch.object(
+            detail_enrichment.time, "monotonic", side_effect=[100, 100, 191]
+        ), patch.object(
+            detail_enrichment.common, "fetch_detail_url", return_value=document
+        ) as fetch:
+            enriched = detail_enrichment.enrich_events([first, second])
+
+        fetch.assert_called_once()
+        self.assertEqual("Kurzer Teaser.", enriched[1]["description"])
+
     def test_script_and_style_content_cannot_reach_stored_html(self):
         document = """
         <div itemprop="description">

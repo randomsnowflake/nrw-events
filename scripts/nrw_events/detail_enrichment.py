@@ -18,6 +18,7 @@ from html import escape
 from html.parser import HTMLParser
 import os
 import re
+import time
 from urllib.parse import urlsplit
 
 from . import common, richtext
@@ -367,6 +368,8 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
     """
     if not enabled():
         return events
+    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "90"))
+    deadline = time.monotonic() + max(batch_timeout, 0.0)
     eligible_ids: set[int] = set()
     for event in events:
         if not isinstance(event, dict):
@@ -391,6 +394,12 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
         if id(event) not in eligible_ids:
             enriched.append(event)
             continue
+        remaining = deadline - time.monotonic()
+        # A detail page may be retried up to three times. Do not start work
+        # that cannot finish within this source's optional enrichment budget.
+        if remaining < 3.0:
+            enriched.append(event)
+            continue
         link = str(event.get("link") or "")
         if link_counts[link] != 1 or not _candidate_url(link):
             enriched.append(event)
@@ -400,7 +409,7 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
             document = common.fetch_detail_url(
                 link,
                 cache_namespace=cache_namespace,
-                timeout=20,
+                timeout=min(20.0, remaining / 3.0),
                 brightdata_fallback=True,
                 allowed_hosts=(hostname,),
                 cache_failures=True,
