@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -313,6 +314,51 @@ class AIEnrichmentTests(unittest.TestCase):
                 future.result(timeout=1)
 
         self.assertLess(time.monotonic() - started, 0.2)
+
+    def test_batch_budget_stops_enrichment_without_discarding_remaining_events(self):
+        settings = replace(self.settings, batch_timeout_seconds=30)
+        values = [event(title="First"), event(title="Second")]
+        seen_timeouts = []
+
+        def enrich_one(value, *, settings):
+            seen_timeouts.append(settings.timeout_seconds)
+            return {**value, "ai_summary": "done"}
+
+        with mock.patch.object(
+            ai_enrichment.time, "monotonic", side_effect=[100, 100, 131]
+        ), mock.patch.object(
+            ai_enrichment.common, "event_in_window", return_value=True
+        ), mock.patch.object(ai_enrichment, "enrich_event", side_effect=enrich_one):
+            result = ai_enrichment.enrich_events(values, settings=settings)
+
+        self.assertEqual([7.5], seen_timeouts)
+        self.assertEqual("done", result[0]["ai_summary"])
+        self.assertEqual("", result[1]["description"])
+        self.assertEqual("", result[1]["description_html"])
+
+    def test_different_events_do_not_hold_cache_lock_during_api_requests(self):
+        barrier = threading.Barrier(2, timeout=1)
+
+        class ConcurrentClient(FakeClient):
+            def structured(self, **kwargs):
+                if kwargs["stage"] == "facts":
+                    barrier.wait()
+                return super().structured(**kwargs)
+
+        def enrich(title):
+            return ai_enrichment.enrich_event(
+                event(title=title),
+                settings=self.settings,
+                client=ConcurrentClient([FACTS, SUMMARY]),
+                now=self.now,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(enrich, ("First", "Second")))
+
+        self.assertEqual([SUMMARY["ai_summary"], SUMMARY["ai_summary"]], [
+            result["ai_summary"] for result in results
+        ])
 
     def test_openrouter_billed_incomplete_response_is_recorded(self):
         opener = RecordingOpener({

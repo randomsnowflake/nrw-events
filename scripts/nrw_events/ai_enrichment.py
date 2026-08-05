@@ -8,7 +8,7 @@ no description at all.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from email.message import Message
@@ -21,7 +21,7 @@ from pathlib import Path
 import re
 import sqlite3
 import time
-from typing import Any, Callable, Iterator, Mapping, Protocol
+from typing import Any, Callable, Iterator, Mapping, Protocol, cast
 import urllib.error
 import urllib.request
 
@@ -66,6 +66,9 @@ class AISettings:
     # Zero means permanent for this exact input hash and pipeline version.
     negative_cache_hours: float = 0.0
     timeout_seconds: float = 180.0
+    # Bound the complete enrichment pass for one source. AI is optional
+    # enrichment and must never keep the event import open indefinitely.
+    batch_timeout_seconds: float = 240.0
     max_events: int = 0
     facts_reasoning_effort: str = "none"
     summary_reasoning_effort: str = "none"
@@ -211,6 +214,7 @@ def settings_from_env() -> AISettings:
     max_attempts = int(os.environ.get("NRW_EVENTS_AI_MAX_ATTEMPTS", "2"))
     negative_hours = float(os.environ.get("NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS", "0"))
     timeout = float(os.environ.get("NRW_EVENTS_AI_TIMEOUT_SECONDS", "180"))
+    batch_timeout = float(os.environ.get("NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS", "240"))
     max_events = int(os.environ.get("NRW_EVENTS_AI_MAX_EVENTS", "0"))
     if not 1 <= max_attempts <= 5:
         raise ValueError("NRW_EVENTS_AI_MAX_ATTEMPTS must be between 1 and 5")
@@ -218,6 +222,8 @@ def settings_from_env() -> AISettings:
         raise ValueError("NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS must be between 0 and 720")
     if not 5 <= timeout <= 300:
         raise ValueError("NRW_EVENTS_AI_TIMEOUT_SECONDS must be between 5 and 300")
+    if not 5 <= batch_timeout <= 3_600:
+        raise ValueError("NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS must be between 5 and 3600")
     if not 0 <= max_events <= 100_000:
         raise ValueError("NRW_EVENTS_AI_MAX_EVENTS must be between 0 and 100000")
     provider = os.environ.get("NRW_EVENTS_AI_PROVIDER", "openai").strip().casefold()
@@ -234,6 +240,7 @@ def settings_from_env() -> AISettings:
         max_attempts=max_attempts,
         negative_cache_hours=negative_hours,
         timeout_seconds=timeout,
+        batch_timeout_seconds=batch_timeout,
         max_events=max_events,
         facts_reasoning_effort=_env_reasoning_effort("NRW_EVENTS_AI_FACTS_REASONING_EFFORT"),
         summary_reasoning_effort=_env_reasoning_effort(
@@ -688,12 +695,17 @@ def _parse_timestamp(value: object) -> datetime | None:
 def _locked_database(path: Path) -> Iterator[sqlite3.Connection]:
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
-    with lock_path.open("a+", encoding="utf-8") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        connection = sqlite3.connect(path, timeout=30)
-        connection.row_factory = sqlite3.Row
-        try:
+    connection = sqlite3.connect(path, timeout=30)
+    connection.row_factory = sqlite3.Row
+    try:
+        # Serialize schema initialization only. Holding this process-wide lock
+        # across network requests made every source's AI work run sequentially.
+        # SQLite already serializes the short writes below, while WAL allows
+        # unrelated event rows to be enriched concurrently.
+        with lock_path.open("a+", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
             connection.execute("PRAGMA busy_timeout = 30000")
+            connection.execute("PRAGMA journal_mode = WAL")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS ai_event_enrichment (
@@ -726,10 +738,10 @@ def _locked_database(path: Path) -> Iterator[sqlite3.Connection]:
                     "ALTER TABLE ai_event_enrichment ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0"
                 )
             connection.commit()
-            yield connection
-        finally:
-            connection.close()
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        yield connection
+    finally:
+        connection.close()
 
 
 def cache_pipeline_version(settings: AISettings) -> str:
@@ -1517,22 +1529,39 @@ def enrich_event(
 def enrich_events(events: list[Any], *, settings: AISettings | None = None) -> list[Any]:
     """Enrich only the configured target sources, with an optional pilot cap."""
     configured = settings or settings_from_env()
+    deadline = time.monotonic() + configured.batch_timeout_seconds
+    maximum_calls_per_event = max(2 * configured.max_attempts, 1)
     processed = 0
     enriched: list[Any] = []
     for value in events:
         if not isinstance(value, dict) or not is_target_event(value):
             enriched.append(value)
             continue
+        target = cast(RawEvent, value)
         try:
-            in_window = common.event_in_window(value)
+            in_window = common.event_in_window(target)
         except (AttributeError, TypeError):
             in_window = True
         if not in_window:
-            enriched.append(strip_restricted_copy(value))
+            enriched.append(strip_restricted_copy(target))
             continue
         if configured.max_events and processed >= configured.max_events:
-            enriched.append(strip_restricted_copy(value))
+            enriched.append(strip_restricted_copy(target))
             continue
-        enriched.append(enrich_event(value, settings=configured))
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            enriched.append(strip_restricted_copy(target))
+            continue
+        # One event may need facts and summary retries. Divide the remaining
+        # source budget across that worst case so a final cache miss cannot run
+        # beyond the whole batch deadline by several request timeouts.
+        request_timeout = min(
+            configured.timeout_seconds,
+            remaining / maximum_calls_per_event,
+        )
+        enriched.append(enrich_event(
+            target,
+            settings=replace(configured, timeout_seconds=request_timeout),
+        ))
         processed += 1
     return enriched
