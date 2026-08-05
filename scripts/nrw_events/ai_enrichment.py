@@ -68,7 +68,7 @@ class AISettings:
     timeout_seconds: float = 180.0
     # Bound the complete enrichment pass for one source. AI is optional
     # enrichment and must never keep the event import open indefinitely.
-    batch_timeout_seconds: float = 240.0
+    batch_timeout_seconds: float = 120.0
     max_events: int = 0
     facts_reasoning_effort: str = "none"
     summary_reasoning_effort: str = "none"
@@ -214,7 +214,7 @@ def settings_from_env() -> AISettings:
     max_attempts = int(os.environ.get("NRW_EVENTS_AI_MAX_ATTEMPTS", "2"))
     negative_hours = float(os.environ.get("NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS", "0"))
     timeout = float(os.environ.get("NRW_EVENTS_AI_TIMEOUT_SECONDS", "180"))
-    batch_timeout = float(os.environ.get("NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS", "240"))
+    batch_timeout = float(os.environ.get("NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS", "120"))
     max_events = int(os.environ.get("NRW_EVENTS_AI_MAX_EVENTS", "0"))
     if not 1 <= max_attempts <= 5:
         raise ValueError("NRW_EVENTS_AI_MAX_ATTEMPTS must be between 1 and 5")
@@ -692,7 +692,7 @@ def _parse_timestamp(value: object) -> datetime | None:
 
 
 @contextmanager
-def _locked_database(path: Path) -> Iterator[sqlite3.Connection]:
+def _locked_database(path: Path, *, cache_key: str) -> Iterator[sqlite3.Connection]:
     path.parent.mkdir(parents=True, exist_ok=True)
     lock_path = path.with_suffix(path.suffix + ".lock")
     connection = sqlite3.connect(path, timeout=30)
@@ -739,7 +739,16 @@ def _locked_database(path: Path) -> Iterator[sqlite3.Connection]:
                 )
             connection.commit()
             fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
-        yield connection
+        # Distinct events may enrich concurrently, but a specific cache key
+        # needs one owner so a late failure cannot overwrite a successful row.
+        lock_digest = sha256(cache_key.encode("utf-8")).hexdigest()
+        event_lock_path = path.with_suffix(path.suffix + f".{lock_digest}.lock")
+        with event_lock_path.open("a+", encoding="utf-8") as event_lock:
+            fcntl.flock(event_lock.fileno(), fcntl.LOCK_EX)
+            try:
+                yield connection
+            finally:
+                fcntl.flock(event_lock.fileno(), fcntl.LOCK_UN)
     finally:
         connection.close()
 
@@ -1351,7 +1360,8 @@ def enrich_event(
         else ResponsesClient(configured)
     )
 
-    with _locked_database(configured.cache_db) as connection:
+    cache_key = "\0".join((key, digest, cache_pipeline_version(configured)))
+    with _locked_database(configured.cache_db, cache_key=cache_key) as connection:
         row = _ensure_row(
             connection, event_key=key, digest=digest, source_id=source_id,
             settings=configured, now=current_time,

@@ -360,6 +360,43 @@ class AIEnrichmentTests(unittest.TestCase):
             result["ai_summary"] for result in results
         ])
 
+    def test_same_event_cache_key_has_a_single_enrichment_owner(self):
+        started = threading.Event()
+        release = threading.Event()
+        calls: list[str] = []
+        calls_lock = threading.Lock()
+
+        class BlockingClient:
+            def structured(self, *, stage, **_kwargs):
+                with calls_lock:
+                    calls.append(stage)
+                    first_call = len(calls) == 1
+                if first_call:
+                    started.set()
+                    if not release.wait(timeout=2):
+                        raise AssertionError("concurrent cache owner did not get released")
+                return (FACTS if stage == "facts" else SUMMARY), ai_enrichment.Usage()
+
+        client = BlockingClient()
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(
+                ai_enrichment.enrich_event,
+                event(), settings=self.settings, client=client, now=self.now,
+            )
+            self.assertTrue(started.wait(timeout=1))
+            second = executor.submit(
+                ai_enrichment.enrich_event,
+                event(), settings=self.settings, client=client, now=self.now,
+            )
+            time.sleep(0.05)
+            release.set()
+            results = [first.result(timeout=2), second.result(timeout=2)]
+
+        self.assertEqual(["facts", "summary"], calls)
+        self.assertEqual([SUMMARY["ai_summary"], SUMMARY["ai_summary"]], [
+            result["ai_summary"] for result in results
+        ])
+
     def test_openrouter_billed_incomplete_response_is_recorded(self):
         opener = RecordingOpener({
             "choices": [{
