@@ -1,6 +1,8 @@
 """Shared helpers for regional Bonn/Rhein-Sieg source scrapers."""
 
+import os
 import re
+import time
 import urllib.parse
 from collections.abc import Callable, Iterable
 from datetime import datetime
@@ -180,6 +182,8 @@ def enrich_descriptions(
     merge_context=None,
 ) -> list:
     """Memoize shared detail fetches and fill missing event descriptions."""
+    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
+    deadline = time.monotonic() + max(batch_timeout, 0.0)
     html_by_link = {}
     failed_links = set()
     needs_enrichment = needs_enrichment or (lambda event: not event.get("description"))
@@ -189,10 +193,18 @@ def enrich_descriptions(
         if not needs_enrichment(event):
             continue
         link = (event.get("link") or "").strip()
-        if link and link not in html_by_link and link not in failed_links:
+        remaining = deadline - time.monotonic()
+        if link and link not in html_by_link and link not in failed_links and remaining >= 3.0:
             try:
+                request_timeout = (
+                    float(timeout) if remaining >= float(timeout) * 2
+                    else max(1.0, remaining / 3.0)
+                )
                 html_by_link[link] = detail_fetcher(link) if detail_fetcher else common.fetch_detail_url(
-                    link, cache_namespace=cache_namespace, timeout=timeout)
+                    link,
+                    cache_namespace=cache_namespace,
+                    timeout=request_timeout,
+                )
             except Exception as exc:
                 failed_links.add(link)
                 common.log_source_error(source, exc)

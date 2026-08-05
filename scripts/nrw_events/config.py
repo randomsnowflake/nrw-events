@@ -142,7 +142,7 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         bonn_de_delay_seconds=_float("NRW_EVENTS_BONN_DE_DELAY_SECONDS", 2.0, 0.0, 60.0),
         http_max_response_bytes=_int("NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES", 5_000_000, 1_024, 50_000_000),
         http_retry_max_delay_seconds=_float("NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS", 60.0, 0.0, 300.0),
-        source_workers=_int("NRW_EVENTS_SOURCE_WORKERS", 16, 1, 64),
+        source_workers=_int("NRW_EVENTS_SOURCE_WORKERS", 8, 1, 64),
         source_timeout_seconds=_float("NRW_EVENTS_SOURCE_TIMEOUT_SECONDS", 600.0, 5.0, 1800.0),
         ai_source_timeout_grace_seconds=_float(
             "NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS", 180.0, 0.0, 21600.0

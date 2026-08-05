@@ -86,6 +86,24 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched[2]["description"], "Feed copy")
         fetch_detail.assert_called_once_with(DETAIL_LINK, timeout=15)
 
+    def test_source_detail_budget_falls_back_without_dropping_events(self):
+        second_link = "https://events.siegburg.de/Veranstaltungen/Zweiter-Termin.html"
+        events = [
+            {"title": "Erster Termin", "link": DETAIL_LINK, "description": ""},
+            {"title": "Zweiter Termin", "link": second_link, "description": ""},
+        ]
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "45"}), \
+                patch.object(siegburg.rc.time, "monotonic", side_effect=[100, 100, 146]), \
+                patch.object(siegburg.common, "event_in_window", return_value=True), \
+                patch.object(siegburg.common, "fetch_ical", return_value=events), \
+                patch.object(siegburg.common, "fetch_url", return_value=DETAIL_HTML) as fetch_detail:
+            enriched = siegburg.fetch()
+
+        fetch_detail.assert_called_once_with(DETAIL_LINK, timeout=15)
+        self.assertEqual(2, len(enriched))
+        self.assertIn("findet", enriched[1]["description"])
+
     def test_detail_failure_keeps_ical_events_available(self):
         events = [{"title": "Gedenkstätten", "link": DETAIL_LINK, "description": ""}]
 

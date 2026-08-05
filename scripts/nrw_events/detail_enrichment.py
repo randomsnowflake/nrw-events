@@ -368,7 +368,7 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
     """
     if not enabled():
         return events
-    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "90"))
+    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
     deadline = time.monotonic() + max(batch_timeout, 0.0)
     eligible_ids: set[int] = set()
     for event in events:
