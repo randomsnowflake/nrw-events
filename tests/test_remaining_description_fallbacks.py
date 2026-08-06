@@ -9,8 +9,8 @@ class RemainingDescriptionFallbackTests(unittest.TestCase):
     def test_bonn_sports_listing_has_factual_description(self):
         event_date = (common.TODAY + timedelta(days=1)).strftime("%d.%m.%Y")
         html = f"""
-<article class="SP-Teaser SP-Teaser--textual">
-  <a class="SP-Teaser__inner" href="/veranstaltungen/sporttag.php">
+<article data-source="sports" class="SP-Teaser SP-Teaser--textual">
+  <a href="/veranstaltungen/sporttag.php" rel="bookmark" class="SP-Teaser__inner">
     <span class="SP-Kicker__text">Sport</span>
     <span class="SP-Scheduling__date">{event_date}</span>
     <span class="SP-Scheduling__time">18:30 Uhr</span>

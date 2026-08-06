@@ -159,6 +159,8 @@ class HardeningRegressionTests(unittest.TestCase):
     def test_date_formats_use_explicit_prefixes_and_shared_month_aliases(self):
         self.assertEqual(dates.parse_date("2026-08-03 extra"), datetime(2026, 8, 3))
         self.assertEqual(dates.parse_date("3. Sept 2026"), datetime(2026, 9, 3))
+        self.assertEqual(dates.parse_date("3. Sept. 2026"), datetime(2026, 9, 3))
+        self.assertEqual(dates.parse_date("4. Okt. 2026"), datetime(2026, 10, 4))
         self.assertIsNone(dates.parse_date("3. Mae 2026"))
 
     def test_late_artifact_time_rounding_never_wraps_to_same_day_midnight(self):

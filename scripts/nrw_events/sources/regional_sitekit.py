@@ -162,8 +162,8 @@ def _detail_context(html: str) -> dict[str, str]:
 def _events_from_teasers(html: str, base: str, city: str, trust: float,
                          source_id: str) -> list:
     events = []
-    for block in re.findall(r'<article class="SP-Teaser.*?</article>', html, re.S | re.I):
-        href = re.search(r'<a[^>]+class="SP-Teaser__inner"[^>]+href="([^"]+)"', block, re.S | re.I)
+    for block in rc.class_tag_blocks(html, "article", "SP-Teaser"):
+        href = rc.attribute_from_class_tag(block, "a", "SP-Teaser__inner", "href")
         date = re.search(r'<span class="SP-Scheduling__date">([^<]+)', block, re.S | re.I)
         title = re.search(r'<h4 class="SP-Teaser__headline">(.*?)</h4>', block, re.S | re.I)
         desc = re.search(r'<div class="SP-Teaser__abstract">(.*?)</div>', block, re.S | re.I)
@@ -179,7 +179,7 @@ def _events_from_teasers(html: str, base: str, city: str, trust: float,
             city,
             city,
             description,
-            rc.abs_url(base, href.group(1) if href else ""),
+            rc.abs_url(base, href),
             _SOURCE,
             "kommunal kultur markt ausstellung konzert führung",
             trust,

@@ -93,6 +93,23 @@ class RegionalCommonHealthTests(unittest.TestCase):
         self.assertIsInstance(error, regional_common.ParserEmptyError)
         self.assertEqual(str(error), "parser returned no event records")
 
+    def test_class_tag_helpers_ignore_attribute_order_and_prefixed_names(self):
+        html = (
+            '<article data-class="wrong" class="SP-Teaser">'
+            '<a data-href="/wrong" href="/right" class="other SP-Teaser__inner">Event</a>'
+            '</article>'
+        )
+
+        blocks = regional_common.class_tag_blocks(html, "article", "SP-Teaser")
+
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(
+            regional_common.attribute_from_class_tag(
+                blocks[0], "a", "SP-Teaser__inner", "href"
+            ),
+            "/right",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

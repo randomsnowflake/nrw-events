@@ -22,6 +22,7 @@ from datetime import datetime
 from html import unescape
 
 from .. import category_taxonomy, common, richtext
+from . import regional_common as rc
 
 # Full official event calendar as structured JSON. This endpoint has repeatedly
 # emitted malformed/truncated payloads and can miss entries visible in the public
@@ -655,14 +656,13 @@ def _is_sparse_listing_description(description: str, title: str) -> bool:
 def _listing_events_from_html(html: str, source: str, *, free_only: bool = False) -> list:
     events, seen = [], set()
     unknown_categories = set()
-    for m in re.finditer(r'<article class="SP-Teaser\b.*?</article>', html, re.S | re.I):
-        body = m.group(0)
-        href_m = re.search(r'<a[^>]+class="[^"]*SP-Teaser__inner[^"]*"[^>]+href="([^"]+)"', body, re.S | re.I)
+    for body in rc.class_tag_blocks(html, "article", "SP-Teaser"):
+        href = rc.attribute_from_class_tag(body, "a", "SP-Teaser__inner", "href")
         title_m = re.search(r'<h1[^>]+class="[^"]*SP-Teaser__headline[^"]*"[^>]*>(.*?)</h1>', body, re.S | re.I)
         cat_m = re.search(r'<span[^>]+class="[^"]*SP-Kicker__text[^"]*"[^>]*>(.*?)</span>', body, re.S | re.I)
-        if not (href_m and title_m):
+        if not (href and title_m):
             continue
-        href = href_m.group(1).split("?", 1)[0]
+        href = href.split("?", 1)[0]
         if "/veranstaltungskalender/veranstaltungen/" not in href:
             continue
 
@@ -821,16 +821,15 @@ def events_from_sport_teasers(html: str) -> list:
     """Parse the Bonn.de Sportveranstaltungen teaser list into dated events."""
     source = "Bonn.de Sports"
     events, seen = [], set()
-    for m in re.finditer(r'<article class="SP-Teaser\b.*?</article>', html, re.S | re.I):
-        body = m.group(0)
-        href_m = re.search(r'<a[^>]+class="[^"]*SP-Teaser__inner[^"]*"[^>]+href="([^"]+)"', body, re.S | re.I)
+    for body in rc.class_tag_blocks(html, "article", "SP-Teaser"):
+        href = rc.attribute_from_class_tag(body, "a", "SP-Teaser__inner", "href")
         title_m = re.search(r'<h1[^>]+class="[^"]*SP-Teaser__headline[^"]*"[^>]*>(.*?)</h1>', body, re.S | re.I)
         cat_m = re.search(r'<span[^>]+class="[^"]*SP-Kicker__text[^"]*"[^>]*>(.*?)</span>', body, re.S | re.I)
-        if not (href_m and title_m):
+        if not (href and title_m):
             continue
         title = common.clean_html(title_m.group(1))
         category = common.clean_html(cat_m.group(1) if cat_m else "Sport") or "Sport"
-        href = href_m.group(1).split("?", 1)[0]
+        href = href.split("?", 1)[0]
         link = common.urllib.parse.urljoin("https://www.bonn.de", href)
         for date_text, time_raw in re.findall(
             r'<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'

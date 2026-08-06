@@ -9,7 +9,7 @@ from datetime import datetime
 from html import unescape
 from html.parser import HTMLParser
 from .. import common
-from ..dates import MONTH_DE, MONTH_EN, resolve_yearless_date
+from ..dates import MONTH_ALL, resolve_yearless_date
 from ..source_types import TextParser
 
 
@@ -97,11 +97,7 @@ class ClassScopedTextParser(HTMLParser):
         return common.normalize_block_text("".join(self.parts.get(target, [])))
 
 
-_MONTH = {
-    **MONTH_DE,
-    **MONTH_EN,
-    "mar": 3, "mär": 3, "sept": 9, "oct": 10, "dec": 12,
-}
+_MONTH = MONTH_ALL
 
 
 def abs_url(base: str, href: str) -> str:
@@ -124,6 +120,34 @@ def first_group(pattern: str, text: str, *, flags: int = re.S | re.I) -> str:
 
 def first_group_clean(pattern: str, text: str, *, flags: int = re.S | re.I) -> str:
     return clean(first_group(pattern, text, flags=flags))
+
+
+def html_attribute(tag: str, name: str) -> str:
+    """Return one quoted HTML attribute without depending on its position."""
+    match = re.search(rf"(?:^|\s){re.escape(name)}\s*=\s*([\"'])(.*?)\1", tag or "", re.I | re.S)
+    return unescape(match.group(2)).strip() if match else ""
+
+
+def tag_has_class(tag: str, class_name: str) -> bool:
+    return class_name in html_attribute(tag, "class").split()
+
+
+def class_tag_blocks(html: str, tag_name: str, class_name: str) -> list[str]:
+    """Find complete non-nested tag blocks by class, regardless of attribute order."""
+    pattern = re.compile(
+        rf"<{re.escape(tag_name)}\b[^>]*>.*?</{re.escape(tag_name)}\s*>",
+        re.I | re.S,
+    )
+    return [match.group(0) for match in pattern.finditer(html or "") if tag_has_class(match.group(0).split(">", 1)[0], class_name)]
+
+
+def attribute_from_class_tag(html: str, tag_name: str, class_name: str, attribute: str) -> str:
+    """Return an attribute from the first opening tag carrying ``class_name``."""
+    for match in re.finditer(rf"<{re.escape(tag_name)}\b[^>]*>", html or "", re.I | re.S):
+        tag = match.group(0)
+        if tag_has_class(tag, class_name):
+            return html_attribute(tag, attribute)
+    return ""
 
 
 def factual_fallback(default_city: str = "", calendar_name=""):
@@ -228,16 +252,7 @@ def enrich_descriptions(
 
 
 def parse_dt(text: str):
-    text = clean(text)
-    dt = common.parse_date(text)
-    if dt:
-        return dt
-    m = re.search(r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ.]+)\s*(20\d{2})", text)
-    if not m:
-        return None
-    day, month, year = m.groups()
-    mon = _MONTH.get(month.lower().rstrip("."))
-    return datetime(int(year), mon, int(day)) if mon else None
+    return common.parse_date(clean(text))
 
 
 def with_time(dt, text: str):

@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 
 from .. import common
-from ..dates import MONTH_DE
+from ..dates import MONTH_ALL
 from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurrences, fetch_market
 from . import regional_common as rc
 
@@ -12,7 +12,6 @@ from . import regional_common as rc
 _SOURCE = "Krewelshof Kindersachen-Flohmarkt"
 _SOURCE_ID = "krewelshof-lohmar"
 _URL = "https://krewelshof.de/kinder-familie/flohmarkt/"
-_MONTHS = {**MONTH_DE, "sept": 9}
 _SPEC = FixedMarketSpec(
     title="Kindersachen-Flohmarkt Krewelshof Lohmar",
     venue="Krewelshof Lohmar, Krewelshof 1", city="Lohmar",
@@ -59,7 +58,7 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
 
     parsed = []
     for day_text, month_text in date_matches:
-        month = _MONTHS.get(month_text.casefold().rstrip("."))
+        month = MONTH_ALL.get(month_text.casefold().rstrip("."))
         if not month:
             if strict:
                 raise rc.ParserEmptyError("Krewelshof month contract changed")
