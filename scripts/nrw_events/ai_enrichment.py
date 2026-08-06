@@ -20,10 +20,12 @@ import os
 from pathlib import Path
 import re
 import sqlite3
+import threading
 import time
 from typing import Any, Callable, Iterator, Mapping, Protocol, cast
 import urllib.error
 import urllib.request
+import weakref
 
 from . import category_taxonomy, common, config, richtext
 from .identity import event_id
@@ -44,15 +46,56 @@ FACTS_OUTPUT_TOKEN_LIMIT = 5_000
 SUMMARY_OUTPUT_TOKEN_LIMIT = 10_000
 _OPENAI_API_URL = "https://api.openai.com/v1/responses"
 _OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+_MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+_RESPONSE_CHUNK_BYTES = 64 * 1024
+_TRANSIENT_FAILURE_CACHE_HOURS = 24
 _CATEGORY_KEYS = tuple(category["key"] for category in category_taxonomy.CATEGORIES)
+_EVENT_LOCKS_GUARD = threading.Lock()
+_EVENT_LOCKS: weakref.WeakValueDictionary[str, threading.Lock] = weakref.WeakValueDictionary()
 
 
 class AIEnrichmentError(RuntimeError):
     """One safe-to-retry AI enrichment operation failed."""
 
-    def __init__(self, message: str, *, usage: Any = None) -> None:
+    def __init__(self, message: str, *, usage: Any = None, transient: bool = False) -> None:
         super().__init__(message)
         self.usage = usage
+        self.transient = transient
+
+
+def _read_bounded_response(
+    response: Any,
+    timeout_seconds: float,
+    *,
+    started: float | None = None,
+) -> bytes:
+    """Read an HTTP response incrementally with a wall-clock and size bound."""
+    deadline = (started if started is not None else time.monotonic()) + timeout_seconds
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        if time.monotonic() >= deadline:
+            raise TimeoutError("AI request exceeded its wall-clock deadline")
+        try:
+            chunk = response.read(_RESPONSE_CHUNK_BYTES)
+            single_read = False
+        except TypeError:
+            # Keep compatibility with small test/opening adapters that expose
+            # the minimal no-argument file-like read contract.
+            chunk = response.read()
+            single_read = True
+        if not chunk:
+            break
+        value = bytes(chunk)
+        total += len(value)
+        if total > _MAX_RESPONSE_BYTES:
+            raise OSError(f"AI response exceeded {_MAX_RESPONSE_BYTES}-byte limit")
+        chunks.append(value)
+        if time.monotonic() >= deadline:
+            raise TimeoutError("AI request exceeded its wall-clock deadline")
+        if single_read:
+            break
+    return b"".join(chunks)
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,12 +153,13 @@ def _isolated_http_worker(
             headers=dict(request_spec.get("headers") or {}),
             method=str(request_spec["method"]),
         )
+        started = time.monotonic()
         with urllib.request.urlopen(request, timeout=socket_timeout) as response:
-            sender.send(("ok", response.read()))
+            sender.send(("ok", _read_bounded_response(response, socket_timeout, started=started)))
     except urllib.error.HTTPError as exc:
         sender.send(("http_error", exc.code))
     except BaseException as exc:
-        sender.send(("error", type(exc).__name__))
+        sender.send(("error", f"{type(exc).__name__}: {exc}"))
     finally:
         sender.close()
 
@@ -178,7 +222,7 @@ def _read_http_response(
         raw = _read_response_isolated(request, timeout_seconds)
     else:
         with opener(request, timeout=timeout_seconds) as response:
-            raw = response.read()
+            raw = _read_bounded_response(response, timeout_seconds)
     return bytes(raw).decode("utf-8")
 
 
@@ -519,9 +563,13 @@ class ResponsesClient:
         try:
             raw = _read_http_response(request, self.settings.timeout_seconds, self._opener)
         except urllib.error.HTTPError as exc:
-            raise AIEnrichmentError(f"OpenAI HTTP {exc.code}") from exc
+            raise AIEnrichmentError(
+                f"OpenAI HTTP {exc.code}", transient=exc.code >= 500 or exc.code in {408, 429}
+            ) from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
-            raise AIEnrichmentError(f"OpenAI request failed: {type(exc).__name__}") from exc
+            raise AIEnrichmentError(
+                f"OpenAI request failed: {type(exc).__name__}: {exc}", transient=True
+            ) from exc
         try:
             document = json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -629,9 +677,13 @@ class OpenRouterClient:
         try:
             raw = _read_http_response(request, self.settings.timeout_seconds, self._opener)
         except urllib.error.HTTPError as exc:
-            raise AIEnrichmentError(f"OpenRouter HTTP {exc.code}") from exc
+            raise AIEnrichmentError(
+                f"OpenRouter HTTP {exc.code}", transient=exc.code >= 500 or exc.code in {408, 429}
+            ) from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
-            raise AIEnrichmentError(f"OpenRouter request failed: {type(exc).__name__}") from exc
+            raise AIEnrichmentError(
+                f"OpenRouter request failed: {type(exc).__name__}: {exc}", transient=True
+            ) from exc
         try:
             document = json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -691,6 +743,15 @@ def _parse_timestamp(value: object) -> datetime | None:
         return None
 
 
+def _event_lock(cache_key: str) -> threading.Lock:
+    with _EVENT_LOCKS_GUARD:
+        lock = _EVENT_LOCKS.get(cache_key)
+        if lock is None:
+            lock = threading.Lock()
+            _EVENT_LOCKS[cache_key] = lock
+        return lock
+
+
 @contextmanager
 def _locked_database(path: Path, *, cache_key: str) -> Iterator[sqlite3.Connection]:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -698,57 +759,53 @@ def _locked_database(path: Path, *, cache_key: str) -> Iterator[sqlite3.Connecti
     connection = sqlite3.connect(path, timeout=30)
     connection.row_factory = sqlite3.Row
     try:
-        # Serialize schema initialization only. Holding this process-wide lock
-        # across network requests made every source's AI work run sequentially.
-        # SQLite already serializes the short writes below, while WAL allows
-        # unrelated event rows to be enriched concurrently.
+        # Use the cross-process flock only for schema initialization. It is
+        # released before the connection is yielded and before provider I/O.
         with lock_path.open("a+", encoding="utf-8") as lock:
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            connection.execute("PRAGMA busy_timeout = 30000")
-            connection.execute("PRAGMA journal_mode = WAL")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ai_event_enrichment (
-                    event_key TEXT NOT NULL,
-                    input_hash TEXT NOT NULL,
-                    pipeline_version TEXT NOT NULL,
-                    source_id TEXT NOT NULL,
-                    model TEXT NOT NULL,
-                    stage1_json TEXT NOT NULL DEFAULT '',
-                    stage2_json TEXT NOT NULL DEFAULT '',
-                    stage1_attempts INTEGER NOT NULL DEFAULT 0,
-                    stage2_attempts INTEGER NOT NULL DEFAULT 0,
-                    negative_until TEXT NOT NULL DEFAULT '',
-                    last_error TEXT NOT NULL DEFAULT '',
-                    input_tokens INTEGER NOT NULL DEFAULT 0,
-                    cached_input_tokens INTEGER NOT NULL DEFAULT 0,
-                    output_tokens INTEGER NOT NULL DEFAULT 0,
-                    cost_usd REAL NOT NULL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    PRIMARY KEY (event_key, input_hash, pipeline_version)
-                )
-                """
-            )
-            columns = {
-                row[1] for row in connection.execute("PRAGMA table_info(ai_event_enrichment)")
-            }
-            if "cost_usd" not in columns:
-                connection.execute(
-                    "ALTER TABLE ai_event_enrichment ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0"
-                )
-            connection.commit()
-            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
-        # Distinct events may enrich concurrently, but a specific cache key
-        # needs one owner so a late failure cannot overwrite a successful row.
-        lock_digest = sha256(cache_key.encode("utf-8")).hexdigest()
-        event_lock_path = path.with_suffix(path.suffix + f".{lock_digest}.lock")
-        with event_lock_path.open("a+", encoding="utf-8") as event_lock:
-            fcntl.flock(event_lock.fileno(), fcntl.LOCK_EX)
             try:
-                yield connection
+                connection.execute("PRAGMA busy_timeout = 30000")
+                connection.execute("PRAGMA journal_mode = WAL")
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS ai_event_enrichment (
+                        event_key TEXT NOT NULL,
+                        input_hash TEXT NOT NULL,
+                        pipeline_version TEXT NOT NULL,
+                        source_id TEXT NOT NULL,
+                        model TEXT NOT NULL,
+                        stage1_json TEXT NOT NULL DEFAULT '',
+                        stage2_json TEXT NOT NULL DEFAULT '',
+                        stage1_attempts INTEGER NOT NULL DEFAULT 0,
+                        stage2_attempts INTEGER NOT NULL DEFAULT 0,
+                        negative_until TEXT NOT NULL DEFAULT '',
+                        last_error TEXT NOT NULL DEFAULT '',
+                        input_tokens INTEGER NOT NULL DEFAULT 0,
+                        cached_input_tokens INTEGER NOT NULL DEFAULT 0,
+                        output_tokens INTEGER NOT NULL DEFAULT 0,
+                        cost_usd REAL NOT NULL DEFAULT 0,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL,
+                        PRIMARY KEY (event_key, input_hash, pipeline_version)
+                    )
+                    """
+                )
+                columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(ai_event_enrichment)")
+                }
+                if "cost_usd" not in columns:
+                    connection.execute(
+                        "ALTER TABLE ai_event_enrichment ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0"
+                    )
+                connection.commit()
             finally:
-                fcntl.flock(event_lock.fileno(), fcntl.LOCK_UN)
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+        # Keep one in-process owner for an identical cache key without holding
+        # the cross-process cache flock during provider I/O. Different events
+        # remain fully concurrent; other processes may race and safely re-use
+        # the same content-addressed result.
+        with _event_lock(cache_key):
+            yield connection
     finally:
         connection.close()
 
@@ -814,11 +871,16 @@ def _record_failure(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: 
     attempts = "stage1_attempts" if stage == 1 else "stage2_attempts"
     negative_until = ""
     if terminal:
-        negative_until = (
-            _timestamp(now + timedelta(hours=settings.negative_cache_hours))
-            if settings.negative_cache_hours > 0
-            else "9999-12-31T23:59:59+00:00"
-        )
+        if isinstance(error, AIEnrichmentError) and error.transient:
+            negative_until = _timestamp(
+                now + timedelta(hours=_TRANSIENT_FAILURE_CACHE_HOURS)
+            )
+        else:
+            negative_until = (
+                _timestamp(now + timedelta(hours=settings.negative_cache_hours))
+                if settings.negative_cache_hours > 0
+                else "9999-12-31T23:59:59+00:00"
+            )
     connection.execute(
         f"""UPDATE ai_event_enrichment SET {attempts} = {attempts} + 1,
             negative_until = ?, last_error = ?, input_tokens = input_tokens + ?,
@@ -1422,7 +1484,11 @@ def enrich_event(
             except Exception as exc:
                 if isinstance(exc, AIEnrichmentError) and isinstance(exc.usage, Usage):
                     usage = exc.usage
-                safe_error = exc if isinstance(exc, AIEnrichmentError) else AIEnrichmentError(type(exc).__name__)
+                safe_error = (
+                    exc
+                    if isinstance(exc, AIEnrichmentError)
+                    else AIEnrichmentError(type(exc).__name__, transient=True)
+                )
                 terminal = row["stage1_attempts"] + 1 >= configured.max_attempts
                 row = _record_failure(
                     connection, row, stage=1, error=safe_error, usage=usage,
@@ -1527,7 +1593,11 @@ def enrich_event(
             except Exception as exc:
                 if isinstance(exc, AIEnrichmentError) and isinstance(exc.usage, Usage):
                     usage = exc.usage
-                safe_error = exc if isinstance(exc, AIEnrichmentError) else AIEnrichmentError(type(exc).__name__)
+                safe_error = (
+                    exc
+                    if isinstance(exc, AIEnrichmentError)
+                    else AIEnrichmentError(type(exc).__name__, transient=True)
+                )
                 terminal = row["stage2_attempts"] + 1 >= configured.max_attempts
                 row = _record_failure(
                     connection, row, stage=2, error=safe_error, usage=usage,
