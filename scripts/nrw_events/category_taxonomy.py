@@ -16,6 +16,39 @@ from typing import Iterable, TypedDict
 from .models import normalize_source_id
 
 
+_GERMAN_SPELLING_TRANSLATION = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
+_WORD_PATTERN = re.compile(r"\w+")
+
+
+def normalize_text(value: str) -> str:
+    value = (value or "").lower()
+    value = value.replace("&amp;", "&")
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _comparison_from_normalized(value: str) -> str:
+    return value.translate(_GERMAN_SPELLING_TRANSLATION)
+
+
+def comparison_text(value: str) -> str:
+    """Normalize German spelling variants without rebuilding translation data."""
+    return _comparison_from_normalized(normalize_text(value))
+
+
+def _compile_keyword_pattern(value: str, mode: str) -> re.Pattern[str]:
+    """Compile a policy keyword once while loading the category policy."""
+    escaped = re.escape(value)
+    if mode == "word_prefix":
+        expression = rf"(?<!\w){escaped}\w*(?!\w)"
+    elif mode == "word_suffix":
+        expression = rf"(?<!\w)\w*{escaped}(?!\w)"
+    elif mode == "compound_word":
+        expression = rf"(?<!\w)\w*{escaped}\w*(?!\w)"
+    else:
+        expression = rf"(?<!\w){escaped}(?!\w)"
+    return re.compile(expression)
+
+
 class Category(TypedDict):
     key: str
     label: str
@@ -29,6 +62,8 @@ class CategoryResult(Category, total=False):
 @dataclass(frozen=True)
 class Keyword:
     value: str
+    normalized_value: str
+    pattern: re.Pattern[str]
     title_only: bool = False
     word: bool = False
     word_prefix: bool = False
@@ -86,8 +121,11 @@ def _keyword_from_spec(raw: object) -> Keyword:
         raise ValueError("category keyword weight must be greater than zero and at most one")
     if not isinstance(raw["comment"], str):
         raise ValueError("category keyword comment must be a string")
+    normalized_value = comparison_text(value)
     return Keyword(
         value=value,
+        normalized_value=normalized_value,
+        pattern=_compile_keyword_pattern(normalized_value, mode),
         title_only=scope == "title",
         word=mode == "word",
         word_prefix=mode == "word_prefix",
@@ -120,7 +158,7 @@ DESTINATION_TITLE_CONTEXT = tuple(
     _keyword_from_spec(keyword) for keyword in _CATEGORY_POLICY["contexts"]["destination_title"]
 )
 STRONG_MARKET_TITLE_CONTEXT = tuple(
-    keyword["value"] for keyword in _CATEGORY_POLICY["contexts"]["strong_market_title"]
+    comparison_text(keyword["value"]) for keyword in _CATEGORY_POLICY["contexts"]["strong_market_title"]
 )
 RULES = tuple(sorted(
     (
@@ -176,46 +214,12 @@ def _fallback_category(source_id: str, title: str) -> CategoryResult | None:
     return _FALLBACK_CACHE.get(category_cache_key(source_id, title))
 
 
-_NON_WORD = r"[^\w]"
-
-
-def normalize_text(value: str) -> str:
-    value = (value or "").lower()
-    value = value.replace("&amp;", "&")
-    return re.sub(r"\s+", " ", value).strip()
-
-
-def comparison_text(value: str) -> str:
-    """Normalize German spelling variants once instead of duplicating policy terms."""
-    normalized = normalize_text(value)
-    return normalized.translate(str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}))
-
-
 def _contains_word(text: str, needle: str) -> bool:
-    text = comparison_text(text)
-    escaped = re.escape(comparison_text(needle))
-    return re.search(rf"(^|{_NON_WORD}){escaped}($|{_NON_WORD})", text) is not None
+    return _contains_comparison_word(comparison_text(text), comparison_text(needle))
 
 
-def _contains_word_suffix(text: str, needle: str) -> bool:
-    text = comparison_text(text)
-    escaped = re.escape(comparison_text(needle))
-    return re.search(rf"(^|{_NON_WORD})\w*{escaped}($|{_NON_WORD})", text) is not None
-
-
-def _contains_word_prefix(text: str, needle: str) -> bool:
-    text = comparison_text(text)
-    escaped = re.escape(comparison_text(needle))
-    return re.search(rf"(^|{_NON_WORD}){escaped}\w*($|{_NON_WORD})", text) is not None
-
-
-def _contains_compound_word(text: str, needle: str) -> bool:
-    text = comparison_text(text)
-    normalized_needle = comparison_text(needle)
-    return any(
-        normalized_needle in token and token != normalized_needle
-        for token in re.findall(r"\w+", text)
-    )
+def _contains_comparison_word(text: str, normalized_needle: str) -> bool:
+    return normalized_needle in _WORD_PATTERN.findall(text)
 
 
 def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
@@ -223,13 +227,9 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
         return _contains_word(text, keyword)
     if keyword.title_only and not is_title:
         return False
-    if keyword.word_prefix:
-        return _contains_word_prefix(text, keyword.value)
-    if keyword.word_suffix:
-        return _contains_word_suffix(text, keyword.value)
     if keyword.compound_word:
-        return _contains_compound_word(text, keyword.value)
-    return _contains_word(text, keyword.value)
+        return any(match.group(0) != keyword.normalized_value for match in keyword.pattern.finditer(text))
+    return keyword.pattern.search(text) is not None
 
 
 def _matched_keywords(
@@ -256,7 +256,7 @@ def _category_keys_for_hint(hint_text: str) -> set[str]:
     return keys
 
 
-def _forced_title_format(title_text: str) -> str:
+def _forced_title_format(title_text: str, title_comparison: str) -> str:
     """Prefer explicit event-format nouns over incidental descriptive words."""
     if re.search(r"\b\w*filmfestival\w*\b", title_text):
         return "cinema"
@@ -264,7 +264,7 @@ def _forced_title_format(title_text: str) -> str:
         return "sports"
     if re.search(r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text):
         return "outdoor"
-    if _contains_word(title_text, "bildungsurlaub"):
+    if _contains_comparison_word(title_comparison, "bildungsurlaub"):
         return "workshop"
     return ""
 
@@ -538,12 +538,14 @@ def categorize_event(
     description_text = normalize_text(description)
     venue_text = normalize_text(venue)
     source_text = normalize_text(source)
-
+    title_comparison = _comparison_from_normalized(title_text)
+    hint_comparison = _comparison_from_normalized(hint_text)
+    description_comparison = _comparison_from_normalized(description_text)
 
     # Explicit sport and guided-listening formats in the title outrank broader
     # programme context such as "Ferienspaß" or "künstlerische Intervention".
-    explicit_title_format = _forced_title_format(title_text)
-    if explicit_title_format == "sports" or _contains_word(title_text, "soundwalk"):
+    explicit_title_format = _forced_title_format(title_text, title_comparison)
+    if explicit_title_format == "sports" or _contains_comparison_word(title_comparison, "soundwalk"):
         key = explicit_title_format or "outdoor"
         category = CATEGORY_BY_KEY[key]
         return {
@@ -553,15 +555,18 @@ def categorize_event(
             "reason": f"forced:{key}-title-format",
         }
 
-    if ("cinema-special" not in hint_text
-            and any(_matches(title_text, bit, is_title=True) for bit in LOW_VALUE_TITLE_CONTEXT)
-            and not any(_matches(title_text, bit, is_title=True) for bit in DESTINATION_TITLE_CONTEXT)):
+    if (
+        "cinema-special" not in hint_text
+        and any(_matches(title_comparison, bit, is_title=True) for bit in LOW_VALUE_TITLE_CONTEXT)
+        and not any(_matches(title_comparison, bit, is_title=True) for bit in DESTINATION_TITLE_CONTEXT)
+    ):
         # Municipal sources often attach broad all-purpose category bags like
         # "Kultur Konzert" to routine meetups/courses. For those low-value title
         # shapes, only classify from the actual title/description.
         hint_text = ""
+        hint_comparison = ""
 
-    hint_category_keys = _category_keys_for_hint(hint_text)
+    hint_category_keys = _category_keys_for_hint(hint_comparison)
 
     # Broad municipal bags such as "Kultur Markt Ausstellung Konzert Führung"
     # describe the entire calendar, not an individual event. Two focused tags
@@ -569,13 +574,14 @@ def categorize_event(
     # tie-breaking role.
     if len(hint_category_keys) > 2:
         hint_text = ""
+        hint_comparison = ""
         hint_category_keys = set()
 
     # A focused exhibition tag corroborated by an explicit description is more
     # reliable than an incidental conceptual word such as "Natur" in the title.
     if (
         hint_category_keys == {"exhibition"}
-        and _contains_word(description_text, "ausstellung")
+        and _contains_comparison_word(description_comparison, "ausstellung")
     ):
         category = CATEGORY_BY_KEY["exhibition"]
         return {
@@ -629,8 +635,7 @@ def categorize_event(
 
     # Explicit market formats in the title remain markets even when their copy
     # naturally repeats broad family words several times.
-    title_comparison = comparison_text(title_text)
-    if any(comparison_text(bit) in title_comparison for bit in STRONG_MARKET_TITLE_CONTEXT):
+    if any(bit in title_comparison for bit in STRONG_MARKET_TITLE_CONTEXT):
         category = CATEGORY_BY_KEY["market"]
         return {
             "key": category["key"],
@@ -642,7 +647,7 @@ def categorize_event(
     for forced_key, needles in FORCED_CATEGORY_RULES:
         if any(
             _matches(text, needle, is_title=is_title)
-            for text, is_title in ((title_text, True), (hint_text, False))
+            for text, is_title in ((title_comparison, True), (hint_comparison, False))
             for needle in needles
         ):
             category = CATEGORY_BY_KEY[forced_key]
@@ -661,9 +666,9 @@ def categorize_event(
     best_description_matches: list[str] = []
     best_hint_matches: list[str] = []
     for rule in RULES:
-        title_keywords = _matched_keywords(title_text, rule.keywords, is_title=True)
-        description_keywords = _matched_keywords(description_text, rule.keywords, is_title=False)
-        hint_keywords = _matched_keywords(hint_text, rule.keywords, is_title=False)
+        title_keywords = _matched_keywords(title_comparison, rule.keywords, is_title=True)
+        description_keywords = _matched_keywords(description_comparison, rule.keywords, is_title=False)
+        hint_keywords = _matched_keywords(hint_comparison, rule.keywords, is_title=False)
         if not _has_enough_evidence(title_keywords + description_keywords + hint_keywords):
             continue
         title_matches = [

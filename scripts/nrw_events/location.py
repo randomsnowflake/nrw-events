@@ -14,6 +14,31 @@ from .normalization import comparison_text
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
 MAX_RADIUS_KM = config.MAX_RADIUS_KM
 _AMBIGUOUS_CITY_NAMES = frozenset({"grafschaft", "linz", "much", "wissen"})
+_SORTED_CITIES = tuple(
+    sorted(config.VENUE_COORDS, key=lambda city: (city == "bonn", -len(city)))
+)
+_CITY_PRIORITY = {city: priority for priority, city in enumerate(_SORTED_CITIES)}
+_NON_AMBIGUOUS_CITY_PATTERN = re.compile(
+    rf"(?<![a-zäöüß])(?:{'|'.join(re.escape(city) for city in _SORTED_CITIES if city not in _AMBIGUOUS_CITY_NAMES)})"
+    r"(?![a-zäöüß])"
+)
+_AMBIGUOUS_CITY_PATTERNS = {
+    city: re.compile(
+        rf"(?:\b\d{{5}}\s+{re.escape(city)}(?![a-zäöüß])"
+        rf"|,\s*{re.escape(city)}(?![a-zäöüß])"
+        rf"|^\s*{re.escape(city)}(?![a-zäöüß])\s*,\s*\S"
+        rf"|\bin\s+{re.escape(city)}(?![a-zäöüß]))"
+    )
+    for city in _SORTED_CITIES
+    if city in _AMBIGUOUS_CITY_NAMES
+}
+_DISTRICT_WORDS = {
+    key: comparison_text(key.removeprefix("bonn-"))
+    for key in config.VENUE_COORDS
+    if key.startswith("bonn-")
+}
+_DISTRICT_WORD_VALUES = frozenset(_DISTRICT_WORDS.values())
+_SORTED_DISTRICT_WORDS = tuple(sorted(_DISTRICT_WORDS.items(), key=lambda item: -len(item[1])))
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -51,23 +76,14 @@ def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optiona
 def guess_city_from_text(text: str) -> Optional[str]:
     """Find a configured city in free text, preferring specific names to Bonn."""
     text_lower = re.sub(r"bundesstadt\s+bonn", " ", (text or "").lower())
-    cities = sorted(config.VENUE_COORDS, key=lambda city: (city == "bonn", -len(city)))
-    for city in cities:
-        city_pattern = rf"(?<![a-zäöüß]){re.escape(city)}(?![a-zäöüß])"
-        if city not in _AMBIGUOUS_CITY_NAMES and re.search(city_pattern, text_lower):
-            return city
-        if city in _AMBIGUOUS_CITY_NAMES and (
-            text_lower.strip(" ,;-") == city
-            or re.search(rf"\b\d{{5}}\s+{re.escape(city)}(?![a-zäöüß])", text_lower)
-            or re.search(rf",\s*{re.escape(city)}(?![a-zäöüß])", text_lower)
-            or re.search(
-                rf"^\s*{re.escape(city)}(?![a-zäöüß])\s*,\s*\S",
-                text_lower,
-            )
-            or re.search(rf"\bin\s+{re.escape(city)}(?![a-zäöüß])", text_lower)
-        ):
-            return city
-    return None
+    candidates = {match.group(0) for match in _NON_AMBIGUOUS_CITY_PATTERN.finditer(text_lower)}
+    stripped_text = text_lower.strip(" ,;-")
+    candidates.update(
+        city
+        for city, pattern in _AMBIGUOUS_CITY_PATTERNS.items()
+        if stripped_text == city or pattern.search(text_lower)
+    )
+    return min(candidates, key=_CITY_PRIORITY.__getitem__) if candidates else None
 
 
 def district_from_postcode(text: str) -> str:
@@ -99,16 +115,11 @@ def refine_city_from_text(city: str, text: str) -> str:
     not reduced to Vilich when both tokens occur.
     """
     coarse = comparison_text(city)
-    district_keys = [key for key in config.VENUE_COORDS if key.startswith("bonn-")]
-    district_words = {
-        key: comparison_text(key.removeprefix("bonn-"))
-        for key in district_keys
-    }
-    if coarse != "bonn" and not coarse.startswith("bonn ") and coarse not in district_words.values():
+    if coarse != "bonn" and not coarse.startswith("bonn ") and coarse not in _DISTRICT_WORD_VALUES:
         return city
 
     haystack = f" {comparison_text(text)} "
-    for key, district in sorted(district_words.items(), key=lambda item: -len(item[1])):
+    for key, district in _SORTED_DISTRICT_WORDS:
         if f" {district} " in haystack:
             suffix = key.removeprefix("bonn-")
             return "Bonn-" + suffix.title()
