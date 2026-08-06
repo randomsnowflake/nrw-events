@@ -408,6 +408,8 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_AI_MAX_ATTEMPTS` | `2` | Höchstens zwei Versuche je AI-Stufe und Fehlerfenster. Eine erfolgreiche erste Stufe wird auch bei Fehlern der zweiten wiederverwendet. |
 | `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS` | `0` | Sperrzeit nach ausgeschöpften Versuchen. `0` hält ein abgelehntes, unverändertes Event dauerhaft leer; neue Quelldaten oder eine neue Pipeline-Version erzeugen einen neuen Cache-Eintrag. Ein positiver Wert erlaubt nach dieser Stundenzahl einen erneuten Versuch. |
 | `NRW_EVENTS_AI_TIMEOUT_SECONDS` | `180` | Hartes Gesamtzeitlimit pro AI-Aufruf; lässt DeepSeek Spielraum, verhindert aber endlos tröpfelnde HTTP-Antworten. |
+| `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS` | `120` | Gesamtbudget für die optionale AI-Anreicherung einer Quelle. Nach Ablauf werden übrige Termine ohne Quellprosa veröffentlicht. |
+| `NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS` | `180` | Äußere Worker-Zugabe für Quellen mit aktivierter AI-Anreicherung. Der Runner verwendet mindestens das konfigurierte AI-Gesamtbudget. |
 | `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales lokales Pilotlimit je Quellenlauf; `0` verarbeitet alle Zielevents. Nicht verarbeitete Zielevents bleiben ohne Beschreibung. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
@@ -417,8 +419,9 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS` | `45.0` | Gemeinsames Zeitbudget für Request, Wiederholungen und Backoff; Socket-Timeouts werden an die Restzeit angepasst. |
 | `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS` | `60.0` | Obergrenze für einzelne Retry-Wartezeiten. |
 | `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `5000000` | Harte Antwortgrößen-Grenze pro HTTP-Request. |
-| `NRW_EVENTS_SOURCE_WORKERS` | `12` | Maximale parallele Quellen. Requests an denselben Host werden serialisiert; verschiedene Hosts laufen parallel. |
-| `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `180.0` | Inaktivitätsbudget einer Quelle. Jeder erfolgreiche Endpunkt erneuert es; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
+| `NRW_EVENTS_SOURCE_WORKERS` | `4` | Maximale parallele Quellen. Requests an denselben Host werden serialisiert; verschiedene Hosts laufen parallel. |
+| `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `600.0` | Zeitbudget für die Netzwerkphase einer Quelle; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
+| `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS` | `180.0` | Zusätzliche Worker-Zeit für Validierung und Verarbeitung bereits geholter großer Quellergebnisse. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
 | `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES` | `30` | Sicherheitsgrenze für paginierte Bonn.de-Kalenderseiten. |
@@ -426,6 +429,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. |
 | `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS` | `24` | TTL für HTML-Detailseiten-Abrufe. Bonn.de nutzt diese Seiten für strukturierte Veranstaltungsorte und Adressen aller aktuellen Kalendereinträge; wiederkehrende Termine und parallele Bonn-Listen teilen denselben persistenten Cache. Um das feste Abruflimit einzuhalten, werden bei Bonn.de auch fehlgeschlagene Versuche bis zum TTL-Ablauf negativ gecacht. Weitere Nutzer sind unter anderem Siegburg, Much, Königswinter, Naturregion Sieg, Linz, IONAS-Kommunen und einzelne Veranstaltungsorte. `0` deaktiviert Speicher- und Platten-Cache. Listen, APIs und Feeds bleiben ungecacht und werden bei jedem Import frisch geladen. |
 | `NRW_EVENTS_DETAIL_ENRICHMENT` | `1` | Gemeinsame, gecachte Anreicherung aus primären Detailseiten; `0` deaktiviert sie. |
+| `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` | `45` | Gesamtbudget für optionale Detailseiten-Abrufe je Quelle; nach Ablauf bleiben die vorhandenen Listendaten erhalten. |
 | `XDG_CACHE_HOME` | `~/.cache` | Standardbasis für persistente Detail-Caches, wenn `NRW_EVENTS_CACHE_DIR` fehlt. |
 | `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `0` | Optionale Obergrenze für den aus einer Bonn.de-Detailseite übernommenen Text. Standardmäßig werden alle erklärenden Absätze und Aufzählungen vollständig übernommen; Logistikblöcke werden weiterhin übersprungen. Ein positiver Wert aktiviert eine satz- bzw. wortnahe Kürzung. |
 | `NRW_EVENTS_JSON_OUT`         | Benutzer-State-Verzeichnis | Zielpfad für die Eventliste als JSON-Array. |

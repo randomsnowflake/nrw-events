@@ -79,6 +79,7 @@ routing, and a provider-specific cache namespace. Its default model is
 The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 `NRW_EVENTS_CACHE_DIR`, `NRW_EVENTS_AI_MAX_ATTEMPTS`,
 `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS`, `NRW_EVENTS_AI_TIMEOUT_SECONDS`,
+`NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS`, `NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS`,
 `NRW_EVENTS_AI_MAX_EVENTS`, and `NRW_EVENTS_AI_MODEL`.
 
 ### Registered sources
@@ -361,7 +362,8 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS=1.0` — exponential backoff base with jitter.
 - `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` / `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=5000000` — cap retry waits and response sizes.
 - `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT=10` — annotate a source that drops from a recent meaningful count to zero.
-- `NRW_EVENTS_SOURCE_WORKERS=12` / `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS=180` — source parallelism and inactivity budget.
+- `NRW_EVENTS_SOURCE_WORKERS=4` / `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS=600` — source parallelism and network-phase budget.
+- `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS=180` — extra worker time to process an already fetched large source result.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
 - `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES=30` — safety cap for paginated Bonn.de calendars.
 - `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` — Bright Data Web Unlocker credentials; vomFASS refreshes only on Mondays and always uses this proxy. Hofflohmärkte Köln and allowlisted IONAS4 regional calendars are direct-first and use it only after selected transient failures or exhausted direct-request timeouts.
@@ -369,6 +371,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `XDG_CACHE_HOME=~/.cache` — cache base when `NRW_EVENTS_CACHE_DIR` is unset.
 - `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=24` — default TTL for successful generic detail-page fetches; `0` disables memory and disk caching.
 - `NRW_EVENTS_DETAIL_ENRICHMENT=1` — shared primary-detail enrichment; set to `0` to disable.
+- `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS=45` — whole-source budget for optional detail-page enrichment.
 - `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS=500` — target length for meaningful Bonn.de detail summaries after logistics boilerplate is removed.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.
