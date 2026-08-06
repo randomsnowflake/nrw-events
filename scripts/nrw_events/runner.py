@@ -108,6 +108,7 @@ class ImportResult:
     series: tuple[dict, ...] = ()
     series_ledger: dict[str, object] = field(default_factory=dict)
     warnings: tuple[dict[str, str], ...] = ()
+    timings: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,7 +157,15 @@ def _run_source(
             )
         # Restricted source prose is used only as private AI input. The helper
         # always removes it, even when AI is disabled, unavailable or fails.
-        events = ai_enrichment.enrich_events(events)
+        ai_candidates = sum(
+            1 for event in events
+            if isinstance(event, dict) and ai_enrichment.is_target_event(event)
+        )
+        if ai_candidates:
+            ai_started = time.monotonic()
+            events = ai_enrichment.enrich_events(events)
+            result.ai_duration_ms = round((time.monotonic() - ai_started) * 1000)
+            result.ai_candidate_event_count = ai_candidates
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         result.finish(events)
         explicit_parser_empty = any(
@@ -882,6 +891,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     """Execute, validate, filter, and deduplicate sources in memory."""
     # Source adapters still read a compatibility facade; embedders must not
     # need to configure that module-global window separately from RunContext.
+    import_started = time.monotonic()
     settings, logger, run_id = context.settings, context.logger, context.run_id
     previous_path = settings.previous_meta_json or settings.meta_json_out
     previous = _previous_snapshot(previous_path)
@@ -991,6 +1001,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         # once after all workers finish instead of serializing every source at
         # its boundary while other workers still need cache lookups.
         cache_warnings.extend(common.flush_detail_page_caches())
+    source_import_duration_ms = round((time.monotonic() - import_started) * 1000)
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:
@@ -1104,6 +1115,13 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         tuple(deduped), source_results, len(filtered) + len(retained),
         run_status, retention, tuple(series_metadata), series_ledger,
         import_warnings,
+        {
+            "source_import_duration_ms": source_import_duration_ms,
+            "ai_processing_duration_ms": sum(
+                result.ai_duration_ms for result in source_results.values()
+            ),
+            "total_import_duration_ms": round((time.monotonic() - import_started) * 1000),
+        },
     )
 
 
@@ -1147,6 +1165,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "quality_warnings": quality_warnings,
         "import_issues": issues,
         "source_results": source_result_payloads,
+        "timings": import_result.timings,
         "categories": CATEGORIES, "pre_dedup_count": import_result.pre_dedup_count,
         "fresh_event_count": import_result.retention.get("fresh_event_count", len(events)),
         "retained_event_count": import_result.retention.get("retained_event_count", 0),
