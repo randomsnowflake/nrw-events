@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from datetime import datetime
 from unittest import mock
@@ -89,6 +90,50 @@ class RunnerOutputTests(unittest.TestCase):
             result = runner.run_import(context, {})
 
         self.assertIn(warning, result.warnings)
+
+    def test_runner_records_ai_worker_duration_and_candidate_count(self):
+        event = {
+            "title": "Event", "source": "Bonn.de Events",
+            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
+        }
+
+        def delayed_enrichment(events):
+            time.sleep(0.01)
+            return events
+
+        with mock.patch.object(runner.ai_enrichment, "is_target_event", return_value=True), \
+             mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=delayed_enrichment):
+            result, _ = runner._run_source("Bonn.de Events", lambda: [event])
+
+        self.assertEqual(result.ai_candidate_event_count, 1)
+        self.assertGreaterEqual(result.ai_duration_ms, 5)
+        self.assertEqual(result.as_dict()["ai_duration_ms"], result.ai_duration_ms)
+
+    def test_import_timings_are_exported_in_snapshot_metadata(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "timings", configure_logging("timings", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+        event = {
+            "title": "Event", "source": "Source A", "date": "2026-06-08",
+            "score": 1.0, "city": "Bonn",
+        }
+
+        result = runner.run_import(context, {"Source A": lambda: [event]})
+        snapshot = runner.build_snapshot(result, context)
+
+        self.assertEqual(snapshot.metadata["timings"], result.timings)
+        self.assertEqual(set(result.timings), {
+            "source_import_duration_ms",
+            "ai_processing_duration_ms",
+            "total_import_duration_ms",
+        })
+        self.assertGreaterEqual(
+            result.timings["total_import_duration_ms"],
+            result.timings["source_import_duration_ms"],
+        )
 
     def test_runner_filters_window_after_source_health_is_recorded(self):
         with mock.patch.object(common, "TODAY", datetime(2026, 7, 19)), \
