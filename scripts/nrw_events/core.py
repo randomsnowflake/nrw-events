@@ -28,7 +28,7 @@ import urllib.error
 from contextlib import closing, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from html import unescape
 from pathlib import Path
 from typing import Any, Callable, Iterator, NoReturn, Optional, TypedDict
@@ -2374,17 +2374,36 @@ def _ical_date_list(values: list[tuple[str, str]]) -> list[datetime]:
     return parsed
 
 
+def _ical_date_only_days(values: list[tuple[str, str]]) -> set[date]:
+    """Calendar days named by date-only values (e.g. ``EXDATE;VALUE=DATE``).
+
+    A date-only exclusion carries no clock time, so it must exclude the whole
+    day; comparing its midnight parse against timed occurrences never matches.
+    """
+    return {
+        datetime.strptime(value, "%Y%m%d").date()
+        for _property_key, raw in values
+        for value in (part.strip() for part in raw.split(","))
+        if re.match(r"^\d{8}$", value)
+    }
+
+
 def _ical_recurrence_starts(
     start: datetime,
     rrule: str,
     rdates: list[datetime],
     exdates: list[datetime],
+    exdate_days: set[date] | None = None,
 ) -> tuple[list[datetime], str]:
     """Expand a bounded stdlib-only subset of RFC 5545 recurrence rules."""
+    excluded_days = exdate_days or set()
     if not rrule:
         starts = [start, *rdates]
         excluded = set(exdates)
-        return sorted({value for value in starts if value not in excluded}), ""
+        return sorted({
+            value for value in starts
+            if value not in excluded and value.date() not in excluded_days
+        }), ""
 
     parts = {}
     for raw_part in rrule.split(";"):
@@ -2441,7 +2460,10 @@ def _ical_recurrence_starts(
 
     starts.extend(rdates)
     excluded = set(exdates)
-    return sorted({value for value in starts if value not in excluded}), ""
+    return sorted({
+        value for value in starts
+        if value not in excluded and value.date() not in excluded_days
+    }), ""
 
 
 def fetch_ical(url: str, source: str, default_city: str, category: str = "",
@@ -2502,6 +2524,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
             props.get("RRULE", ""),
             _ical_date_list(multi_props.get("RDATE", [])),
             _ical_date_list(multi_props.get("EXDATE", [])),
+            _ical_date_only_days(multi_props.get("EXDATE", [])),
         )
         if recurrence_warning:
             log_source_error(f"{source} recurrence", ValueError(recurrence_warning))
