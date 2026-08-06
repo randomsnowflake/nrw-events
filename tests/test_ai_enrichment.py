@@ -1,3 +1,4 @@
+import fcntl
 import json
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
@@ -315,6 +316,37 @@ class AIEnrichmentTests(unittest.TestCase):
 
         self.assertLess(time.monotonic() - started, 0.2)
 
+    def test_incremental_deadline_is_enforced_from_worker_thread(self):
+        class SlowTrickleResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self, _size):
+                time.sleep(0.03)
+                return b"x"
+
+        request = urllib.request.Request("https://example.test/slow", method="POST")
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                ai_enrichment._read_http_response,
+                request,
+                0.05,
+                lambda *_args, **_kwargs: SlowTrickleResponse(),
+            )
+            with self.assertRaisesRegex(TimeoutError, "wall-clock deadline"):
+                future.result(timeout=1)
+
+    def test_incremental_reader_rejects_oversized_responses(self):
+        class OversizedResponse:
+            def read(self, size):
+                return b"x" * size
+
+        with self.assertRaisesRegex(OSError, "5242880-byte limit"):
+            ai_enrichment._read_bounded_response(OversizedResponse(), 30)
+
     def test_batch_budget_stops_enrichment_without_discarding_remaining_events(self):
         settings = replace(self.settings, batch_timeout_seconds=30)
         values = [event(title="First"), event(title="Second")]
@@ -338,10 +370,16 @@ class AIEnrichmentTests(unittest.TestCase):
 
     def test_different_events_do_not_hold_cache_lock_during_api_requests(self):
         barrier = threading.Barrier(2, timeout=1)
+        cache_lock = self.settings.cache_db.with_suffix(
+            self.settings.cache_db.suffix + ".lock"
+        )
 
         class ConcurrentClient(FakeClient):
             def structured(self, **kwargs):
                 if kwargs["stage"] == "facts":
+                    with cache_lock.open("a+", encoding="utf-8") as lock:
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
                     barrier.wait()
                 return super().structured(**kwargs)
 
@@ -561,6 +599,40 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("", result["ai_summary"])
         self.assertEqual("", cached["ai_summary"])
         self.assertEqual([], blocked.calls)
+
+    def test_transport_failure_uses_bounded_negative_cache(self):
+        settings = replace(self.settings, max_attempts=1, negative_cache_hours=0)
+        client = FakeClient([
+            ai_enrichment.AIEnrichmentError(
+                "OpenAI request failed: URLError",
+                transient=True,
+            )
+        ])
+
+        ai_enrichment.enrich_event(event(), settings=settings, client=client, now=self.now)
+
+        with closing(sqlite3.connect(settings.cache_db)) as connection:
+            negative_until = datetime.fromisoformat(
+                connection.execute(
+                    "SELECT negative_until FROM ai_event_enrichment"
+                ).fetchone()[0]
+            )
+        self.assertGreater(negative_until, self.now)
+        self.assertLessEqual(negative_until, self.now + timedelta(hours=24))
+
+    def test_content_refusal_keeps_permanent_negative_cache(self):
+        settings = replace(self.settings, max_attempts=1, negative_cache_hours=0)
+        client = FakeClient([
+            ai_enrichment.AIEnrichmentError("OpenAI refused the enrichment request")
+        ])
+
+        ai_enrichment.enrich_event(event(), settings=settings, client=client, now=self.now)
+
+        with closing(sqlite3.connect(settings.cache_db)) as connection:
+            negative_until = connection.execute(
+                "SELECT negative_until FROM ai_event_enrichment"
+            ).fetchone()[0]
+        self.assertEqual("9999-12-31T23:59:59+00:00", negative_until)
 
     def test_marketing_or_copied_summary_is_rejected_and_negatively_cached(self):
         promotional = {**SUMMARY, "ai_summary": "Erleben Sie ein einzigartiges Konzert, das man nicht verpassen darf. " * 8}
