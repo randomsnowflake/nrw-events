@@ -156,7 +156,23 @@ def _run_source(
             )
         # Restricted source prose is used only as private AI input. The helper
         # always removes it, even when AI is disabled, unavailable or fails.
+        ai_settings = ai_enrichment.settings_from_env()
+
+        def is_ai_candidate(event: object) -> bool:
+            if not isinstance(event, dict) or not ai_enrichment.is_target_event(event):
+                return False
+            try:
+                return common.event_in_window(event)  # type: ignore[attr-defined]
+            except (AttributeError, TypeError):
+                return True
+
+        result.ai_target_event_count = sum(is_ai_candidate(event) for event in events)
+        result.ai_enabled = bool(
+            result.ai_target_event_count and ai_settings.enabled and ai_settings.api_key
+        )
+        ai_started = time.monotonic()
         events = ai_enrichment.enrich_events(events)
+        result.ai_enrichment_ms = round((time.monotonic() - ai_started) * 1000)
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         result.finish(events)
         explicit_parser_empty = any(
@@ -1198,12 +1214,33 @@ def cli(argv: list[str]) -> int:
     run_id = uuid.uuid4().hex
     logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
     context = RunContext(import_settings, EventWindow.from_days(import_settings.days_ahead), run_id, logger)
+    import_started = time.monotonic()
     try:
         import_result = run_import(context, SOURCES)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return EXIT_FAILED
+    import_duration_ms = round((time.monotonic() - import_started) * 1000)
+    snapshot_started = time.monotonic()
     snapshot = build_snapshot(import_result, context)
+    snapshot_duration_ms = round((time.monotonic() - snapshot_started) * 1000)
+    ai_results = [
+        result for result in import_result.source_results.values()
+        if result.ai_enabled
+    ]
+    snapshot.metadata["timings"] = {
+        "import_ms": import_duration_ms,
+        "snapshot_ms": snapshot_duration_ms,
+        "ai_enrichment": {
+            "enabled": bool(ai_results),
+            "source_count": len(ai_results),
+            "target_event_count": sum(result.ai_target_event_count for result in ai_results),
+            "work_ms": sum(result.ai_enrichment_ms for result in ai_results),
+            "longest_source_ms": max(
+                (result.ai_enrichment_ms for result in ai_results), default=0,
+            ),
+        },
+    }
     presentation_result = filter_import_result(import_result, settings, query, context.window.start)
     if settings.json_stdout:
         presentation_snapshot = build_snapshot(presentation_result, context)

@@ -207,6 +207,37 @@ class RunnerOutputTests(unittest.TestCase):
 
 
 class SourceHealthTests(unittest.TestCase):
+    def test_source_result_records_ai_enrichment_timing(self):
+        raw_event = {
+            "title": "AI candidate",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "score": 1.0,
+            "city": "Bonn",
+        }
+        settings = mock.Mock(enabled=True, api_key="configured")
+        with (
+            mock.patch.object(runner.ai_enrichment, "settings_from_env", return_value=settings),
+            mock.patch.object(
+                runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+            ),
+            mock.patch.object(
+                runner.ai_enrichment, "enrich_events", side_effect=lambda events: events,
+            ),
+            mock.patch.object(
+                runner.time, "monotonic", side_effect=[10.0, 10.1, 10.35, 10.5],
+            ),
+        ):
+            result, events = runner._run_source("Bonn.de Events", lambda: [raw_event])
+
+        self.assertEqual(len(events), 1)
+        self.assertTrue(result.ai_enabled)
+        self.assertEqual(result.ai_target_event_count, 1)
+        self.assertEqual(result.ai_enrichment_ms, 250)
+        self.assertEqual(result.duration_ms, 500)
+        self.assertEqual(result.as_dict()["ai_enrichment_ms"], 250)
+
     def test_typed_source_result_distinguishes_adapter_states(self):
         self.assertEqual(SourceFetchResult.success([]).status, SourceStatus.HEALTHY_EMPTY)
         self.assertEqual(SourceFetchResult.disabled("missing key").status, SourceStatus.DISABLED)
@@ -873,6 +904,9 @@ class SnapshotPublicationTests(unittest.TestCase):
         self.assertGreaterEqual(len(meta_payload["categories"]), 12)
         self.assertIn({"key": "concert", "label": "Konzert"}, meta_payload["categories"])
         self.assertEqual(meta_payload["event_count"], 1)
+        self.assertGreaterEqual(meta_payload["timings"]["import_ms"], 0)
+        self.assertGreaterEqual(meta_payload["timings"]["snapshot_ms"], 0)
+        self.assertEqual(meta_payload["timings"]["ai_enrichment"]["source_count"], 0)
 
     def test_metadata_includes_source_warnings_from_swallowed_source_errors(self):
         def fetch_event():
