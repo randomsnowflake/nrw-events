@@ -393,6 +393,27 @@ END:VCALENDAR"""
             ["2026-07-19", "2026-07-21", "2026-07-22", "2026-07-24"],
         )
 
+    def test_ical_date_only_exdate_excludes_the_whole_day(self):
+        payload = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Sommerkonzert
+DTSTART:20260804T200000
+DTEND:20260804T220000
+RRULE:FREQ=WEEKLY;COUNT=3
+EXDATE;VALUE=DATE:20260811
+END:VEVENT
+END:VCALENDAR"""
+        with mock.patch.object(common, "TODAY", datetime(2026, 8, 4)), mock.patch.object(
+            common, "END_DATE", datetime(2026, 8, 31)
+        ), mock.patch.object(common, "fetch_url", return_value=payload):
+            events = common.fetch_ical(
+                "https://example.test/events.ics", "Test", "Bonn", "concert"
+            )
+        self.assertEqual(
+            [event["start_date"] for event in events],
+            ["2026-08-04", "2026-08-18"],
+        )
+
     def test_unsupported_recurrence_is_visible_as_a_source_warning(self):
         payload = """BEGIN:VCALENDAR
 BEGIN:VEVENT
