@@ -178,7 +178,8 @@ MAX_RADIUS_KM = 75
 # ── Category preference weights ─────────────────────────────────────
 # Keyword → ranking multiplier. Higher = surfaced more prominently.
 # These are opinionated defaults (culture + outdoor + nightlife). Edit freely.
-# NOTE: keys are matched as substrings against lowercased event text.
+# NOTE: keys are matched on word boundaries (word-prefix by default, with
+# per-key overrides in scoring.py) against lowercased event text.
 CATEGORY_WEIGHT = {
     # music / nightlife
     "concert": 1.5, "konzert": 1.5, "musik": 1.5, "music": 1.5, "live": 1.4,

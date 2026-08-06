@@ -1,5 +1,7 @@
 """Ranking functions independent from source-specific parsing."""
 
+import re
+
 from . import config
 
 
@@ -11,35 +13,78 @@ def distance_score(km: float, radius_km: float | None = None) -> float:
     return max(0.1, 1.0 - (km / radius) * 0.9)
 
 
+_NEGATIVE_KEYWORDS = frozenset({
+    "kinder", "kids", "grundschüler", "grundschueler", "familie", "family", "vorlesen",
+    "basteln", "jugendliche", "babys", "spielgruppe", "krabbelgruppe", "eltern-kind",
+})
+_ADULT_OUTDOOR_SIGNALS = frozenset({
+    "wein", "wine", "winzer", "weingut", "afterwalk", "genuss", "lounge", "beats",
+    "festival", "markt", "flohmarkt", "street food", "kulinar", "stadtteilfest",
+    "straßenfest", "strassenfest", "dorffest", "kirmes", "viertel", "meile",
+})
+_FAMILY_SIDE_OFFER_TERMS = frozenset({
+    "kids", "kinder", "family", "familie", "vorlesen", "basteln",
+})
+
+# How CATEGORY_WEIGHT keys match against event text. Default is word-prefix so
+# German compounds still score ("wein" matches "Weinfest") without the raw
+# substring misfires ("sport" in "Transport", "wein" in "Schweinfurt"). The
+# overrides mirror category_taxonomy's word / word_suffix / compound_word modes.
+_WORD_ONLY = frozenset({"art"})  # prefix would hit "Artenschutz", "Artist"
+_COMPOUND = frozenset({
+    # keys that appear on either side of German compounds
+    # ("Jazzkonzert" / "Konzertabend", "Filmfestival", "Weihnachtsmarkt")
+    "concert", "konzert", "music", "musik", "festival", "markt", "flohmarkt",
+    "museum", "ausstellung", "theater", "wanderung", "führung", "lesung",
+    "vortrag", "party", "club",
+})
+_CUSTOM_PATTERN_BODIES = {
+    # Preserve ordinary compounds/inflections without restoring the raw
+    # substring false positives this matcher replaces.
+    "kunst": r"\w*kunst\w*",
+    "workshop": r"\w*workshops?\w*",
+    "techno": r"(?:techno(?:party|nacht|club|festival|event|musik|set|abend)?s?|(?:hard|acid|melodic|industrial|minimal|dark)techno)",
+    "sport": r"(?:sport\w*|(?:rad|motor|wasser|winter|breiten|leistung|freizeit|tanz|kampf|team|e|reit|ball|renn|schul|hochschul)sport\w*)",
+    "tour": r"\w*tour(?:en|s)?",
+}
+
+
+def _keyword_pattern(keyword: str) -> re.Pattern[str]:
+    escaped = re.escape(keyword.casefold())
+    if keyword in _CUSTOM_PATTERN_BODIES:
+        body = _CUSTOM_PATTERN_BODIES[keyword]
+    elif keyword in _WORD_ONLY:
+        body = escaped
+    elif keyword in _COMPOUND:
+        body = rf"\w*{escaped}\w*"
+    else:
+        body = rf"{escaped}\w*"
+    return re.compile(rf"\b{body}\b")
+
+
+_CATEGORY_MATCHERS = tuple(
+    (keyword, weight, _keyword_pattern(keyword))
+    for keyword, weight in config.CATEGORY_WEIGHT.items()
+)
+
+
 def category_score(text: str) -> float:
     """Combine the strongest configured boost and demotion for event text."""
     normalized = text.casefold()
-    negative_keywords = {
-        "kinder", "kids", "grundschüler", "grundschueler", "familie", "family", "vorlesen",
-        "basteln", "jugendliche", "babys", "spielgruppe", "krabbelgruppe", "eltern-kind",
-    }
-    adult_outdoor_signals = {
-        "wein", "wine", "winzer", "weingut", "afterwalk", "genuss", "lounge", "beats",
-        "festival", "markt", "flohmarkt", "street food", "kulinar", "stadtteilfest",
-        "straßenfest", "strassenfest", "dorffest", "kirmes", "viertel", "meile",
-    }
     kids_only = (
-        any(word in normalized for word in negative_keywords)
-        and not any(word in normalized for word in adult_outdoor_signals)
+        any(word in normalized for word in _NEGATIVE_KEYWORDS)
+        and not any(word in normalized for word in _ADULT_OUTDOOR_SIGNALS)
     )
-    family_side_offer_terms = {
-        "kids", "kinder", "family", "familie", "vorlesen", "basteln",
-    }
     matched = [
         (keyword, weight)
-        for keyword, weight in config.CATEGORY_WEIGHT.items()
-        if keyword.casefold() in normalized
+        for keyword, weight, pattern in _CATEGORY_MATCHERS
+        if pattern.search(normalized)
     ]
     if not kids_only:
         matched = [
             (keyword, weight)
             for keyword, weight in matched
-            if keyword not in family_side_offer_terms
+            if keyword not in _FAMILY_SIDE_OFFER_TERMS
         ]
 
     demotion = min((weight for _keyword, weight in matched if weight < 1), default=1.0)
