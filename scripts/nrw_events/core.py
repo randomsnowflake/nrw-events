@@ -1194,7 +1194,7 @@ def concise_description(value: str, max_chars: int | None = None) -> str:
     if (
         "\n" not in cleaned
         and "\\n" in cleaned
-        and not re.search(r"[A-Za-z]:\\|\\\\", cleaned)
+        and not re.search(r"(?<!\w)[A-Za-z]:\\|\\\\", cleaned)
     ):
         cleaned = re.sub(r"\\r\\n|\\[rn]", "\n", cleaned)
     cleaned = normalize_block_text(cleaned)

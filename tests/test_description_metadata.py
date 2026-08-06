@@ -59,6 +59,10 @@ class DescriptionMetadataTests(unittest.TestCase):
             common.concise_description("Zeile1\\nZeile2"),
             "Zeile1\nZeile2",
         )
+        self.assertEqual(
+            common.concise_description("Programm:\\nMusik und Tanz"),
+            "Programm:\nMusik und Tanz",
+        )
 
     def test_concise_description_keeps_literal_backslashes_in_prose(self):
         """Backslashes that are content — paths, shares — are not escapes."""
