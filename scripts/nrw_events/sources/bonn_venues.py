@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 
 from .. import common, richtext
+from ..dates import MONTH_ALL
 from ..models import AdmissionDefault
 from . import regional_common as rc
 
@@ -434,7 +435,7 @@ def _parse_muenster_datetime(text: str):
     if not match:
         return None, None
     day, month_name, year, sh, sm, eh, em = match.groups()
-    month = common.MONTH_DE.get(month_name.lower().rstrip(".")) or {"sept": 9}.get(month_name.lower().rstrip("."))
+    month = MONTH_ALL.get(month_name.lower().rstrip("."))
     if not month:
         return None, None
     start = datetime(int(year), month, int(day), int(sh), int(sm))

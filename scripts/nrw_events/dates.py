@@ -48,6 +48,7 @@ MONTH_EN = {
     "december": 12,
 }
 MONTH_ALIASES = {"mar": 3, "sept": 9, "oct": 10, "dec": 12}
+MONTH_ALL = {**MONTH_DE, **MONTH_EN, **MONTH_ALIASES}
 DATE_FORMATS = (
     (r"^\d{4}-\d{2}-\d{2}", "%Y-%m-%d"),
     (r"^\d{1,2}\.\d{1,2}\.\d{4}", "%d.%m.%Y"),
@@ -105,7 +106,7 @@ def _range_start(text: str) -> str:
     end_month = int(numeric_end_month.group(1)) if numeric_end_month else None
     if end_month is None and word_end_month:
         key = word_end_month.group(1).lower().rstrip(".")
-        end_month = MONTH_DE.get(key) or MONTH_EN.get(key)
+        end_month = MONTH_ALL.get(key)
 
     def inherited_year(start_month: int | None) -> str:
         if year is None:
@@ -126,7 +127,7 @@ def _range_start(text: str) -> str:
         start_month = None
         if word_start_month:
             key = word_start_month.group(1).lower().rstrip(".")
-            start_month = MONTH_DE.get(key) or MONTH_EN.get(key)
+            start_month = MONTH_ALL.get(key)
         return f"{start} {inherited_year(start_month)}"
     return start
 
@@ -173,22 +174,19 @@ def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optio
             return datetime(year, month, day)
         except ValueError:
             return None
-    match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\s*(20\d{2})", text)
+    match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b\.?\s*(20\d{2})", text)
     if match:
         day, month, year = match.groups()
         key = month.lower().rstrip(".")
-        month_number = MONTH_DE.get(key) or MONTH_EN.get(key) or MONTH_ALIASES.get(key)
+        month_number = MONTH_ALL.get(key)
         if month_number:
             return datetime(int(year), month_number, int(day))
-    match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b", text)
+    match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b\.?", text)
     if match:
         day, month = match.groups()
         key = month.lower().rstrip(".")
-        month_number = MONTH_DE.get(key) or MONTH_EN.get(key) or MONTH_ALIASES.get(key)
+        month_number = MONTH_ALL.get(key)
         if month_number:
             reference = reference_date or _REFERENCE_DATE or datetime.now(LOCAL_TIMEZONE)
             return _next_yearless_occurrence(int(day), month_number, reference)
-    try:
-        return _local_naive(datetime.fromisoformat(text.replace("Z", "+00:00")))
-    except (ValueError, TypeError):
-        return None
+    return None

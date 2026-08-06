@@ -234,6 +234,23 @@ class SitekitPaginationTests(unittest.TestCase):
             urls[1],
         )
 
+    def test_teasers_parse_when_class_and_href_attributes_are_reordered(self):
+        html = (
+            '<article data-source="sitekit" class="SP-Teaser SP-Teaser--textual">'
+            '<a href="/events/reordered" rel="bookmark" class="SP-Teaser__inner">'
+            '<h4 class="SP-Teaser__headline">Reihenfolgefestes Stadtfest</h4>'
+            '<span class="SP-Scheduling__date">01.08.2026</span>'
+            '<div class="SP-Teaser__abstract">Offizielle Beschreibung.</div>'
+            '</a></article>'
+        )
+
+        events = regional_sitekit._events_from_teasers(
+            html, "https://example.test/events", "Teststadt", 0.9, "sitekit-test"
+        )
+
+        self.assertEqual([event["title"] for event in events], ["Reihenfolgefestes Stadtfest"])
+        self.assertEqual(events[0]["link"], "https://example.test/events/reordered")
+
     def test_sitekit_enriches_ambiguous_teasers_from_visible_detail_copy(self):
         listing = (
             '<article class="SP-Teaser">'

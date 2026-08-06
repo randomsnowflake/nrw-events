@@ -6,6 +6,7 @@ import urllib.parse
 from datetime import datetime, timedelta
 
 from .. import common
+from ..dates import MONTH_ALL
 from ..health import SourceFetchResult
 from . import regional_common as rc
 
@@ -24,13 +25,6 @@ _STREET_FOOD_SIEGBURG_URL = "https://www.streetfood-siegburg.de/"
 _ORIGINAL_STREET_FOOD_URL = "https://street-food-festival.de/bonn"
 _CHOCO_DEALER_URL = "https://choco-dealer.com/EVENTS/"
 _VOMFASS_ALLOWED_HOSTS = ("www.vomfass.de",)
-
-_MONTHS = {
-    "januar": 1, "februar": 2, "märz": 3, "maerz": 3, "april": 4,
-    "mai": 5, "juni": 6, "juli": 7, "august": 8, "september": 9,
-    "oktober": 10, "november": 11, "dezember": 12,
-}
-
 
 def fetch_craftquelle() -> list:
     return rc.fetch_html_events(
@@ -257,7 +251,7 @@ def events_from_biertasting(html: str) -> list:
     times = {"donnerstag": (19, 0), "freitag": (20, 0), "samstag": (20, 0), "sonntag": (18, 0)}
     events = []
     for weekday, day, month_name, title, price in event_pattern.findall(section):
-        month = _MONTHS[month_name.casefold()]
+        month = MONTH_ALL[month_name.casefold().rstrip(".")]
         hour, minute = times[weekday.casefold()]
         start = datetime(year, month, int(day), hour, minute)
         end = start + timedelta(hours=3)
@@ -468,12 +462,12 @@ def _spelled_date_ranges(text: str) -> list:
     """Parse ``02. - 05. Oktober 2026`` and ``30. September - 03. Oktober 2026``."""
     ranges = []
     pattern = re.compile(
-        r"\b(\d{1,2})\.\s*(?:([A-Za-zäöüÄÖÜ]+)\s+)?[-–—]\s*"
-        r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})\b"
+        r"\b(\d{1,2})\.\s*(?:([A-Za-zäöüÄÖÜ]+)\.?\s+)?[-–—]\s*"
+        r"(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s+(20\d{2})\b"
     )
     for start_day, start_month_name, end_day, end_month_name, year in pattern.findall(text):
-        end_month = _MONTHS.get(end_month_name.casefold())
-        start_month = _MONTHS.get((start_month_name or end_month_name).casefold())
+        end_month = MONTH_ALL.get(end_month_name.casefold().rstrip("."))
+        start_month = MONTH_ALL.get((start_month_name or end_month_name).casefold().rstrip("."))
         if not (start_month and end_month):
             continue
         try:
@@ -634,28 +628,28 @@ def _reduettchen_detail(html: str) -> dict:
 def _exact_reduettchen_dates(text: str) -> list:
     dates = []
     paired = re.search(
-        r"(\d{1,2})\.\s*&\s*(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})", text,
+        r"(\d{1,2})\.\s*&\s*(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s+(20\d{2})", text,
     )
     if paired:
         first, second, month_name, year = paired.groups()
-        month = _MONTHS.get(month_name.casefold())
+        month = MONTH_ALL.get(month_name.casefold().rstrip("."))
         if month:
             return [datetime(int(year), month, int(first)), datetime(int(year), month, int(second))]
-    match = re.search(r"\b(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})\b", text)
+    match = re.search(r"\b(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s+(20\d{2})\b", text)
     if match:
         day, month_name, year = match.groups()
-        month = _MONTHS.get(month_name.casefold())
+        month = MONTH_ALL.get(month_name.casefold().rstrip("."))
         if month:
             dates.append(datetime(int(year), month, int(day)))
     return dates
 
 
 def _parse_german_date(text: str):
-    match = re.search(r"\b(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(\d{2,4})\b", text or "")
+    match = re.search(r"\b(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s+(\d{2,4})\b", text or "")
     if not match:
         return None
     day, month_name, year = match.groups()
-    month = _MONTHS.get(month_name.casefold())
+    month = MONTH_ALL.get(month_name.casefold().rstrip("."))
     if not month:
         return None
     year_value = int(year) + 2000 if len(year) == 2 else int(year)

@@ -76,6 +76,18 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "bonn-source-category:Musik/Konzert",
         )
 
+    def test_listing_tags_parse_when_class_and_href_attributes_are_reordered(self):
+        html = self._listing("Musik/Konzert", "Reihenfolgefestes Konzert")
+        html = html.replace('<article class="SP-Teaser">', '<article data-source="city" class="SP-Teaser">')
+        html = html.replace(
+            '<a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/test.php">',
+            '<a href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/test.php" rel="bookmark" class="SP-Teaser__inner">',
+        )
+
+        events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertEqual([event["title"] for event in events], ["Reihenfolgefestes Konzert"])
+
     def test_mapping_covers_only_topic_categories(self):
         expected = {
             "Fest/Festival": "festival",

@@ -29,6 +29,10 @@ class BonnFoodSourceTests(unittest.TestCase):
         }
         self.assertTrue(expected.issubset(CUSTOM_SOURCES))
 
+    def test_abbreviated_german_months_use_the_shared_date_vocabulary(self):
+        self.assertEqual(bonn_food._parse_german_date("3. Sept. 2026"), datetime(2026, 9, 3))
+        self.assertEqual(bonn_food._parse_german_date("4. Okt. 2026"), datetime(2026, 10, 4))
+
     def test_craftquelle_uses_listing_and_detail_data(self):
         listing = """
         <table><tr><th>Datum</th><th>Thema</th><th>Leitung</th><th>Ticketpreis</th></tr>

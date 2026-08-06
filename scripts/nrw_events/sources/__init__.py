@@ -1,4 +1,8 @@
-"""Schema-validated, region-aware source registry."""
+"""Schema-validated, region-aware source registry.
+
+New adapters should return :class:`SourceFetchResult` so intentional empty,
+disabled, degraded, and parser-empty outcomes retain distinct health semantics.
+"""
 
 from pathlib import Path
 
