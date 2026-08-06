@@ -1184,8 +1184,19 @@ def concise_description(value: str, max_chars: int | None = None) -> str:
     generated = isinstance(value, GeneratedDescription)
     cleaned = clean_html_blocks(value)
     # Feeds that serialize their copy into a JSON string carry the break as the
-    # two characters "\" and "n"; it means the same thing the tag did.
-    cleaned = re.sub(r"\\r\\n|\\[rn]", "\n", cleaned)
+    # two characters "\" and "n"; it means the same thing the tag did. Only
+    # unescape when the text plausibly came through such double-encoding: no
+    # real newlines, literal "\n"/"\r\n" sequences present, and no Windows
+    # path or UNC share (e.g. "C:\neu", "\\server") whose backslashes would
+    # otherwise be split mid-word.
+    # ponytail: heuristic gate, not a JSON round-trip proof; refine per-feed
+    # in the source adapters if a feed ever mixes paths with escaped breaks.
+    if (
+        "\n" not in cleaned
+        and "\\n" in cleaned
+        and not re.search(r"[A-Za-z]:\\|\\\\", cleaned)
+    ):
+        cleaned = re.sub(r"\\r\\n|\\[rn]", "\n", cleaned)
     cleaned = normalize_block_text(cleaned)
     limit = _runtime_state().settings.description_max_chars if max_chars is None else max_chars
     if not limit or len(cleaned) <= limit:
