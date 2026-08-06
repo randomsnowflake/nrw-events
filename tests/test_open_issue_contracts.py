@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 import unittest
 from unittest import mock
@@ -26,6 +27,79 @@ def raw_event(title="Flohmarkt Rheinaue", day="2026-08-15", **overrides):
 
 
 class OpenIssueContractTests(unittest.TestCase):
+    def test_detached_executor_runs_tasks_on_daemon_threads(self):
+        pool = runner._DetachedThreadPoolExecutor(max_workers=1)
+        try:
+            self.assertTrue(pool.submit(lambda: threading.current_thread().daemon).result(timeout=1))
+        finally:
+            pool.shutdown(wait=True)
+
+    def test_completed_future_is_accepted_at_watchdog_boundary(self):
+        settings = config.RuntimeConfig(
+            score_floor=0,
+            source_timeout_seconds=0.001,
+            series_ledger_json="",
+        )
+        context = RunContext(
+            settings,
+            EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
+            "watchdog-boundary",
+            configure_logging("watchdog-boundary", "ERROR", "", ""),
+        )
+        wait_timeouts = []
+
+        def omit_completed_future(pending, *, timeout, return_when):
+            del return_when
+            wait_timeouts.append(timeout)
+            for future in pending:
+                future.result(timeout=1)
+            time.sleep(0.01)
+            return set(), pending
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(runner, "wait", side_effect=omit_completed_future):
+            result = runner.run_import(
+                context,
+                {"Boundary": lambda: [raw_event(source="Boundary", source_id="boundary")]},
+            )
+
+        self.assertEqual(result.source_results["Boundary"].status, SourceStatus.HEALTHY)
+        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
+        self.assertTrue(wait_timeouts)
+        self.assertGreaterEqual(min(wait_timeouts), 0.05)
+
+    def test_cancellation_key_uses_the_canonical_title(self):
+        raw_cancellation = raw_event(
+            title="SOMMERFEST, 15.08.2026",
+            status="cancelled",
+            source="Official Calendar",
+            source_id="official-calendar",
+        )
+
+        def fetch():
+            common._SOURCE_CONTEXT.result.cancelled_events.append(dict(raw_cancellation))
+            return [raw_cancellation]
+
+        result, events = runner._run_source("Official Calendar", fetch)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].title, "Sommerfest")
+        self.assertEqual(len(result.cancelled_events), 1)
+
+    def test_retained_filter_hashes_each_event_once(self):
+        fresh = [raw_event(title="Fresh"), raw_event(title="Shared")]
+        retained = [
+            raw_event(title="Shared"),
+            raw_event(title="Retained", day="2026-08-16"),
+        ]
+        real_event_id = runner.event_id
+
+        with mock.patch.object(runner, "event_id", wraps=real_event_id) as identity:
+            result = runner._retained_events_without_fresh_duplicate(fresh, retained)
+
+        self.assertEqual([event["title"] for event in result], ["Retained"])
+        self.assertEqual(identity.call_count, len(fresh) + len(retained))
+
     def test_highlight_rank_preserves_zero_distance(self):
         self.assertEqual(highlights._rank({"distance_km": 0})[1], 0)
         self.assertEqual(highlights._rank({"distance_km": None})[1], 999)

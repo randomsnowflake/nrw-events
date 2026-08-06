@@ -14,6 +14,7 @@ import threading
 import time
 import uuid
 import weakref
+from collections import Counter
 from collections.abc import Sequence
 from contextvars import copy_context
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -32,7 +33,7 @@ from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
 from .runtime import EventWindow, RunContext
 from .sources import SOURCE_FETCHERS, SOURCE_IDS
-from .title_normalization import title_looks_truncated
+from .title_normalization import normalize_event_title, title_looks_truncated
 from .validation import EventValidationError, validate_event
 
 
@@ -178,14 +179,26 @@ def _run_source(
         } or (typed_status == SourceStatus.HEALTHY_EMPTY and not explicit_parser_empty):
             result.status = typed_status
         accepted = []
-        known_cancellation_keys = {
-            (
+        def cancellation_key(item) -> tuple[str, str, str, str]:
+            raw_start_date = str(item.get("start_date") or item.get("date") or "")
+            raw_end_date = str(item.get("end_date") or raw_start_date)
+            start = common.parse_iso_date(raw_start_date) or common.parse_date(raw_start_date)
+            end = common.parse_iso_date(raw_end_date) or common.parse_date(raw_end_date)
+            start_date = start.strftime("%Y-%m-%d") if start else raw_start_date
+            return (
                 normalize_source_id(item.get("source_id") or item.get("source")),
-                str(item.get("title") or ""),
-                str(item.get("start_date") or item.get("date") or ""),
+                normalize_event_title(
+                    str(item.get("title") or ""),
+                    start=start,
+                    end=end,
+                    source=str(item.get("source") or ""),
+                ),
+                start_date,
                 str(item.get("status") or ""),
             )
-            for item in result.cancelled_events
+
+        known_cancellation_keys = {
+            cancellation_key(item) for item in result.cancelled_events
         }
         for event in events:
             if not isinstance(event, dict):
@@ -218,15 +231,10 @@ def _run_source(
                 if not common.event_in_window(canonical_event):
                     continue
                 if canonical_event.status in {"cancelled", "postponed"}:
-                    cancellation_key = (
-                        canonical_event.source_id,
-                        canonical_event.title,
-                        canonical_event.start_date,
-                        canonical_event.status,
-                    )
-                    if cancellation_key not in known_cancellation_keys:
+                    canonical_cancellation_key = cancellation_key(canonical_event)
+                    if canonical_cancellation_key not in known_cancellation_keys:
                         result.cancelled_events.append(canonical_event.to_dict())
-                        known_cancellation_keys.add(cancellation_key)
+                        known_cancellation_keys.add(canonical_cancellation_key)
                 accepted.append(canonical_event)
             except EventValidationError as exc:
                 result.reject(str(exc))
@@ -886,6 +894,33 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
         common.reset_runtime(token)
 
 
+def _retained_events_without_fresh_duplicate(
+    fresh_events: list[CanonicalEvent],
+    retained_events: list[CanonicalEvent],
+) -> list[CanonicalEvent]:
+    """Keep retained occurrences absent from the indexed fresh event set."""
+    fresh_ids = {event_id(event) for event in fresh_events}
+    blocking_frequencies = Counter(
+        key
+        for event in fresh_events
+        for key in report._dedup_blocking_keys(event)
+    )
+    candidate_index: dict[tuple[str, ...], set[int]] = {}
+    for index, event in enumerate(fresh_events):
+        report._index_blocking_keys(event, index, candidate_index)
+    return [
+        candidate
+        for candidate in retained_events
+        if event_id(candidate) not in fresh_ids
+        and not any(
+            report.events_are_duplicates(fresh_events[index], candidate)
+            for index in report._blocking_candidates(
+                candidate, candidate_index, blocking_frequencies
+            )
+        )
+    ]
+
+
 def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], list]],
                            executor_factory=_DetachedThreadPoolExecutor) -> ImportResult:
     """Execute, validate, filter, and deduplicate sources in memory."""
@@ -903,7 +938,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     cache_warnings: list[dict[str, str]] = []
     pool = executor_factory(max_workers=worker_count)
     started: dict[str, tuple[float, threading.Thread, threading.Event, float]] = {}
-    started_lock = threading.Lock()
+    started_condition = threading.Condition()
     ai_settings = ai_enrichment.settings_from_env()
     ai_target_source_ids = {
         source_id for source_id in SOURCE_IDS.values()
@@ -930,10 +965,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 settings.ai_source_timeout_grace_seconds,
                 ai_settings.batch_timeout_seconds,
             )
-        with started_lock:
+        with started_condition:
             started[name] = (
                 time.monotonic(), threading.current_thread(), cancel_event, source_timeout,
             )
+            started_condition.notify_all()
         return _run_source(name, fetch, settings.source_timeout_seconds, cancel_event)
 
     def accept_result(name: str, future: Future) -> None:
@@ -963,7 +999,33 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         }
         pending = set(futures)
         while pending:
-            completed, _ = wait(pending, timeout=0.01, return_when=FIRST_COMPLETED)
+            unstarted_names = {
+                futures[future] for future in pending
+                if futures[future] not in started
+            }
+            if unstarted_names:
+                with started_condition:
+                    started_condition.wait_for(
+                        lambda: any(name in started for name in unstarted_names),
+                        timeout=0.05,
+                    )
+            now = time.monotonic()
+            pending_deadlines = [
+                started[name][0] + started[name][3] - now
+                for future in pending
+                if (name := futures[future]) in started
+            ]
+            # A queued future has no start timestamp yet. Recheck it promptly
+            # without returning to the former 10 ms busy-poll cadence.
+            next_deadline = (
+                0.05
+                if len(pending_deadlines) < len(pending)
+                else min(pending_deadlines, default=1.0)
+            )
+            wait_timeout = max(0.05, min(next_deadline, 1.0))
+            completed, _ = wait(
+                pending, timeout=wait_timeout, return_when=FIRST_COMPLETED
+            )
             for future in completed:
                 pending.remove(future)
                 accept_result(futures[future], future)
@@ -977,6 +1039,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             for future in timed_out:
                 pending.remove(future)
                 name = futures[future]
+                if future.done():
+                    accept_result(name, future)
+                    continue
                 worker = started[name][1]
                 started[name][2].set()
                 future.cancel()
@@ -1039,15 +1104,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     )
     retained, retention = _retain_previous_events(source_results, previous, context)
     retained_deduped = report.deduplicate(retained, cancellations=all_cancellations)
-    retained_only = [
-        candidate
-        for candidate in retained_deduped
-        if not any(
-            event_id(fresh) == event_id(candidate)
-            or report.events_are_duplicates(fresh, candidate)
-            for fresh in fresh_deduped
-        )
-    ]
+    retained_only = _retained_events_without_fresh_duplicate(
+        fresh_deduped, retained_deduped
+    )
     # The fresh canonical record wins wholesale. Retained records are only
     # appended when no fresh record represents that occurrence.
     deduped = [*fresh_deduped, *retained_only]
