@@ -277,18 +277,22 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["status"] = status
     # URLs contain venue slugs and navigation words such as ``museum`` or
     # ``events``; they are transport metadata, not editorial category evidence.
-    canonical = category_taxonomy.categorize_event(
-        event["category"],
-        event["title"],
-        event["description"],
-        venue=event["venue"],
-        source=event["source"],
-        source_id=event["source_id"],
-    )
-    event.setdefault("category_key", canonical["key"])
-    event.setdefault("category_label", canonical["label"])
-    event.setdefault("category_confidence", canonical.get("confidence", 0))
-    event.setdefault("category_reason", canonical.get("reason", ""))
+    canonical = None
+    if not event.get("category_key") or not event.get("category_label"):
+        canonical = category_taxonomy.categorize_event(
+            event["category"],
+            event["title"],
+            event["description"],
+            venue=event["venue"],
+            source=event["source"],
+            source_id=event["source_id"],
+        )
+        if not event.get("category_key"):
+            event["category_key"] = canonical["key"]
+        if not event.get("category_label"):
+            event["category_label"] = canonical["label"]
+    event.setdefault("category_confidence", canonical.get("confidence", 0) if canonical else 0)
+    event.setdefault("category_reason", canonical.get("reason", "") if canonical else "")
     if event["category_key"] not in category_taxonomy.CATEGORY_BY_KEY:
         raise EventValidationError("category_key_invalid")
     decision = evaluate_event_quality(event)
