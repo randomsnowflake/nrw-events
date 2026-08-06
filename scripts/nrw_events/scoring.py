@@ -31,7 +31,6 @@ _FAMILY_SIDE_OFFER_TERMS = frozenset({
 # substring misfires ("sport" in "Transport", "wein" in "Schweinfurt"). The
 # overrides mirror category_taxonomy's word / word_suffix / compound_word modes.
 _WORD_ONLY = frozenset({"art"})  # prefix would hit "Artenschutz", "Artist"
-_SUFFIX_ONLY = frozenset({"tour"})  # prefix would hit "Tourismusbüro"; keep "Radtour"
 _COMPOUND = frozenset({
     # keys that appear on either side of German compounds
     # ("Jazzkonzert" / "Konzertabend", "Filmfestival", "Weihnachtsmarkt")
@@ -39,14 +38,23 @@ _COMPOUND = frozenset({
     "museum", "ausstellung", "theater", "wanderung", "führung", "lesung",
     "vortrag", "party", "club",
 })
+_CUSTOM_PATTERN_BODIES = {
+    # Preserve ordinary compounds/inflections without restoring the raw
+    # substring false positives this matcher replaces.
+    "kunst": r"\w*kunst\w*",
+    "workshop": r"\w*workshops?\w*",
+    "techno": r"(?:techno(?:party|nacht|club|festival|event|musik|set|abend)?s?|(?:hard|acid|melodic|industrial|minimal|dark)techno)",
+    "sport": r"(?:sport\w*|(?:rad|motor|wasser|winter|breiten|leistung|freizeit|tanz|kampf|team|e|reit|ball|renn|schul|hochschul)sport\w*)",
+    "tour": r"\w*tour(?:en|s)?",
+}
 
 
 def _keyword_pattern(keyword: str) -> re.Pattern[str]:
     escaped = re.escape(keyword.casefold())
-    if keyword in _WORD_ONLY:
+    if keyword in _CUSTOM_PATTERN_BODIES:
+        body = _CUSTOM_PATTERN_BODIES[keyword]
+    elif keyword in _WORD_ONLY:
         body = escaped
-    elif keyword in _SUFFIX_ONLY:
-        body = rf"\w*{escaped}"
     elif keyword in _COMPOUND:
         body = rf"\w*{escaped}\w*"
     else:

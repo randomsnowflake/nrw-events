@@ -52,6 +52,16 @@ class CategoryScoreTests(unittest.TestCase):
         self.assertEqual(category_score("Jazzkonzert"), 1.5)
         self.assertEqual(category_score("Weihnachtsmarkt"), 1.1)
         self.assertEqual(category_score("Radtour entlang der Sieg"), 1.2)
+        self.assertEqual(category_score("Kleinkunstabend"), 1.3)
+        self.assertEqual(category_score("Fotoworkshop"), 0.7)
+        self.assertEqual(category_score("Hardtechno"), 1.8)
+        self.assertEqual(category_score("Radsport"), 0.5)
+
+    def test_tour_inflections_score_without_matching_tourism(self):
+        self.assertEqual(category_score("Touren durch Bonn"), 1.2)
+        self.assertEqual(category_score("Stadttouren"), 1.2)
+        self.assertEqual(category_score("Tourismusbüro informiert"), 1.0)
+        self.assertEqual(category_score("Technologieforum"), 1.0)
 
 
 if __name__ == "__main__":
