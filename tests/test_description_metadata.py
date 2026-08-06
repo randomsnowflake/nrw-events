@@ -55,6 +55,24 @@ class DescriptionMetadataTests(unittest.TestCase):
             common.concise_description("Erster Satz.\\nZweiter Satz."),
             "Erster Satz.\nZweiter Satz.",
         )
+        self.assertEqual(
+            common.concise_description("Zeile1\\nZeile2"),
+            "Zeile1\nZeile2",
+        )
+        self.assertEqual(
+            common.concise_description("Programm:\\nMusik und Tanz"),
+            "Programm:\nMusik und Tanz",
+        )
+
+    def test_concise_description_keeps_literal_backslashes_in_prose(self):
+        """Backslashes that are content — paths, shares — are not escapes."""
+        for text in (
+            "Die Dateien liegen unter C:\\neu\\readme bereit.",
+            "Zugriff über \\\\server\\neuigkeiten möglich.",
+            "Erster Satz mit Pfad C:\\neu.\nZweiter Satz mit echtem Umbruch.",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(common.concise_description(text), text)
 
     def test_make_event_marks_generated_and_scraped_descriptions(self):
         start = common.TODAY + timedelta(days=1)
