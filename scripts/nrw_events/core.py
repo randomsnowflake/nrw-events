@@ -649,6 +649,7 @@ _DETAIL_PAGE_CACHE_LOCK = threading.RLock()
 
 class DetailCacheEntry(TypedDict):
     fetched_at: float
+    accessed_at: float
     body: str
 
 
@@ -657,7 +658,7 @@ class DetailCacheState(TypedDict):
     path: Path
     ttl_seconds: float
     entries: dict[str, DetailCacheEntry]
-    dirty: bool
+    dirty: bool  # entry added or removed; access-only LRU bumps do not set it
 
 
 _DETAIL_PAGE_CACHE_STATES: dict[str, DetailCacheState] = {}
@@ -906,8 +907,11 @@ def fetch_detail_url(
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         cached = state["entries"].get(cache_key)
         if cached is not None and time.time() - cached["fetched_at"] <= ttl_seconds:
+            # Access-only LRU bump: kept in memory only, so a fully cached run
+            # never rewrites multi-MB namespace files. The bump is persisted
+            # alongside the next insertion in this namespace, which is the only
+            # time LRU precision matters (eviction happens during persist).
             cached["accessed_at"] = time.time()
-            state["dirty"] = True
             return cached["body"]
         state["entries"].pop(cache_key, None)
 

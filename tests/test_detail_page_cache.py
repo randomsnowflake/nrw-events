@@ -137,6 +137,42 @@ class DetailPageCacheTests(unittest.TestCase):
 
         self.assertEqual(set(retained), {"https://example.org/fits"})
 
+    def test_hit_only_run_does_not_rewrite_namespace_file(self):
+        namespace = "hitonly"
+        url = "https://example.org/events/detail/hit"
+        with patch.object(common, "fetch_url", return_value="body"):
+            common.fetch_detail_url(url, cache_namespace=namespace)
+        common.flush_detail_page_caches(namespace)
+        path = common._detail_page_cache_path(namespace)
+        sentinel = "sentinel: untouched by hit-only flush"
+        path.write_text(sentinel, encoding="utf-8")
+
+        with patch.object(common, "fetch_url", side_effect=AssertionError("cache miss")):
+            self.assertEqual(
+                common.fetch_detail_url(url, cache_namespace=namespace), "body",
+            )
+        common.flush_detail_page_caches(namespace)
+
+        self.assertEqual(path.read_text(encoding="utf-8"), sentinel)
+
+    def test_insertion_persists_access_bumps_alongside_new_entries(self):
+        namespace = "bumped"
+        first = "https://example.org/events/detail/first"
+        second = "https://example.org/events/detail/second"
+        with patch.object(common.time, "time", return_value=1_000.0) as clock, \
+                patch.object(common, "fetch_url", side_effect=["a", "b"]):
+            common.fetch_detail_url(first, cache_namespace=namespace)
+            clock.return_value = 1_500.0
+            common.fetch_detail_url(first, cache_namespace=namespace)
+            common.fetch_detail_url(second, cache_namespace=namespace)
+            common.flush_detail_page_caches(namespace)
+
+        persisted = json.loads(
+            common._detail_page_cache_path(namespace).read_text(encoding="utf-8")
+        )["entries"]
+        self.assertEqual(set(persisted), {first, second})
+        self.assertEqual(persisted[first]["accessed_at"], 1_500.0)
+
     def test_cache_key_separates_transport_and_request_parameters(self):
         url = "https://example.org/events/detail/parameters"
         with patch.object(
