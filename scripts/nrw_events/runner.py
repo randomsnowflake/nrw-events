@@ -729,6 +729,27 @@ def _uniquely_disambiguates_occurrence(
     return False
 
 
+def _uniquely_matches_renamed_occurrence(
+    current: CanonicalEvent | dict, prior: dict,
+) -> bool:
+    """Match a conservative upstream title expansion to its published record."""
+    current_title = comparison_text(str(current.get("title") or ""))
+    prior_title = comparison_text(str(prior.get("title") or ""))
+    if (
+        min(len(current_title.replace(" ", "")), len(prior_title.replace(" ", ""))) < 12
+        or (current_title not in prior_title and prior_title not in current_title)
+    ):
+        return False
+    current_venue = comparison_text(str(current.get("venue") or ""))
+    prior_venue = comparison_text(str(prior.get("venue") or ""))
+    return bool(
+        min(len(current_venue.replace(" ", "")), len(prior_venue.replace(" ", ""))) >= 8
+        and (current_venue in prior_venue or prior_venue in current_venue)
+        and normalize_source_id(current.get("source_id") or current.get("source"))
+        == _event_source_id(prior)
+    )
+
+
 def _reconcile_published_ids(
     events: Sequence[CanonicalEvent | dict], previous: dict,
 ) -> list[CanonicalEvent | dict]:
@@ -741,6 +762,7 @@ def _reconcile_published_ids(
     same-day performances.
     """
     prior_groups: dict[tuple[str, str], list[dict]] = {}
+    prior_date_source_groups: dict[tuple[str, str], list[dict]] = {}
     for prior in previous.get("events") or []:
         if not isinstance(prior, dict) or not str(prior.get("event_id") or "").strip():
             continue
@@ -749,6 +771,7 @@ def _reconcile_published_ids(
             str(prior.get("start_date") or prior.get("date") or ""),
         )
         prior_groups.setdefault(key, []).append(prior)
+        prior_date_source_groups.setdefault((key[1], _event_source_id(prior)), []).append(prior)
 
     reconciled = list(events)
     current_groups: dict[tuple[str, str], list[CanonicalEvent | dict]] = {}
@@ -759,6 +782,7 @@ def _reconcile_published_ids(
         )
         current_groups.setdefault(key, []).append(current)
     candidate_pairs: list[tuple[int, int, dict]] = []
+    fallback_pairs: list[tuple[int, int, dict]] = []
     for index, current in enumerate(reconciled):
         key = (
             comparison_text(str(current.get("title") or "")),
@@ -774,6 +798,23 @@ def _reconcile_published_ids(
                 or _uniquely_disambiguates_occurrence(current, prior, current_group, prior_group)
             ):
                 candidate_pairs.append((score, index, prior))
+        if prior_group:
+            continue
+        date_source_key = (
+            key[1],
+            normalize_source_id(current.get("source_id") or current.get("source")),
+        )
+        for prior in prior_date_source_groups.get(date_source_key, []):
+            score = _cross_run_match_score(current, prior)
+            if score >= 4 and _uniquely_matches_renamed_occurrence(current, prior):
+                fallback_pairs.append((score, index, prior))
+
+    fallback_current_counts = Counter(index for _score, index, _prior in fallback_pairs)
+    fallback_prior_counts = Counter(id(prior) for _score, _index, prior in fallback_pairs)
+    candidate_pairs.extend(
+        pair for pair in fallback_pairs
+        if fallback_current_counts[pair[1]] == 1 and fallback_prior_counts[id(pair[2])] == 1
+    )
 
     used_current: set[int] = set()
     used_prior_ids: set[str] = set()

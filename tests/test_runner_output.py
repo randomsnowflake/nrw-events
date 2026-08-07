@@ -543,6 +543,22 @@ class CrossRunRetentionTests(unittest.TestCase):
 
         self.assertTrue(all("preserved_event_id" not in event for event in reconciled))
 
+    def test_cross_run_id_reconciliation_preserves_unique_upstream_title_expansion(self):
+        previous = {"events": [{
+            "event_id": "published", "title": "Klassizismus und Gotik",
+            "start_date": "2026-08-15", "source_id": "bonn-de-events",
+            "venue": "Alter Friedhof in Bonn", "city": "Bonn",
+        }]}
+        current = [{
+            "title": "Alter Friedhof - Themenführung: Klassizismus und Gotik",
+            "start_date": "2026-08-15", "source_id": "bonn-de-events",
+            "venue": "Alter Friedhof", "city": "Bonn",
+        }]
+
+        [reconciled] = runner._reconcile_published_ids(current, previous)
+
+        self.assertEqual(reconciled["preserved_event_id"], "published")
+
     def test_healthy_source_replaces_previous_snapshot_instead_of_retaining_it(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             previous_path = os.path.join(tmpdir, "previous.json")
