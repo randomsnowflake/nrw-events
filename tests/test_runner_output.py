@@ -515,6 +515,34 @@ class CrossRunRetentionTests(unittest.TestCase):
 
         self.assertEqual(reconciled["preserved_event_id"], "published-tombstone-id")
 
+    def test_cross_run_id_reconciliation_keeps_same_day_sessions_distinct(self):
+        previous = {"events": [
+            {"event_id": "early", "title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "14:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"event_id": "late", "title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "17:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]}
+        current = [
+            {"title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "17:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "14:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]
+
+        reconciled = runner._reconcile_published_ids(current, previous)
+
+        self.assertEqual([event["preserved_event_id"] for event in reconciled], ["late", "early"])
+
+    def test_cross_run_id_reconciliation_skips_ambiguous_groups(self):
+        previous = {"events": [
+            {"event_id": "one", "title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"event_id": "two", "title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]}
+        current = [
+            {"title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]
+
+        reconciled = runner._reconcile_published_ids(current, previous)
+
+        self.assertTrue(all("preserved_event_id" not in event for event in reconciled))
+
     def test_healthy_source_replaces_previous_snapshot_instead_of_retaining_it(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             previous_path = os.path.join(tmpdir, "previous.json")

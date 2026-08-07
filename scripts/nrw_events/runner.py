@@ -677,6 +677,8 @@ def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
         score += 4
     current_time = start_time(current.get("time"), current.get("start_at"))
     prior_time = start_time(prior.get("time"), prior.get("start_at"))
+    if current_time and prior_time and current_time != prior_time:
+        return -1
     if current_time and prior_time and current_time == prior_time:
         score += 3
     if current.get("venue_id") and current.get("venue_id") == str(prior.get("venue_id") or ""):
@@ -694,6 +696,37 @@ def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
     ):
         score += 2
     return score
+
+
+def _uniquely_disambiguates_occurrence(
+    current: CanonicalEvent | dict,
+    prior: dict,
+    current_group: Sequence[CanonicalEvent | dict],
+    prior_group: Sequence[dict],
+) -> bool:
+    """Require a pair-specific signal when title/date groups are ambiguous."""
+    def start_time(event: CanonicalEvent | dict) -> str:
+        if match := re.match(r"\s*(\d{1,2}):(\d{2})", str(event.get("time") or "")):
+            return f"{int(match.group(1)):02d}:{match.group(2)}"
+        start_at = str(event.get("start_at") or "")
+        return start_at[11:16] if len(start_at) >= 16 else ""
+
+    def normalized_link(event: CanonicalEvent | dict) -> str:
+        return str(event.get("link") or "").rstrip("/")
+
+    def normalized_venue(event: CanonicalEvent | dict) -> str:
+        return str(event.get("venue_id") or "") or comparison_text(str(event.get("venue") or ""))
+
+    for getter in (start_time, normalized_link, normalized_venue):
+        value = getter(current)
+        if not value or value != getter(prior):
+            continue
+        if (
+            sum(getter(event) == value for event in current_group) == 1
+            and sum(getter(event) == value for event in prior_group) == 1
+        ):
+            return True
+    return False
 
 
 def _reconcile_published_ids(
@@ -718,15 +751,28 @@ def _reconcile_published_ids(
         prior_groups.setdefault(key, []).append(prior)
 
     reconciled = list(events)
+    current_groups: dict[tuple[str, str], list[CanonicalEvent | dict]] = {}
+    for current in reconciled:
+        key = (
+            comparison_text(str(current.get("title") or "")),
+            str(current.get("start_date") or current.get("date") or ""),
+        )
+        current_groups.setdefault(key, []).append(current)
     candidate_pairs: list[tuple[int, int, dict]] = []
     for index, current in enumerate(reconciled):
         key = (
             comparison_text(str(current.get("title") or "")),
             str(current.get("start_date") or current.get("date") or ""),
         )
-        for prior in prior_groups.get(key, []):
+        current_group = current_groups[key]
+        prior_group = prior_groups.get(key, [])
+        for prior in prior_group:
             score = _cross_run_match_score(current, prior)
-            if score >= 4:
+            unambiguous_group = len(current_group) == len(prior_group) == 1
+            if score >= 4 and (
+                unambiguous_group
+                or _uniquely_disambiguates_occurrence(current, prior, current_group, prior_group)
+            ):
                 candidate_pairs.append((score, index, prior))
 
     used_current: set[int] = set()
