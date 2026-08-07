@@ -343,6 +343,14 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
         )
         enriched["description_html"] = context.get("description_html", "")
         enriched["description_source"] = "scraped"
+        # Listing teasers may have been classified before this stronger detail
+        # evidence existed. Reopen only inferred decisions; explicit adapter
+        # locks remain authoritative at the canonical boundary.
+        if not str(event.get("category_reason") or "").startswith("source:locked-default:"):
+            for field in (
+                "category_key", "category_label", "category_confidence", "category_reason",
+            ):
+                enriched.pop(field, None)
     elif (
         context.get("description_html")
         and richtext.text_length(context["description_html"]) >= richtext.text_length(str(event.get("description_html") or ""))

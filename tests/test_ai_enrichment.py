@@ -14,6 +14,7 @@ from unittest import mock
 import urllib.request
 
 from nrw_events import ai_enrichment
+from nrw_events.identity import event_id
 
 
 FACTS = {
@@ -753,6 +754,37 @@ class AIEnrichmentTests(unittest.TestCase):
             cleaned["admission"],
         )
 
+    def test_extracted_location_must_be_supported_by_source_material(self):
+        source = event(
+            city="",
+            venue="",
+            description=(
+                "Das Weinfest findet auf dem Sieglarer Marktplatz in Troisdorf statt. "
+                "Am Freitag beginnt die Afterworkparty um 17 Uhr."
+            ),
+        )
+        payload = ai_enrichment._input_payload(source, source["description"])
+        hallucinated = {
+            **FACTS,
+            "city": "Bonn",
+            "venue": "Bonner Marktplatz",
+            "venue_address": "Markt 2, 53111 Bonn",
+        }
+
+        cleaned = ai_enrichment._sanitize_extracted_facts(hallucinated, payload)
+
+        self.assertIsNone(cleaned["city"])
+        self.assertIsNone(cleaned["venue"])
+        self.assertIsNone(cleaned["venue_address"])
+        self.assertEqual(
+            ai_enrichment._summary_quality(
+                "Das Weinfest findet auf dem Sieglarer Marktplatz in Bonn statt und beginnt am Freitag um 17 Uhr.",
+                source["description"],
+                {**cleaned, "_publication_start": "2026-08-09", "_publication_end": "2026-08-09"},
+            ),
+            "summary contradicts the source location",
+        )
+
     def test_other_series_date_is_retried(self):
         unrelated_date = {
             **SUMMARY,
@@ -807,6 +839,29 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("stage", result["category_key"])
         self.assertEqual("Bestehende Reihe", result["series_title"])
         self.assertNotIn("Eintritt ist frei", result["ai_summary"])
+
+    def test_ai_filled_identity_fields_do_not_move_the_public_event_id(self):
+        source = event(
+            time="", start_at="", venue="", city="",
+            description=(
+                "Erleben Sie ein Konzert mit Kammermusik. Im Anschluss sprechen die Mitwirkenden "
+                "mit dem Publikum. Der Eintritt ist frei und eine Anmeldung ist nötig. "
+                "Veranstalter: Kulturamt Bonn. Beginn ist um 19:30 Uhr im Alten Rathaus in Bonn."
+            ),
+        )
+        published_id = event_id(source)
+
+        result = ai_enrichment.enrich_event(
+            source,
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+
+        self.assertEqual(result["time"], "19:30")
+        self.assertEqual(result["venue"], "Altes Rathaus")
+        self.assertEqual(result["city"], "Bonn")
+        self.assertEqual(event_id(result), published_id)
 
     def test_routine_shop_opening_is_cached_without_a_second_ai_call(self):
         facts = {**FACTS, "is_concrete_event": False, "event_evidence": None}

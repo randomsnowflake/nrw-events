@@ -375,6 +375,75 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertEqual(category.get("confidence"), 1.0)
         self.assertEqual(category.get("reason"), "forced:talk")
 
+    def test_explicit_event_formats_override_misleading_source_categories(self):
+        cases = [
+            (
+                "Outdoor", "Klassik am Rinderstall",
+                "Ein Benefizkonzert mit Kammermusik und international renommierten Musikern.",
+                "concert",
+            ),
+            (
+                "Konzert", "Bürgerverein Unkel lädt zur Fahrradtour nach Rhöndorf ein",
+                "Der Verein lädt zur gemeinsamen Fahrradtour ein.",
+                "sports",
+            ),
+            (
+                "Kinder", "Turmmuseum im Katharinenturm geöffnet",
+                "Das Museum ist geöffnet. Für Kinder ist der Eintritt frei.",
+                "exhibition",
+            ),
+            (
+                "Session", "tune learning session - Klezmer on the spot",
+                "Wir lernen gemeinsam mehrere Klezmerstücke nach Gehör.",
+                "workshop",
+            ),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"],
+                    expected,
+                )
+
+    def test_historical_education_event_is_not_food_because_of_its_museum_venue(self):
+        result = categorize_event(
+            "Sonstige Veranstaltung",
+            "Erinnerung an den transatlantischen Versklavungshandel und dessen Abschaffung",
+            (
+                "Zwei Vorträge beleuchten Geschichte und Gegenwart der Sklaverei. "
+                "Anschließend gibt es eine kurze Führung durch die Ausstellung."
+            ),
+            venue="Schokoladenmuseum",
+            source="Köln Open Data",
+        )
+
+        self.assertEqual(result["key"], "talk")
+
+    def test_history_workshop_is_a_talk_not_other(self):
+        result = categorize_event(
+            "Sonstige Veranstaltung",
+            "Rodenkirchen erinnert sich (64)",
+            (
+                "Vom Herrengarten zum Stadtgrün – die Bedeutung der Gartenanlagen "
+                "für die Stadtentwicklung. Geschichtswerkstatt mit Dr. Cornelius Steckner."
+            ),
+        )
+
+        self.assertEqual(result["key"], "talk")
+
+    def test_long_classical_concert_copy_ignores_incidental_family_word(self):
+        result = categorize_event(
+            "naturregion sieg outdoor kultur markt",
+            "Klassik am Rinderstall",
+            (
+                "Die Familie Becher lädt zum Benefizkonzert-Wochenende ein. "
+                "International renommierte Musiker spielen Kammermusik."
+            ),
+        )
+
+        self.assertEqual(result["key"], "concert")
+
     def test_forced_rules_ignore_incidental_description_words(self):
         cases = [
             (

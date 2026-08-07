@@ -27,6 +27,7 @@ _CITY_HINTS = {
     "marktplatz in bonn": "Bonn",
     "siegburg": "Siegburg",
     "troisdorf": "Troisdorf",
+    "sieglar": "Troisdorf",
     "sankt augustin": "Sankt Augustin",
     "hennef": "Hennef",
     "königswinter": "Königswinter",
@@ -41,7 +42,7 @@ _CITY_HINTS = {
 }
 
 _VENUE_HINTS = [
-    "Münsterplatz", "Marktplatz", "Bonner Marktplatz", "Pantheon", "Telekom Dome",
+    "Sieglarer Marktplatz", "Münsterplatz", "Bonner Marktplatz", "Marktplatz", "Pantheon", "Telekom Dome",
     "Rheinaue", "Bundeskunsthalle", "Kunstmuseum", "Brotfabrik", "Harmonie",
     "GOP", "Katharinenhof", "Mühlenbachhalle", "Stadthalle", "Dorfplatz",
     "Sportpark Nord", "Siegburger Marktplatz", "Eitorfer Marktplatz",

@@ -62,6 +62,40 @@ class DataIntegrityTests(unittest.TestCase):
         })
         self.assertEqual(event.category_key, "other")
 
+    def test_validation_upgrades_a_weak_teaser_category_from_richer_copy(self):
+        event = validate_event({
+            "title": "Klassik am Rinderstall",
+            "source": "Naturregion Sieg",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Wissen",
+            "category": "Outdoor",
+            "category_key": "outdoor",
+            "category_label": "Führungen & Outdoor",
+            "category_confidence": 0.6,
+            "category_reason": "outdoor:source_category=outdoor",
+            "description": "Ein Benefizkonzert mit Kammermusik und international renommierten Musikern.",
+        })
+
+        self.assertEqual(event.category_key, "concert")
+
+    def test_validation_preserves_an_explicitly_locked_category(self):
+        event = validate_event({
+            "title": "Klassik am Rinderstall",
+            "source": "Test",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "category": "Outdoor",
+            "category_key": "outdoor",
+            "category_label": "Führungen & Outdoor",
+            "category_confidence": 1.0,
+            "category_reason": "source:locked-default:outdoor",
+            "description": "Ein Benefizkonzert mit Kammermusik.",
+        })
+
+        self.assertEqual(event.category_key, "outdoor")
+
     def test_validation_infers_free_access_for_direct_dict_sources(self):
         event = validate_event({
             "title": "Hofflohmarkt Rondorf",

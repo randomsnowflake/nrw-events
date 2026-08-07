@@ -1137,6 +1137,55 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
     ):
         cleaned["organizer"] = None
 
+    # A model may normalize a locality spelling, but it must never replace an
+    # explicit municipality from the source with another one. This also blocks
+    # invented venues such as "Bonner Marktplatz" when the prose says Sieglar
+    # or Troisdorf. Unknown remains preferable to a contradictory location.
+    source_city = (
+        str(payload.get("city") or "").strip()
+        or common.guess_city_from_text(source_material)
+        or ""
+    )
+    candidate_city = str(cleaned.get("city") or "").strip()
+    if (
+        source_city
+        and candidate_city
+        and category_taxonomy.comparison_text(source_city)
+        != category_taxonomy.comparison_text(candidate_city)
+    ):
+        cleaned["city"] = None
+    for field in ("venue", "venue_address"):
+        candidate_location = str(cleaned.get(field) or "").strip()
+        candidate_location_city = common.guess_city_from_text(candidate_location)
+        if (
+            source_city
+            and candidate_location_city
+            and category_taxonomy.comparison_text(source_city)
+            != category_taxonomy.comparison_text(candidate_location_city)
+        ):
+            cleaned[field] = None
+            continue
+        structured_location = str(payload.get(field) or "").strip()
+        normalized_candidate = " ".join(_normalized_words(candidate_location))
+        normalized_material = " ".join(_normalized_words(source_material))
+        candidate_words = normalized_candidate.split()
+        material_words = normalized_material.split()
+        fuzzy_supported = bool(candidate_words) and any(
+            SequenceMatcher(
+                None,
+                normalized_candidate,
+                " ".join(material_words[index:index + len(candidate_words)]),
+            ).ratio() >= 0.88
+            for index in range(max(len(material_words) - len(candidate_words) + 1, 0))
+        )
+        if (
+            candidate_location
+            and not structured_location
+            and normalized_candidate not in normalized_material
+            and not fuzzy_supported
+        ):
+            cleaned[field] = None
+
     admission = dict(cleaned.get("admission")) if isinstance(cleaned.get("admission"), dict) else {}
     note = str(admission.get("note") or "").strip()
     if note and not allowed_fact(note, sponsors=False):
@@ -1221,6 +1270,17 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
         return "summary contains sponsor or cooperation copy"
     if _mentions_date_outside_scope(clean, facts):
         return "summary mentions a date outside the selected event"
+    source_city = common.guess_city_from_text(source_material)
+    summary_city = common.guess_city_from_text(clean)
+    if (
+        source_city
+        and summary_city
+        and category_taxonomy.comparison_text(source_city)
+        != category_taxonomy.comparison_text(summary_city)
+        and category_taxonomy.comparison_text(source_city)
+        not in category_taxonomy.comparison_text(clean)
+    ):
+        return "summary contradicts the source location"
     if not facts.get("organizer") and re.search(
         r"\b(?:veranstalter\s+ist|veranstaltet\s+von|organisiert\s+von)\b", clean, re.IGNORECASE,
     ):
@@ -1406,6 +1466,10 @@ def enrich_event(
     source_material = _source_material(event)
     original = dict(event)
     strip_restricted_copy(event)
+    # AI may legitimately fill blank time/venue/city fields. URLs are already
+    # a public contract, so capture the pre-AI occurrence identity and carry it
+    # through the canonical pipeline instead of hashing generated metadata.
+    event["preserved_event_id"] = event_id(original)
     configured = settings or settings_from_env()
     if not configured.enabled or not configured.api_key or not source_material:
         return event

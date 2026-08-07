@@ -29,6 +29,7 @@ from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .identity import assign_event_ids, content_hash, event_id
 from .models import CanonicalEvent, normalize_source_id
+from .normalization import comparison_text
 from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
 from .runtime import EventWindow, RunContext
@@ -178,6 +179,10 @@ def _run_source(
             SourceStatus.PARSER_EMPTY, SourceStatus.DEGRADED,
         } or (typed_status == SourceStatus.HEALTHY_EMPTY and not explicit_parser_empty):
             result.status = typed_status
+        # A warning means an authoritative empty result is not trustworthy. Keep
+        # the source degraded so cross-run retention protects prior records.
+        if result.status == SourceStatus.HEALTHY_EMPTY and result.warnings:
+            result.status = SourceStatus.DEGRADED
         accepted = []
         def cancellation_key(item) -> tuple[str, str, str, str]:
             raw_start_date = str(item.get("start_date") or item.get("date") or "")
@@ -655,6 +660,92 @@ def _attach_cross_run_fields(
     return enriched
 
 
+def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
+    """Score corroborating fields for a same-title/date cross-run match."""
+    def start_time(value: object, start_at: object) -> str:
+        if match := re.match(r"\s*(\d{1,2}):(\d{2})", str(value or "")):
+            return f"{int(match.group(1)):02d}:{match.group(2)}"
+        iso_value = str(start_at or "")
+        return iso_value[11:16] if len(iso_value) >= 16 else ""
+
+    score = 0
+    current_link = str(current.get("link") or "").rstrip("/")
+    prior_link = str(prior.get("link") or "").rstrip("/")
+    if current_link and prior_link and current_link == prior_link:
+        score += 8
+    if current.get("source_id") and current.get("source_id") == _event_source_id(prior):
+        score += 4
+    current_time = start_time(current.get("time"), current.get("start_at"))
+    prior_time = start_time(prior.get("time"), prior.get("start_at"))
+    if current_time and prior_time and current_time == prior_time:
+        score += 3
+    if current.get("venue_id") and current.get("venue_id") == str(prior.get("venue_id") or ""):
+        score += 3
+    elif (
+        current.get("venue")
+        and prior.get("venue")
+        and comparison_text(str(current.get("venue"))) == comparison_text(str(prior["venue"]))
+    ):
+        score += 2
+    if (
+        current.get("city")
+        and prior.get("city")
+        and comparison_text(str(current.get("city"))) == comparison_text(str(prior["city"]))
+    ):
+        score += 2
+    return score
+
+
+def _reconcile_published_ids(
+    events: Sequence[CanonicalEvent | dict], previous: dict,
+) -> list[CanonicalEvent | dict]:
+    """Carry a published URL across safe metadata and source-winner changes.
+
+    Identity fields can improve between healthy refreshes, so retained-source
+    handling alone is insufficient. Candidate pairs must share title and start
+    date, then at least one strong or two independent occurrence signals. A
+    greedy one-to-one assignment avoids giving one historical URL to multiple
+    same-day performances.
+    """
+    prior_groups: dict[tuple[str, str], list[dict]] = {}
+    for prior in previous.get("events") or []:
+        if not isinstance(prior, dict) or not str(prior.get("event_id") or "").strip():
+            continue
+        key = (
+            comparison_text(str(prior.get("title") or "")),
+            str(prior.get("start_date") or prior.get("date") or ""),
+        )
+        prior_groups.setdefault(key, []).append(prior)
+
+    reconciled = list(events)
+    candidate_pairs: list[tuple[int, int, dict]] = []
+    for index, current in enumerate(reconciled):
+        key = (
+            comparison_text(str(current.get("title") or "")),
+            str(current.get("start_date") or current.get("date") or ""),
+        )
+        for prior in prior_groups.get(key, []):
+            score = _cross_run_match_score(current, prior)
+            if score >= 4:
+                candidate_pairs.append((score, index, prior))
+
+    used_current: set[int] = set()
+    used_prior_ids: set[str] = set()
+    for _score, index, prior in sorted(candidate_pairs, key=lambda item: item[0], reverse=True):
+        prior_id = str(prior["event_id"])
+        if index in used_current or prior_id in used_prior_ids:
+            continue
+        current = reconciled[index]
+        reconciled[index] = (
+            {**current, "preserved_event_id": prior_id}
+            if isinstance(current, dict)
+            else replace(current, preserved_event_id=prior_id)
+        )
+        used_current.add(index)
+        used_prior_ids.add(prior_id)
+    return reconciled
+
+
 def _atomic_json(path: Path, payload: object) -> None:
     """Write a complete JSON document before atomically replacing its target."""
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent,
@@ -1111,6 +1202,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     # appended when no fresh record represents that occurrence.
     deduped = [*fresh_deduped, *retained_only]
     generated_at = context.clock().isoformat(timespec="seconds")
+    deduped = _reconcile_published_ids(deduped, previous)
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)
     import_warnings: tuple[dict[str, str], ...] = tuple(cache_warnings)

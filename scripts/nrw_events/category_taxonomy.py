@@ -262,6 +262,15 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
         return "cinema"
     if re.search(r"\b(?:sport|\w*tennis\w*|\w*sport(?:tag|fest|turnier|woche))\b", title_text):
         return "sports"
+    if re.search(r"\b(?:fahrrad|rad)tour\w*\b", title_comparison):
+        return "sports"
+    if re.search(r"\blearning[ -]?session\b", title_text):
+        return "workshop"
+    if (
+        re.search(r"\b\w*museum\w*\b", title_text)
+        and re.search(r"\b(?:geöffnet|geoeffnet|öffnung|oeffnung|open)\w*\b", title_text)
+    ):
+        return "exhibition"
     if re.search(r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text):
         return "outdoor"
     if _contains_comparison_word(title_comparison, "bildungsurlaub"):
@@ -541,6 +550,42 @@ def categorize_event(
     title_comparison = _comparison_from_normalized(title_text)
     hint_comparison = _comparison_from_normalized(hint_text)
     description_comparison = _comparison_from_normalized(description_text)
+
+    if (
+        re.search(r"\bklassik\w*\b", title_text)
+        and re.search(r"\b(?:benefiz)?konzert\w*\b|\bkammermusik\w*\b|\bmusiker\w*\b", description_text)
+    ):
+        category = CATEGORY_BY_KEY["concert"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:classical-concert-format",
+        }
+
+    if (
+        re.search(r"\berinner\w*\b", title_text)
+        and re.search(r"\b(?:geschichtswerkstatt|stadtgeschichte|geschichte)\w*\b", description_text)
+    ):
+        category = CATEGORY_BY_KEY["talk"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:historical-education-event",
+        }
+
+    if (
+        re.search(r"\b(?:versklavung\w*|sklaverei\w*)\b", title_text)
+        and re.search(r"\b(?:vortr\w*|geschichte\w*|erinner\w*)\b", description_text)
+    ):
+        category = CATEGORY_BY_KEY["talk"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 1.0,
+            "reason": "forced:historical-education-event",
+        }
 
     # Explicit sport and guided-listening formats in the title outrank broader
     # programme context such as "Ferienspaß" or "künstlerische Intervention".

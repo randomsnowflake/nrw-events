@@ -277,8 +277,19 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["status"] = status
     # URLs contain venue slugs and navigation words such as ``museum`` or
     # ``events``; they are transport metadata, not editorial category evidence.
-    canonical = None
-    if not event.get("category_key") or not event.get("category_label"):
+    try:
+        current_confidence = float(event.get("category_confidence") or 0)
+    except (TypeError, ValueError):
+        current_confidence = 0.0
+    current_reason = str(event.get("category_reason") or "")
+    category_locked = current_reason.startswith("source:locked-default:")
+    category_incomplete = not event.get("category_key") or not event.get("category_label")
+    # Adapter-produced canonical records without an evidence decision are
+    # already complete and stay on the hot path. Reconsider only incomplete
+    # records or records whose earlier classification exposes a confidence and
+    # reason that richer detail copy can legitimately improve.
+    should_reconsider = category_incomplete or bool(current_reason and not category_locked)
+    if should_reconsider:
         canonical = category_taxonomy.categorize_event(
             event["category"],
             event["title"],
@@ -287,12 +298,32 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
             source=event["source"],
             source_id=event["source_id"],
         )
-        if not event.get("category_key"):
+        canonical_confidence = float(canonical.get("confidence") or 0)
+        canonical_reason = str(canonical.get("reason") or "")
+        canonical_has_content_evidence = any(
+            marker in canonical_reason
+            for marker in ("title=", "description=", "forced:", "format:")
+        )
+        current_has_content_evidence = any(
+            marker in current_reason
+            for marker in ("title=", "description=", "forced:", "format:")
+        )
+        if (
+            category_incomplete
+            or canonical_confidence > current_confidence
+            or (
+                canonical_confidence == current_confidence
+                and canonical_has_content_evidence
+                and not current_has_content_evidence
+            )
+        ):
             event["category_key"] = canonical["key"]
-        if not event.get("category_label"):
             event["category_label"] = canonical["label"]
-    event.setdefault("category_confidence", canonical.get("confidence", 0) if canonical else 0)
-    event.setdefault("category_reason", canonical.get("reason", "") if canonical else "")
+            event["category_confidence"] = canonical_confidence
+            event["category_reason"] = canonical_reason
+    if not should_reconsider:
+        event.setdefault("category_confidence", current_confidence)
+        event.setdefault("category_reason", "")
     if event["category_key"] not in category_taxonomy.CATEGORY_BY_KEY:
         raise EventValidationError("category_key_invalid")
     decision = evaluate_event_quality(event)

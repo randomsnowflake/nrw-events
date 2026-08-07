@@ -81,9 +81,73 @@ class ReportTests(unittest.TestCase):
             },
         ])
 
-        self.assertEqual(len(deduped), 2)
-        multi_day = next(event for event in deduped if event["start_date"] == "2026-08-28")
-        self.assertEqual(multi_day["source"], "Bad Godesberg Stadtmarketing")
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["start_date"], "2026-08-28")
+        self.assertEqual(deduped[0]["source"], "Bad Godesberg Stadtmarketing")
+
+    def test_same_detail_url_collapses_cross_source_location_disagreement(self):
+        base = {
+            "title": "Qi Gong Ost-West im Park in den Sommerferien",
+            "date": "2026-08-19", "start_date": "2026-08-19", "end_date": "2026-08-19",
+            "time": "18:30", "start_at": "2026-08-19T18:30+02:00",
+            "end_at": "2026-08-19T19:30+02:00", "city": "Bonn-Bad Godesberg",
+            "category_key": "sports", "description": "", "price": "", "score": 1.0,
+            "link": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Qi-Gong-Ost-West-im-Park-in-den-Sommerferien.php",
+        }
+
+        deduped = report.deduplicate([
+            {**base, "venue": "Park", "source": "Bonn.de Events"},
+            {**base, "venue": "Haus Carstanjen", "source": "Bonn.de Sports"},
+        ])
+
+        self.assertEqual(len(deduped), 1)
+
+    def test_reviewed_rathaustreppe_venue_aliases_collapse(self):
+        base = {
+            "date": "2026-08-06", "start_date": "2026-08-06", "end_date": "2026-08-06",
+            "time": "18:00", "start_at": "2026-08-06T18:00+02:00",
+            "end_at": "2026-08-06T20:00+02:00", "city": "Bonn-Beuel",
+            "category_key": "concert", "description": "", "price": "", "score": 1.0,
+        }
+
+        deduped = report.deduplicate([
+            {
+                **base, "title": "Musik auf der Rathaustreppe: B-Five Bluesband (Blues)",
+                "venue": "Möhneplatz Bonn-Beuel", "source": "Beuel.net",
+                "link": "https://beuelhats.de/",
+            },
+            {
+                **base, "title": "Musik auf der Rathaustreppe B-Five Bluesband",
+                "venue": "Beueler Rathaus", "source": "Bonn.de Events",
+                "link": "https://www.bonn.de/example/b-five.php",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+
+    def test_reviewed_sieglar_venue_aliases_collapse_radio_tip_with_primary_event(self):
+        base = {
+            "title": "Sommer findet Stadt x Weinfest", "date": "2026-08-07",
+            "start_date": "2026-08-07", "time": "17:00",
+            "start_at": "2026-08-07T17:00+02:00", "city": "Troisdorf",
+            "category_key": "festival", "description": "", "price": "", "score": 1.0,
+        }
+
+        deduped = report.deduplicate([
+            {
+                **base, "end_date": "2026-08-09", "end_at": "2026-08-09T19:00+02:00",
+                "venue": "Sieglarer Marktplatz", "source": "Radio Bonn/Rhein-Sieg",
+                "link": "https://www.radiobonn.de/artikel/was-geht-unsere-veranstaltungstipps-2674962",
+            },
+            {
+                **base, "end_date": "2026-08-07", "end_at": "2026-08-07T23:00+02:00",
+                "venue": "Troisdorf-Sieglar", "source": "Troisdorf", "score": 1.2,
+                "link": "https://www.instagram.com/sommerfindetstadt/",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Troisdorf")
 
     def test_citywide_title_does_not_override_distinct_concrete_venues(self):
         base = {

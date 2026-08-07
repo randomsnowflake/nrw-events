@@ -16,6 +16,12 @@ class RadioBonnLocationTests(unittest.TestCase):
         text = "Wanderung am Drachenfels mit Blick auf Bonn und den Rhein"
         self.assertEqual(radiobonn._city_for(text), "Königswinter")
 
+    def test_sieglar_marktplatz_is_located_in_troisdorf(self):
+        text = "Sommer findet Stadt x Weinfest auf dem Sieglarer Marktplatz"
+
+        self.assertEqual(radiobonn._city_for(text), "Troisdorf")
+        self.assertEqual(radiobonn._venue_for(text, "Troisdorf"), "Sieglarer Marktplatz")
+
     def test_meeting_point_wins_over_organizer_location(self):
         text = (
             "Führung der VHS Bornheim/Alfter. Treffpunkt ist am Legionslager "
