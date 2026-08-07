@@ -49,6 +49,15 @@ _CITYWIDE_VENUE_ALIAS_FAMILIES = {
         }),
     ),
 }
+_REVIEWED_VENUE_ALIAS_FAMILIES = (
+    frozenset({
+        "moehneplatz bonn beuel", "moehneplatz", "rathaustreppe",
+        "beueler rathaustreppe", "beueler rathaus",
+    }),
+    frozenset({
+        "sieglarer marktplatz", "marktplatz sieglar", "troisdorf sieglar",
+    }),
+)
 _VENUE_LOCATION_FIELDS = (
     "venue_id",
     "venue_address",
@@ -302,6 +311,11 @@ def _locations_compatible(left: dict, right: dict) -> bool:
             )
             if left_alias_family is not None and left_alias_family == right_alias_family:
                 return True
+        if any(
+            left_venue_text in aliases and right_venue_text in aliases
+            for aliases in _REVIEWED_VENUE_ALIAS_FAMILIES
+        ):
+            return True
         if not left_venue or not right_venue:
             return True
         if (
@@ -383,6 +397,22 @@ def _same_occurrence(left: dict, right: dict) -> bool:
                     and abs((left_bounds[1] - right_bounds[1]).days) <= 1
                 )
             )
+            if not dates_match:
+                left_single_day = left_bounds[0] == left_bounds[1]
+                right_single_day = right_bounds[0] == right_bounds[1]
+                syndicated_daily_occurrence = (
+                    normalize_title(left.get("title", ""))
+                    == normalize_title(right.get("title", ""))
+                    and min(
+                        source_authority(left.get("source", "")),
+                        source_authority(right.get("source", "")),
+                    ) <= 2
+                    and (
+                        (left_single_day and right_bounds[0] <= left_bounds[0] <= right_bounds[1])
+                        or (right_single_day and left_bounds[0] <= right_bounds[0] <= left_bounds[1])
+                    )
+                )
+                dates_match = syndicated_daily_occurrence
         else:
             dates_match = (left_bounds[0] <= right_bounds[1]
                            and right_bounds[0] <= left_bounds[1])
@@ -646,8 +676,23 @@ def events_are_duplicates(left, right) -> bool:
     """Return whether two canonical records represent the same occurrence."""
     if _series_tokens(left.get("title", "")) != _series_tokens(right.get("title", "")):
         return False
+    left_link = _normalized_link_key(left.get("link", ""))
+    right_link = _normalized_link_key(right.get("link", ""))
+    same_detail_occurrence = bool(
+        left_link
+        and left_link == right_link
+        and left.get("source") != right.get("source")
+        and _titles_match(left, right)
+        and _date_bounds(left) == _date_bounds(right)
+        and (
+            not left.get("start_at")
+            or not right.get("start_at")
+            or left.get("start_at") == right.get("start_at")
+        )
+    )
     return (
-        _same_registered_venue_occurrence(left, right)
+        same_detail_occurrence
+        or _same_registered_venue_occurrence(left, right)
         or (
             _same_occurrence(left, right)
             and (

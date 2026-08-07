@@ -275,6 +275,17 @@ class SourceHealthTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
 
+    def test_typed_empty_with_transport_warning_is_degraded(self):
+        def timed_out_source():
+            common.log_source_error("Timed out endpoint", TimeoutError("request timed out"))
+            return SourceFetchResult.success([])
+
+        result, events = runner._run_source("Timed out", timed_out_source)
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertEqual(len(result.warnings), 1)
+
     def test_typed_empty_does_not_override_explicit_parser_failure(self):
         def parser_drift():
             common._record_endpoint("https://example.test/feed", parser_empty=True)
@@ -447,6 +458,90 @@ class CrossRunRetentionTests(unittest.TestCase):
             "sommerkonzert-2026-07-27-original",
         )
         self.assertNotIn("preserved_event_id", snapshot.events[0])
+
+    def test_healthy_refresh_keeps_published_id_when_identity_metadata_grows(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            previous_path = os.path.join(tmpdir, "previous.json")
+            with open(previous_path, "w") as handle:
+                json.dump({
+                    "generated_at": "2026-07-20T05:00:00",
+                    "source_results": {
+                        "Calendar": {
+                            "raw_event_count": 1,
+                            "event_source_ids": ["calendar"],
+                        },
+                    },
+                    "events": [{
+                        "title": "Sommerkonzert", "source": "Calendar",
+                        "source_id": "calendar", "date": "2026-07-27",
+                        "start_date": "2026-07-27", "end_date": "2026-07-27",
+                        "time": "", "venue": "", "score": 1.0, "city": "Bonn",
+                        "event_id": "sommerkonzert-2026-07-27-original",
+                    }],
+                }, handle)
+
+            context = RunContext(
+                config.RuntimeConfig(previous_meta_json=previous_path, series_ledger_json=""),
+                EventWindow(datetime(2026, 7, 24), datetime(2026, 8, 20)),
+                "healthy-id-test",
+                configure_logging("healthy-id-test", "ERROR", "", ""),
+                clock=lambda: datetime(2026, 7, 24, 5),
+            )
+            result = runner.run_import(context, {"Calendar": lambda: [{
+                "title": "Sommerkonzert", "source": "Calendar",
+                "source_id": "calendar", "date": "2026-07-27",
+                "start_date": "2026-07-27", "end_date": "2026-07-27",
+                "time": "20:00", "venue": "Stadtgarten", "score": 1.0,
+                "city": "Bonn",
+            }]})
+            snapshot = runner.build_snapshot(result, context)
+
+        self.assertEqual(
+            snapshot.events[0]["event_id"],
+            "sommerkonzert-2026-07-27-original",
+        )
+
+    def test_cross_run_id_reconciliation_accepts_dict_tombstones(self):
+        tombstone = {
+            "title": "Abgesagtes Sommerfest", "source": "Calendar",
+            "source_id": "calendar", "date": "2026-07-27",
+            "start_date": "2026-07-27", "end_date": "2026-07-27",
+            "time": "20:00", "venue": "Stadtgarten", "city": "Bonn",
+            "status": "cancelled",
+        }
+        previous = {"events": [{**tombstone, "event_id": "published-tombstone-id"}]}
+
+        [reconciled] = runner._reconcile_published_ids([tombstone], previous)
+
+        self.assertEqual(reconciled["preserved_event_id"], "published-tombstone-id")
+
+    def test_cross_run_id_reconciliation_keeps_same_day_sessions_distinct(self):
+        previous = {"events": [
+            {"event_id": "early", "title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "14:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"event_id": "late", "title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "17:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]}
+        current = [
+            {"title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "17:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"title": "Workshop", "start_date": "2026-07-27", "source_id": "calendar", "time": "14:00", "venue": "Studio", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]
+
+        reconciled = runner._reconcile_published_ids(current, previous)
+
+        self.assertEqual([event["preserved_event_id"] for event in reconciled], ["late", "early"])
+
+    def test_cross_run_id_reconciliation_skips_ambiguous_groups(self):
+        previous = {"events": [
+            {"event_id": "one", "title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"event_id": "two", "title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]}
+        current = [
+            {"title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+            {"title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},
+        ]
+
+        reconciled = runner._reconcile_published_ids(current, previous)
+
+        self.assertTrue(all("preserved_event_id" not in event for event in reconciled))
 
     def test_healthy_source_replaces_previous_snapshot_instead_of_retaining_it(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -70,6 +70,53 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched["admission_basis"], "explicit")
         self.assertEqual(enriched["venue_address"], "Eifelwall 5 50674 Köln")
 
+    def test_richer_detail_reopens_an_unlocked_teaser_classification(self):
+        source = self.event(
+            title="Klassik am Rinderstall",
+            category="Outdoor",
+            category_key="outdoor",
+            category_label="Führungen & Outdoor",
+            category_confidence=0.6,
+            category_reason="outdoor:source_category=outdoor",
+        )
+        context = {
+            "description": (
+                "Ein ausführlich beschriebenes Benefizkonzert mit Kammermusik und "
+                "international renommierten Musikerinnen und Musikern."
+            ),
+            "description_html": "<p>Ein ausführlich beschriebenes Benefizkonzert mit Kammermusik und international renommierten Musikerinnen und Musikern.</p>",
+            "price": "",
+            "venue": "",
+            "venue_address": "",
+        }
+
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertNotIn("category_key", enriched)
+        self.assertNotIn("category_label", enriched)
+        self.assertNotIn("category_confidence", enriched)
+        self.assertNotIn("category_reason", enriched)
+
+    def test_richer_detail_preserves_an_explicitly_locked_category(self):
+        source = self.event(
+            category="Bühne",
+            category_key="stage",
+            category_label="Theater & Bühne",
+            category_confidence=1.0,
+            category_reason="source:locked-default:stage",
+        )
+        context = {
+            "description": "Eine deutlich längere vollständige Beschreibung des Bühnenprogramms für diesen Abend.",
+            "description_html": "<p>Eine deutlich längere vollständige Beschreibung des Bühnenprogramms für diesen Abend.</p>",
+            "price": "",
+            "venue": "",
+            "venue_address": "",
+        }
+
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertEqual(enriched["category_key"], "stage")
+
     def test_fetches_each_unique_detail_but_skips_shared_overview(self):
         unique = self.event()
         shared_one = self.event(title="Termin eins", link="https://events.example.net/kalender/")
