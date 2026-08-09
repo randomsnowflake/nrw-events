@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 import re
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 from .models import RawEvent, normalize_source_id
 
@@ -20,18 +20,54 @@ _REJECTION_FIELD_LIMITS = {
     "end_date": 32,
     "record_type": 100,
 }
+_WARNING_FIELD_LIMITS = {
+    "source": 100,
+    "source_id": 100,
+    "error_type": 100,
+    "error": 512,
+}
 MAX_REJECTION_SAMPLE_JSON_LENGTH = 1024
 
 
-def bounded_diagnostic_text(value: Any, max_length: int) -> str:
-    """Render untrusted diagnostic text without control characters or log lines."""
+def bounded_diagnostic_text(value: Any, max_bytes: int) -> str:
+    """Render untrusted diagnostic text as safe, deterministically byte-capped UTF-8."""
     try:
         rendered = str(value)
     except (TypeError, ValueError):
         rendered = f"<{type(value).__name__}>"
+    # JSON can legally decode an escaped lone surrogate into a Python string,
+    # but UTF-8 cannot encode it. Replace malformed code points before every
+    # persisted diagnostic is sized.
+    rendered = rendered.encode("utf-8", errors="replace").decode("utf-8")
     rendered = _DIAGNOSTIC_CONTROLS.sub(" ", rendered)
     rendered = " ".join(rendered.split())
-    return rendered[:max_length]
+    encoded = rendered.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return rendered
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
+
+
+def sanitized_warning(warning: Mapping[str, Any]) -> dict[str, Any]:
+    """Bound untrusted warning text while preserving typed monitoring fields."""
+    sanitized = dict(warning)
+    for field_name, limit in _WARNING_FIELD_LIMITS.items():
+        if field_name in sanitized:
+            sanitized[field_name] = bounded_diagnostic_text(sanitized[field_name], limit)
+    return sanitized
+
+
+def diagnostic_warning(
+    source: Any,
+    error_type: Any,
+    message: Any,
+    *,
+    source_id: Any = "",
+) -> dict[str, Any]:
+    """Build a warning through the single persisted diagnostic boundary."""
+    warning = {"source": source, "error_type": error_type, "error": message}
+    if source_id:
+        warning["source_id"] = source_id
+    return sanitized_warning(warning)
 
 
 def _fit_rejection_sample(sample: dict[str, Any]) -> dict[str, Any]:
@@ -132,9 +168,9 @@ class SourceResult:
         ) or "unknown-source"
 
     def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> bool:
-        warning = {"source": source, "error_type": error_type, "error": message}
-        if source_id:
-            warning["source_id"] = source_id
+        warning = diagnostic_warning(
+            source, error_type, message, source_id=source_id
+        )
         if warning in self.warnings:
             return False
         self.warnings.append(warning)

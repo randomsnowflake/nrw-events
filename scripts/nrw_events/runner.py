@@ -26,7 +26,14 @@ from typing import Callable, Optional, cast
 
 from . import ai_enrichment, common, config, detail_enrichment, highlights as highlight_selection, radio_primary_resolution, report, series as series_entities
 from .category_taxonomy import CATEGORIES
-from .health import bounded_diagnostic_text, SourceFetchResult, SourceResult, SourceStatus
+from .health import (
+    bounded_diagnostic_text,
+    diagnostic_warning,
+    sanitized_warning,
+    SourceFetchResult,
+    SourceResult,
+    SourceStatus,
+)
 from .identity import assign_event_ids, content_hash, event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
@@ -268,13 +275,13 @@ def _run_source(
                 continue
             if title_looks_truncated(
                 str(event.get("title") or ""),
-                source=str(event.get("source") or name),
+                source=result.source,
             ):
                 result.warning(
-                    str(event.get("source") or name),
+                    result.source,
                     "TitleTruncationWarning",
                     f"title may be truncated: {event.get('title', '')}",
-                    source_id=normalize_source_id(event.get("source_id") or event.get("source") or name),
+                    source_id=result.source_id,
                 )
             try:
                 canonical_event = validate_event(event)
@@ -1445,7 +1452,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     deduped = _reconcile_published_ids(deduped, previous)
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)
-    import_warnings: tuple[dict[str, str], ...] = tuple(cache_warnings)
+    import_warnings: tuple[dict[str, str], ...] = tuple(
+        sanitized_warning(warning) for warning in cache_warnings
+    )
     try:
         series_rows, series_metadata, series_ledger = series_entities.enrich_events(
             (event.to_dict() for event in deduped),
@@ -1459,11 +1468,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             ),
         )
     except Exception as exc:
-        warning = {
-            "source": "series",
-            "error_type": type(exc).__name__,
-            "error": f"series enrichment failed: {exc}",
-        }
+        warning = diagnostic_warning(
+            "series",
+            type(exc).__name__,
+            f"series enrichment failed: {exc}",
+        )
         import_warnings = (*import_warnings, warning)
         log(
             logger, 40, warning["error"],
@@ -1538,7 +1547,18 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     research_lead_reasons: Counter[str] = Counter()
     for result in source_results.values():
         research_lead_reasons.update(result.research_lead_reasons)
-    quality_warnings = quality_gate_warnings(quality_metrics, source_result_payloads)
+    quality_warnings = [
+        sanitized_warning(warning)
+        for warning in quality_gate_warnings(quality_metrics, source_result_payloads)
+    ]
+    source_warnings = [
+        sanitized_warning(warning)
+        for warning in (
+            *[warning for result in source_results.values() for warning in result.warnings],
+            *import_result.warnings,
+            *quality_warnings,
+        )
+    ]
     start, end = context.window.start, context.window.end
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
                       for offset in range((end - start).days + 1))
@@ -1554,11 +1574,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "source_counts_raw": {name: result.raw_event_count for name, result in source_results.items()},
         "source_ids": SOURCE_IDS,
         "source_errors": {name: result.error["error"] for name, result in source_results.items() if result.error},
-        "source_warnings": [
-            *[warning for result in source_results.values() for warning in result.warnings],
-            *import_result.warnings,
-            *quality_warnings,
-        ],
+        "source_warnings": source_warnings,
         "quality_warnings": quality_warnings,
         "import_issues": issues,
         "source_results": source_result_payloads,
@@ -1581,11 +1597,11 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     )
     if not highlight_selection.is_consistent(highlights, context.run_id):
         metadata["run_status"] = "degraded"
-        metadata["source_warnings"].append({
-            "source": "highlights",
-            "error_type": "HighlightArtifactError",
-            "error": "highlight artifact is missing or does not match the snapshot run_id",
-        })
+        metadata["source_warnings"].append(diagnostic_warning(
+            "highlights",
+            "HighlightArtifactError",
+            "highlight artifact is missing or does not match the snapshot run_id",
+        ))
     return SnapshotPayload(events, metadata, highlights, import_result.series_ledger)
 
 
