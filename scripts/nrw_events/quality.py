@@ -116,10 +116,7 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
     return {
         "event_count": len(rows),
         "occurrence_count": len(rows),
-        "work_unit_count": len({
-            (str(event.get("source") or "unknown"), *work_unit_key(event))
-            for event in rows
-        }),
+        "work_unit_count": len({work_unit_key(event) for event in rows}),
         "missing_required_fields": {
             field: sum(not present(event, field) for event in rows)
             for field in REQUIRED_PUBLICATION_FIELDS

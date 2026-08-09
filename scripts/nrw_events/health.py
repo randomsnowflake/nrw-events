@@ -9,6 +9,9 @@ from typing import Any, Optional
 from .models import RawEvent
 
 
+_NO_REJECTION_SAMPLE = object()
+
+
 class SourceStatus(str, Enum):
     HEALTHY = "healthy"
     HEALTHY_EMPTY = "healthy_empty"
@@ -99,13 +102,15 @@ class SourceResult:
     def reject(
         self,
         reason: str,
-        event: Any = None,
+        event: Any = _NO_REJECTION_SAMPLE,
         *,
         in_window: Optional[bool] = None,
     ) -> None:
         self.rejected_event_count += 1
         self.rejection_reasons[reason] = self.rejection_reasons.get(reason, 0) + 1
         if reason in self.rejection_samples:
+            return
+        if event is _NO_REJECTION_SAMPLE:
             return
         sample: dict[str, Any] = {"source": self.source}
         if isinstance(event, dict):

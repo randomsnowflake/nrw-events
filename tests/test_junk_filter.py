@@ -115,6 +115,27 @@ class JunkFilterTests(unittest.TestCase):
         self.assertEqual(metrics["by_source"]["Linz"]["occurrence_count"], 11)
         self.assertEqual(metrics["by_source"]["Linz"]["work_unit_count"], 2)
 
+    def test_quality_summary_counts_a_shared_series_once_across_sources(self):
+        rows = [
+            {
+                "source": source,
+                "title": "Sommerkonzert",
+                "series_id": "series-shared-concert",
+                "start_date": start_date,
+            }
+            for source, start_date in (
+                ("Official calendar", "2026-08-12"),
+                ("Venue calendar", "2026-08-19"),
+            )
+        ]
+
+        metrics = summarize_event_quality(rows)
+
+        self.assertEqual(metrics["occurrence_count"], 2)
+        self.assertEqual(metrics["work_unit_count"], 1)
+        self.assertEqual(metrics["by_source"]["Official calendar"]["work_unit_count"], 1)
+        self.assertEqual(metrics["by_source"]["Venue calendar"]["work_unit_count"], 1)
+
     def test_quality_decisions_are_machine_readable(self):
         decision = evaluate_event_quality({"title": "Privacy Policy"})
         self.assertEqual(decision.action, QualityAction.DROP)

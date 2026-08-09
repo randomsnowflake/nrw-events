@@ -1353,7 +1353,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         if rejection_reason:
             result = _source_result_for_event(event, source_results)
             if result is not None:
-                result.reject(rejection_reason)
+                result.reject(rejection_reason, event, in_window=True)
             continue
         filtered.append(event)
     cancellations = [

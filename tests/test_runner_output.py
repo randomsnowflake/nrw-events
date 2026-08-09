@@ -9,7 +9,7 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common, core, report, runner
-from nrw_events.health import SourceFetchResult, SourceStatus
+from nrw_events.health import SourceFetchResult, SourceResult, SourceStatus
 from nrw_events import config
 from nrw_events.observability import configure_logging, log
 from nrw_events.runtime import EventWindow, RunContext
@@ -200,6 +200,14 @@ class RunnerOutputTests(unittest.TestCase):
         )
         self.assertEqual(len(events), 1)
         self.assertEqual(validate.call_count, 1)
+
+    def test_rejection_without_a_candidate_does_not_invent_a_none_sample(self):
+        result = SourceResult("Filtered")
+
+        result.reject("quality:expected-filter")
+
+        self.assertEqual(result.rejection_reasons, {"quality:expected-filter": 1})
+        self.assertEqual(result.rejection_samples, {})
 
     def test_runner_rejects_malformed_date_types_without_dropping_valid_siblings(self):
         current_date = common.TODAY.strftime("%Y-%m-%d")
