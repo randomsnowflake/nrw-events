@@ -9,7 +9,7 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common, core, report, runner
-from nrw_events.health import SourceFetchResult, SourceStatus
+from nrw_events.health import SourceFetchResult, SourceResult, SourceStatus
 from nrw_events import config
 from nrw_events.observability import configure_logging, log
 from nrw_events.runtime import EventWindow, RunContext
@@ -194,8 +194,20 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
+        self.assertEqual(
+            result.rejection_samples,
+            {"record_not_object": {"source": "Malformed", "record_type": "NoneType"}},
+        )
         self.assertEqual(len(events), 1)
         self.assertEqual(validate.call_count, 1)
+
+    def test_rejection_without_a_candidate_does_not_invent_a_none_sample(self):
+        result = SourceResult("Filtered")
+
+        result.reject("quality:expected-filter")
+
+        self.assertEqual(result.rejection_reasons, {"quality:expected-filter": 1})
+        self.assertEqual(result.rejection_samples, {})
 
     def test_runner_rejects_malformed_date_types_without_dropping_valid_siblings(self):
         current_date = common.TODAY.strftime("%Y-%m-%d")
@@ -235,6 +247,14 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(result.rejection_reasons, {"link_invalid": 1})
+        self.assertEqual(result.rejection_samples, {
+            "link_invalid": {
+                "title": "Current event",
+                "source": "Current",
+                "date": "2026-07-29",
+                "in_window": True,
+            },
+        })
         self.assertEqual(events, [])
 
     def test_snapshot_builder_is_pure_with_fixed_context(self):

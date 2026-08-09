@@ -249,7 +249,7 @@ def _run_source(
         }
         for event in events:
             if not isinstance(event, dict):
-                result.reject("record_not_object")
+                result.reject("record_not_object", event)
                 continue
             # Adapter feeds often include archives or future listings. Their
             # structural defects are irrelevant to the published window and
@@ -284,7 +284,7 @@ def _run_source(
                         known_cancellation_keys.add(canonical_cancellation_key)
                 accepted.append(canonical_event)
             except EventValidationError as exc:
-                result.reject(str(exc))
+                result.reject(str(exc), event, in_window=in_window)
         result.accepted_event_count = len(accepted)
         result.event_sources = sorted({event["source"] for event in accepted})
         result.event_source_ids = sorted({event.source_id for event in accepted})
@@ -353,6 +353,14 @@ def _source_issue_message(result: SourceResult, endpoint_issues: list[dict[str, 
             f"{reason}={count}" for reason, count in sorted(result.rejection_reasons.items())
         )
         parts.append(f"rejected {result.rejected_event_count} event record(s): {reasons}")
+        sample_text = "; ".join(
+            f"{reason}: title={sample.get('title', '<unavailable>')!r}, "
+            f"source={sample.get('source', result.source)!r}, "
+            f"in_window={sample.get('in_window', 'unknown')}"
+            for reason, sample in sorted(result.rejection_samples.items())
+        )
+        if sample_text:
+            parts.append(f"representative samples: {sample_text}")
     if result.warnings:
         warning_text = "; ".join(
             f"{warning.get('source', result.source)}: {warning.get('error', warning)}"
@@ -393,6 +401,8 @@ def _import_issues(results: dict[str, SourceResult]) -> list[dict[str, object]]:
             issue["error"] = result.error
         if result.rejection_reasons:
             issue["rejection_reasons"] = result.rejection_reasons
+        if result.rejection_samples:
+            issue["rejection_samples"] = result.rejection_samples
         if endpoint_issues:
             issue["endpoint_issues"] = endpoint_issues[:10]
         if result.warnings:
@@ -1382,7 +1392,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         if rejection_reason:
             result = _source_result_for_event(event, source_results)
             if result is not None:
-                result.reject(rejection_reason)
+                result.reject(rejection_reason, event, in_window=True)
             continue
         filtered.append(event)
     cancellations = [

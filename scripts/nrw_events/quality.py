@@ -66,6 +66,20 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
         source = str(event.get("source") or "unknown")
         sources.setdefault(source, []).append(event)
 
+    def work_unit_key(event: Mapping[str, Any]) -> tuple[str, ...]:
+        series_id = str(event.get("series_id") or "").strip()
+        if series_id:
+            return ("series", series_id)
+        title = re.sub(r"\s+", " ", str(
+            event.get("series_title") or event.get("title") or ""
+        ).casefold()).strip()
+        venue = re.sub(r"\s+", " ", str(
+            event.get("venue_id") or event.get("venue") or event.get("city") or ""
+        ).casefold()).strip()
+        if title:
+            return ("work", title, venue)
+        return ("occurrence", str(event.get("link") or event.get("start_date") or id(event)))
+
     def source_metrics(source_rows: list[Mapping[str, Any]]) -> dict[str, Any]:
         count = len(source_rows)
         low_confidence = sum(
@@ -81,6 +95,8 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
         venue_address = sum(present(event, "venue_address") for event in source_rows)
         return {
             "event_count": count,
+            "occurrence_count": count,
+            "work_unit_count": len({work_unit_key(event) for event in source_rows}),
             "low_confidence_count": low_confidence,
             "low_confidence_rate": round(low_confidence / count, 4) if count else 0.0,
             "unresolved_location_count": unresolved,
@@ -99,6 +115,8 @@ def summarize_event_quality(events: Iterable[Mapping[str, Any]]) -> dict[str, An
     }
     return {
         "event_count": len(rows),
+        "occurrence_count": len(rows),
+        "work_unit_count": len({work_unit_key(event) for event in rows}),
         "missing_required_fields": {
             field: sum(not present(event, field) for event in rows)
             for field in REQUIRED_PUBLICATION_FIELDS

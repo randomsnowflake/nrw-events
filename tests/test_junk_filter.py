@@ -77,6 +77,8 @@ class JunkFilterTests(unittest.TestCase):
         self.assertEqual(metrics["event_count"], 3)
         self.assertEqual(metrics["by_source"]["Sparse Feed"], {
             "event_count": 2,
+            "occurrence_count": 2,
+            "work_unit_count": 2,
             "low_confidence_count": 1,
             "low_confidence_rate": 0.5,
             "unresolved_location_count": 1,
@@ -89,6 +91,50 @@ class JunkFilterTests(unittest.TestCase):
             "venue_address_rate": 0.0,
         })
         self.assertEqual(metrics["by_source"]["Healthy Feed"]["low_confidence_rate"], 0.0)
+
+    def test_quality_summary_distinguishes_occurrences_from_unique_series(self):
+        rows = [
+            {
+                "source": "Linz",
+                "title": "Ausstellung 11 bis 8",
+                "series_id": "series-linz-exhibition",
+                "start_date": f"2026-08-{day:02d}",
+            }
+            for day in range(1, 11)
+        ] + [{
+            "source": "Linz",
+            "title": "Sommerkonzert",
+            "series_id": "series-linz-concert",
+            "start_date": "2026-08-12",
+        }]
+
+        metrics = summarize_event_quality(rows)
+
+        self.assertEqual(metrics["occurrence_count"], 11)
+        self.assertEqual(metrics["work_unit_count"], 2)
+        self.assertEqual(metrics["by_source"]["Linz"]["occurrence_count"], 11)
+        self.assertEqual(metrics["by_source"]["Linz"]["work_unit_count"], 2)
+
+    def test_quality_summary_counts_a_shared_series_once_across_sources(self):
+        rows = [
+            {
+                "source": source,
+                "title": "Sommerkonzert",
+                "series_id": "series-shared-concert",
+                "start_date": start_date,
+            }
+            for source, start_date in (
+                ("Official calendar", "2026-08-12"),
+                ("Venue calendar", "2026-08-19"),
+            )
+        ]
+
+        metrics = summarize_event_quality(rows)
+
+        self.assertEqual(metrics["occurrence_count"], 2)
+        self.assertEqual(metrics["work_unit_count"], 1)
+        self.assertEqual(metrics["by_source"]["Official calendar"]["work_unit_count"], 1)
+        self.assertEqual(metrics["by_source"]["Venue calendar"]["work_unit_count"], 1)
 
     def test_quality_decisions_are_machine_readable(self):
         decision = evaluate_event_quality({"title": "Privacy Policy"})
