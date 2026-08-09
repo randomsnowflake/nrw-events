@@ -69,6 +69,7 @@ class SourceResult:
     accepted_event_count: int = 0
     rejected_event_count: int = 0
     rejection_reasons: dict[str, int] = field(default_factory=dict)
+    rejection_samples: dict[str, dict[str, Any]] = field(default_factory=dict)
     endpoints: dict[str, dict[str, Any]] = field(default_factory=dict)
     baseline: dict[str, Any] = field(default_factory=dict)
     anomalies: list[str] = field(default_factory=list)
@@ -95,9 +96,28 @@ class SourceResult:
         self.warnings.append(warning)
         return True
 
-    def reject(self, reason: str) -> None:
+    def reject(
+        self,
+        reason: str,
+        event: Any = None,
+        *,
+        in_window: Optional[bool] = None,
+    ) -> None:
         self.rejected_event_count += 1
         self.rejection_reasons[reason] = self.rejection_reasons.get(reason, 0) + 1
+        if reason in self.rejection_samples:
+            return
+        sample: dict[str, Any] = {"source": self.source}
+        if isinstance(event, dict):
+            for key in ("title", "source", "source_id", "date", "start_date", "end_date"):
+                value = event.get(key)
+                if isinstance(value, (str, int, float, bool)) and value != "":
+                    sample[key] = value
+        else:
+            sample["record_type"] = type(event).__name__
+        if in_window is not None:
+            sample["in_window"] = in_window
+        self.rejection_samples[reason] = sample
 
     def endpoint(self, url: str, **details: Any) -> None:
         current = self.endpoints.setdefault(url, {"attempts": 0})
@@ -151,6 +171,7 @@ class SourceResult:
             "accepted_event_count": self.accepted_event_count,
             "rejected_event_count": self.rejected_event_count,
             "rejection_reasons": self.rejection_reasons,
+            "rejection_samples": self.rejection_samples,
             "endpoints": self.endpoints,
             "baseline": self.baseline,
             "anomalies": self.anomalies,
