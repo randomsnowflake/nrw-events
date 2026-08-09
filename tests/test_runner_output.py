@@ -194,6 +194,10 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
+        self.assertEqual(
+            result.rejection_samples,
+            {"record_not_object": {"source": "Malformed", "record_type": "NoneType"}},
+        )
         self.assertEqual(len(events), 1)
         self.assertEqual(validate.call_count, 1)
 
@@ -235,6 +239,14 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(result.rejection_reasons, {"link_invalid": 1})
+        self.assertEqual(result.rejection_samples, {
+            "link_invalid": {
+                "title": "Current event",
+                "source": "Current",
+                "date": "2026-07-29",
+                "in_window": True,
+            },
+        })
         self.assertEqual(events, [])
 
     def test_snapshot_builder_is_pure_with_fixed_context(self):
