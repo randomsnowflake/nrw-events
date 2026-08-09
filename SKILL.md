@@ -124,6 +124,7 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
 | bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
+| bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
 | bonn-region | Krewelshof Kindersachen-Flohmarkt | `krewelshof-kindersachen-flohmarkt` | `python` |
 | bonn-region | Köln Open Data | `k-ln-open-data` | `python` |
@@ -224,6 +225,7 @@ scripts/nrw_events/
     bonn_venues.py
     bonner_weihnachtsmarkt.py
     bonnjetzt.py
+    bonnkirmes.py
     bundeskunsthalle.py
     cinema_specials.py
     coelln_antik_design.py

@@ -352,6 +352,13 @@
       "callable": "nrw_events.sources.salsainbonn:fetch"
     },
     {
+      "id": "bonnkirmes",
+      "display_name": "Kirmes in Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonnkirmes:fetch"
+    },
+    {
       "id": "bonn-district-festivals",
       "display_name": "Bonn district festivals",
       "region": "bonn-region",
