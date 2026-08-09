@@ -89,6 +89,16 @@ class HardeningRegressionTests(unittest.TestCase):
         self.assertNotIn("source", parameters)
         self.assertNotIn("link", parameters)
 
+    def test_event_builder_canonicalizes_bad_neuenahr_city_alias(self):
+        event = build_event(EventDraft(
+            title="Oldtimer-Treffen", start=datetime(2026, 8, 8), end=None,
+            venue="", city="Bad Neuenahr", description="Treffen im Kurviertel",
+            link="https://example.test/event", source="Ahrtal", category="Kultur",
+        ))
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event and event["city"], "Bad Neuenahr-Ahrweiler")
+
     def test_clean_html_removes_complete_comments_with_embedded_angle_brackets(self):
         self.assertEqual(
             common.clean_html("Vorher<!-- internal > metadata -->Nachher"),

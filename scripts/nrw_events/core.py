@@ -36,6 +36,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import category_taxonomy, config, richtext
 from .health import SourceResult, SourceStatus
+from .location import canonicalize_city as canonicalize_city
 from .location import coords_for_city as coords_for_city
 from .location import refine_city_from_text as refine_city_from_text
 from .junk_rules import legacy_junk_decision
@@ -1734,6 +1735,7 @@ def build_event(draft: EventDraft) -> RawEvent | None:
     title = normalize_event_title(title, start=start_dt, end=end_dt, source=source)
     # Most sources only ever report "Bonn". Resolve the district centrally from
     # the venue so every source benefits instead of each repeating the lookup.
+    city = canonicalize_city(city)
     city = refine_bonn_location(city, f"{venue} {city}")
     outside_window = bool(start_dt is not None and not window_contains(start_dt, end_dt))
     _record_parser_candidate(out_of_window=outside_window)

@@ -39,6 +39,11 @@ _DISTRICT_WORDS = {
 }
 _DISTRICT_WORD_VALUES = frozenset(_DISTRICT_WORDS.values())
 _SORTED_DISTRICT_WORDS = tuple(sorted(_DISTRICT_WORDS.items(), key=lambda item: -len(item[1])))
+_CITY_ALIASES = {
+    # Bad Neuenahr is a constituent town of the municipality, but downstream
+    # location pages use the municipality's official canonical name.
+    "bad neuenahr": "Bad Neuenahr-Ahrweiler",
+}
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -55,6 +60,14 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 def coords_for_city(city: str) -> tuple:
     """Compatibility fallback for legacy callers that deliberately center unknown cities on Bonn."""
     return config.VENUE_COORDS.get((city or "").lower(), (BONN_LAT, BONN_LON))
+
+
+def canonicalize_city(city: str) -> str:
+    """Return the maintained display name for a known city alias."""
+    cleaned = re.sub(
+        r"\s+", " ", re.sub(r"<[^>]+>", " ", unescape(city or ""))
+    ).strip()
+    return _CITY_ALIASES.get(comparison_text(cleaned), cleaned)
 
 
 def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optional[tuple], str, str]:
