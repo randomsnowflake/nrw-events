@@ -5,11 +5,17 @@ import sys
 import tempfile
 import time
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from unittest import mock
 
 from nrw_events import common, core, report, runner
-from nrw_events.health import SourceFetchResult, SourceResult, SourceStatus
+from nrw_events.health import (
+    MAX_REJECTION_SAMPLE_JSON_LENGTH,
+    SourceFetchResult,
+    SourceResult,
+    SourceStatus,
+)
 from nrw_events import config
 from nrw_events.observability import configure_logging, log
 from nrw_events.runtime import EventWindow, RunContext
@@ -196,7 +202,11 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
         self.assertEqual(
             result.rejection_samples,
-            {"record_not_object": {"source": "Malformed", "record_type": "NoneType"}},
+            {"record_not_object": {
+                "source": "Malformed",
+                "source_id": "malformed",
+                "record_type": "NoneType",
+            }},
         )
         self.assertEqual(len(events), 1)
         self.assertEqual(validate.call_count, 1)
@@ -208,6 +218,68 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(result.rejection_reasons, {"quality:expected-filter": 1})
         self.assertEqual(result.rejection_samples, {})
+
+    def test_rejection_samples_bound_hostile_fields_and_keep_runner_identity(self):
+        hostile_title = "prefix\n\x00\x1b[31m" + ("💥" * 10_000)
+        result, events = runner._run_source("Trusted Source", lambda: [{
+            "title": hostile_title,
+            "source": "Spoofed\nSource",
+            "source_id": "spoofed-source",
+            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "score": 1.0,
+            "city": "Bonn",
+            "link": "/invalid",
+        }])
+
+        self.assertEqual(events, [])
+        sample = result.rejection_samples["title_too_long"]
+        self.assertEqual(sample["source"], "Trusted Source")
+        self.assertEqual(sample["source_id"], "trusted-source")
+        self.assertNotIn("Spoofed", repr(sample))
+        self.assertNotRegex(sample["title"], r"[\x00-\x1f\x7f]")
+        self.assertLessEqual(len(sample["title"]), 200)
+        self.assertLessEqual(
+            len(json.dumps(sample, ensure_ascii=False).encode()),
+            MAX_REJECTION_SAMPLE_JSON_LENGTH,
+        )
+
+        message = runner._source_issue_message(result, [])
+        self.assertNotRegex(message, r"[\x00-\x1f\x7f]")
+        self.assertLessEqual(len(message), 2048)
+
+    def test_rejection_samples_replace_lone_surrogates_and_byte_cap_every_raw_field(self):
+        result = SourceResult("Trusted Source")
+        hostile = "💥" * 100 + "\ud800\n"
+
+        result.reject("invalid", {
+            "title": hostile,
+            "date": hostile,
+            "start_date": hostile,
+            "end_date": hostile,
+        })
+
+        sample = result.rejection_samples["invalid"]
+        serialized = json.dumps(sample, ensure_ascii=False).encode("utf-8")
+        self.assertNotIn("\ud800", repr(sample))
+        self.assertLessEqual(len(sample["title"].encode("utf-8")), 200)
+        for field in ("date", "start_date", "end_date"):
+            self.assertLessEqual(len(sample[field].encode("utf-8")), 32)
+        self.assertLessEqual(len(serialized), MAX_REJECTION_SAMPLE_JSON_LENGTH)
+
+    def test_lone_surrogate_in_rejected_record_does_not_fail_source(self):
+        result, events = runner._run_source("Trusted Source", lambda: [{
+            "title": "Invalid surrogate \ud800 title",
+            "source": "Spoofed Source",
+            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "score": 1.0,
+            "city": "Bonn",
+            "link": "/invalid",
+        }])
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertIsNone(result.error)
+        json.dumps(result.as_dict(), ensure_ascii=False).encode("utf-8")
 
     def test_runner_rejects_malformed_date_types_without_dropping_valid_siblings(self):
         current_date = common.TODAY.strftime("%Y-%m-%d")
@@ -251,6 +323,7 @@ class RunnerOutputTests(unittest.TestCase):
             "link_invalid": {
                 "title": "Current event",
                 "source": "Current",
+                "source_id": "current",
                 "date": "2026-07-29",
                 "in_window": True,
             },
@@ -1132,6 +1205,43 @@ class EventQualityTests(unittest.TestCase):
             "error": f"title may be truncated: {title}",
         }])
 
+    def test_prevalidation_title_warning_uses_adapter_identity_and_bounded_fields(self):
+        title = "Hostile\n\x00\ud800" + ("💥" * 10_000) + " und"
+        result, events = runner._run_source("Trusted Adapter", lambda: [{
+            "title": title,
+            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "venue": "Club",
+            "city": "Bonn",
+            "link": "https://example.test/event",
+            "score": 1.0,
+            "source": "Spoofed\nmarktcom",
+            "source_id": "spoofed-id",
+        }])
+
+        self.assertEqual(events, [])
+        [warning] = result.warnings
+        self.assertEqual(warning["source"], "Trusted Adapter")
+        self.assertEqual(warning["source_id"], "trusted-adapter")
+        self.assertEqual(warning["error_type"], "TitleTruncationWarning")
+        self.assertNotRegex(warning["error"], r"[\x00-\x1f\x7f-\x9f]")
+        self.assertNotIn("\ud800", repr(warning))
+        self.assertLessEqual(len(warning["error"].encode("utf-8")), 512)
+
+    def test_raw_source_cannot_spoof_source_specific_truncation_detection(self):
+        result, events = runner._run_source("Trusted Adapter", lambda: [{
+            "title": "A sufficiently long source teaser ending...",
+            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "venue": "Club",
+            "city": "Bonn",
+            "link": "https://example.test/event",
+            "score": 1.0,
+            "source": "marktcom",
+            "source_id": "marktcom",
+        }])
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(result.warnings, [])
+
     def setUp(self):
         patch_window(self, datetime(2026, 6, 8), datetime(2026, 6, 10))
 
@@ -1234,6 +1344,34 @@ class SnapshotPublicationTests(unittest.TestCase):
         self.assertEqual(meta_payload["source_results"]["Fragile Source"]["status"], "degraded")
         self.assertEqual(meta_payload["import_issues"][0]["source"], "Fragile Source")
         self.assertIn("layout changed", meta_payload["import_issues"][0]["message"])
+
+    def test_snapshot_sanitizes_all_runner_warning_fields_at_persistence_boundary(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "warning-boundary", configure_logging("warning-boundary", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+        imported = runner.run_import(context, {})
+        hostile = "raw\n\x00\ud800" + ("💥" * 1_000)
+        imported = replace(imported, warnings=({
+            "source": hostile,
+            "source_id": hostile,
+            "error_type": hostile,
+            "error": hostile,
+            "count": 7,
+        },))
+
+        snapshot = runner.build_snapshot(imported, context)
+        [warning] = snapshot.metadata["source_warnings"]
+
+        self.assertEqual(warning["count"], 7)
+        self.assertLessEqual(len(warning["source"].encode("utf-8")), 100)
+        self.assertLessEqual(len(warning["source_id"].encode("utf-8")), 100)
+        self.assertLessEqual(len(warning["error_type"].encode("utf-8")), 100)
+        self.assertLessEqual(len(warning["error"].encode("utf-8")), 512)
+        self.assertNotRegex(repr(warning), r"[\x00-\x1f\x7f-\x9f]|\\ud800")
+        json.dumps(snapshot.metadata, ensure_ascii=False).encode("utf-8")
 
     def test_single_failed_source_does_not_fail_the_import_when_events_are_available(self):
         def fetch_event():
