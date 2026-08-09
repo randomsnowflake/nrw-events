@@ -370,15 +370,25 @@ class SitekitPaginationTests(unittest.TestCase):
                 "category_confidence": 0.9,
                 "category_reason": "keyword:vortrag",
             },
+            {
+                "title": "BLUES Gig & SESSION",
+                "description": "Erst Konzert, dann Session in der Kornkammer.",
+                "category_key": "concert",
+                "category_label": "Konzerte & Live-Musik",
+                "category_confidence": 0.6,
+                "category_reason": "keyword:musik",
+            },
         ]
 
         regional_sitekit._correct_categories(events)
 
         self.assertEqual(
             [event["category_key"] for event in events],
-            ["other", "activities", "talk"],
+            ["other", "activities", "talk", "concert"],
         )
         self.assertEqual(events[2]["category_reason"], "keyword:vortrag")
+        self.assertEqual(events[3]["category_confidence"], 1.0)
+        self.assertEqual(events[3]["category_reason"], "source-format:concert")
 
 
 if __name__ == "__main__":
