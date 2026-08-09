@@ -37,10 +37,14 @@
       "primary_source_id": "ausbadhonnef",
       "evidence_status": "probable",
       "verified_at": "2026-08-09",
-      "fallback_publication": true,
+      "fallback_publication": false,
       "corrections": {
-        "time": "19:30"
-      }
+        "title": "Cage mit Clemens Orth & Band",
+        "time": "19:30",
+        "venue": "Ziepchensplatz",
+        "city": "Bad Honnef"
+      },
+      "withhold_reason": "insufficient_first_party_evidence"
     },
     {
       "title": "Eitorf Live: Dosenmilch",
@@ -64,7 +68,9 @@
       "evidence_status": "confirmed",
       "verified_at": "2026-08-09",
       "fallback_publication": true,
-      "corrections": {}
+      "corrections": {
+        "time": "19:30–22:00"
+      }
     },
     {
       "title": "Familientag im Aggua Troisdorf",
@@ -89,7 +95,7 @@
       "verified_at": "2026-08-09",
       "fallback_publication": true,
       "corrections": {
-        "time": "19:00"
+        "time": "19:00–22:00"
       }
     },
     {
@@ -161,7 +167,7 @@
       "verified_at": "2026-08-09",
       "fallback_publication": true,
       "corrections": {
-        "title": "Sommer-Aktionstag im LVR-Landesmuseum Bonn",
+        "title": "Aktionstag am 7. August",
         "time": "11:00–17:00"
       }
     },
@@ -187,7 +193,11 @@
       "evidence_status": "confirmed",
       "verified_at": "2026-08-09",
       "fallback_publication": true,
-      "corrections": {}
+      "corrections": {
+        "time": "12:00",
+        "venue": "Bonner Marktplatz / Altes Rathaus",
+        "city": "Bonn"
+      }
     },
     {
       "title": "Parkcoustic: JoJo Weber Band",
@@ -197,8 +207,9 @@
       "primary_source_id": "jojo-weber",
       "evidence_status": "probable",
       "verified_at": "2026-08-09",
-      "fallback_publication": true,
-      "corrections": {}
+      "fallback_publication": false,
+      "corrections": {},
+      "withhold_reason": "insufficient_first_party_evidence"
     },
     {
       "title": "SWB Sommerfestival: Reckless",
@@ -209,7 +220,10 @@
       "evidence_status": "confirmed",
       "verified_at": "2026-08-09",
       "fallback_publication": true,
-      "corrections": {}
+      "corrections": {
+        "title": "SWB-Sommerfestival: Reckless plays Bryan Adams",
+        "time": "19:30–22:00"
+      }
     },
     {
       "title": "Kunstausstellung in Linz am Rhein",
@@ -220,7 +234,10 @@
       "evidence_status": "confirmed",
       "verified_at": "2026-08-09",
       "fallback_publication": true,
-      "corrections": {}
+      "corrections": {
+        "title": "11 bis 8 – Franca Perschen & Helmut Reinelt",
+        "end_date": "2026-08-30"
+      }
     },
     {
       "title": "Beachparty in Eudenbach",
@@ -248,7 +265,8 @@
         "venue": "RHEIN SIEG FORUM",
         "time": "16:00",
         "time_note": "bis 01:00 Uhr"
-      }
+      },
+      "match_strategy": "exact_detail_url"
     },
     {
       "title": "Weltkatzentag in Bad Honnef-Orscheid",
@@ -314,11 +332,12 @@
       "primary_source_id": "windeck24",
       "evidence_status": "probable",
       "verified_at": "2026-08-09",
-      "fallback_publication": true,
+      "fallback_publication": false,
       "corrections": {
         "end_date": "2026-08-10",
         "venue": "Marktplatz Niedecke"
-      }
+      },
+      "withhold_reason": "insufficient_first_party_evidence"
     },
     {
       "title": "Hennefer Radsporttag",
@@ -472,7 +491,8 @@
       "corrections": {
         "end_date": "2026-08-22"
       },
-      "resolution_mode": "match_existing_primary"
+      "resolution_mode": "match_existing_primary",
+      "match_strategy": "series_source_date_range"
     },
     {
       "title": "Weinfest in Eitorf",
@@ -683,6 +703,7 @@
       "verified_at": "2026-08-09",
       "fallback_publication": true,
       "corrections": {
+        "title": "Benefizkonzert: Plenty Fourty auf dem Annaplatz",
         "time": "19:30",
         "venue": "Annaplatz Rommersdorf"
       }
@@ -697,6 +718,7 @@
       "verified_at": "2026-08-09",
       "fallback_publication": true,
       "corrections": {
+        "title": "Musik auf der Rathaustreppe: First Lane",
         "time": "18:00",
         "venue": "Beueler Rathaustreppe"
       }
@@ -739,10 +761,37 @@
       "verified_at": "2026-08-09",
       "fallback_publication": true,
       "corrections": {
-        "end_date": "2026-08-27",
         "time": "19:30",
-        "time_note": "Einlass 19:30 Uhr; Vorprogramm 20:15 Uhr"
-      }
+        "time_note": "Einlass 19:30 Uhr; Vorprogramm 20:15 Uhr",
+        "city": "Rheinbach",
+        "venue": "Katholische Grundschule St. Martin, Bachstraße"
+      },
+      "occurrences": [
+        {
+          "title": "Sommerkino Rheinbach: Ach, diese Lücke",
+          "start_date": "2026-08-22"
+        },
+        {
+          "title": "Sommerkino Rheinbach: Extrawurst",
+          "start_date": "2026-08-23"
+        },
+        {
+          "title": "Sommerkino Rheinbach: Ganzer halber Bruder",
+          "start_date": "2026-08-24"
+        },
+        {
+          "title": "Sommerkino Rheinbach: Der Pinguin meines Lebens",
+          "start_date": "2026-08-25"
+        },
+        {
+          "title": "Sommerkino Rheinbach: Bon Voyage",
+          "start_date": "2026-08-26"
+        },
+        {
+          "title": "Sommerkino Rheinbach: Ein fast perfekter Antrag",
+          "start_date": "2026-08-27"
+        }
+      ]
     },
     {
       "title": "Wohnzimmerkonzert in Eitorf",
