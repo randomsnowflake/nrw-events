@@ -323,6 +323,51 @@ class SitekitPaginationTests(unittest.TestCase):
             "format:participatory-social-activity",
         )
 
+    def test_sitekit_reviewed_event_formats_get_deterministic_categories(self):
+        events = [
+            {
+                "title": "Kinotag im Rheinforum",
+                "description": '"Das kleine Gespenst".',
+                "category_key": "other",
+            },
+            {
+                "title": "ADFC: Zum Trodelööh",
+                "description": "Rundtour (ca. 60 km, mittel) zur höchsten Erhebung von Köln.",
+                "category_key": "other",
+            },
+            {
+                "title": "BLUES Gig & SESSION",
+                "description": "Erst Konzert, dann Session in der Kornkammer.",
+                "category_key": "other",
+            },
+        ]
+
+        regional_sitekit._correct_categories(events)
+
+        self.assertEqual(
+            [event["category_key"] for event in events],
+            ["cinema", "outdoor", "concert"],
+        )
+        self.assertTrue(all(event["category_confidence"] == 1.0 for event in events))
+
+    def test_sitekit_format_rules_do_not_reclassify_ambiguous_neighbors(self):
+        events = [
+            {
+                "title": "ADFC: Mitgliederversammlung",
+                "description": "Berichte und Vorstandswahl.",
+                "category_key": "other",
+            },
+            {
+                "title": "Open Session",
+                "description": "Offenes Treffen für Interessierte.",
+                "category_key": "activities",
+            },
+        ]
+
+        regional_sitekit._correct_categories(events)
+
+        self.assertEqual([event["category_key"] for event in events], ["other", "activities"])
+
 
 if __name__ == "__main__":
     unittest.main()
