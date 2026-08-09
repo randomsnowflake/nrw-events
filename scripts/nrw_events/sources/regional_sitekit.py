@@ -114,7 +114,10 @@ def _correct_categories(events: list) -> list:
             r"\b(?:blues|jazz|rock|musik|konzert)\b", f"{title} {description}", re.I
         ):
             key = "concert"
-        if not key:
+        # A reviewed source-format signal may promote an agreeing generic
+        # classification to deterministic confidence, but it must not replace
+        # a different, stronger category selected from the actual event topic.
+        if not key or event.get("category_key") not in {"other", key}:
             continue
         category = common.category_taxonomy.CATEGORY_BY_KEY[key]
         event.update({

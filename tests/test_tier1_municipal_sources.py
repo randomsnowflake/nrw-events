@@ -362,11 +362,33 @@ class SitekitPaginationTests(unittest.TestCase):
                 "description": "Offenes Treffen für Interessierte.",
                 "category_key": "activities",
             },
+            {
+                "title": "Kinotag: Vortrag über Filmförderung",
+                "description": "Vortrag und Diskussion mit Branchenfachleuten.",
+                "category_key": "talk",
+                "category_label": "Vortrag & Wissen",
+                "category_confidence": 0.9,
+                "category_reason": "keyword:vortrag",
+            },
+            {
+                "title": "BLUES Gig & SESSION",
+                "description": "Erst Konzert, dann Session in der Kornkammer.",
+                "category_key": "concert",
+                "category_label": "Konzerte & Live-Musik",
+                "category_confidence": 0.6,
+                "category_reason": "keyword:musik",
+            },
         ]
 
         regional_sitekit._correct_categories(events)
 
-        self.assertEqual([event["category_key"] for event in events], ["other", "activities"])
+        self.assertEqual(
+            [event["category_key"] for event in events],
+            ["other", "activities", "talk", "concert"],
+        )
+        self.assertEqual(events[2]["category_reason"], "keyword:vortrag")
+        self.assertEqual(events[3]["category_confidence"], 1.0)
+        self.assertEqual(events[3]["category_reason"], "source-format:concert")
 
 
 if __name__ == "__main__":
