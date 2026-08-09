@@ -7,7 +7,7 @@ no description at all.
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
@@ -1474,14 +1474,18 @@ def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
     covers venue/detail enrichment changing the public identity hash without
     allowing one same-day performance to borrow another one's copy.
     """
+    # Cache results may fill blank identity fields. Preserve the identity from
+    # before applying them even when this helper is called directly by the
+    # batch cap/deadline paths instead of through enrich_event().
     safe_event = strip_restricted_copy(event)
+    safe_event["preserved_event_id"] = event_id(event)
     if not settings.cache_db.is_file():
         return safe_event
     source_id = normalize_source_id(event.get("source_id") or event.get("source"))
     current_key = event_id(event)
     pipeline_version = cache_pipeline_version(settings)
     try:
-        with sqlite3.connect(settings.cache_db, timeout=30) as connection:
+        with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
             connection.row_factory = sqlite3.Row
             connection.execute("PRAGMA busy_timeout = 30000")
             exact_rows = connection.execute(

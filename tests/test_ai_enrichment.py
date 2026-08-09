@@ -526,13 +526,21 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("", result["ai_summary"])
 
     def test_batch_deadline_reuses_cached_summary_for_changed_source_material(self):
+        source = event(description=(
+            "Klangraum bietet Kammermusik und ein Publikumsgespräch. Beginn ist um 19:30 Uhr "
+            "im Alten Rathaus in Bonn. Der Eintritt ist frei und eine Anmeldung ist nötig."
+        ))
         ai_enrichment.enrich_event(
-            event(),
+            source,
             settings=self.settings,
             client=FakeClient([FACTS, SUMMARY]),
             now=self.now,
         )
-        changed = event(description="Neue bestätigte Programminformation.")
+        changed = event(description=(
+            "Aktualisierte Programminformation: Klangraum beginnt um 19:30 Uhr im Alten Rathaus "
+            "in Bonn. Der Eintritt ist frei und eine Anmeldung ist nötig."
+        ))
+        published_id = event_id(changed)
 
         [result] = ai_enrichment.enrich_events([
             changed,
@@ -540,6 +548,9 @@ class AIEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
         self.assertEqual("", result["description"])
+        self.assertEqual("19:30", result["time"])
+        self.assertEqual("Altes Rathaus", result["venue"])
+        self.assertEqual(published_id, event_id(result))
 
     def test_structured_facts_are_source_material_when_prose_is_missing(self):
         material = ai_enrichment._source_material(event(
