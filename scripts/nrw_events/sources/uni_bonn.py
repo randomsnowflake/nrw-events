@@ -81,11 +81,25 @@ class _ContentItemParser(HTMLParser):
             self._parts[self._capture].append(data)
 
 
+def _address_last(value: str) -> str:
+    """Put Plone's occasional ``street, city, venue`` value in canonical order."""
+    parts = [part.strip() for part in value.split(",") if part.strip()]
+    if (
+        len(parts) >= 3
+        and re.search(r"\b(?:str(?:aße|asse)?\.?|weg|allee|platz)\s*\d", parts[0], re.I)
+        and re.search(r"\b\d{5}\b", parts[1])
+        and not re.search(r"\b\d{5}\b", parts[-1])
+    ):
+        return ", ".join((parts[-1], *parts[:-1]))
+    return value
+
+
 def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
     parser = _ContentItemParser()
     parser.feed(html or "")
     venue_parts = []
-    for part in (parser.fields.get("ort", ""), parser.fields.get("raum", "")):
+    for raw_part in (parser.fields.get("ort", ""), parser.fields.get("raum", "")):
+        part = _address_last(raw_part)
         key = re.sub(r"\s*\([^)]*\)", "", part).strip(" ,").casefold()
         existing_keys = {
             re.sub(r"\s*\([^)]*\)", "", value).strip(" ,").casefold()
@@ -147,11 +161,20 @@ def _correct_categories(events: list) -> list:
     for event in events:
         category_text = event.get("category", "").casefold()
         event_text = f"{event.get('title', '')} {event.get('description', '')}"
+        title_text = event.get("title", "")
         key = ""
         if "welcome days" in category_text:
             key = "talk"
         elif re.search(r"\b(?:ausstellung|exhibition)\b", event_text, re.I):
             key = "exhibition"
+        elif re.search(r"\bcake baking evening\b", title_text, re.I):
+            # Stable International Club series: participants bake and exchange
+            # recipes themselves, rather than attending a food presentation.
+            key = "workshop"
+        elif re.search(r"\bgame design studio session\b", title_text, re.I):
+            # Stable Games Community series built around presenting, testing and
+            # refining participants' game prototypes.
+            key = "workshop"
         if key:
             category = category_taxonomy.CATEGORY_BY_KEY[key]
             event["category_key"] = category["key"]

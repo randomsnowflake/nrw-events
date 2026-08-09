@@ -1098,6 +1098,7 @@ def fetch_press_festivals() -> list:
                 ev = common.make_event(
                     title, start, end, venue, city, text[:240], url, source,
                     "stadtteilfest market kirmes outdoor local", 1.0,
+                    default_category_key="festival",
                 )
                 if ev:
                     events.append(ev)

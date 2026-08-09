@@ -95,6 +95,34 @@ def fetch() -> list:
             "category_confidence": canonical.get("confidence", 0),
             "category_reason": canonical.get("reason", ""),
         })
+    return _correct_categories(events)
+
+
+def _correct_categories(events: list) -> list:
+    """Apply reviewed SiteKit format signals that generic hints cannot express."""
+    for event in events:
+        title = event.get("title", "")
+        description = event.get("description", "")
+        key = ""
+        if re.search(r"\bkinotag\b", title, re.I):
+            key = "cinema"
+        elif title.casefold().startswith("adfc:") and re.search(
+            r"\b(?:rundtour|radtour|strecke|\d+\s*km)\b", description, re.I
+        ):
+            key = "outdoor"
+        elif re.search(r"\bgig\b", title, re.I) and re.search(
+            r"\b(?:blues|jazz|rock|musik|konzert)\b", f"{title} {description}", re.I
+        ):
+            key = "concert"
+        if not key:
+            continue
+        category = common.category_taxonomy.CATEGORY_BY_KEY[key]
+        event.update({
+            "category_key": category["key"],
+            "category_label": category["label"],
+            "category_confidence": 1.0,
+            "category_reason": f"source-format:{key}",
+        })
     return events
 
 
