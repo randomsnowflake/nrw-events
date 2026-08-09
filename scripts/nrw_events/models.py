@@ -9,6 +9,9 @@ import re
 from typing import Any, Iterator, Mapping, Optional, TypedDict
 
 
+MAX_DISCOVERY_PROVENANCE_SOURCES = 20
+
+
 class AdmissionDefault(str, Enum):
     """Conservative admission assumptions explicitly declared by a source."""
 

@@ -452,15 +452,13 @@
       "title": "Art&Eat",
       "start_date": "2026-08-13",
       "primary_url": "https://www.theatergemeinde-bonn.org/newsdetail.php?InfoNr=4886",
-      "primary_source": "Theatergemeinde Bonn",
-      "primary_source_id": "theatergemeinde-bonn",
-      "evidence_status": "confirmed",
+      "primary_source": "",
+      "primary_source_id": "",
+      "evidence_status": "unresolved",
       "verified_at": "2026-08-09",
-      "fallback_publication": true,
-      "corrections": {
-        "title": "Auf den Spuren der Bonner Republik – Das ehemalige Regierungsviertel",
-        "time": "16:30"
-      }
+      "fallback_publication": false,
+      "corrections": {},
+      "withhold_reason": "no_reliable_primary_source"
     },
     {
       "title": "Internationale Stummfilmtage",

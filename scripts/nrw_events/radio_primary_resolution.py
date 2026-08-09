@@ -19,7 +19,11 @@ from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 from . import common
-from .models import CanonicalEvent, normalize_source_id
+from .models import (
+    MAX_DISCOVERY_PROVENANCE_SOURCES,
+    CanonicalEvent,
+    normalize_source_id,
+)
 from .normalization import comparison_text
 from .validation import EventValidationError, validate_event
 
@@ -321,11 +325,15 @@ def _candidate_matches(
 
 
 def _annotate(event: CanonicalEvent, discovered_via: Iterable[str]) -> CanonicalEvent:
-    provenance = list(event.discovered_via)
+    incoming: list[str] = []
     for source_id in discovered_via:
         normalized = normalize_source_id(source_id)
-        if normalized and normalized not in provenance:
-            provenance.append(normalized)
+        if normalized and normalized not in incoming:
+            incoming.append(normalized)
+    incoming = incoming[:MAX_DISCOVERY_PROVENANCE_SOURCES]
+    existing = [source_id for source_id in event.discovered_via if source_id not in incoming]
+    existing_limit = MAX_DISCOVERY_PROVENANCE_SOURCES - len(incoming)
+    provenance = [*existing[:existing_limit], *incoming]
     return replace(event, discovered_via=provenance)
 
 

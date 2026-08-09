@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from nrw_events import config, radio_primary_resolution as resolution, report, runner
+from nrw_events.models import MAX_DISCOVERY_PROVENANCE_SOURCES
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.validation import canonicalize_event
@@ -52,9 +53,9 @@ class RadioPrimaryManifestTests(unittest.TestCase):
         self.assertEqual(len(manifest), 55)
         self.assertEqual(len({entry.key for entry in manifest}), 55)
         classes = [resolution.expected_resolution_class(entry) for entry in manifest]
-        self.assertEqual(classes.count("promote"), 46)
+        self.assertEqual(classes.count("promote"), 45)
         self.assertEqual(classes.count("match"), 6)
-        self.assertEqual(classes.count("withhold"), 3)
+        self.assertEqual(classes.count("withhold"), 4)
 
     def test_manifest_rejects_duplicate_keys_unknown_corrections_and_unsafe_fallbacks(self):
         valid = {
@@ -185,6 +186,48 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         self.assertEqual(winner.score, 2.0)
         self.assertEqual(winner.discovered_via, [RADIO_ID])
 
+    def test_duplicate_provenance_union_stays_within_canonical_limit(self):
+        existing = [
+            f"discovery-{index}"
+            for index in range(MAX_DISCOVERY_PROVENANCE_SOURCES)
+        ]
+        winner = primary(
+            "Official festival", "2026-08-09", "Official", "official",
+            "https://official.example/festival", discovered_via=existing, score=2.0,
+        )
+        duplicate = primary(
+            "Official festival", "2026-08-09", "Other", "other",
+            "https://other.example/festival", discovered_via=["another-discovery"],
+        )
+
+        [merged] = report.deduplicate([winner, duplicate])
+
+        self.assertEqual(len(merged.discovered_via), MAX_DISCOVERY_PROVENANCE_SOURCES)
+        self.assertEqual(canonicalize_event(merged.to_dict()), merged)
+
+    def test_radio_annotation_remains_valid_at_provenance_limit(self):
+        entry = resolution.entry_for_key((
+            "Platz & Prost im Rhein Sieg Forum", "2026-08-08",
+        ))
+        existing = [
+            f"discovery-{index}"
+            for index in range(MAX_DISCOVERY_PROVENANCE_SOURCES)
+        ]
+        official = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            discovered_via=existing, city="Siegburg",
+        )
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [official], manifest=(entry,),
+        )
+        [annotated] = outcome.events
+
+        self.assertEqual(len(annotated.discovered_via), MAX_DISCOVERY_PROVENANCE_SOURCES)
+        self.assertIn(RADIO_ID, annotated.discovered_via)
+        self.assertEqual(canonicalize_event(annotated.to_dict()), annotated)
+
     def test_fallback_promotion_uses_only_safe_master_data_and_verified_corrections(self):
         entry = resolution.entry_for_key(("Familientag im Aggua Troisdorf", "2026-08-07"))
         dirty = lead(
@@ -240,10 +283,10 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         self.assertEqual(set(outcome.dispositions), {entry.key for entry in manifest})
         self.assertEqual(
             {value: list(outcome.dispositions.values()).count(value) for value in set(outcome.dispositions.values())},
-            {"promoted_fallback": 46, "awaiting_existing_primary": 6, "withheld": 3},
+            {"promoted_fallback": 45, "awaiting_existing_primary": 6, "withheld": 4},
         )
-        self.assertEqual(len(outcome.events), 46)
-        self.assertEqual(len(outcome.research_leads), 9)
+        self.assertEqual(len(outcome.events), 45)
+        self.assertEqual(len(outcome.research_leads), 10)
 
     def test_generic_stadtgarten_series_matches_each_official_act_without_generic_fallback(self):
         entry = resolution.entry_for_key(("Stadtgartenkonzerte", "2026-08-14"))
@@ -349,14 +392,14 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         serialized = json.loads(json.dumps(snapshot.metadata))
 
         self.assertEqual(radio_result.raw_event_count, 55)
-        self.assertEqual(radio_result.accepted_event_count, 46)
-        self.assertEqual(radio_result.research_lead_count, 9)
+        self.assertEqual(radio_result.accepted_event_count, 45)
+        self.assertEqual(radio_result.research_lead_count, 10)
         self.assertEqual(radio_result.research_lead_reasons, {
             "needs_existing_primary_match": 6,
-            "no_reliable_primary_source": 2,
+            "no_reliable_primary_source": 3,
             "no_target_year_primary_confirmation": 1,
         })
-        self.assertEqual(snapshot.metadata["research_lead_count"], 9)
+        self.assertEqual(snapshot.metadata["research_lead_count"], 10)
         self.assertEqual(
             snapshot.metadata["research_lead_reasons"],
             radio_result.research_lead_reasons,
