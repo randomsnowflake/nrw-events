@@ -109,6 +109,38 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertGreaterEqual(result.ai_duration_ms, 5)
         self.assertEqual(result.as_dict()["ai_duration_ms"], result.ai_duration_ms)
 
+    def test_discovery_candidates_are_sanitized_research_leads_before_enrichment(self):
+        event = {
+            "title": "Discovered event", "source": "Radio Bonn/Rhein-Sieg",
+            "source_id": "radio-bonn-rhein-sieg", "source_role": "discovery",
+            "discovered_via": ["radio-bonn-rhein-sieg"],
+            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+            "city": "Bonn", "venue": "Marktplatz",
+            "link": "https://www.radiobonn.de/artikel/tipps", "link_kind": "overview",
+            "description": "Publisher prose must stay private.",
+            "description_html": "<p>Publisher prose must stay private.</p>",
+            "ai_summary": "Generated copy must stay private.",
+        }
+
+        with mock.patch.object(runner.detail_enrichment, "enrich_events") as detail, \
+             mock.patch.object(runner.ai_enrichment, "enrich_events") as ai:
+            result, events = runner._run_source("Radio Bonn/Rhein-Sieg", lambda: [event])
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertEqual(result.raw_event_count, 1)
+        self.assertEqual(result.accepted_event_count, 0)
+        self.assertEqual(result.research_lead_reasons, {"needs_primary_source": 1})
+        self.assertEqual(result.research_lead_count, 1)
+        [lead] = result.research_leads
+        self.assertEqual(lead["title"], "Discovered event")
+        self.assertEqual(lead["source_role"], "discovery")
+        self.assertEqual(lead["discovered_via"], ["radio-bonn-rhein-sieg"])
+        self.assertEqual(lead["reason"], "needs_primary_source")
+        self.assertFalse({"description", "description_html", "ai_summary"} & lead.keys())
+        detail.assert_not_called()
+        ai.assert_not_called()
+
     def test_import_timings_are_exported_in_snapshot_metadata(self):
         context = RunContext(
             config.RuntimeConfig(series_ledger_json=""),
@@ -307,6 +339,111 @@ class SourceHealthTests(unittest.TestCase):
 
 
 class CrossRunRetentionTests(unittest.TestCase):
+    def test_failed_discovery_source_does_not_retain_legacy_public_snapshot(self):
+        with make_runner_env() as env:
+            previous = {
+                "generated_at": "2026-06-07T05:00:00",
+                "source_results": {
+                    "Radio Bonn/Rhein-Sieg": {
+                        "raw_event_count": 1,
+                        "event_source_ids": ["radio-bonn-rhein-sieg"],
+                    },
+                },
+                "events": [{
+                    "title": "Legacy Radio event", "source": "Radio Bonn/Rhein-Sieg",
+                    "source_id": "radio-bonn-rhein-sieg", "date": "2026-06-09",
+                    "score": 1.0, "city": "Bonn",
+                }],
+            }
+            env.previous_path.write_text(json.dumps(previous), encoding="utf-8")
+
+            result = runner.run_import(
+                env.context("failed-discovery", series_ledger_json=""),
+                {"Radio Bonn/Rhein-Sieg": lambda: SourceFetchResult.parser_empty()},
+            )
+
+        self.assertEqual(result.source_results["Radio Bonn/Rhein-Sieg"].status,
+                         SourceStatus.PARSER_EMPTY)
+        self.assertEqual(result.events, ())
+        self.assertEqual(result.retention["retained_event_count"], 0)
+
+    def test_legacy_discovery_cancellation_is_not_republished(self):
+        with make_runner_env() as env:
+            previous = {
+                "generated_at": "2026-06-07T05:00:00",
+                "events": [{
+                    "title": "Cancelled legacy Radio event",
+                    "source": "Radio Bonn/Rhein-Sieg",
+                    "source_id": "radio-bonn-rhein-sieg",
+                    "date": "2026-06-09", "status": "cancelled",
+                    "score": 1.0, "city": "Bonn",
+                }],
+            }
+
+            env.previous_path.write_text(json.dumps(previous), encoding="utf-8")
+            result = runner.run_import(
+                env.context("legacy-discovery-cancellation", series_ledger_json=""),
+                {"Official Calendar": lambda: SourceFetchResult.success([])},
+            )
+
+        self.assertEqual(result.events, ())
+
+    def test_healthy_discovery_refresh_does_not_resurrect_old_public_snapshot(self):
+        with make_runner_env() as env:
+            previous = {
+                "generated_at": "2026-06-07T05:00:00",
+                "source_results": {
+                    "Radio Bonn/Rhein-Sieg": {
+                        "raw_event_count": 1,
+                        "event_source_ids": ["radio-bonn-rhein-sieg"],
+                    },
+                },
+                "events": [{
+                    "title": "Old Radio event", "source": "Radio Bonn/Rhein-Sieg",
+                    "source_id": "radio-bonn-rhein-sieg", "date": "2026-06-09",
+                    "score": 1.0, "city": "Bonn",
+                }],
+            }
+            env.previous_path.write_text(json.dumps(previous), encoding="utf-8")
+            discovery = {
+                "title": "New Radio lead", "source": "Radio Bonn/Rhein-Sieg",
+                "source_id": "radio-bonn-rhein-sieg", "source_role": "discovery",
+                "discovered_via": ["radio-bonn-rhein-sieg"],
+                "date": "2026-06-09", "score": 1.0, "city": "Bonn",
+                "description": "Do not publish this copy.",
+                "description_html": "<p>Do not publish this copy.</p>",
+            }
+            primary = {
+                "title": "Primary event", "source": "Official Calendar",
+                "date": "2026-06-09", "score": 1.0, "city": "Bonn",
+            }
+
+            result = runner.run_import(env.context("discovery-refresh", series_ledger_json=""), {
+                "Radio Bonn/Rhein-Sieg": lambda: [discovery],
+                "Official Calendar": lambda: [primary],
+            })
+            snapshot = runner.build_snapshot(result, env.context(
+                "discovery-refresh", series_ledger_json="",
+            ))
+
+        self.assertEqual([event.title for event in result.events], ["Primary event"])
+        radio_result = result.source_results["Radio Bonn/Rhein-Sieg"]
+        self.assertEqual(radio_result.status, SourceStatus.HEALTHY)
+        self.assertEqual(radio_result.raw_event_count, 1)
+        self.assertEqual(snapshot.metadata["retained_event_count"], 0)
+        self.assertEqual(snapshot.metadata["research_lead_count"], 1)
+        self.assertEqual(snapshot.metadata["research_lead_reasons"], {"needs_primary_source": 1})
+        self.assertNotIn("research_leads", snapshot.metadata)
+        serialized = json.loads(json.dumps(snapshot.metadata))
+        self.assertEqual(
+            serialized["source_results"]["Radio Bonn/Rhein-Sieg"]["research_lead_count"],
+            1,
+        )
+        self.assertNotIn(
+            "research_leads",
+            serialized["source_results"]["Radio Bonn/Rhein-Sieg"],
+        )
+
     def test_unavailable_grouped_subsource_retains_only_unexpired_events(self):
         with make_runner_env() as env:
             previous = {

@@ -243,6 +243,7 @@ def _events_from_html(html: str) -> list:
         m = re.search(r"\b(?:um|ab)\s+(\d{1,2})(?::([0-5]\d))?\s*Uhr\b", desc, re.I)
         if m:
             time_text = f"{int(m.group(1)):02d}:{m.group(2) or '00'}"
+        event_link = _best_event_link(raw_desc)
         ev = common.make_event(
             title=title,
             start_dt=start_dt,
@@ -250,7 +251,7 @@ def _events_from_html(html: str) -> list:
             venue=venue,
             city=city,
             description=desc,
-            link=_best_event_link(raw_desc),
+            link=event_link,
             source=source,
             category=category,
             trust=0.72,
@@ -263,6 +264,13 @@ def _events_from_html(html: str) -> list:
                 "Theater": "stage",
             }.get(category, ""),
             category_locked=category != "Event",
+            source_role="discovery",
+            discovered_via=("radio-bonn-rhein-sieg",),
+            link_kind=(
+                "detail"
+                if event_link != URL and urlsplit(event_link).path not in {"", "/"}
+                else "overview"
+            ),
         )
         if ev:
             # Radio Bonn is the editorial source itself. A direct admission

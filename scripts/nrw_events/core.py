@@ -1727,6 +1727,9 @@ def build_event(draft: EventDraft) -> RawEvent | None:
     link, source, category, trust = draft.link, draft.source, draft.category, draft.trust
     time_text, coords, all_day = draft.time_text, draft.coords, draft.all_day
     timezone_name, source_id = draft.timezone_name, draft.source_id
+    source_role, discovered_via, link_kind = (
+        draft.source_role, draft.discovered_via, draft.link_kind,
+    )
     description_source, admission = draft.description_source, draft.admission
     time_note = draft.time_note
     default_category_key, category_locked = draft.default_category_key, draft.category_locked
@@ -1798,6 +1801,9 @@ def build_event(draft: EventDraft) -> RawEvent | None:
                  else round(0.3 * category_score(full_text) * trust, 2),
         "source": source,
         "source_id": source_id,
+        "source_role": source_role,
+        "discovered_via": list(discovered_via),
+        "link_kind": link_kind,
         "status": status,
         "start_at": start_at,
         "end_at": end_at,
@@ -1842,7 +1848,10 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
                admission: AdmissionDefault | None = None,
                time_note: str = "",
                default_category_key: str = "",
-               category_locked: bool = False) -> RawEvent | None:
+               category_locked: bool = False,
+               source_role: str = "primary",
+               discovered_via: tuple[str, ...] = (),
+               link_kind: str = "") -> RawEvent | None:
     """Compatibility adapter for source modules migrating to :class:`EventDraft`."""
     return build_event(EventDraft(
         title=title, start=start_dt, end=end_dt, venue=venue, city=city,
@@ -1851,7 +1860,8 @@ def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[dateti
         timezone_name=timezone_name, source_id=source_id,
         description_source=description_source, admission=admission,
         time_note=time_note, default_category_key=default_category_key,
-        category_locked=category_locked,
+        category_locked=category_locked, source_role=source_role,
+        discovered_via=discovered_via, link_kind=link_kind,
     ))
 
 
