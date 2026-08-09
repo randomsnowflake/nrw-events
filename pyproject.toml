@@ -33,6 +33,7 @@ nrw_events = [
     "categories.json",
     "junk_rules_data.json",
     "verified_venue_locations.json",
+    "sources/radio_primary_sources.json",
     "sources/registry.json",
 ]
 

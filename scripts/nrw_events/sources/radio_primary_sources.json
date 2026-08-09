@@ -1,0 +1,763 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "title": "Waldfestival in Bonn-Bad Godesberg",
+      "start_date": "2026-08-06",
+      "primary_url": "https://www.sdw.de/fuer-den-wald/jugendarbeit/waldfestival/details/waldfestival-bonn",
+      "primary_source": "Schutzgemeinschaft Deutscher Wald",
+      "primary_source_id": "sdw",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "start_date": "2026-08-06",
+        "end_date": "2026-08-09"
+      }
+    },
+    {
+      "title": "Sportwoche des FC Adler Meindorf",
+      "start_date": "2026-08-06",
+      "primary_url": "https://www.fc-adler-meindorf.de/own_pages/view/50",
+      "primary_source": "FC Adler Meindorf",
+      "primary_source_id": "fc-adler-meindorf",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "start_date": "2026-08-06",
+        "end_date": "2026-08-16"
+      }
+    },
+    {
+      "title": "Musik im Pavillon: Cage Band",
+      "start_date": "2026-08-07",
+      "primary_url": "https://ausbadhonnef.de/2026/07/29/musik-im-pavillon-cage-mit-clemens-orth-band-am-7-august-2026/",
+      "primary_source": "AusBadHonnef.de",
+      "primary_source_id": "ausbadhonnef",
+      "evidence_status": "probable",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "19:30"
+      }
+    },
+    {
+      "title": "Eitorf Live: Dosenmilch",
+      "start_date": "2026-08-07",
+      "primary_url": "https://www.eitorf.de/veranstaltungen/submited-events/eitorf-live-mit-dosenmilch/",
+      "primary_source": "Gemeinde Eitorf",
+      "primary_source_id": "eitorf-events",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "19:00"
+      }
+    },
+    {
+      "title": "Supernatural plays Santana beim SWB-Sommerfestival",
+      "start_date": "2026-08-07",
+      "primary_url": "https://rheinaue.de/wp-content/uploads/2026/06/SWB-SOMMERFESTIVAL-2026.pdf",
+      "primary_source": "Parkrestaurant Rheinaue",
+      "primary_source_id": "rheinaue",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {}
+    },
+    {
+      "title": "Familientag im Aggua Troisdorf",
+      "start_date": "2026-08-07",
+      "primary_url": "https://www.aggua.de/angebote/veranstaltungen/familientage-im-aggua/",
+      "primary_source": "AGGUA Troisdorf",
+      "primary_source_id": "aggua",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "10:00–18:00"
+      }
+    },
+    {
+      "title": "Wein & Schokolade in Bonn-Bad Godesberg",
+      "start_date": "2026-08-07",
+      "primary_url": "https://choco-dealer.com/EVENTS/",
+      "primary_source": "CHOCO DEALER",
+      "primary_source_id": "choco-dealer",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "19:00"
+      }
+    },
+    {
+      "title": "Stadtgartenkonzerte in Bonn - 07.08",
+      "start_date": "2026-08-08",
+      "primary_url": "https://www.bonn.de/stadtgartenkonzerte",
+      "primary_source": "Bundesstadt Bonn",
+      "primary_source_id": "bonn-de-events",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {
+        "title": "Stadtgartenkonzerte: Roskapankki + MandelKokainSchnaps",
+        "start_date": "2026-08-07",
+        "end_date": "2026-08-07"
+      },
+      "resolution_mode": "match_existing_primary"
+    },
+    {
+      "title": "Sommer findet Stadt x Weinfest",
+      "start_date": "2026-08-07",
+      "primary_url": "https://www.troisdorf.de/de/kalender/startseite/allgemeine-veranstaltungen/2026-08-07-sommer-findet-stadt-x-weinfest/",
+      "primary_source": "Stadt Troisdorf",
+      "primary_source_id": "troisdorf",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {
+        "start_date": "2026-08-07",
+        "end_date": "2026-08-09"
+      },
+      "resolution_mode": "match_existing_primary"
+    },
+    {
+      "title": "Warther Kirmes",
+      "start_date": "2026-08-07",
+      "primary_url": "https://quer-durch-de-waat.de/",
+      "primary_source": "KG Quer durch de Waat",
+      "primary_source_id": "qddw",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "start_date": "2026-08-07",
+        "end_date": "2026-08-10"
+      }
+    },
+    {
+      "title": "Gielsdorfer Kirmes",
+      "start_date": "2026-08-07",
+      "primary_url": "https://junggesellenverein-gielsdorf.de/jungesellenfest-2026/",
+      "primary_source": "Junggesellenverein Gielsdorf",
+      "primary_source_id": "jgv-gielsdorf",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "start_date": "2026-08-07",
+        "end_date": "2026-08-10"
+      }
+    },
+    {
+      "title": "Ferien-Aktion im LVR-Landesmueseum Bonn",
+      "start_date": "2026-08-07",
+      "primary_url": "https://landesmuseum-bonn.lvr.de/de/veranstaltungen/kinder/angebote_kinder.html",
+      "primary_source": "LVR-Landesmuseum Bonn",
+      "primary_source_id": "lvr-landesmuseum-bonn",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "title": "Sommer-Aktionstag im LVR-Landesmuseum Bonn",
+        "time": "11:00–17:00"
+      }
+    },
+    {
+      "title": "Feierabendtour Niederkassel",
+      "start_date": "2026-08-07",
+      "primary_url": "https://touren-termine.adfc.de/radveranstaltung/195151-feierabendtour",
+      "primary_source": "ADFC Niederkassel",
+      "primary_source_id": "adfc",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "16:00–18:00"
+      }
+    },
+    {
+      "title": "Dance & Jeck",
+      "start_date": "2026-08-08",
+      "primary_url": "https://200-jahre-karneval-in-bonn.de/news/dance-jeck",
+      "primary_source": "Festausschuss Bonner Karneval",
+      "primary_source_id": "bonner-karneval",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {}
+    },
+    {
+      "title": "Parkcoustic: JoJo Weber Band",
+      "start_date": "2026-08-08",
+      "primary_url": "https://jojo-weber.de/termine.html",
+      "primary_source": "JoJo Weber Band",
+      "primary_source_id": "jojo-weber",
+      "evidence_status": "probable",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {}
+    },
+    {
+      "title": "SWB Sommerfestival: Reckless",
+      "start_date": "2026-08-08",
+      "primary_url": "https://rheinaue.de/wp-content/uploads/2026/06/SWB-SOMMERFESTIVAL-2026.pdf",
+      "primary_source": "Parkrestaurant Rheinaue",
+      "primary_source_id": "rheinaue",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {}
+    },
+    {
+      "title": "Kunstausstellung in Linz am Rhein",
+      "start_date": "2026-08-08",
+      "primary_url": "https://www.kunstverein-linz.de/ausstellungen-vorschau/franca-perschen-helmut-reinelt",
+      "primary_source": "Kunstverein Linz am Rhein",
+      "primary_source_id": "kunstverein-linz",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {}
+    },
+    {
+      "title": "Beachparty in Eudenbach",
+      "start_date": "2026-08-08",
+      "primary_url": "https://tus-eudenbach.de/beachparty-faellt-aus/",
+      "primary_source": "",
+      "primary_source_id": "",
+      "evidence_status": "unresolved",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {},
+      "withhold_reason": "no_reliable_primary_source"
+    },
+    {
+      "title": "Platz & Prost im Rhein Sieg Forum",
+      "start_date": "2026-08-08",
+      "primary_url": "https://rhein-sieg-forum.de/de/programm/detail/platz-prost-summer-edition-2026",
+      "primary_source": "RHEIN SIEG FORUM",
+      "primary_source_id": "rhein-sieg-forum",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "city": "Siegburg",
+        "venue": "RHEIN SIEG FORUM",
+        "time": "16:00",
+        "time_note": "bis 01:00 Uhr"
+      }
+    },
+    {
+      "title": "Weltkatzentag in Bad Honnef-Orscheid",
+      "start_date": "2026-08-08",
+      "primary_url": "https://www.tierschutz7gebirge.de/am-8-august-ist-weltkatzentag/",
+      "primary_source": "Tierschutz Siebengebirge",
+      "primary_source_id": "tierschutz-siebengebirge",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "12:00–16:00",
+        "venue": "Tierschutzhof Orscheid, Orscheider Straße 7"
+      }
+    },
+    {
+      "title": "80er/90er-Party in der Gaststätte zur Küz in Troisdorf",
+      "start_date": "2026-08-08",
+      "primary_url": "https://www.troisdorf.de/de/kalender/startseite/allgemeine-veranstaltungen/2026/august/2026-08-08-80er-90er-party-in-der-gaststaette-zur-kuez/",
+      "primary_source": "Stadt Troisdorf",
+      "primary_source_id": "troisdorf",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "17:00",
+        "venue": "Saal Zur Küz, Eintrachtstraße 1"
+      }
+    },
+    {
+      "title": "Landjugendparty und Traktorpulling in Lohmar",
+      "start_date": "2026-08-08",
+      "primary_url": "https://www.lohmar.de/buergerservice-aktuelles-verwaltung-und-rat/aktuelles",
+      "primary_source": "Stadt Lohmar",
+      "primary_source_id": "lohmar",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "end_date": "2026-08-09",
+        "venue": "Wickuhl"
+      }
+    },
+    {
+      "title": "Festival der Kulturen in Troisdorf",
+      "start_date": "2026-08-08",
+      "primary_url": "https://www.festivalderkulturen-troisdorf.de/",
+      "primary_source": "Festival der Kulturen Troisdorf",
+      "primary_source_id": "festival-der-kulturen-troisdorf",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "end_date": "2026-08-09",
+        "venue": "Burg Wissem"
+      }
+    },
+    {
+      "title": "Sankt Laurentius Kirmes Dattenfeld",
+      "start_date": "2026-08-08",
+      "primary_url": "https://windeck24.info/sankt-laurentius-kirmes-dattenfeld-2026.html",
+      "primary_source": "Windeck24",
+      "primary_source_id": "windeck24",
+      "evidence_status": "probable",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "end_date": "2026-08-10",
+        "venue": "Marktplatz Niedecke"
+      }
+    },
+    {
+      "title": "Hennefer Radsporttag",
+      "start_date": "2026-08-09",
+      "primary_url": "https://www.cito-hennef.de/2026/05/12/8-hennefer-radsporttag-am-09-08-2026/",
+      "primary_source": "CITO Hennef",
+      "primary_source_id": "cito-hennef",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "venue": "Gesamtschule Meiersheide"
+      }
+    },
+    {
+      "title": "Mädelskram und Scheunentrödel",
+      "start_date": "2026-08-09",
+      "primary_url": "https://beikircher.de/events/flohmarkt-im-katharinenhof-2/",
+      "primary_source": "Katharinenhof",
+      "primary_source_id": "katharinenhof-flohmarkt",
+      "evidence_status": "probable",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "title": "Flohmarkt im Katharinenhof",
+        "venue": "Katharinenhof, Venner Straße 51",
+        "time": "10:00",
+        "status": "cancelled"
+      }
+    },
+    {
+      "title": "SWB Sommerfestival: Sou Brasil",
+      "start_date": "2026-08-09",
+      "primary_url": "https://rheinaue.de/wp-content/uploads/2026/06/SWB-SOMMERFESTIVAL-2026.pdf",
+      "primary_source": "Parkrestaurant Rheinaue",
+      "primary_source_id": "rheinaue",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "14:00–17:00"
+      }
+    },
+    {
+      "title": "Musik unter der Zeder: Friendship21",
+      "start_date": "2026-08-10",
+      "primary_url": "https://www.kukug.de/veranstaltungen/musik-unter-der-zeder",
+      "primary_source": "KuKuG",
+      "primary_source_id": "kukug",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "19:30–22:00",
+        "venue": "Kleines Theater Bad Godesberg, Koblenzer Straße 78"
+      }
+    },
+    {
+      "title": "WM Philippinischer Stockkampf",
+      "start_date": "2026-08-11",
+      "primary_url": "https://www.kihapp.com/tournaments/23960-6th-gsba-world-championships",
+      "primary_source": "GSBA World Championships",
+      "primary_source_id": "gsba-world-championships",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "title": "6. GSBA World Championships",
+        "end_date": "2026-08-16",
+        "venue": "Sportpark Nord, Kölnstraße 250"
+      }
+    },
+    {
+      "title": "Willi Bellinghausens´s Dancing Sound",
+      "start_date": "2026-08-11",
+      "primary_url": "https://rheinaue.de/wp-content/uploads/2026/06/SWB-SOMMERFESTIVAL-2026.pdf",
+      "primary_source": "Parkrestaurant Rheinaue",
+      "primary_source_id": "rheinaue",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "19:30–22:00",
+        "venue": "Parkrestaurant Rheinaue"
+      }
+    },
+    {
+      "title": "Siegburger Sommer Live: Bounce",
+      "start_date": "2026-08-12",
+      "primary_url": "https://www.siegburgsommerlive.de/",
+      "primary_source": "Siegburg Sommer Live",
+      "primary_source_id": "siegburg-sommer-live",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {
+        "time": "18:00",
+        "venue": "Siegburger Marktplatz"
+      },
+      "resolution_mode": "match_existing_primary"
+    },
+    {
+      "title": "Musik auf der Rathaustreppe: Second Arrangement",
+      "start_date": "2026-08-13",
+      "primary_url": "http://www.rathausmusik.com/",
+      "primary_source": "Musik auf der Rathaustreppe",
+      "primary_source_id": "rathausmusik",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "18:00–20:00",
+        "venue": "Beueler Rathausplatz"
+      }
+    },
+    {
+      "title": "ADFC-Feierabendtour \"Über Berg und Tal von Dorf zu Dorf\"",
+      "start_date": "2026-08-13",
+      "primary_url": "https://touren-termine.adfc.de/radveranstaltung/197023-uber-berg-und-tal-von-dorf-zu-dorf",
+      "primary_source": "ADFC Hennef",
+      "primary_source_id": "adfc",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "16:00–18:30",
+        "venue": "Bahnhof Hennef"
+      }
+    },
+    {
+      "title": "Art&Eat",
+      "start_date": "2026-08-13",
+      "primary_url": "https://www.theatergemeinde-bonn.org/newsdetail.php?InfoNr=4886",
+      "primary_source": "",
+      "primary_source_id": "",
+      "evidence_status": "unresolved",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {},
+      "withhold_reason": "no_reliable_primary_source"
+    },
+    {
+      "title": "Internationale Stummfilmtage",
+      "start_date": "2026-08-13",
+      "primary_url": "https://www.internationale-stummfilmtage.de/",
+      "primary_source": "Internationale Stummfilmtage",
+      "primary_source_id": "internationale-stummfilmtage",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {
+        "end_date": "2026-08-22"
+      },
+      "resolution_mode": "match_existing_primary"
+    },
+    {
+      "title": "Weinfest in Eitorf",
+      "start_date": "2026-08-14",
+      "primary_url": "https://www.eitorf.de/veranstaltungen/submited-events/eitorfer-weinfest/",
+      "primary_source": "Gemeinde Eitorf",
+      "primary_source_id": "eitorf-events",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "end_date": "2026-08-16",
+        "time": "16:00",
+        "time_note": "Fr 16–24 Uhr, Sa 14–24 Uhr, So 11–18 Uhr"
+      }
+    },
+    {
+      "title": "After Work Steam beim Vulkan-Express",
+      "start_date": "2026-08-14",
+      "primary_url": "https://www.vulkan-express.de/fahrplan/fahrplan/fahrplan-tabelle/icalrepeat.detail/2026/08/14/3382/-/after-work-steam-tour",
+      "primary_source": "Vulkan-Express",
+      "primary_source_id": "vulkan-express",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "city": "Brohl-Lützing",
+        "venue": "Bahnhof Brohl",
+        "time": "17:30–20:00"
+      }
+    },
+    {
+      "title": "Stadtgartenkonzerte",
+      "start_date": "2026-08-14",
+      "primary_url": "https://www.bonn.de/stadtgartenkonzerte",
+      "primary_source": "Bundesstadt Bonn",
+      "primary_source_id": "bonn-de-events",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {},
+      "resolution_mode": "match_existing_primary"
+    },
+    {
+      "title": "Stadtgartenkonzerte",
+      "start_date": "2026-08-15",
+      "primary_url": "https://www.bonn.de/stadtgartenkonzerte",
+      "primary_source": "Bundesstadt Bonn",
+      "primary_source_id": "bonn-de-events",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {},
+      "resolution_mode": "match_existing_primary"
+    },
+    {
+      "title": "Urban Colour: Streetart Tour Bonn",
+      "start_date": "2026-08-15",
+      "primary_url": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Streetart-Tour-Bonn-Altstadt.php",
+      "primary_source": "Bundesstadt Bonn",
+      "primary_source_id": "bonn-de-events",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "11:00"
+      }
+    },
+    {
+      "title": "ADFC-Radtour",
+      "start_date": "2026-08-15",
+      "primary_url": "https://touren-termine.adfc.de/radveranstaltung/198067-genussvoll-in-die-groov",
+      "primary_source": "ADFC Hennef",
+      "primary_source_id": "adfc",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "08:00–15:00",
+        "venue": "Bahnhof Hennef"
+      }
+    },
+    {
+      "title": "Feuerwehrfest in Niederpleis",
+      "start_date": "2026-08-15",
+      "primary_url": "https://www.feuerwehr-niederpleis.de/save-the-date-pleeser-strandparty-2026/",
+      "primary_source": "Feuerwehr Niederpleis",
+      "primary_source_id": "feuerwehr-niederpleis",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "end_date": "2026-08-16",
+        "title": "Pleeser Strandparty und Tag der offenen Tür",
+        "time": "19:00",
+        "time_note": "Sa ab 19 Uhr; So ab 11:30 Uhr"
+      }
+    },
+    {
+      "title": "Traktor-Treffen in Wachtberg",
+      "start_date": "2026-08-15",
+      "primary_url": "",
+      "primary_source": "",
+      "primary_source_id": "",
+      "evidence_status": "unresolved",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {},
+      "withhold_reason": "no_reliable_primary_source"
+    },
+    {
+      "title": "FrOSCon in Sankt Augustin",
+      "start_date": "2026-08-15",
+      "primary_url": "https://froscon.org/info/",
+      "primary_source": "FrOSCon",
+      "primary_source_id": "froscon",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "end_date": "2026-08-16",
+        "venue": "Hochschule Bonn-Rhein-Sieg"
+      }
+    },
+    {
+      "title": "Eine Zeitreise ins Jahr 1976 im LVR-Museum",
+      "start_date": "2026-08-15",
+      "primary_url": "https://kommern.lvr.de/de/veranstaltungen/zeitblende_1976.html",
+      "primary_source": "LVR-Freilichtmuseum Kommern",
+      "primary_source_id": "lvr-kommern",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "title": "ZeitBlende 1976",
+        "city": "Mechernich",
+        "venue": "LVR-Freilichtmuseum Kommern",
+        "end_date": "2026-08-16",
+        "time": "10:00",
+        "time_note": "Sa 10–18 Uhr; So 10–17 Uhr"
+      }
+    },
+    {
+      "title": "Rochuskirmes Kaldauen",
+      "start_date": "2026-08-15",
+      "primary_url": "https://bg-kaldauen.de/kaldauer-rochus-kirmes/",
+      "primary_source": "Bürgergemeinschaft Kaldauen",
+      "primary_source_id": "bg-kaldauen",
+      "evidence_status": "probable",
+      "verified_at": "2026-08-09",
+      "fallback_publication": false,
+      "corrections": {},
+      "withhold_reason": "no_target_year_primary_confirmation"
+    },
+    {
+      "title": "Singlewanderung",
+      "start_date": "2026-08-16",
+      "primary_url": "https://www.wanderdate.de/singlewandern/16-08-26-altenberger-dom-und-dhuenntalsperre",
+      "primary_source": "Wanderdate",
+      "primary_source_id": "wanderdate",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "city": "Odenthal",
+        "venue": "Parkplatz Rösberg, Hauptstraße 2",
+        "time": "10:30–17:30"
+      }
+    },
+    {
+      "title": "Rochuswallfahrt nach Seligenthal",
+      "start_date": "2026-08-16",
+      "primary_url": "https://www.servatius-siegburg.de/aktuelles/aktuelle-gottesdienste/index.html?facet_event-location_de_s=St.+Servatius&reloaded=",
+      "primary_source": "St. Servatius Siegburg",
+      "primary_source_id": "st-servatius-siegburg",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "city": "Siegburg",
+        "venue": "St. Servatius Siegburg",
+        "time": "16:30"
+      }
+    },
+    {
+      "title": "Sommerfest im Haus Schlesien",
+      "start_date": "2026-08-16",
+      "primary_url": "https://www.hausschlesien.de/gesamter-kalender",
+      "primary_source": "HAUS SCHLESIEN",
+      "primary_source_id": "haus-schlesien",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "title": "Stiftungs- und Sommerfest im Haus Schlesien",
+        "city": "Königswinter",
+        "venue": "HAUS SCHLESIEN",
+        "time": "11:00–18:00"
+      }
+    },
+    {
+      "title": "Benefiz-Konzert in Bad Honnef",
+      "start_date": "2026-08-20",
+      "primary_url": "https://www.buergerstiftung-badhonnef.de/events/plenty-fourty-auf-dem-annaplatz-in-rommersdorf/",
+      "primary_source": "Bürgerstiftung Bad Honnef",
+      "primary_source_id": "buergerstiftung-bad-honnef",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "19:30",
+        "venue": "Annaplatz Rommersdorf"
+      }
+    },
+    {
+      "title": "Musik auf der Rathaustreppe",
+      "start_date": "2026-08-20",
+      "primary_url": "http://www.first-lane.de/index.php/gig-list",
+      "primary_source": "First Lane",
+      "primary_source_id": "first-lane",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "18:00",
+        "venue": "Beueler Rathaustreppe"
+      }
+    },
+    {
+      "title": "Europäisches Orchester-Festival für gute Zwecke in Siegburg",
+      "start_date": "2026-08-21",
+      "primary_url": "https://www.siegburger-funken.de/veranstaltungen/veranstaltungen-details/orchester-festival.html?day=20260821&times=1787263200,1787349599",
+      "primary_source": "Siegburger Funken",
+      "primary_source_id": "siegburger-funken",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "19:00",
+        "time_note": "Einlass 18 Uhr",
+        "venue": "St. Anno Siegburg"
+      }
+    },
+    {
+      "title": "Flohmarkt im Freizeitpark Rheinbach",
+      "start_date": "2026-08-22",
+      "primary_url": "https://www.rheinbach.de/flohmarkt",
+      "primary_source": "Stadt Rheinbach",
+      "primary_source_id": "rheinbach-freizeitpark-flohmarkt",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "time": "09:00–16:00"
+      }
+    },
+    {
+      "title": "Sommerkino in Rheinbach",
+      "start_date": "2026-08-22",
+      "primary_url": "https://www.wir-fuer-rheinbach.de/sommerkino",
+      "primary_source": "Wir für Rheinbach",
+      "primary_source_id": "wir-fuer-rheinbach",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "end_date": "2026-08-27",
+        "time": "19:30",
+        "time_note": "Einlass 19:30 Uhr; Vorprogramm 20:15 Uhr"
+      }
+    },
+    {
+      "title": "Wohnzimmerkonzert in Eitorf",
+      "start_date": "2026-08-23",
+      "primary_url": "https://eitorfer-gesangverein.de/wp/portrait/termine/",
+      "primary_source": "Eitorfer Gesangverein",
+      "primary_source_id": "eitorfer-gesangverein",
+      "evidence_status": "confirmed",
+      "verified_at": "2026-08-09",
+      "fallback_publication": true,
+      "corrections": {
+        "title": "Europa singt – Lieder für den Kontinent",
+        "time": "17:00",
+        "venue": "Sängerheim, Parkstraße 12"
+      }
+    }
+  ]
+}

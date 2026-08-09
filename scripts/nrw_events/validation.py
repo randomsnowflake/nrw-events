@@ -8,7 +8,12 @@ import urllib.parse
 from typing import Any
 
 from . import ai_enrichment, category_taxonomy, common, richtext
-from .models import CanonicalEvent, RawEvent, normalize_source_id
+from .models import (
+    MAX_DISCOVERY_PROVENANCE_SOURCES,
+    CanonicalEvent,
+    RawEvent,
+    normalize_source_id,
+)
 from .normalization import canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
 from .title_normalization import normalize_event_title
@@ -69,7 +74,7 @@ def _discovery_provenance(event: dict[str, Any]) -> None:
             raise EventValidationError("discovered_via_item_invalid")
         if source_id not in normalized:
             normalized.append(source_id)
-    if len(normalized) > 20:
+    if len(normalized) > MAX_DISCOVERY_PROVENANCE_SOURCES:
         raise EventValidationError("discovered_via_too_many")
     if source_role == "discovery" and not normalized:
         raise EventValidationError("discovered_via_missing")

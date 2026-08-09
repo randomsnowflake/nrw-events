@@ -12,7 +12,7 @@ from difflib import SequenceMatcher
 from urllib import parse as urlparse
 
 from . import common
-from .models import CanonicalEvent
+from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent
 from .normalization import comparison_text
 
 
@@ -544,6 +544,14 @@ def _adopted_description(source: dict) -> dict:
 def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
+    discovered_via = list(winner.get("discovered_via") or [])
+    for source_id in duplicate.get("discovered_via") or []:
+        if len(discovered_via) >= MAX_DISCOVERY_PROVENANCE_SOURCES:
+            break
+        if source_id not in discovered_via:
+            discovered_via.append(source_id)
+    if discovered_via != list(winner.get("discovered_via") or []):
+        updates["discovered_via"] = discovered_via
     winner_start = winner.get("start_at")
     winner_end = winner.get("end_at")
     duplicate_start = duplicate.get("start_at")

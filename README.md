@@ -235,6 +235,7 @@ scripts/nrw_events/
   normalization.py
   observability.py
   quality.py
+  radio_primary_resolution.py
   report.py
   richtext.py
   runner.py
