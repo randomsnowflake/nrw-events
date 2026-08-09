@@ -53,6 +53,30 @@ def _text(event: dict[str, Any], field: str, limit: int, required: bool = False)
     return value
 
 
+def _discovery_provenance(event: dict[str, Any]) -> None:
+    source_role = _text(event, "source_role", 32) or "primary"
+    if source_role not in {"primary", "discovery"}:
+        raise EventValidationError("source_role_invalid")
+    discovered_via = event.get("discovered_via", [])
+    if not isinstance(discovered_via, list):
+        raise EventValidationError("discovered_via_type")
+    normalized: list[str] = []
+    for value in discovered_via:
+        if not isinstance(value, str):
+            raise EventValidationError("discovered_via_item_type")
+        source_id = normalize_source_id(value)
+        if not source_id:
+            raise EventValidationError("discovered_via_item_invalid")
+        if source_id not in normalized:
+            normalized.append(source_id)
+    if len(normalized) > 20:
+        raise EventValidationError("discovered_via_too_many")
+    if source_role == "discovery" and not normalized:
+        raise EventValidationError("discovered_via_missing")
+    event["source_role"] = source_role
+    event["discovered_via"] = normalized
+
+
 def _canonical_temporal_fields(event: dict[str, Any]) -> None:
     start_date = _text(event, "start_date", 10)
     end_date = _text(event, "end_date", 10)
@@ -95,6 +119,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["source_id"] = normalize_source_id(
         _text(event, "source_id", 200) or event["source"]
     )
+    _discovery_provenance(event)
     inferred_description_source = common.description_source_for(event.get("description", ""))
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
                          ("price", 160), ("category", 500), ("link", 2048)):

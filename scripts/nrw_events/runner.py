@@ -15,14 +15,14 @@ import time
 import uuid
 import weakref
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextvars import copy_context
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from concurrent.futures import thread as futures_thread
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 from . import ai_enrichment, common, config, detail_enrichment, highlights as highlight_selection, report, series as series_entities
 from .category_taxonomy import CATEGORIES
@@ -48,6 +48,17 @@ EXIT_SUCCESS = 0
 EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
 SNAPSHOT_GENERATIONS_KEPT = 3
+
+_RESEARCH_LEAD_MASTER_FIELDS = (
+    "title", "source", "source_id", "source_role", "discovered_via",
+    "date", "time", "time_note", "start_date", "end_date", "start_at",
+    "end_at", "all_day", "ongoing", "timezone", "status", "venue",
+    "venue_id", "venue_address", "venue_district", "venue_type",
+    "venue_latitude", "venue_longitude", "city", "link", "link_kind",
+    "organizer", "price", "admission_basis", "availability", "category",
+    "category_key", "category_label", "distance_km", "location_confidence",
+    "location_source", "score",
+)
 
 VERBS = ("heute", "heute-abend", "wochenende")
 _CATEGORY_ALIASES = {
@@ -121,6 +132,17 @@ class SnapshotPayload:
     series_ledger: dict[str, object] = field(default_factory=dict)
 
 
+def _sanitize_research_lead(event: Mapping[str, object]) -> dict[str, object]:
+    """Keep discovery master data while dropping all publisher and AI copy."""
+    lead = {
+        field: event[field]
+        for field in _RESEARCH_LEAD_MASTER_FIELDS
+        if field in event
+    }
+    lead["reason"] = "needs_primary_source"
+    return lead
+
+
 def _run_source(
     name: str,
     fetch: Callable[[], list],
@@ -148,11 +170,28 @@ def _run_source(
             events = fetched
         if not isinstance(events, list):
             raise TypeError(f"source returned {type(events).__name__}, expected list")
+        health_events = events
+        discovery_events = [
+            event for event in events
+            if isinstance(event, dict) and event.get("source_role") == "discovery"
+        ]
+        if discovery_events:
+            result.research_leads = [
+                _sanitize_research_lead(event) for event in discovery_events
+            ]
+            result.research_lead_count = len(result.research_leads)
+            result.research_lead_reasons = {
+                "needs_primary_source": result.research_lead_count,
+            }
+            events = cast(list[dict], [
+                event for event in events if event not in discovery_events
+            ])
+        events = cast(list[dict], events)
         # Feed/listing payloads are commonly teasers.  Every registered source
         # gets the same cached detail-page second pass before canonical fields
         # are validated, classified and stored.  Ad-hoc embedded/test sources
         # remain side-effect free unless they opt into the helper directly.
-        if name in SOURCE_IDS:
+        if events and name in SOURCE_IDS:
             events = detail_enrichment.enrich_events(
                 events,
                 cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
@@ -169,7 +208,9 @@ def _run_source(
             result.ai_duration_ms = round((time.monotonic() - ai_started) * 1000)
             result.ai_candidate_event_count = ai_candidates
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
-        result.finish(events)
+        # Discovery records prove that the parser is healthy and contribute to
+        # raw source counts, even though the publication gate excludes them.
+        result.finish(health_events)
         explicit_parser_empty = any(
             endpoint.get("parser_empty") is True
             for endpoint in result.endpoints.values()
@@ -535,6 +576,8 @@ def _retain_previous_events(
     window_end = context.window.end.strftime("%Y-%m-%d")
     for raw_event in previous.get("events") or []:
         if not isinstance(raw_event, dict):
+            continue
+        if raw_event.get("source_role") == "discovery":
             continue
         label = _event_source_id(raw_event)
         if label not in labels:
@@ -1268,7 +1311,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     window_start = context.window.start.strftime("%Y-%m-%d")
     window_end = context.window.end.strftime("%Y-%m-%d")
     for raw_event in previous.get("events") or []:
-        if not isinstance(raw_event, dict) or raw_event.get("status") not in {"cancelled", "postponed"}:
+        if (
+            not isinstance(raw_event, dict)
+            or raw_event.get("source_role") == "discovery"
+            or raw_event.get("status") not in {"cancelled", "postponed"}
+        ):
             continue
         try:
             cancellation = validate_event(raw_event)
@@ -1379,6 +1426,12 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     source_result_payloads = {
         name: result.as_dict() for name, result in source_results.items()
     }
+    research_lead_count = sum(
+        result.research_lead_count for result in source_results.values()
+    )
+    research_lead_reasons: Counter[str] = Counter()
+    for result in source_results.values():
+        research_lead_reasons.update(result.research_lead_reasons)
     quality_warnings = quality_gate_warnings(quality_metrics, source_result_payloads)
     start, end = context.window.start, context.window.end
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
@@ -1403,6 +1456,10 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "quality_warnings": quality_warnings,
         "import_issues": issues,
         "source_results": source_result_payloads,
+        # Discovery records remain available to the in-process resolver, but
+        # their titles and links are deliberately absent from public metadata.
+        "research_lead_count": research_lead_count,
+        "research_lead_reasons": dict(research_lead_reasons),
         "timings": import_result.timings,
         "categories": CATEGORIES, "pre_dedup_count": import_result.pre_dedup_count,
         "fresh_event_count": import_result.retention.get("fresh_event_count", len(events)),

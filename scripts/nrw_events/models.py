@@ -19,6 +19,8 @@ class RawEvent(TypedDict, total=False):
     title: str
     source: str
     source_id: str
+    source_role: str
+    discovered_via: list[str]
     date: str
     time: str
     identity_time: str
@@ -93,6 +95,9 @@ class EventDraft:
     all_day: Optional[bool] = None
     timezone_name: str = "Europe/Berlin"
     source_id: str = ""
+    source_role: str = "primary"
+    discovered_via: tuple[str, ...] = ()
+    link_kind: str = ""
     description_source: str = ""
     admission: AdmissionDefault | None = None
     time_note: str = ""
@@ -120,6 +125,8 @@ class CanonicalEvent(Mapping[str, Any]):
     start_date: str
     score: float
     source_id: str = ""
+    source_role: str = "primary"
+    discovered_via: list[str] = field(default_factory=list)
     date: str = ""
     time: str = ""
     identity_time: str = ""

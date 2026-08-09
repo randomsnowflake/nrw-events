@@ -79,6 +79,9 @@ class SourceResult:
     event_source_ids: list[str] = field(default_factory=list)
     cancelled_events: list[dict[str, Any]] = field(default_factory=list)
     announced_events: list[dict[str, Any]] = field(default_factory=list)
+    research_leads: list[dict[str, Any]] = field(default_factory=list)
+    research_lead_count: int = 0
+    research_lead_reasons: dict[str, int] = field(default_factory=dict)
     warnings: list[dict[str, str]] = field(default_factory=list)
     error: Optional[dict[str, str]] = None
     status_reason: str = ""
@@ -158,6 +161,8 @@ class SourceResult:
             "event_source_ids": self.event_source_ids,
             "cancelled_event_count": len(self.cancelled_events),
             "announced_event_count": len(self.announced_events),
+            "research_lead_count": self.research_lead_count,
+            "research_lead_reasons": self.research_lead_reasons,
             "cancelled_rate": (
                 round(len(self.cancelled_events) / self.raw_event_count, 4)
                 if self.raw_event_count else 0.0

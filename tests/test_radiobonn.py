@@ -59,6 +59,38 @@ class RadioBonnLocationTests(unittest.TestCase):
 
         self.assertEqual(radiobonn._best_event_link(description), radiobonn.URL)
 
+    def test_extracted_records_carry_discovery_provenance_and_conservative_link_kind(self):
+        html = """
+        <p><strong><u>Stadtfest - 09.08.2026</u></strong></p>
+        <p>Das Stadtfest findet auf dem Bonner Marktplatz statt. Weitere Informationen folgen.</p>
+        <p><strong><u>Sommerkonzert - 10.08.2026</u></strong></p>
+        <p>Das Konzert findet in der Rheinaue statt. Details stehen auf
+        <a href="https://veranstalter.test/events/sommerkonzert">der Veranstaltungsseite</a>.</p>
+        """
+
+        overview, detail = radiobonn._events_from_html(html)
+
+        for event in (overview, detail):
+            self.assertEqual(event["source_role"], "discovery")
+            self.assertEqual(event["discovered_via"], ["radio-bonn-rhein-sieg"])
+        self.assertEqual(overview["link"], radiobonn.URL)
+        self.assertEqual(overview["link_kind"], "overview")
+        self.assertEqual(detail["link_kind"], "detail")
+
+    def test_discovery_provenance_survives_canonical_roundtrip(self):
+        html = """
+        <p><strong><u>Stadtfest - 09.08.2026</u></strong></p>
+        <p>Das Stadtfest findet auf dem Bonner Marktplatz statt. Weitere Informationen folgen.</p>
+        """
+        [raw_event] = radiobonn._events_from_html(html)
+
+        canonical = canonicalize_event(raw_event)
+        roundtripped = canonicalize_event(canonical.to_dict())
+
+        self.assertEqual(roundtripped.source_role, "discovery")
+        self.assertEqual(roundtripped.discovered_via, ["radio-bonn-rhein-sieg"])
+        self.assertEqual(roundtripped.link_kind, "overview")
+
     def test_parses_same_month_multi_day_range(self):
         title, start, end = radiobonn._split_title_dates(
             "Birker Kirmes - 10. - 12.07.2026"
