@@ -422,6 +422,15 @@ def canonical_venue_id(event: Mapping[str, object]) -> str:
         return "rigalsche-wiese-bad-godesberg"
 
     if (
+        city in {"bonn", "bonnduisdorf", "bonnhardtberg"}
+        and (
+            "rochusplatz" in venue
+            or ("europaplatz" in venue and "rochusstrasse" in text)
+        )
+    ):
+        return "duisdorf-rochusplatz-europaplatz"
+
+    if (
         "badgodesberg" in text
         and ("antik" in title or "troedelmarkt" in title)
         and any(
