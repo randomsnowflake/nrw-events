@@ -4,6 +4,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import common, report
+from nrw_events.validation import canonicalize_event
 from nrw_events.sources import SOURCES, geide, grote_hiller, hoffloh_bonn, okken
 from tests.helpers import patch_window
 
@@ -130,6 +131,8 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertEqual(event["venue_address"], "Am Weidenbach 31")
         self.assertEqual(event["link"], "https://okkengmbh.de/flohmarkt-bonn/")
         self.assertEqual(event["price"], "kostenlos")
+        self.assertEqual(event["admission_basis"], "explicit")
+        self.assertEqual(canonicalize_event(event).admission["basis"], "structured")
 
     def test_okken_and_bonn_duplicate_resolves_to_direct_organizer(self):
         base = {

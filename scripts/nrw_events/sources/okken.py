@@ -19,6 +19,7 @@ _SPEC = FixedMarketSpec(
         "Flohmarkt mit privaten Händlerinnen und Händlern aus der Region. "
         "Der Eintritt für Besucher ist kostenlos."
     ),
+    price="kostenlos", admission_basis="explicit",
     timeout=20, empty_is_healthy=True,
 )
 

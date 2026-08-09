@@ -88,6 +88,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
             "Vortrag zur Sportwissenschaft",
             "Debatte über den Arbeitsmarkt 2030",
             "Forschung zur Festivalkultur",
+            "Das Manifest",
         )
 
         for title in cases:
