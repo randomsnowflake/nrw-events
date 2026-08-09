@@ -53,9 +53,9 @@ class RadioPrimaryManifestTests(unittest.TestCase):
         self.assertEqual(len(manifest), 55)
         self.assertEqual(len({entry.key for entry in manifest}), 55)
         classes = [resolution.expected_resolution_class(entry) for entry in manifest]
-        self.assertEqual(classes.count("promote"), 45)
+        self.assertEqual(classes.count("promote"), 42)
         self.assertEqual(classes.count("match"), 6)
-        self.assertEqual(classes.count("withhold"), 4)
+        self.assertEqual(classes.count("withhold"), 7)
 
     def test_manifest_rejects_duplicate_keys_unknown_corrections_and_unsafe_fallbacks(self):
         valid = {
@@ -71,6 +71,7 @@ class RadioPrimaryManifestTests(unittest.TestCase):
             [{**valid, "evidence_status": "unresolved"}],
             [{**valid, "primary_url": "", "fallback_publication": True}],
             [{**valid, "primary_url": "javascript:alert(1)"}],
+            [{**valid, "evidence_status": "probable"}],
         ]
         for entries in invalid_entries:
             with self.subTest(entries=entries):
@@ -105,6 +106,25 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         self.assertEqual(outcome.events[0].discovered_via, [RADIO_ID])
         self.assertEqual(outcome.dispositions[entry.key], "matched_existing_primary")
         self.assertEqual(outcome.research_leads, ())
+        self.assertEqual(outcome.promoted_fallback_event_ids, frozenset())
+
+    def test_exact_overview_url_does_not_match_an_unrelated_event(self):
+        entry = resolution.entry_for_key((
+            "Supernatural plays Santana beim SWB-Sommerfestival", "2026-08-07",
+        ))
+        unrelated = primary(
+            "Completely unrelated event", entry.start_date,
+            entry.primary_source, entry.primary_source_id, entry.primary_url,
+        )
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [unrelated], manifest=(entry,),
+        )
+
+        self.assertEqual(len(outcome.events), 2)
+        self.assertEqual(outcome.dispositions[entry.key], "promoted_fallback")
+        self.assertEqual(outcome.events[0].discovered_via, [])
+        self.assertEqual(outcome.events[1].title, entry.title)
 
     def test_filtered_primary_candidate_does_not_consume_a_publishable_fallback(self):
         entry = resolution.entry_for_key(("Familientag im Aggua Troisdorf", "2026-08-07"))
@@ -283,10 +303,10 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         self.assertEqual(set(outcome.dispositions), {entry.key for entry in manifest})
         self.assertEqual(
             {value: list(outcome.dispositions.values()).count(value) for value in set(outcome.dispositions.values())},
-            {"promoted_fallback": 45, "awaiting_existing_primary": 6, "withheld": 4},
+            {"promoted_fallback": 42, "awaiting_existing_primary": 6, "withheld": 7},
         )
-        self.assertEqual(len(outcome.events), 45)
-        self.assertEqual(len(outcome.research_leads), 10)
+        self.assertEqual(len(outcome.events), 47)
+        self.assertEqual(len(outcome.research_leads), 13)
 
     def test_generic_stadtgarten_series_matches_each_official_act_without_generic_fallback(self):
         entry = resolution.entry_for_key(("Stadtgartenkonzerte", "2026-08-14"))
@@ -309,6 +329,24 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         })
         self.assertTrue(all(event.discovered_via == [RADIO_ID] for event in outcome.events))
         self.assertEqual(outcome.dispositions[entry.key], "matched_existing_primary")
+
+    def test_stadtgarten_overview_url_does_not_annotate_unrelated_same_day_event(self):
+        entry = resolution.entry_for_key(("Stadtgartenkonzerte", "2026-08-14"))
+        official = primary(
+            "Stadtgartenkonzerte: The Act", entry.start_date,
+            entry.primary_source, entry.primary_source_id, entry.primary_url,
+        )
+        unrelated = primary(
+            "Unrelated council event", entry.start_date,
+            entry.primary_source, entry.primary_source_id, entry.primary_url,
+        )
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [official, unrelated], manifest=(entry,),
+        )
+
+        self.assertEqual(outcome.events[0].discovered_via, [RADIO_ID])
+        self.assertEqual(outcome.events[1].discovered_via, [])
 
     def test_multiday_series_matches_each_official_occurrence_without_umbrella_fallback(self):
         entry = resolution.entry_for_key(("Sommer findet Stadt x Weinfest", "2026-08-07"))
@@ -349,6 +387,19 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
     def test_verified_correction_matrix_is_applied(self):
         expected = {
             ("Familientag im Aggua Troisdorf", "2026-08-07"): {"time": "10:00–18:00"},
+            ("Supernatural plays Santana beim SWB-Sommerfestival", "2026-08-07"): {
+                "time": "19:30–22:00",
+            },
+            ("Wein & Schokolade in Bonn-Bad Godesberg", "2026-08-07"): {
+                "time": "19:00–22:00",
+            },
+            ("Ferien-Aktion im LVR-Landesmueseum Bonn", "2026-08-07"): {
+                "title": "Aktionstag am 7. August", "time": "11:00–17:00",
+            },
+            ("SWB Sommerfestival: Reckless", "2026-08-08"): {
+                "title": "SWB-Sommerfestival: Reckless plays Bryan Adams",
+                "time": "19:30–22:00",
+            },
             ("Platz & Prost im Rhein Sieg Forum", "2026-08-08"): {"city": "Siegburg"},
             ("SWB Sommerfestival: Sou Brasil", "2026-08-09"): {"time": "14:00–17:00"},
             ("WM Philippinischer Stockkampf", "2026-08-11"): {"end_date": "2026-08-16"},
@@ -358,7 +409,16 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
             ("Internationale Stummfilmtage", "2026-08-13"): {"end_date": "2026-08-22"},
             ("Eine Zeitreise ins Jahr 1976 im LVR-Museum", "2026-08-15"): {"city": "Mechernich"},
             ("Sommerfest im Haus Schlesien", "2026-08-16"): {"city": "Königswinter"},
-            ("Sommerkino in Rheinbach", "2026-08-22"): {"end_date": "2026-08-27"},
+            ("Kunstausstellung in Linz am Rhein", "2026-08-08"): {
+                "title": "11 bis 8 – Franca Perschen & Helmut Reinelt",
+                "end_date": "2026-08-30",
+            },
+            ("Benefiz-Konzert in Bad Honnef", "2026-08-20"): {
+                "title": "Benefizkonzert: Plenty Fourty auf dem Annaplatz",
+            },
+            ("Musik auf der Rathaustreppe", "2026-08-20"): {
+                "title": "Musik auf der Rathaustreppe: First Lane",
+            },
         }
         for key, fields in expected.items():
             with self.subTest(key=key):
@@ -373,6 +433,117 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
                 [event] = outcome.events
                 for field, value in fields.items():
                     self.assertEqual(getattr(event, field), value)
+
+    def test_sommerkino_expands_to_six_distinct_audited_film_occurrences(self):
+        entry = resolution.entry_for_key(("Sommerkino in Rheinbach", "2026-08-22"))
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        )
+
+        self.assertEqual(len(outcome.events), 6)
+        self.assertEqual(
+            [event.start_date for event in outcome.events],
+            [f"2026-08-{day:02d}" for day in range(22, 28)],
+        )
+        self.assertEqual(len({event.title for event in outcome.events}), 6)
+        self.assertTrue(all(event.start_date == event.end_date for event in outcome.events))
+        self.assertTrue(all(event.time == "19:30" for event in outcome.events))
+        self.assertEqual(outcome.events[-1].title, "Sommerkino Rheinbach: Ein fast perfekter Antrag")
+
+    def test_richer_retained_primary_replaces_generated_radio_fallback(self):
+        entry = resolution.entry_for_key((
+            "Supernatural plays Santana beim SWB-Sommerfestival", "2026-08-07",
+        ))
+        [fallback] = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        ).events
+        retained = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            description="Rich retained official programme copy",
+            description_source="scraped",
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_radio_fallback(
+            [fallback], [retained], frozenset({runner.event_id(fallback)}),
+        )
+
+        self.assertEqual(remaining, [])
+        self.assertEqual(fresh[0].description, "Rich retained official programme copy")
+        self.assertEqual(fresh[0].description_source, "scraped")
+        self.assertEqual(fresh[0].discovered_via, [RADIO_ID])
+
+    def test_generated_retained_record_does_not_replace_fresh_radio_fallback(self):
+        entry = resolution.entry_for_key((
+            "Supernatural plays Santana beim SWB-Sommerfestival", "2026-08-07",
+        ))
+        [fallback] = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        ).events
+        retained = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            time="18:00", venue="Stale venue",
+            description="Old generated copy", description_source="generated",
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_radio_fallback(
+            [fallback], [retained], frozenset({runner.event_id(fallback)}),
+        )
+
+        self.assertEqual(fresh, [fallback])
+        self.assertEqual(remaining, [retained])
+
+    def test_retained_replacement_caps_discovery_provenance(self):
+        entry = resolution.entry_for_key((
+            "Supernatural plays Santana beim SWB-Sommerfestival", "2026-08-07",
+        ))
+        [fallback] = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        ).events
+        retained = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            description="Rich retained official programme copy",
+            description_source="scraped",
+            discovered_via=[f"source-{index}" for index in range(MAX_DISCOVERY_PROVENANCE_SOURCES)],
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_radio_fallback(
+            [fallback], [retained], frozenset({runner.event_id(fallback)}),
+        )
+
+        self.assertEqual(remaining, [])
+        self.assertEqual(len(fresh[0].discovered_via), MAX_DISCOVERY_PROVENANCE_SOURCES)
+        self.assertEqual(fresh[0].discovered_via[-1], RADIO_ID)
+
+    def test_current_matched_primary_is_not_replaced_by_retained_record(self):
+        entry = resolution.entry_for_key(("Platz & Prost im Rhein Sieg Forum", "2026-08-08"))
+        fresh_primary = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            time="20:00", venue="New venue",
+            description="Current generated official copy",
+            description_source="generated",
+            discovered_via=[RADIO_ID],
+        )
+        retained = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            time="18:00", venue="Old venue",
+            description="Old retained copy",
+            description_source="scraped",
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_radio_fallback(
+            [fresh_primary], [retained], frozenset(),
+        )
+        retained_only = runner._retained_events_without_fresh_duplicate(fresh, remaining)
+
+        self.assertEqual(fresh[0].time, "20:00")
+        self.assertEqual(fresh[0].venue, "New venue")
+        self.assertEqual(retained_only, [])
 
     def test_run_updates_only_public_lead_aggregates_and_never_serializes_lead_objects(self):
         manifest = resolution.load_manifest()
@@ -392,14 +563,15 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         serialized = json.loads(json.dumps(snapshot.metadata))
 
         self.assertEqual(radio_result.raw_event_count, 55)
-        self.assertEqual(radio_result.accepted_event_count, 45)
-        self.assertEqual(radio_result.research_lead_count, 10)
+        self.assertEqual(radio_result.accepted_event_count, 47)
+        self.assertEqual(radio_result.research_lead_count, 13)
         self.assertEqual(radio_result.research_lead_reasons, {
             "needs_existing_primary_match": 6,
             "no_reliable_primary_source": 3,
             "no_target_year_primary_confirmation": 1,
+            "insufficient_first_party_evidence": 3,
         })
-        self.assertEqual(snapshot.metadata["research_lead_count"], 10)
+        self.assertEqual(snapshot.metadata["research_lead_count"], 13)
         self.assertEqual(
             snapshot.metadata["research_lead_reasons"],
             radio_result.research_lead_reasons,

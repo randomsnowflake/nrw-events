@@ -19,6 +19,7 @@ from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
 from . import common
+from .identity import event_id
 from .models import (
     MAX_DISCOVERY_PROVENANCE_SOURCES,
     CanonicalEvent,
@@ -35,10 +36,13 @@ _ALLOWED_CORRECTIONS = frozenset({
     "title", "start_date", "end_date", "time", "time_note", "city", "venue", "status",
 })
 _ALLOWED_RESOLUTION_MODES = frozenset({"", "match_existing_primary"})
+_ALLOWED_MATCH_STRATEGIES = frozenset({
+    "", "exact_detail_url", "series_source_date_range",
+})
 _ALLOWED_ENTRY_FIELDS = frozenset({
     "title", "start_date", "primary_url", "primary_source", "primary_source_id",
     "evidence_status", "verified_at", "fallback_publication", "corrections",
-    "resolution_mode", "withhold_reason",
+    "resolution_mode", "match_strategy", "withhold_reason", "occurrences",
 })
 _SAFE_LEAD_FIELDS = frozenset({
     "title", "date", "time", "time_note", "start_date", "end_date", "all_day",
@@ -46,10 +50,10 @@ _SAFE_LEAD_FIELDS = frozenset({
     "category_label", "score",
 })
 _TIME_TOKEN_RE = re.compile(r"(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)")
-_BROAD_CALENDAR_HOSTS = frozenset({
-    "bonn.de", "www.bonn.de", "troisdorf.de", "www.troisdorf.de",
-})
 _SINGLE_MATCH_OUTPUT_CORRECTIONS = frozenset({"time", "time_note", "city", "venue"})
+_ALLOWED_OCCURRENCE_FIELDS = frozenset({
+    "title", "start_date", "end_date", "time", "time_note", "city", "venue",
+})
 _DERIVED_LOCATION_FIELDS = frozenset({
     "venue_id", "venue_address", "venue_district", "venue_type", "venue_latitude",
     "venue_longitude", "distance_km", "location_confidence", "location_source",
@@ -68,7 +72,9 @@ class RadioPrimaryEntry:
     fallback_publication: bool
     corrections: Mapping[str, str] = field(default_factory=dict)
     resolution_mode: str = ""
+    match_strategy: str = ""
     withhold_reason: str = ""
+    occurrences: tuple[Mapping[str, str], ...] = ()
 
     @property
     def key(self) -> tuple[str, str]:
@@ -81,6 +87,7 @@ class RadioResolutionOutcome:
     research_leads: tuple[dict[str, object], ...]
     dispositions: Mapping[tuple[str, str], str]
     cancellations: tuple[dict[str, object], ...] = ()
+    promoted_fallback_event_ids: frozenset[str] = frozenset()
 
     @property
     def research_lead_reasons(self) -> dict[str, int]:
@@ -117,6 +124,32 @@ def _valid_web_url(value: str) -> bool:
         return False
     parsed = urlsplit(value)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _parse_occurrences(raw: object, title: str) -> tuple[Mapping[str, str], ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list) or not raw:
+        raise ValueError(f"radio primary manifest: occurrences must be a non-empty list for {title}")
+    occurrences: list[Mapping[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict) or set(item) - _ALLOWED_OCCURRENCE_FIELDS:
+            raise ValueError(f"radio primary manifest: invalid occurrence for {title}")
+        occurrence = {
+            field_name: _required_text(item, field_name)
+            for field_name in item
+        }
+        if "title" not in occurrence or "start_date" not in occurrence:
+            raise ValueError(f"radio primary manifest: occurrence lacks identity for {title}")
+        _iso_date(occurrence["start_date"], "occurrence start_date")
+        occurrence.setdefault("end_date", occurrence["start_date"])
+        _iso_date(occurrence["end_date"], "occurrence end_date")
+        if occurrence["end_date"] < occurrence["start_date"]:
+            raise ValueError(f"radio primary manifest: occurrence end precedes start for {title}")
+        occurrences.append(occurrence)
+    if len({(item["title"], item["start_date"]) for item in occurrences}) != len(occurrences):
+        raise ValueError(f"radio primary manifest: duplicate occurrences for {title}")
+    return tuple(occurrences)
 
 
 def _parse_entry(raw: object) -> RadioPrimaryEntry:
@@ -175,13 +208,27 @@ def _parse_entry(raw: object) -> RadioPrimaryEntry:
     resolution_mode = _optional_text(raw, "resolution_mode")
     if resolution_mode not in _ALLOWED_RESOLUTION_MODES:
         raise ValueError(f"radio primary manifest: invalid resolution_mode for {title}")
+    match_strategy = _optional_text(raw, "match_strategy")
+    if match_strategy not in _ALLOWED_MATCH_STRATEGIES:
+        raise ValueError(f"radio primary manifest: invalid match_strategy for {title}")
     withhold_reason = _optional_text(raw, "withhold_reason")
+    occurrences = _parse_occurrences(raw.get("occurrences"), title)
     if not fallback and not resolution_mode and not withhold_reason:
         raise ValueError(f"radio primary manifest: non-fallback entry lacks disposition for {title}")
     if fallback and (resolution_mode or withhold_reason):
         raise ValueError(f"radio primary manifest: fallback has conflicting disposition for {title}")
+    if fallback and evidence_status != "confirmed" and normalized_corrections.get("status") not in {
+        "cancelled", "postponed",
+    }:
+        raise ValueError(f"radio primary manifest: probable fallback is not publishable for {title}")
     if resolution_mode and (not primary_url or not primary_source_id):
         raise ValueError(f"radio primary manifest: match entry lacks primary identity for {title}")
+    if match_strategy == "series_source_date_range" and not resolution_mode:
+        raise ValueError(f"radio primary manifest: series match_strategy without match mode for {title}")
+    if match_strategy == "exact_detail_url" and resolution_mode:
+        raise ValueError(f"radio primary manifest: detail match_strategy conflicts for {title}")
+    if occurrences and not fallback:
+        raise ValueError(f"radio primary manifest: occurrences require fallback publication for {title}")
     return RadioPrimaryEntry(
         title=title,
         start_date=start_date,
@@ -193,7 +240,9 @@ def _parse_entry(raw: object) -> RadioPrimaryEntry:
         fallback_publication=fallback,
         corrections=normalized_corrections,
         resolution_mode=resolution_mode,
+        match_strategy=match_strategy,
         withhold_reason=withhold_reason,
+        occurrences=occurrences,
     )
 
 
@@ -295,7 +344,6 @@ def _date_matches(entry: RadioPrimaryEntry, event: CanonicalEvent) -> bool:
 def _candidate_matches(
     entry: RadioPrimaryEntry,
     event: CanonicalEvent,
-    same_url_count: int,
 ) -> bool:
     if event.source_role != "primary":
         return False
@@ -311,17 +359,13 @@ def _candidate_matches(
     if not (exact_url or exact_source or same_host):
         return False
     if entry.resolution_mode == "match_existing_primary":
-        if exact_url:
-            return True
-        if same_host and _url_host(entry.primary_url) not in _BROAD_CALENDAR_HOSTS:
-            return True
-        return (exact_source or same_host) and _series_matches(entry, event)
-    corrected_title = entry.corrections.get("title", entry.title)
-    if _title_matches(corrected_title, event.title):
+        if entry.match_strategy == "series_source_date_range":
+            return exact_url or exact_source or same_host
+        return _series_matches(entry, event)
+    if entry.match_strategy == "exact_detail_url" and exact_url:
         return True
-    # A date-specific first-party detail URL is stronger than a secondary title
-    # and safely handles audited title replacements such as Art&Eat.
-    return exact_url and same_url_count == 1
+    corrected_title = entry.corrections.get("title", entry.title)
+    return _title_matches(corrected_title, event.title)
 
 
 def _annotate(event: CanonicalEvent, discovered_via: Iterable[str]) -> CanonicalEvent:
@@ -395,9 +439,12 @@ def _apply_single_match_corrections(
 def _promote_fallback(
     lead: Mapping[str, object],
     entry: RadioPrimaryEntry,
+    occurrence: Mapping[str, str] | None = None,
 ) -> CanonicalEvent:
     raw = {key: lead[key] for key in _SAFE_LEAD_FIELDS if key in lead}
     raw.update(entry.corrections)
+    if occurrence:
+        raw.update(occurrence)
     raw["title"] = str(raw.get("title") or entry.title)
     raw["start_date"] = str(raw.get("start_date") or entry.start_date)
     raw["date"] = raw["start_date"]
@@ -444,6 +491,7 @@ def resolve_radio_leads(
     research_leads: list[dict[str, object]] = []
     dispositions: dict[tuple[str, str], str] = {}
     cancellations: list[dict[str, object]] = []
+    promoted_fallback_event_ids: set[str] = set()
 
     for lead in leads:
         key = _lead_key(lead)
@@ -460,16 +508,9 @@ def resolve_radio_leads(
             dispositions[key] = "withheld"
             continue
 
-        target_start = entry.corrections.get("start_date", entry.start_date)
-        same_url_count = sum(
-            1 for event in events
-            if event.start_date == target_start
-            and entry.primary_url and event.link
-            and _url_key(event.link) == _url_key(entry.primary_url)
-        )
         matched_indexes = [
             index for index, event in enumerate(events)
-            if _candidate_matches(entry, event, same_url_count)
+            if _candidate_matches(entry, event)
         ]
         if matched_indexes:
             if entry.resolution_mode != "match_existing_primary" and len(matched_indexes) > 1:
@@ -504,25 +545,33 @@ def resolve_radio_leads(
 
         if entry.fallback_publication:
             try:
-                promoted = _promote_fallback(lead, entry)
+                promoted_events = tuple(
+                    _promote_fallback(lead, entry, occurrence)
+                    for occurrence in (entry.occurrences or (None,))
+                )
             except EventValidationError as exc:
                 unresolved = dict(lead)
                 unresolved["reason"] = f"primary_fallback_invalid:{exc}"
                 research_leads.append(unresolved)
                 dispositions[key] = "fallback_invalid"
                 continue
-            rejection_reason = publication_filter(promoted) if publication_filter else ""
-            if rejection_reason:
+            accepted_promotions = [
+                promoted for promoted in promoted_events
+                if not publication_filter or not publication_filter(promoted)
+            ]
+            if not accepted_promotions:
                 unresolved = dict(lead)
+                rejection_reason = publication_filter(promoted_events[0]) if publication_filter else ""
                 filter_name = rejection_reason.removeprefix("filter:")
                 unresolved["reason"] = f"primary_fallback_filtered:{filter_name}"
                 research_leads.append(unresolved)
                 dispositions[key] = "fallback_filtered"
                 continue
-            events.append(promoted)
-            if promoted.status in {"cancelled", "postponed"}:
-                cancellation = promoted.to_dict()
-                cancellations.append(cancellation)
+            events.extend(accepted_promotions)
+            promoted_fallback_event_ids.update(event_id(event) for event in accepted_promotions)
+            for promoted in accepted_promotions:
+                if promoted.status in {"cancelled", "postponed"}:
+                    cancellations.append(promoted.to_dict())
             dispositions[key] = "promoted_fallback"
             continue
 
@@ -536,4 +585,5 @@ def resolve_radio_leads(
         research_leads=tuple(research_leads),
         dispositions=dispositions,
         cancellations=tuple(cancellations),
+        promoted_fallback_event_ids=frozenset(promoted_fallback_event_ids),
     )

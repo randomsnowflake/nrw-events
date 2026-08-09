@@ -28,7 +28,7 @@ from . import ai_enrichment, common, config, detail_enrichment, highlights as hi
 from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .identity import assign_event_ids, content_hash, event_id
-from .models import CanonicalEvent, normalize_source_id
+from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
 from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
@@ -1164,6 +1164,43 @@ def _retained_events_without_fresh_duplicate(
     ]
 
 
+def _prefer_retained_primary_over_radio_fallback(
+    fresh_events: list,
+    retained_events: list,
+    promoted_fallback_event_ids: frozenset[str],
+) -> tuple[list, list]:
+    """Keep richer retained first-party data when Radio only supplied a fallback."""
+    fresh: list = list(fresh_events)
+    remaining_retained: list = list(retained_events)
+    for fresh_index, fallback in enumerate(fresh):
+        if event_id(fallback) not in promoted_fallback_event_ids:
+            continue
+        duplicate_indexes = [
+            index for index, retained in enumerate(remaining_retained)
+            if report.events_are_duplicates(fallback, retained)
+        ]
+        if len(duplicate_indexes) != 1:
+            continue
+        retained_index = duplicate_indexes[0]
+        retained = remaining_retained[retained_index]
+        if retained.get("description_source") != "scraped":
+            continue
+        remaining_retained.pop(retained_index)
+        incoming = list(dict.fromkeys(fallback.get("discovered_via", [])))
+        existing = [
+            source_id for source_id in retained.get("discovered_via", [])
+            if source_id not in incoming
+        ]
+        existing_limit = max(MAX_DISCOVERY_PROVENANCE_SOURCES - len(incoming), 0)
+        provenance = [*existing[:existing_limit], *incoming[:MAX_DISCOVERY_PROVENANCE_SOURCES]]
+        fresh[fresh_index] = (
+            replace(retained, discovered_via=provenance)
+            if isinstance(retained, CanonicalEvent)
+            else {**retained, "discovered_via": provenance}
+        )
+    return fresh, remaining_retained
+
+
 def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], list]],
                            executor_factory=_DetachedThreadPoolExecutor) -> ImportResult:
     """Execute, validate, filter, and deduplicate sources in memory."""
@@ -1311,6 +1348,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         cache_warnings.extend(common.flush_detail_page_caches())
     source_import_duration_ms = round((time.monotonic() - import_started) * 1000)
     radio_result = source_results.get("Radio Bonn/Rhein-Sieg")
+    promoted_fallback_event_ids: frozenset[str] = frozenset()
     if radio_result is not None and radio_result.research_leads:
         matchable_events: list[CanonicalEvent] = []
         filtered_later: list[CanonicalEvent] = []
@@ -1334,6 +1372,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             for event in resolution.events
         )
         radio_result.cancelled_events.extend(resolution.cancellations)
+        promoted_fallback_event_ids = resolution.promoted_fallback_event_ids
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:
@@ -1373,6 +1412,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     )
     retained, retention = _retain_previous_events(source_results, previous, context)
     retained_deduped = report.deduplicate(retained, cancellations=all_cancellations)
+    fresh_deduped, retained_deduped = _prefer_retained_primary_over_radio_fallback(
+        fresh_deduped, retained_deduped, promoted_fallback_event_ids,
+    )
     retained_only = _retained_events_without_fresh_duplicate(
         fresh_deduped, retained_deduped
     )
