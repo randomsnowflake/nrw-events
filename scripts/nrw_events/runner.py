@@ -26,7 +26,7 @@ from typing import Callable, Optional, cast
 
 from . import ai_enrichment, common, config, detail_enrichment, highlights as highlight_selection, radio_primary_resolution, report, series as series_entities
 from .category_taxonomy import CATEGORIES
-from .health import SourceFetchResult, SourceResult, SourceStatus
+from .health import bounded_diagnostic_text, SourceFetchResult, SourceResult, SourceStatus
 from .identity import assign_event_ids, content_hash, event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
@@ -150,7 +150,10 @@ def _run_source(
     timeout_seconds: float | None = None,
     cancel_event: threading.Event | None = None,
 ) -> tuple[SourceResult, list[CanonicalEvent]]:
-    result = SourceResult(source=name)
+    result = SourceResult(
+        source=name,
+        source_id=SOURCE_IDS.get(name, normalize_source_id(name)),
+    )
     started = time.monotonic()
     common.set_source_context(result, timeout_seconds, cancel_event)
     try:
@@ -357,10 +360,13 @@ def _source_issue_message(result: SourceResult, endpoint_issues: list[dict[str, 
             f"{reason}: title={sample.get('title', '<unavailable>')!r}, "
             f"source={sample.get('source', result.source)!r}, "
             f"in_window={sample.get('in_window', 'unknown')}"
-            for reason, sample in sorted(result.rejection_samples.items())
+            for reason, sample in sorted(result.rejection_samples.items())[:3]
         )
         if sample_text:
-            parts.append(f"representative samples: {sample_text}")
+            parts.append(
+                "representative samples: "
+                + bounded_diagnostic_text(sample_text, 1024)
+            )
     if result.warnings:
         warning_text = "; ".join(
             f"{warning.get('source', result.source)}: {warning.get('error', warning)}"
@@ -376,7 +382,8 @@ def _source_issue_message(result: SourceResult, endpoint_issues: list[dict[str, 
         parts.append(f"endpoint issues: {endpoint_text}")
     if result.anomalies:
         parts.append("anomalies: " + ", ".join(result.anomalies))
-    return "; ".join(parts) or f"source status is {result.status.value}"
+    message = "; ".join(parts) or f"source status is {result.status.value}"
+    return bounded_diagnostic_text(message, 2048)
 
 
 def _import_issues(results: dict[str, SourceResult]) -> list[dict[str, object]]:
@@ -1338,7 +1345,10 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 replace_worker = getattr(pool, "replace_stalled_worker", None)
                 if replace_worker is not None:
                     replace_worker(worker)
-                result = SourceResult(source=name)
+                result = SourceResult(
+                    source=name,
+                    source_id=SOURCE_IDS.get(name, normalize_source_id(name)),
+                )
                 result.error = {
                     "error_type": "TimeoutError",
                     "error": f"source exceeded {started[name][3]:g}s wall-clock budget",

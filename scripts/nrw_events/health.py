@@ -4,12 +4,46 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+import json
+import re
 from typing import Any, Optional
 
-from .models import RawEvent
+from .models import RawEvent, normalize_source_id
 
 
 _NO_REJECTION_SAMPLE = object()
+_DIAGNOSTIC_CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
+_REJECTION_FIELD_LIMITS = {
+    "title": 200,
+    "date": 32,
+    "start_date": 32,
+    "end_date": 32,
+    "record_type": 100,
+}
+MAX_REJECTION_SAMPLE_JSON_LENGTH = 1024
+
+
+def bounded_diagnostic_text(value: Any, max_length: int) -> str:
+    """Render untrusted diagnostic text without control characters or log lines."""
+    try:
+        rendered = str(value)
+    except (TypeError, ValueError):
+        rendered = f"<{type(value).__name__}>"
+    rendered = _DIAGNOSTIC_CONTROLS.sub(" ", rendered)
+    rendered = " ".join(rendered.split())
+    return rendered[:max_length]
+
+
+def _fit_rejection_sample(sample: dict[str, Any]) -> dict[str, Any]:
+    """Keep the complete serialized sample within its persisted size budget."""
+    mutable_fields = ("title", "date", "start_date", "end_date", "record_type")
+    while len(json.dumps(sample, ensure_ascii=False, separators=(",", ":")).encode()) > MAX_REJECTION_SAMPLE_JSON_LENGTH:
+        field = max(mutable_fields, key=lambda key: len(str(sample.get(key, ""))))
+        value = str(sample.get(field, ""))
+        if not value:
+            break
+        sample[field] = value[:-1]
+    return sample
 
 
 class SourceStatus(str, Enum):
@@ -89,6 +123,13 @@ class SourceResult:
     warnings: list[dict[str, str]] = field(default_factory=list)
     error: Optional[dict[str, str]] = None
     status_reason: str = ""
+    source_id: str = ""
+
+    def __post_init__(self) -> None:
+        self.source = bounded_diagnostic_text(self.source, 100) or "unknown-source"
+        self.source_id = bounded_diagnostic_text(
+            normalize_source_id(self.source_id or self.source), 100
+        ) or "unknown-source"
 
     def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> bool:
         warning = {"source": source, "error_type": error_type, "error": message}
@@ -106,23 +147,29 @@ class SourceResult:
         *,
         in_window: Optional[bool] = None,
     ) -> None:
+        reason = bounded_diagnostic_text(reason, 160) or "unknown_rejection"
         self.rejected_event_count += 1
         self.rejection_reasons[reason] = self.rejection_reasons.get(reason, 0) + 1
         if reason in self.rejection_samples:
             return
         if event is _NO_REJECTION_SAMPLE:
             return
-        sample: dict[str, Any] = {"source": self.source}
+        sample: dict[str, Any] = {
+            "source": self.source,
+            "source_id": self.source_id,
+        }
         if isinstance(event, dict):
-            for key in ("title", "source", "source_id", "date", "start_date", "end_date"):
+            for key in ("title", "date", "start_date", "end_date"):
                 value = event.get(key)
                 if isinstance(value, (str, int, float, bool)) and value != "":
-                    sample[key] = value
+                    sample[key] = bounded_diagnostic_text(value, _REJECTION_FIELD_LIMITS[key])
         else:
-            sample["record_type"] = type(event).__name__
+            sample["record_type"] = bounded_diagnostic_text(
+                type(event).__name__, _REJECTION_FIELD_LIMITS["record_type"]
+            )
         if in_window is not None:
             sample["in_window"] = in_window
-        self.rejection_samples[reason] = sample
+        self.rejection_samples[reason] = _fit_rejection_sample(sample)
 
     def endpoint(self, url: str, **details: Any) -> None:
         current = self.endpoints.setdefault(url, {"attempts": 0})

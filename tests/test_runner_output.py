@@ -9,7 +9,12 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common, core, report, runner
-from nrw_events.health import SourceFetchResult, SourceResult, SourceStatus
+from nrw_events.health import (
+    MAX_REJECTION_SAMPLE_JSON_LENGTH,
+    SourceFetchResult,
+    SourceResult,
+    SourceStatus,
+)
 from nrw_events import config
 from nrw_events.observability import configure_logging, log
 from nrw_events.runtime import EventWindow, RunContext
@@ -196,7 +201,11 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.rejection_reasons, {"record_not_object": 1})
         self.assertEqual(
             result.rejection_samples,
-            {"record_not_object": {"source": "Malformed", "record_type": "NoneType"}},
+            {"record_not_object": {
+                "source": "Malformed",
+                "source_id": "malformed",
+                "record_type": "NoneType",
+            }},
         )
         self.assertEqual(len(events), 1)
         self.assertEqual(validate.call_count, 1)
@@ -208,6 +217,34 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(result.rejection_reasons, {"quality:expected-filter": 1})
         self.assertEqual(result.rejection_samples, {})
+
+    def test_rejection_samples_bound_hostile_fields_and_keep_runner_identity(self):
+        hostile_title = "prefix\n\x00\x1b[31m" + ("💥" * 10_000)
+        result, events = runner._run_source("Trusted Source", lambda: [{
+            "title": hostile_title,
+            "source": "Spoofed\nSource",
+            "source_id": "spoofed-source",
+            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "score": 1.0,
+            "city": "Bonn",
+            "link": "/invalid",
+        }])
+
+        self.assertEqual(events, [])
+        sample = result.rejection_samples["title_too_long"]
+        self.assertEqual(sample["source"], "Trusted Source")
+        self.assertEqual(sample["source_id"], "trusted-source")
+        self.assertNotIn("Spoofed", repr(sample))
+        self.assertNotRegex(sample["title"], r"[\x00-\x1f\x7f]")
+        self.assertLessEqual(len(sample["title"]), 200)
+        self.assertLessEqual(
+            len(json.dumps(sample, ensure_ascii=False).encode()),
+            MAX_REJECTION_SAMPLE_JSON_LENGTH,
+        )
+
+        message = runner._source_issue_message(result, [])
+        self.assertNotRegex(message, r"[\x00-\x1f\x7f]")
+        self.assertLessEqual(len(message), 2048)
 
     def test_runner_rejects_malformed_date_types_without_dropping_valid_siblings(self):
         current_date = common.TODAY.strftime("%Y-%m-%d")
@@ -251,6 +288,7 @@ class RunnerOutputTests(unittest.TestCase):
             "link_invalid": {
                 "title": "Current event",
                 "source": "Current",
+                "source_id": "current",
                 "date": "2026-07-29",
                 "in_window": True,
             },
