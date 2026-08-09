@@ -25,6 +25,9 @@ _CITY_HINTS = {
     "münsterplatz": "Bonn",
     "muensterplatz": "Bonn",
     "marktplatz in bonn": "Bonn",
+    "rheinaue": "Bonn",
+    "eudenbach": "Königswinter",
+    "dattenfeld": "Windeck",
     "siegburg": "Siegburg",
     "troisdorf": "Troisdorf",
     "sieglar": "Troisdorf",
@@ -42,6 +45,7 @@ _CITY_HINTS = {
 }
 
 _VENUE_HINTS = [
+    "Parkrestaurant Rheinaue", "Sportplatz Eudenbach", "Wickuhl", "Wasserturm",
     "Sieglarer Marktplatz", "Münsterplatz", "Bonner Marktplatz", "Marktplatz", "Pantheon", "Telekom Dome",
     "Rheinaue", "Bundeskunsthalle", "Kunstmuseum", "Brotfabrik", "Harmonie",
     "GOP", "Katharinenhof", "Mühlenbachhalle", "Stadthalle", "Dorfplatz",
@@ -98,12 +102,52 @@ def _city_for(text: str) -> str:
 
 
 def _venue_for(text: str, city: str) -> str:
+    if re.search(r"\bSportplatz\s+(?:in\s+)?Eudenbach\b", text, re.I):
+        return "Sportplatz Eudenbach"
     for venue in _VENUE_HINTS:
         if venue.lower() in (text or "").lower():
             if venue == "Marktplatz" and city == "Bonn":
                 return "Bonner Marktplatz"
             return venue
     return city
+
+
+def _category_for(title: str) -> str:
+    """Return only categories supported by strong title evidence.
+
+    Radio Bonn descriptions often mention bands, stages, or sports as part of a
+    broader fair or museum event. Those generic words must not lock the event
+    against the central taxonomy's stronger classification.
+    """
+    if re.search(
+        r"\b(?:[\wÄÖÜäöüß-]*Kirmes|(?:Stadt|Dorf|Straßen|Wein|Sommer|Musik|Kultur|Bürger|Schützen|Ernte|Altstadt|Sport)fest)\b",
+        title,
+        re.I,
+    ):
+        return "Fest"
+    if re.search(
+        r"\b(?:(?:beach|afterjob|landjugend)[-\s]?party|party|clubnacht|disco|tanzen\s+am)\b",
+        title,
+        re.I,
+    ):
+        return "Party"
+    if re.search(r"\b(?:Sport\w*|Traktorpulling|Turnier|Lauf|Rennen)\b", title, re.I):
+        return "Sport"
+    if re.search(
+        r"\b(?:SWB[-\s]?Sommerfestival|Konzert\w*|Live[-\s]?Musik|Tribute(?:-Band)?)\b",
+        title,
+        re.I,
+    ):
+        return "Konzert"
+    return "Event"
+
+
+def _states_free_admission(text: str) -> bool:
+    return bool(re.search(
+        r"\b(?:der\s+)?Eintritt\s+(?:ist\s+|natürlich\s+(?:wieder\s+)?|wieder\s+)?frei\b(?=\s*(?:[.!?]|$))",
+        text,
+        re.I,
+    ))
 
 
 def _split_title_dates(raw_title: str):
@@ -156,6 +200,8 @@ def _external_web_link(raw_link: str) -> str:
 def _best_event_link(raw_description: str) -> str:
     """Prefer an embedded event/organizer destination over the Radio index."""
     for raw_link in _ANCHOR_LINK_RE.findall(raw_description or ""):
+        if re.match(r"https?://(?:www\.)?rehinbach\.de(?:/|$)", raw_link, re.I):
+            return "https://www.rheinbach.de/"
         if link := _external_web_link(raw_link):
             return link
 
@@ -164,19 +210,15 @@ def _best_event_link(raw_description: str) -> str:
         raw_link = match.group(1).rstrip(".,;:!?)]}\"")
         if not raw_link.startswith(("http://", "https://")):
             raw_link = "https://" + raw_link
+        if re.match(r"https?://(?:www\.)?rehinbach\.de(?:/|$)", raw_link, re.I):
+            return "https://www.rheinbach.de/"
         if link := _external_web_link(raw_link):
             return link
     return URL
 
 
-def fetch() -> list:
+def _events_from_html(html: str) -> list:
     source = "Radio Bonn/Rhein-Sieg"
-    try:
-        html = common.fetch_url(URL, timeout=20)
-    except Exception as e:
-        common.log_source_error(source, e)
-        return []
-
     # Match title paragraphs and the immediately following description paragraph.
     blocks = re.findall(
         r"<p>\s*<strong>\s*<u>(.*?)</u>\s*</strong>\s*</p>\s*<p>(.*?)</p>",
@@ -196,13 +238,11 @@ def fetch() -> list:
         text = f"{title} {desc}"
         city = _city_for(text)
         venue = _venue_for(text, city)
-        category = "Sport" if re.search(
-            r"\b(?:Sport\w*|Bewegung|Fechten|Turnen|Segeln)\b", text, re.I
-        ) else "Event"
+        category = _category_for(title)
         time_text = ""
-        m = re.search(r"\b(?:um|ab)\s+(\d{1,2})\s*Uhr\b", desc, re.I)
+        m = re.search(r"\b(?:um|ab)\s+(\d{1,2})(?::([0-5]\d))?\s*Uhr\b", desc, re.I)
         if m:
-            time_text = f"{int(m.group(1)):02d}:00"
+            time_text = f"{int(m.group(1)):02d}:{m.group(2) or '00'}"
         ev = common.make_event(
             title=title,
             start_dt=start_dt,
@@ -215,7 +255,35 @@ def fetch() -> list:
             category=category,
             trust=0.72,
             time_text=time_text,
+            default_category_key={
+                "Fest": "festival",
+                "Party": "nightlife",
+                "Sport": "sports",
+                "Konzert": "concert",
+                "Theater": "stage",
+            }.get(category, ""),
+            category_locked=category != "Event",
         )
         if ev:
+            # Radio Bonn is the editorial source itself. A direct admission
+            # statement on a one-day event is source evidence, not a guess.
+            if (
+                (end_dt is None or start_dt.date() == end_dt.date())
+                and ev.get("price") == "kostenlos"
+                and ev.get("admission_basis") == "inferred"
+                and _states_free_admission(desc)
+            ):
+                ev["price"] = "kostenlos"
+                ev["admission_basis"] = "explicit"
             events.append(ev)
     return events
+
+
+def fetch() -> list:
+    source = "Radio Bonn/Rhein-Sieg"
+    try:
+        html = common.fetch_url(URL, timeout=20)
+    except Exception as e:
+        common.log_source_error(source, e)
+        return []
+    return _events_from_html(html)

@@ -144,6 +144,35 @@ class Ionas4EventQualityTests(unittest.TestCase):
         self.assertIn("Allgemeines", event["category"])
         self.assertEqual(event["time"], "10:30–16:00")
 
+    def test_sparse_detail_uses_organizer_instead_of_a_generic_tag(self):
+        items = [{
+            "id": "30298:0",
+            "start": "2026-08-09T00:00",
+            "end": "2026-08-10T00:00",
+            "allDay": True,
+            "title": "Flohmarkt in Winterscheid",
+            "website": "",
+            "category": {"name": "Vereine"},
+            "tags": [{"name": "Freizeit"}],
+        }]
+        detail = """
+        <div class="tvm-event--description"></div>
+        <p class="tvm-organiser-name">Heimatverein Winterscheid</p>
+        <button onclick='navigator.clipboard.writeText(
+          "https://www.ruppichteroth.de/kalender/veranstaltungen/flohmarkt/30298:0")'>
+        </button>
+        """
+
+        events = regional_ionas4._events_from_items(
+            items, "Ruppichteroth", "https://www.ruppichteroth.de/kalender/", 0.95,
+            detail_fetcher=lambda _url: detail, source_id="ionas4-ruppichteroth",
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["organizer"], "Heimatverein Winterscheid")
+        self.assertIn("Veranstalter: Heimatverein Winterscheid", events[0]["description"])
+        self.assertNotIn("Freizeit.", events[0]["description"])
+
     def test_administrative_appointments_are_not_imported(self):
         # These municipal calendars mix public events with office hours; the
         # latter must not reach the site.

@@ -102,6 +102,11 @@ def _detail_context(html: str) -> dict:
     parser.feed(html or "")
     link = re.search(
         r'navigator\.clipboard\.writeText\(\s*["\']([^"\']+)', html or "", re.S | re.I)
+    organizer = re.search(
+        r'<[^>]+class=["\'][^"\']*\btvm-organiser-name\b[^"\']*["\'][^>]*>(.*?)</[^>]+>',
+        html or "",
+        re.S | re.I,
+    )
     return {
         # Handed over untrimmed, with its paragraphs: ``make_event`` infers
         # admission from the text it is given and only then shortens it for
@@ -113,6 +118,7 @@ def _detail_context(html: str) -> dict:
         # Preserve the source string until the canonical event boundary so its
         # street address can be separated into ``venue_address`` there.
         "venue": parser.text("location"),
+        "organizer": common.clean_html(organizer.group(1)) if organizer else "",
         "link": common.normalize_url(link.group(1)) if link else "",
     }
 
@@ -136,6 +142,9 @@ def _description_is_only_title(description: str, title: str) -> bool:
 def _description_with_context(event: dict) -> str:
     description = (event.get("description") or "").strip()
     fallback = _fallback_description(event)
+    organizer = (event.get("organizer") or "").strip()
+    if organizer and (not description or description.casefold() in {"freizeit", "allgemeines", "vereine"}):
+        return common.GeneratedDescription(f"{fallback} Veranstalter: {organizer}.")
     if not description or _description_is_only_title(description, event.get("title", "")):
         return fallback
     if len(description) < 40:
@@ -207,6 +216,8 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             source_id=source_id,
         )
         if event:
+            if context.get("organizer"):
+                event["organizer"] = context["organizer"]
             event["description"] = _description_with_context(event)
             event["description_source"] = common.description_source_for(event["description"])
             events.append(event)

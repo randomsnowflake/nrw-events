@@ -229,6 +229,10 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
         return False
     if keyword.compound_word:
         return any(match.group(0) != keyword.normalized_value for match in keyword.pattern.finditer(text))
+    if keyword.word_suffix and keyword.normalized_value == "fest":
+        # "Manifest" ends in the same letters but is not a compound event
+        # format such as Stadtfest or Sommerfest.
+        return any(match.group(0) != "manifest" for match in keyword.pattern.finditer(text))
     return keyword.pattern.search(text) is not None
 
 
