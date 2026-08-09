@@ -59,6 +59,13 @@ _BARE_DOMAIN_RE = re.compile(
     re.I,
 )
 
+# Curated first-party destinations for Radio tips that omit their organizer link.
+# The current occurrence facts still come from the dated Radio item; these pages
+# are the canonical event/series destinations visitors should verify first.
+_FIRST_PARTY_EVENT_LINKS = {
+    "warther kirmes": "https://www.hennef.de/veranstaltungen/kirmes-in-der-warth/",
+}
+
 _FULL_RANGE_SUFFIX_RE = re.compile(
     r"\s+-\s+(?P<start_day>\d{1,2})\.(?P<start_month>\d{1,2})\."
     r"(?P<start_year>20\d{2})?\s*(?:-|–|—|&|und|bis|/)\s*"
@@ -197,7 +204,7 @@ def _external_web_link(raw_link: str) -> str:
     return link
 
 
-def _best_event_link(raw_description: str) -> str:
+def _best_event_link(raw_description: str, title: str = "") -> str:
     """Prefer an embedded event/organizer destination over the Radio index."""
     for raw_link in _ANCHOR_LINK_RE.findall(raw_description or ""):
         if re.match(r"https?://(?:www\.)?rehinbach\.de(?:/|$)", raw_link, re.I):
@@ -214,7 +221,7 @@ def _best_event_link(raw_description: str) -> str:
             return "https://www.rheinbach.de/"
         if link := _external_web_link(raw_link):
             return link
-    return URL
+    return _FIRST_PARTY_EVENT_LINKS.get(common.clean_html(title).casefold(), URL)
 
 
 def _events_from_html(html: str) -> list:
@@ -250,7 +257,7 @@ def _events_from_html(html: str) -> list:
             venue=venue,
             city=city,
             description=desc,
-            link=_best_event_link(raw_desc),
+            link=_best_event_link(raw_desc, title),
             source=source,
             category=category,
             trust=0.72,

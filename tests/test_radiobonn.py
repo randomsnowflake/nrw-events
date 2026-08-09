@@ -1,5 +1,6 @@
 import unittest
 
+from nrw_events import ai_enrichment
 from nrw_events.sources import radiobonn
 from nrw_events.validation import canonicalize_event
 from nrw_events.sources import SOURCES
@@ -50,6 +51,22 @@ class RadioBonnLocationTests(unittest.TestCase):
             radiobonn._best_event_link("Tickets und Infos gibt es auf urban-colour.com."),
             "https://urban-colour.com",
         )
+
+    def test_warther_kirmes_uses_the_official_hennef_page_and_stays_ai_restricted(self):
+        html = """
+        <p><strong><u>Warther Kirmes - 07. - 10.08.2026</u></strong></p>
+        <p>In Hennef-Warth gibt es an diesem Wochenende Kirmes. Neben den
+        Fahrgeschäften gibt es Musik von Tante Käthe am Samstag und Mirko Bäumer
+        und den lustigen Musikanten am Montag.</p>
+        """
+
+        [event] = radiobonn._events_from_html(html)
+
+        self.assertEqual(
+            event["link"],
+            "https://www.hennef.de/veranstaltungen/kirmes-in-der-warth/",
+        )
+        self.assertTrue(ai_enrichment.is_target_event(event))
 
     def test_ignores_radio_self_links_and_non_web_links(self):
         description = (
