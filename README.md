@@ -289,6 +289,7 @@ scripts/nrw_events/
     museum_koenig.py
     naturregion_sieg.py
     okken.py
+    qddw.py
     radiobonn.py
     regional_common.py
     regional_feeds.py
@@ -517,12 +518,12 @@ Redaktionsentscheidungen.
 | bonn-region | Harmonie Bonn | `harmonie-bonn` | `python` |
 | bonn-region | Haus der Geschichte | `haus-der-geschichte` | `python` |
 | bonn-region | Haus der Geschichte Begleitungen | `haus-der-geschichte-begleitungen` | `python` |
-| bonn-region | Hennef | `hennef` | `json_ld` |
 | bonn-region | HofFloh Bonn | `hoffloh-bonn` | `python` |
 | bonn-region | Hofflohmärkte Köln | `hofflohm-rkte-k-ln` | `python` |
 | bonn-region | ionas4 regional | `ionas4-regional` | `python` |
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
+| bonn-region | KG Quer durch de Waat | `qddw` | `python` |
 | bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
@@ -542,7 +543,6 @@ Redaktionsentscheidungen.
 | bonn-region | Naturregion Sieg | `naturregion-sieg` | `python` |
 | bonn-region | Okken Märkte | `okken-m-rkte` | `python` |
 | bonn-region | Parkbuchhandlung | `parkbuchhandlung` | `python` |
-| bonn-region | Radio Bonn/Rhein-Sieg | `radio-bonn-rhein-sieg` | `python` |
 | bonn-region | Redüttchen | `red-ttchen` | `python` |
 | bonn-region | Regional HTML calendars | `regional-html-calendars` | `python` |
 | bonn-region | Regional venues | `regional-venues` | `python` |
@@ -582,8 +582,8 @@ Redaktionsentscheidungen.
 - **iCal / RFC 5545:** Harmonie Bonn, Siegburg, Troisdorf, Wachtberg und kuratierte
   Bonn-area Meetup-Gruppen.
 - **JSON-LD / schema.org:** Rheinauen-Flohmarkt, Kinderflohmarkt.com,
-  VVS Siebengebirge, Hennef und
-  weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
+  VVS Siebengebirge und weitere seitennahe Eventdaten, wenn Quellen strukturierte
+  Eventobjekte anbieten.
 - **Direkte Marktveranstalter:** Grote & Hiller, Hofflohmärkte Köln und Cölln
   Konzept liefern Termine, Uhrzeiten, Orte und direkte Veranstaltungsseiten.
   **Rhein Antik** (`rhein_antik.py`) ist der Veranstalter der Antik-, Kunst- und
@@ -623,8 +623,8 @@ Redaktionsentscheidungen.
   gelesen. Wenn der direkte Buchungspfad eine Tasting-Art ausweist, die
   Marketing-Überschrift aber nicht, ergänzt der Adapter diese sachliche
   Bezeichnung. So kann die allgemeine Titelähnlichkeitsprüfung beispielsweise
-  ein parallel bei Radio Bonn/Rhein-Sieg gelistetes „Schokoladentasting“
-  zusammenführen, ohne Eventnamen oder Termine hart zu codieren.
+  parallel gelistete „Schokoladentastings“ zusammenführen, ohne einzelne Termine
+  hart zu codieren.
 - **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
@@ -644,6 +644,10 @@ Redaktionsentscheidungen.
   Beuel.net, Bad Godesberg Stadtmarketing, Hardtberg Kultur, BSV Roleber und
   BV Holzlar (`bonn_districts.py`) decken die Vereins- und Ortsfeste ab; der
   Bonner Termin von Rhein in Flammen kommt über `bonn_venues.py`.
+- **Warther Kirmes:** `qddw.py` liest den aktuellen Termin direkt aus der
+  Jahresübersicht des Mitveranstalters KG Quer durch de Waat. Das Jahr stammt aus
+  dem jährlichen „Frohes Neues Jahr“-Beitrag; der Adapter rollt eine alte
+  undatierte Übersicht deshalb nicht eigenmächtig ins Folgejahr weiter.
 - **Literatur in Bonn:** Literaturhaus Bonn (iCal) und Parkbuchhandlung Bad
   Godesberg liefern Autorenlesungen, Buchpremieren und Literaturgespräche
   (`bonn_literature.py`). Stehende Lesekreise und Literaturkreise werden
@@ -652,12 +656,11 @@ Redaktionsentscheidungen.
   nennen, bleiben erhalten.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
-- **Kommunale MEC-Kalender (Marktausläufer):** Hennef und Sankt Augustin fahren
-  WordPress mit Modern Events Calendar (`mec_municipal.py`). Die
-  `mec-events`-REST-Kategorie erreicht den kompletten Marktausläufer, den die
-  öffentliche Kalenderseite nicht rendert — bei Hennef die Hof-, Garagen-, Dorf-
-  und Gassenflohmärkte, die Monate voraus liegen. Der REST-Payload enthält **kein**
-  Eventdatum, deshalb kommt das Datum aus dem autoritativen Ein-Event-iCal
+- **Kommunaler MEC-Kalender (Marktausläufer):** Sankt Augustin fährt WordPress mit
+  Modern Events Calendar (`mec_municipal.py`). Die `mec-events`-REST-Kategorie
+  erreicht den kompletten Marktausläufer, den die öffentliche Kalenderseite nicht
+  rendert. Der REST-Payload enthält **kein** Eventdatum, deshalb kommt das Datum
+  aus dem autoritativen Ein-Event-iCal
   (`?method=ical&id=`). Weil das einen Abruf pro Event bedeutet, werden Kandidaten
   zuerst per Titel auf Second-Hand-Formate eingegrenzt und jeder Kalenderabruf
   läuft durch den persistenten TTL-Cache.

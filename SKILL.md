@@ -27,19 +27,18 @@ metadata:
 bash {baseDir}/scripts/nrw-events.sh [days_ahead]   # default: 3 (weekend)
 ```
 
-Every event is discovered **live** at run time — there are no hardcoded event
-names or dates anywhere in the code. The script fans out across official APIs,
+Every event date is discovered **live** at run time. The script fans out across official APIs,
 JSON-LD pages, iCal feeds, municipal/regional calendars, venue calendars,
 nightlife sources, and web-search fallbacks. Current sources include Köln Open
 Data, Bonn.de JSON + sports + annual "Veranstaltungsjahr" listings, Harmonie
 Bonn, Meetup, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
-VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
+VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
 HofFloh Bonn, Lampert Märkte, Okken Märkte, Geide Märkte, Cölln Konzept,
 Rhein Antik,
 Cölln Antik&Design,
-kommunale MEC-Marktkalender (Hennef, Sankt Augustin),
+the Sankt Augustin municipal MEC market calendar,
 marktcom (Marktverzeichnis, nur Second-Hand-Formate),
 requested venue calendars,
 Theater Bonn, Junges Theater Bonn, Kleines Theater Bad Godesberg, Theater
@@ -52,7 +51,8 @@ Siegburg landing page, Street Food Festival "Das Original", Choco Dealer),
 BV Holzlar (Bonn-Ost neighbourhood associations: Holzlar, Kohlkaul,
 Roleber-Gielgen, Mühlenverein), Rhein in Flammen Bonn,
 Literaturhaus Bonn, Parkbuchhandlung Bad Godesberg,
-Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
+Bonn.jetzt, the KG Quer durch de Waat first-party annual event overview,
+Ruhr-Guide, Exa Search, and
 optional Grok Search. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
 Bonn.de sports + annual Veranstaltungjahr pages, TGV Bonn, 1. BC Beuel, SSF
@@ -117,12 +117,12 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 | bonn-region | Harmonie Bonn | `harmonie-bonn` | `python` |
 | bonn-region | Haus der Geschichte | `haus-der-geschichte` | `python` |
 | bonn-region | Haus der Geschichte Begleitungen | `haus-der-geschichte-begleitungen` | `python` |
-| bonn-region | Hennef | `hennef` | `json_ld` |
 | bonn-region | HofFloh Bonn | `hoffloh-bonn` | `python` |
 | bonn-region | Hofflohmärkte Köln | `hofflohm-rkte-k-ln` | `python` |
 | bonn-region | ionas4 regional | `ionas4-regional` | `python` |
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
+| bonn-region | KG Quer durch de Waat | `qddw` | `python` |
 | bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
@@ -142,7 +142,6 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 | bonn-region | Naturregion Sieg | `naturregion-sieg` | `python` |
 | bonn-region | Okken Märkte | `okken-m-rkte` | `python` |
 | bonn-region | Parkbuchhandlung | `parkbuchhandlung` | `python` |
-| bonn-region | Radio Bonn/Rhein-Sieg | `radio-bonn-rhein-sieg` | `python` |
 | bonn-region | Redüttchen | `red-ttchen` | `python` |
 | bonn-region | Regional HTML calendars | `regional-html-calendars` | `python` |
 | bonn-region | Regional venues | `regional-venues` | `python` |
@@ -257,6 +256,7 @@ scripts/nrw_events/
     museum_koenig.py
     naturregion_sieg.py
     okken.py
+    qddw.py
     radiobonn.py
     regional_common.py
     regional_feeds.py

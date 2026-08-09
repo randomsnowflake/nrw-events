@@ -1,17 +1,14 @@
-"""Market long tail from municipal Modern Events Calendar (MEC) sites.
+"""Market long tail from a municipal Modern Events Calendar (MEC) site.
 
-Hennef and Sankt Augustin both run WordPress with Modern Events Calendar, which
-exposes two useful endpoints:
+Sankt Augustin runs WordPress with Modern Events Calendar, which exposes two
+useful endpoints:
 
 * ``/wp-json/wp/v2/mec-events?mec_category=<id>`` lists a whole topical category,
   reaching far beyond the handful of entries the public calendar page renders.
 * ``/?method=ical&id=<post id>`` returns a valid single-event VCALENDAR with an
   authoritative ``DTSTART``.
 
-That combination is what makes this source worth having. The Hennef JSON-LD page
-already registered as a ``SourceSpec`` yields only the current page window — twelve
-events, whose sole market entry is a Wochenmarkt — while the category listing holds
-the Hof-, Garagen-, Dorf- and Gassenflohmärkte that sit months out.
+That combination is what makes this source worth having.
 
 Two deliberate constraints:
 
@@ -45,13 +42,6 @@ class MecSite:
 
 # Category ids verified against each site's own taxonomy.
 SITES = (
-    MecSite(
-        "Hennef Märkte",
-        "hennef-maerkte",
-        "https://www.hennef.de",
-        "Hennef",
-        (74, 240),
-    ),
     MecSite(
         "Sankt Augustin Märkte",
         "sankt-augustin-maerkte",

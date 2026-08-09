@@ -209,10 +209,11 @@ class MecSiteIntegrationTests(unittest.TestCase):
 
         self.assertEqual(
             mec_municipal.ical_url(site, 19512),
-            "https://www.hennef.de/?method=ical&id=19512",
+            "https://www.sankt-augustin.de/?method=ical&id=19512",
         )
-        self.assertIn("mec_category=74", mec_municipal._listing_url(site, 74, 1))
-        self.assertIn("per_page=100", mec_municipal._listing_url(site, 74, 1))
+        self.assertIn("mec_category=308", mec_municipal._listing_url(site, 308, 1))
+        self.assertIn("per_page=100", mec_municipal._listing_url(site, 308, 1))
+        self.assertNotIn("hennef.de", {site.base_url for site in mec_municipal.SITES})
 
 
 if __name__ == "__main__":

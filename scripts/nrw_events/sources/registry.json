@@ -36,23 +36,6 @@
       "category_locked": false
     },
     {
-      "id": "hennef",
-      "display_name": "Hennef",
-      "region": "bonn-region",
-      "adapter": "json_ld",
-      "urls": [
-        "https://www.hennef.de/veranstaltungen/"
-      ],
-      "city": "Hennef",
-      "category_hint": "lokal veranstaltung markt kultur outdoor",
-      "trust": 0.95,
-      "timeout": 20,
-      "headers": [],
-      "admission": null,
-      "default_category_key": "",
-      "category_locked": false
-    },
-    {
       "id": "waldbroel",
       "display_name": "Waldbröl",
       "region": "bonn-region",
@@ -591,11 +574,11 @@
       "callable": "nrw_events.sources.bonnjetzt:fetch"
     },
     {
-      "id": "radio-bonn-rhein-sieg",
-      "display_name": "Radio Bonn/Rhein-Sieg",
+      "id": "qddw",
+      "display_name": "KG Quer durch de Waat",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.radiobonn:fetch"
+      "callable": "nrw_events.sources.qddw:fetch"
     },
     {
       "id": "b-rgerverein-vilich-m-ldorf",
