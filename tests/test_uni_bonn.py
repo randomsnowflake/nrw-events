@@ -120,6 +120,71 @@ class UniBonnSourceTests(unittest.TestCase):
 
         self.assertEqual(event["category_key"], "talk")
 
+    def test_detail_parser_keeps_nested_markup_and_reorders_address_first_location(self):
+        html = """
+        <div class="content-item">
+          <div class="item-title">Ort:</div>
+          <div class="item-value">
+            Brühler Str. 7, 53119 Bonn, <strong>Transfer Center enaCom</strong>
+          </div>
+        </div>
+        """
+
+        context = uni_bonn._parse_detail_context(html)
+
+        self.assertEqual(
+            context["venue"],
+            "Transfer Center enaCom, Brühler Str. 7, 53119 Bonn",
+        )
+
+    def test_reviewed_hands_on_series_are_workshops(self):
+        events = [
+            {
+                "title": "Cake Baking Evening",
+                "description": (
+                    "Backe gemeinsam mit anderen Studierenden leckere Kuchen "
+                    "und tauscht Rezepte aus."
+                ),
+                "category": "International Office,Campus International,Internationaler Club",
+                "category_key": "other",
+            },
+            {
+                "title": "Game Design Studio Session - Part 16",
+                "description": (
+                    "Spieleentwickler*innen stellen Spielideen vor, probieren Prototypen "
+                    "aus und entwickeln analoge Spielformate weiter."
+                ),
+                "category": "Games Community,Innovationen",
+                "category_key": "other",
+            },
+        ]
+
+        uni_bonn._correct_categories(events)
+
+        self.assertEqual([event["category_key"] for event in events], ["workshop", "workshop"])
+        self.assertTrue(all(event["category_confidence"] == 1.0 for event in events))
+        self.assertTrue(all(event["category_reason"] == "source:workshop" for event in events))
+
+    def test_unrelated_social_and_game_events_are_not_forced_to_workshop(self):
+        events = [
+            {
+                "title": "Chit-Chat Lounge",
+                "description": "Gemeinsam andere Studierende kennenlernen.",
+                "category": "International Club",
+                "category_key": "activities",
+            },
+            {
+                "title": "Public Game Night",
+                "description": "Spiele ausprobieren und andere Menschen treffen.",
+                "category": "Games Community",
+                "category_key": "activities",
+            },
+        ]
+
+        uni_bonn._correct_categories(events)
+
+        self.assertEqual([event["category_key"] for event in events], ["activities", "activities"])
+
     def test_source_is_registered_with_stable_id(self):
         self.assertIs(SOURCES["Universität Bonn"], uni_bonn.fetch)
         self.assertEqual(SOURCE_IDS["Universität Bonn"], "uni-bonn")

@@ -51,6 +51,23 @@ class BonnPressFestivalTests(unittest.TestCase):
         self.assertEqual(events[0]["venue"], "Hermannstraße")
         self.assertEqual(events[0]["category_key"], "market")
 
+    def test_press_release_contract_classifies_ambiguous_district_festival_title(self):
+        html = """
+        <ul><li>
+          Buntes Treiben Oberkassel (im Rahmen des Schützenfestes),
+          Parkplatz Königswinterer Str./Ecke Kastellstraße,
+          15. bis 18. August 2026, Uwe Wernecke
+        </li></ul>
+        """
+
+        with patch.object(common, "fetch_url", return_value=html):
+            events = bonn.fetch_press_festivals()
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["category_key"], "festival")
+        self.assertEqual(events[0]["category_confidence"], 1.0)
+        self.assertEqual(events[0]["category_reason"], "source:default:festival")
+
     def test_finds_annual_release_outside_the_historical_december_path(self):
         html = "<ul><li>Sommerfest Bonn, Marktplatz, 16. August 2026</li></ul>"
 
