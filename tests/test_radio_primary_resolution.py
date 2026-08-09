@@ -474,6 +474,50 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         self.assertEqual(fresh[0].description_source, "scraped")
         self.assertEqual(fresh[0].discovered_via, [RADIO_ID])
 
+    def test_generated_retained_record_does_not_replace_fresh_radio_fallback(self):
+        entry = resolution.entry_for_key((
+            "Supernatural plays Santana beim SWB-Sommerfestival", "2026-08-07",
+        ))
+        [fallback] = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        ).events
+        retained = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            time="18:00", venue="Stale venue",
+            description="Old generated copy", description_source="generated",
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_radio_fallback(
+            [fallback], [retained], frozenset({runner.event_id(fallback)}),
+        )
+
+        self.assertEqual(fresh, [fallback])
+        self.assertEqual(remaining, [retained])
+
+    def test_retained_replacement_caps_discovery_provenance(self):
+        entry = resolution.entry_for_key((
+            "Supernatural plays Santana beim SWB-Sommerfestival", "2026-08-07",
+        ))
+        [fallback] = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        ).events
+        retained = primary(
+            entry.title, entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+            description="Rich retained official programme copy",
+            description_source="scraped",
+            discovered_via=[f"source-{index}" for index in range(MAX_DISCOVERY_PROVENANCE_SOURCES)],
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_radio_fallback(
+            [fallback], [retained], frozenset({runner.event_id(fallback)}),
+        )
+
+        self.assertEqual(remaining, [])
+        self.assertEqual(len(fresh[0].discovered_via), MAX_DISCOVERY_PROVENANCE_SOURCES)
+        self.assertEqual(fresh[0].discovered_via[-1], RADIO_ID)
+
     def test_current_matched_primary_is_not_replaced_by_retained_record(self):
         entry = resolution.entry_for_key(("Platz & Prost im Rhein Sieg Forum", "2026-08-08"))
         fresh_primary = primary(

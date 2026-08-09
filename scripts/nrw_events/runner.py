@@ -28,7 +28,7 @@ from . import ai_enrichment, common, config, detail_enrichment, highlights as hi
 from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .identity import assign_event_ids, content_hash, event_id
-from .models import CanonicalEvent, normalize_source_id
+from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
 from .observability import configure_logging, log, redact
 from .quality import quality_gate_warnings, summarize_event_quality
@@ -1182,11 +1182,17 @@ def _prefer_retained_primary_over_radio_fallback(
         if len(duplicate_indexes) != 1:
             continue
         retained_index = duplicate_indexes[0]
-        retained = remaining_retained.pop(retained_index)
-        provenance = list(retained.get("discovered_via", []))
-        for source_id in fallback.get("discovered_via", []):
-            if source_id not in provenance:
-                provenance.append(source_id)
+        retained = remaining_retained[retained_index]
+        if retained.get("description_source") != "scraped":
+            continue
+        remaining_retained.pop(retained_index)
+        incoming = list(dict.fromkeys(fallback.get("discovered_via", [])))
+        existing = [
+            source_id for source_id in retained.get("discovered_via", [])
+            if source_id not in incoming
+        ]
+        existing_limit = max(MAX_DISCOVERY_PROVENANCE_SOURCES - len(incoming), 0)
+        provenance = [*existing[:existing_limit], *incoming[:MAX_DISCOVERY_PROVENANCE_SOURCES]]
         fresh[fresh_index] = (
             replace(retained, discovered_via=provenance)
             if isinstance(retained, CanonicalEvent)
