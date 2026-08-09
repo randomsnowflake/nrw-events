@@ -48,6 +48,7 @@ EXIT_SUCCESS = 0
 EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
 SNAPSHOT_GENERATIONS_KEPT = 3
+_DISCOVERY_ONLY_SOURCE_IDS = frozenset({"radio-bonn-rhein-sieg"})
 
 _RESEARCH_LEAD_MASTER_FIELDS = (
     "title", "source", "source_id", "source_role", "discovered_via",
@@ -449,6 +450,14 @@ def _event_source_id(event: dict) -> str:
     return source
 
 
+def _is_discovery_only_event(event: dict) -> bool:
+    """Reject tagged discovery records and legacy rows from discovery-only sources."""
+    return (
+        event.get("source_role") == "discovery"
+        or _event_source_id(event) in _DISCOVERY_ONLY_SOURCE_IDS
+    )
+
+
 def _retention_labels(results: dict[str, SourceResult], previous: dict) -> set[str]:
     """Return stable logical source IDs whose fresh data cannot be trusted."""
     previous_results = previous.get("source_results") or {}
@@ -577,7 +586,7 @@ def _retain_previous_events(
     for raw_event in previous.get("events") or []:
         if not isinstance(raw_event, dict):
             continue
-        if raw_event.get("source_role") == "discovery":
+        if _is_discovery_only_event(raw_event):
             continue
         label = _event_source_id(raw_event)
         if label not in labels:
@@ -1313,7 +1322,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     for raw_event in previous.get("events") or []:
         if (
             not isinstance(raw_event, dict)
-            or raw_event.get("source_role") == "discovery"
+            or _is_discovery_only_event(raw_event)
             or raw_event.get("status") not in {"cancelled", "postponed"}
         ):
             continue

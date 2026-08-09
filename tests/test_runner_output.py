@@ -339,6 +339,55 @@ class SourceHealthTests(unittest.TestCase):
 
 
 class CrossRunRetentionTests(unittest.TestCase):
+    def test_failed_discovery_source_does_not_retain_legacy_public_snapshot(self):
+        with make_runner_env() as env:
+            previous = {
+                "generated_at": "2026-06-07T05:00:00",
+                "source_results": {
+                    "Radio Bonn/Rhein-Sieg": {
+                        "raw_event_count": 1,
+                        "event_source_ids": ["radio-bonn-rhein-sieg"],
+                    },
+                },
+                "events": [{
+                    "title": "Legacy Radio event", "source": "Radio Bonn/Rhein-Sieg",
+                    "source_id": "radio-bonn-rhein-sieg", "date": "2026-06-09",
+                    "score": 1.0, "city": "Bonn",
+                }],
+            }
+            env.previous_path.write_text(json.dumps(previous), encoding="utf-8")
+
+            result = runner.run_import(
+                env.context("failed-discovery", series_ledger_json=""),
+                {"Radio Bonn/Rhein-Sieg": lambda: SourceFetchResult.parser_empty()},
+            )
+
+        self.assertEqual(result.source_results["Radio Bonn/Rhein-Sieg"].status,
+                         SourceStatus.PARSER_EMPTY)
+        self.assertEqual(result.events, ())
+        self.assertEqual(result.retention["retained_event_count"], 0)
+
+    def test_legacy_discovery_cancellation_is_not_republished(self):
+        with make_runner_env() as env:
+            previous = {
+                "generated_at": "2026-06-07T05:00:00",
+                "events": [{
+                    "title": "Cancelled legacy Radio event",
+                    "source": "Radio Bonn/Rhein-Sieg",
+                    "source_id": "radio-bonn-rhein-sieg",
+                    "date": "2026-06-09", "status": "cancelled",
+                    "score": 1.0, "city": "Bonn",
+                }],
+            }
+
+            env.previous_path.write_text(json.dumps(previous), encoding="utf-8")
+            result = runner.run_import(
+                env.context("legacy-discovery-cancellation", series_ledger_json=""),
+                {"Official Calendar": lambda: SourceFetchResult.success([])},
+            )
+
+        self.assertEqual(result.events, ())
+
     def test_healthy_discovery_refresh_does_not_resurrect_old_public_snapshot(self):
         with make_runner_env() as env:
             previous = {
