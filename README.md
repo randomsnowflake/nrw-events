@@ -410,7 +410,8 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_AI_MAX_ATTEMPTS` | `2` | Höchstens zwei Versuche je AI-Stufe und Fehlerfenster. Eine erfolgreiche erste Stufe wird auch bei Fehlern der zweiten wiederverwendet. |
 | `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS` | `0` | Sperrzeit nach ausgeschöpften Versuchen. `0` hält ein abgelehntes, unverändertes Event dauerhaft leer; neue Quelldaten oder eine neue Pipeline-Version erzeugen einen neuen Cache-Eintrag. Ein positiver Wert erlaubt nach dieser Stundenzahl einen erneuten Versuch. |
 | `NRW_EVENTS_AI_TIMEOUT_SECONDS` | `180` | Hartes Gesamtzeitlimit pro AI-Aufruf; lässt DeepSeek Spielraum, verhindert aber endlos tröpfelnde HTTP-Antworten. |
-| `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS` | `120` | Gesamtbudget für die optionale AI-Anreicherung einer Quelle. Nach Ablauf werden übrige Termine ohne Quellprosa veröffentlicht. |
+| `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS` | `60` | Gesamtbudget für die optionale AI-Anreicherung einer Quelle. Nach Ablauf werden Cache-Texte wiederverwendet; übrige Termine erscheinen weiterhin ohne Quellprosa. |
+| `NRW_EVENTS_AI_WORKERS` | `4` | Parallel laufende, voneinander unabhängige AI-Cache-/Provider-Aufgaben je Zielquelle (1–16). |
 | `NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS` | `180` | Äußere Worker-Zugabe für Quellen mit aktivierter AI-Anreicherung. Der Runner verwendet mindestens das konfigurierte AI-Gesamtbudget. |
 | `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales lokales Pilotlimit je Quellenlauf; `0` verarbeitet alle Zielevents. Nicht verarbeitete Zielevents bleiben ohne Beschreibung. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
@@ -425,7 +426,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `600.0` | Zeitbudget für die Netzwerkphase einer Quelle; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
 | `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS` | `180.0` | Zusätzliche Worker-Zeit für Validierung und Verarbeitung bereits geholter großer Quellergebnisse. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
-| `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `2.0` | Mindestabstand zwischen Requests an `bonn.de`, um MyraCDN/Backend-503s bei Parallelimporten zu reduzieren. |
+| `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `0.5` | Mindestabstand zwischen serialisierten Requests an `bonn.de`; transiente MyraCDN/Backend-Fehler werden zusätzlich mit Backoff wiederholt. |
 | `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES` | `30` | Sicherheitsgrenze für paginierte Bonn.de-Kalenderseiten. |
 | `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` | nicht gesetzt | Bright-Data-Web-Unlocker-Zugang. vomFASS wird montags ausschließlich darüber aktualisiert; Hofflohmärkte Köln nutzt ihn nach direkten HTTP-429- oder Timeout-Fehlern als Fallback. Die fünf IONAS4-Regionalkalender nutzen ihn nur nach direkten Timeouts oder transienten HTTP-Fehlern. Alle Fallbacks bleiben auf die jeweils fest konfigurierten Quellhosts beschränkt. |
 | `NRW_EVENTS_CACHE_DIR` | `~/.cache/nrw-events` | Persistenter Cache für sparsame Detail-Abfragen. |

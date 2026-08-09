@@ -102,7 +102,7 @@ def _runtime_state() -> _RuntimeState:
         http_request_budget_seconds=_HTTP_REQUEST_BUDGET_SECONDS,
         http_retry_max_delay_seconds=_HTTP_RETRY_MAX_DELAY_SECONDS,
         http_max_response_bytes=_HTTP_MAX_RESPONSE_BYTES,
-        bonn_de_delay_seconds=_HOST_THROTTLE_SECONDS_BY_SUFFIX.get("bonn.de", 2.0),
+        bonn_de_delay_seconds=_HOST_THROTTLE_SECONDS_BY_SUFFIX.get("bonn.de", 0.5),
     )
     return _RuntimeState(settings, _RUN_ID, _LOGGER)
 
@@ -155,10 +155,10 @@ _HTTP_RETRY_MAX_DELAY_SECONDS = 60.0
 _HTTP_MAX_RESPONSE_BYTES = 5_000_000
 _BRIGHT_DATA_API_URL = "https://api.brightdata.com/request"
 _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
-    # Bonn.de's MyraCDN/backend intermittently returns 503 when the nightly run
-    # fans out multiple official Bonn sources at once. Keep those requests
-    # browser-like *and* human-paced; the importer is nightly, not latency-bound.
-    "bonn.de": 2.0,
+    # Bonn.de's MyraCDN/backend intermittently returns 503 when official Bonn
+    # sources fan out without a shared limit. Serialize them and space starts at
+    # two requests per second; retries still back off on transient responses.
+    "bonn.de": 0.5,
 }
 _HOST_FETCH_LOCK = threading.Lock()
 _HOST_LAST_FETCH_AT: dict[str, float] = {}
@@ -643,8 +643,18 @@ def fetch_url_with_brightdata_fallback(
 # dozens of requests. Keep their raw HTML in small source-specific files so a
 # parser can be improved without coupling the cache format to its parsed fields.
 _DETAIL_PAGE_CACHE_VERSION = 1
-_DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES = 250
+# The Bonn 28-day calendar alone can exceed 250 unique detail URLs. The byte
+# ceiling remains the hard storage bound; this higher count prevents a daily
+# alternating miss set when many compact pages fit comfortably below it.
+_DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES = 500
 _DETAIL_PAGE_CACHE_DEFAULT_MAX_BYTES = 25 * 1024 * 1024
+# Bonn's 28-day calendar currently carries roughly 300 detail pages and their
+# rich article HTML does not fit into the generic namespace budget. Keep the
+# exception narrow: otherwise the LRU alternates between two miss sets and a
+# nominally warm refresh still spends minutes behind Bonn.de's polite throttle.
+_DETAIL_PAGE_CACHE_MAX_BYTES_BY_NAMESPACE = {
+    "bonn-detail": 50 * 1024 * 1024,
+}
 _DETAIL_PAGE_CACHE_LOCK = threading.RLock()
 
 
@@ -686,6 +696,13 @@ def _detail_page_cache_limit(name: str, default: int) -> int:
         return default
 
 
+def _detail_page_cache_max_bytes(namespace: str) -> int:
+    default = _DETAIL_PAGE_CACHE_MAX_BYTES_BY_NAMESPACE.get(
+        namespace, _DETAIL_PAGE_CACHE_DEFAULT_MAX_BYTES,
+    )
+    return _detail_page_cache_limit("NRW_EVENTS_DETAIL_CACHE_MAX_BYTES", default)
+
+
 def _prune_detail_page_cache_entries(
     entries: dict,
     *,
@@ -715,9 +732,7 @@ def _prune_detail_page_cache_entries(
     max_entries = _detail_page_cache_limit(
         "NRW_EVENTS_DETAIL_CACHE_MAX_ENTRIES", _DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES,
     )
-    max_bytes = _detail_page_cache_limit(
-        "NRW_EVENTS_DETAIL_CACHE_MAX_BYTES", _DETAIL_PAGE_CACHE_DEFAULT_MAX_BYTES,
-    )
+    max_bytes = _detail_page_cache_max_bytes(namespace)
     valid.sort(key=lambda item: (item[1]["accessed_at"], item[1]["fetched_at"], item[0]), reverse=True)
     empty_payload_size = len(json.dumps(
         {"version": _DETAIL_PAGE_CACHE_VERSION, "namespace": namespace, "entries": {}},
@@ -890,7 +905,6 @@ def fetch_detail_url(
         {
             "url": url,
             "transport": transport,
-            "timeout": timeout,
             "fetch_kwargs": fetch_kwargs,
         },
         ensure_ascii=True,
@@ -900,7 +914,7 @@ def fetch_detail_url(
     )
     cache_key = (
         url
-        if transport == "direct" and timeout == 15 and not fetch_kwargs
+        if transport == "direct" and not fetch_kwargs
         else f"{url}#{sha256(cache_parameters.encode()).hexdigest()[:16]}"
     )
 

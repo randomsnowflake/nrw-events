@@ -113,6 +113,15 @@ class DetailPageCacheTests(unittest.TestCase):
         self.assertEqual(set(persisted), {urls[0], urls[2]})
         self.assertLessEqual(path.stat().st_size, 600)
 
+    def test_bonn_namespace_has_room_for_its_full_detail_working_set(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("NRW_EVENTS_DETAIL_CACHE_MAX_BYTES", None)
+            self.assertEqual(common._detail_page_cache_max_bytes("example"), 25 * 1024 * 1024)
+            self.assertEqual(common._detail_page_cache_max_bytes("bonn-detail"), 50 * 1024 * 1024)
+
+        with patch.dict(os.environ, {"NRW_EVENTS_DETAIL_CACHE_MAX_BYTES": "1234"}):
+            self.assertEqual(common._detail_page_cache_max_bytes("bonn-detail"), 1234)
+
     def test_pruning_skips_oversized_newest_entry_before_counting_limit(self):
         now = time.time()
         entries = {
@@ -178,7 +187,7 @@ class DetailPageCacheTests(unittest.TestCase):
         with patch.object(
             common,
             "fetch_url",
-            side_effect=["html", "calendar", "long-timeout"],
+            side_effect=["html", "calendar"],
         ) as direct, patch.object(
             common,
             "fetch_url_with_brightdata",
@@ -200,7 +209,7 @@ class DetailPageCacheTests(unittest.TestCase):
                 common.fetch_detail_url(
                     url, cache_namespace="parameters", accept="text/html", timeout=30
                 ),
-                "long-timeout",
+                "html",
             )
             self.assertEqual(
                 common.fetch_detail_url(
@@ -215,7 +224,7 @@ class DetailPageCacheTests(unittest.TestCase):
                 "html",
             )
 
-        self.assertEqual(direct.call_count, 3)
+        self.assertEqual(direct.call_count, 2)
         proxy.assert_called_once()
 
 

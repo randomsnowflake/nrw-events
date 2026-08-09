@@ -178,6 +178,8 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("openrouter", settings.provider)
         self.assertEqual("router-test-key", settings.api_key)
         self.assertEqual("deepseek/deepseek-v4-flash-0731", settings.model)
+        self.assertEqual(60, settings.batch_timeout_seconds)
+        self.assertEqual(4, settings.workers)
 
     def test_openrouter_client_enforces_structured_zdr_non_reasoning_requests(self):
         opener = RecordingOpener({
@@ -349,7 +351,7 @@ class AIEnrichmentTests(unittest.TestCase):
             ai_enrichment._read_bounded_response(OversizedResponse(), 30)
 
     def test_batch_budget_stops_enrichment_without_discarding_remaining_events(self):
-        settings = replace(self.settings, batch_timeout_seconds=30)
+        settings = replace(self.settings, batch_timeout_seconds=30, workers=1)
         values = [event(title="First"), event(title="Second")]
         seen_timeouts = []
 
@@ -368,6 +370,27 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("done", result[0]["ai_summary"])
         self.assertEqual("", result[1]["description"])
         self.assertEqual("", result[1]["description_html"])
+
+    def test_independent_events_are_enriched_concurrently_in_input_order(self):
+        values = [event(title="First"), event(title="Second")]
+        barrier = threading.Barrier(2, timeout=1)
+
+        def enrich_one(value, *, settings):
+            barrier.wait()
+            return {**value, "ai_summary": f"done: {value['title']}"}
+
+        with mock.patch.object(
+            ai_enrichment.common, "event_in_window", return_value=True
+        ), mock.patch.object(ai_enrichment, "enrich_event", side_effect=enrich_one):
+            result = ai_enrichment.enrich_events(
+                values,
+                settings=replace(self.settings, batch_timeout_seconds=30, workers=2),
+            )
+
+        self.assertEqual(
+            ["done: First", "done: Second"],
+            [value["ai_summary"] for value in result],
+        )
 
     def test_different_events_do_not_hold_cache_lock_during_api_requests(self):
         barrier = threading.Barrier(2, timeout=1)
@@ -398,6 +421,22 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual([SUMMARY["ai_summary"], SUMMARY["ai_summary"]], [
             result["ai_summary"] for result in results
         ])
+
+    def test_database_schema_and_journal_mode_are_initialized_once_per_process(self):
+        path = Path(self.temporary.name) / "schema-once.sqlite3"
+        ai_enrichment._INITIALIZED_DATABASES.discard(path.resolve())
+
+        with mock.patch.object(
+            ai_enrichment.fcntl, "flock", wraps=ai_enrichment.fcntl.flock
+        ) as flock:
+            with ai_enrichment._locked_database(path, cache_key="first"):
+                pass
+            with ai_enrichment._locked_database(path, cache_key="second"):
+                pass
+
+        # One exclusive acquire and one release; the second connection skips
+        # database-wide schema work entirely.
+        self.assertEqual(2, flock.call_count)
 
     def test_same_event_cache_key_has_a_single_enrichment_owner(self):
         started = threading.Event()
