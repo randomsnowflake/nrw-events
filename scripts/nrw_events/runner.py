@@ -1534,7 +1534,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
                       for offset in range((end - start).days + 1))
     generated_at = context.clock().isoformat(timespec="seconds")
     metadata = {
-        "snapshot_schema_version": 4,
+        "snapshot_schema_version": 5,
         "run_id": context.run_id, "run_status": import_result.run_status,
         "generated_at": generated_at,
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),

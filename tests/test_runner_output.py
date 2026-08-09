@@ -294,7 +294,7 @@ class RunnerOutputTests(unittest.TestCase):
         snapshot = runner.build_snapshot(result, context)
         event = snapshot.events[0]
 
-        self.assertEqual(snapshot.metadata["snapshot_schema_version"], 4)
+        self.assertEqual(snapshot.metadata["snapshot_schema_version"], 5)
         self.assertEqual(event["date"], "2026-06-01")
         self.assertEqual(event["start_date"], "2026-06-01")
         self.assertEqual(event["end_date"], "2026-06-10")
