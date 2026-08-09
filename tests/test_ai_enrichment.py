@@ -481,6 +481,77 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("", result["description_html"])
         self.assertEqual("", result["ai_summary"])
 
+    def test_disabled_provider_reuses_summary_for_same_occurrence_after_identity_enrichment(self):
+        original = event(venue="", time="19:30")
+        first = ai_enrichment.enrich_event(
+            original,
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        changed = event(
+            venue="Altes Rathaus",
+            time="19:30",
+            description="Aktualisierte bestätigte Programminformation.",
+        )
+        self.assertNotEqual(event_id(original), event_id(changed))
+
+        result = ai_enrichment.enrich_event(
+            changed,
+            settings=replace(self.settings, enabled=False, api_key=""),
+            client=FakeClient([]),
+            now=self.now + timedelta(days=1),
+        )
+
+        self.assertEqual(first["ai_summary"], result["ai_summary"])
+        self.assertEqual("Altes Rathaus", result["venue"])
+        self.assertEqual("", result["description"])
+
+    def test_cross_identity_fallback_rejects_a_different_same_day_time(self):
+        ai_enrichment.enrich_event(
+            event(venue="", time="19:30"),
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        different_occurrence = event(venue="Altes Rathaus", time="21:00")
+
+        result = ai_enrichment.enrich_event(
+            different_occurrence,
+            settings=replace(self.settings, enabled=False, api_key=""),
+            client=FakeClient([]),
+            now=self.now + timedelta(days=1),
+        )
+
+        self.assertEqual("", result["ai_summary"])
+
+    def test_batch_deadline_reuses_cached_summary_for_changed_source_material(self):
+        source = event(description=(
+            "Klangraum bietet Kammermusik und ein Publikumsgespräch. Beginn ist um 19:30 Uhr "
+            "im Alten Rathaus in Bonn. Der Eintritt ist frei und eine Anmeldung ist nötig."
+        ))
+        ai_enrichment.enrich_event(
+            source,
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        changed = event(description=(
+            "Aktualisierte Programminformation: Klangraum beginnt um 19:30 Uhr im Alten Rathaus "
+            "in Bonn. Der Eintritt ist frei und eine Anmeldung ist nötig."
+        ))
+        published_id = event_id(changed)
+
+        [result] = ai_enrichment.enrich_events([
+            changed,
+        ], settings=replace(self.settings, batch_timeout_seconds=-1))
+
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+        self.assertEqual("", result["description"])
+        self.assertEqual("19:30", result["time"])
+        self.assertEqual("Altes Rathaus", result["venue"])
+        self.assertEqual(published_id, event_id(result))
+
     def test_structured_facts_are_source_material_when_prose_is_missing(self):
         material = ai_enrichment._source_material(event(
             description="",
