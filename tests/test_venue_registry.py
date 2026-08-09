@@ -43,6 +43,26 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertAlmostEqual(venue.venue_latitude or 0, 50.6655, places=4)
         self.assertAlmostEqual(venue.venue_longitude or 0, 7.39594, places=4)
 
+    def test_asbach_parking_proposal_and_registry_reference_the_verified_osm_way(self):
+        root = Path(__file__).resolve().parents[1]
+        proposals = json.loads(
+            (root / "scripts/venue_geocoding_proposals.json").read_text(encoding="utf-8")
+        )["proposals"]
+        registry = json.loads(
+            (root / "scripts/nrw_events/verified_venue_locations.json").read_text(encoding="utf-8")
+        )["locations"]
+        key = ("Asbach", "Parkplatz Bennau an der L 272")
+        proposal = next(item for item in proposals if (item["city"], item["venue"]) == key)
+        location = next(item for item in registry if (item["city"], item["venue"]) == key)
+
+        self.assertEqual(proposal["match"]["osmUrl"], "https://www.openstreetmap.org/way/379381601")
+        self.assertEqual(proposal["evidence"]["osmUrl"], proposal["match"]["osmUrl"])
+        self.assertEqual(location["evidence"]["osmUrl"], proposal["match"]["osmUrl"])
+        self.assertEqual(
+            (proposal["match"]["latitude"], proposal["match"]["longitude"]),
+            (location["latitude"], location["longitude"]),
+        )
+
     def test_nfd_venue_name_resolves_like_its_nfc_equivalent(self):
         nfd_name = unicodedata.normalize("NFD", "Werkstattbühne")
 
