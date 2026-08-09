@@ -35,6 +35,14 @@ def event(**overrides):
 
 
 class VenueRegistryTests(unittest.TestCase):
+    def test_verified_asbach_trailhead_parking_resolves_outside_known_city_table(self):
+        venue = resolve_venue("Parkplatz Bennau an der L 272", "Asbach")
+
+        self.assertEqual(venue.venue, "Parkplatz Bennau an der L 272")
+        self.assertEqual(venue.venue_address, "L 272, 53567 Asbach")
+        self.assertAlmostEqual(venue.venue_latitude or 0, 50.6655, places=4)
+        self.assertAlmostEqual(venue.venue_longitude or 0, 7.39594, places=4)
+
     def test_nfd_venue_name_resolves_like_its_nfc_equivalent(self):
         nfd_name = unicodedata.normalize("NFD", "Werkstattbühne")
 

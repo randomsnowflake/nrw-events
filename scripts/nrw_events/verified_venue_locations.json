@@ -40,6 +40,19 @@
       }
     },
     {
+      "city": "Asbach",
+      "venue": "Parkplatz Bennau an der L 272",
+      "address": "L 272, 53567 Asbach",
+      "latitude": 50.6655,
+      "longitude": 7.39594,
+      "checkedAt": "2026-08-01",
+      "evidence": {
+        "eventUrl": "https://www.vv-siebengebirge.de/veranstaltung/naturpfad-1-bei-asbach/",
+        "osmUrl": "https://www.openstreetmap.org/way/558554893",
+        "method": "official event venue matched named OSM parking area on L 272 opposite Bennau"
+      }
+    },
+    {
       "city": "Bad Honnef",
       "venue": "Haus am Drachenfels",
       "address": "Rhöndorfer Str. 80 b, 53604 Bad Honnef",
