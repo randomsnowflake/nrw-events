@@ -1440,6 +1440,106 @@ def _apply_result(event: RawEvent, result: Mapping[str, Any]) -> RawEvent:
     return strip_restricted_copy(enriched)
 
 
+def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any]) -> bool:
+    """Conservatively match an accepted cache row after mutable identity fields changed."""
+    def text(value: object) -> str:
+        return category_taxonomy.comparison_text(str(value or ""))
+
+    event_start = str(event.get("start_date") or event.get("date") or "")
+    facts_start = str(facts.get("start_date") or "")
+    event_end = str(event.get("end_date") or event_start)
+    facts_end = str(facts.get("end_date") or facts_start)
+    if (
+        not text(event.get("title"))
+        or text(event.get("title")) != text(facts.get("title"))
+        or not event_start
+        or event_start != facts_start
+        or event_end != facts_end
+        or text(event.get("time")) != text(facts.get("time"))
+    ):
+        return False
+    for field in ("city", "venue"):
+        current = text(event.get(field))
+        cached = text(facts.get(field))
+        if current and cached and current != cached:
+            return False
+    return True
+
+
+def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
+    """Use the latest unambiguous accepted summary when fresh AI is unavailable.
+
+    Exact event ids are preferred. A cross-id fallback is allowed only when one
+    historical event key has the same source, title, date bounds and time. This
+    covers venue/detail enrichment changing the public identity hash without
+    allowing one same-day performance to borrow another one's copy.
+    """
+    safe_event = strip_restricted_copy(event)
+    if not settings.cache_db.is_file():
+        return safe_event
+    source_id = normalize_source_id(event.get("source_id") or event.get("source"))
+    current_key = event_id(event)
+    pipeline_version = cache_pipeline_version(settings)
+    try:
+        with sqlite3.connect(settings.cache_db, timeout=30) as connection:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA busy_timeout = 30000")
+            exact_rows = connection.execute(
+                """SELECT event_key, stage1_json, stage2_json
+                     FROM ai_event_enrichment
+                    WHERE source_id = ? AND pipeline_version = ?
+                      AND event_key = ? AND stage2_json != ''
+                 ORDER BY updated_at DESC""",
+                (source_id, pipeline_version, current_key),
+            ).fetchall()
+            for row in exact_rows:
+                try:
+                    result = json.loads(row["stage2_json"])
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if isinstance(result, dict) and _clean_nullable(result.get("ai_summary"), 4000):
+                    return _apply_result(safe_event, result)
+            cross_rows = connection.execute(
+                """SELECT event_key, stage1_json, stage2_json
+                     FROM ai_event_enrichment
+                    WHERE source_id = ? AND pipeline_version = ?
+                      AND event_key != ? AND stage2_json != ''
+                      AND CASE WHEN json_valid(stage1_json)
+                               THEN json_extract(stage1_json, '$.title') END = ?
+                      AND CASE WHEN json_valid(stage1_json)
+                               THEN json_extract(stage1_json, '$.start_date') END = ?
+                 ORDER BY updated_at DESC""",
+                (
+                    source_id,
+                    pipeline_version,
+                    current_key,
+                    str(event.get("title") or ""),
+                    str(event.get("start_date") or event.get("date") or ""),
+                ),
+            ).fetchall()
+    except sqlite3.Error:
+        return safe_event
+
+    cross_key_matches: dict[str, Mapping[str, Any]] = {}
+    for row in cross_rows:
+        try:
+            result = json.loads(row["stage2_json"])
+            facts = json.loads(row["stage1_json"])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not isinstance(result, dict) or not _clean_nullable(result.get("ai_summary"), 4000):
+            continue
+        if (
+            isinstance(facts, dict)
+            and _cached_occurrence_matches(event, facts)
+            and row["event_key"] not in cross_key_matches
+        ):
+            cross_key_matches[row["event_key"]] = result
+    if len(cross_key_matches) == 1:
+        return _apply_result(safe_event, next(iter(cross_key_matches.values())))
+    return safe_event
+
+
 def _calendar_occurrence_overrides_non_event(
     facts: Mapping[str, Any],
     original: Mapping[str, Any],
@@ -1472,7 +1572,7 @@ def enrich_event(
     event["preserved_event_id"] = event_id(original)
     configured = settings or settings_from_env()
     if not configured.enabled or not configured.api_key or not source_material:
-        return event
+        return _reuse_cached_success(event, configured)
     current_time = now or _utc_now()
     if current_time.tzinfo is None:
         current_time = current_time.replace(tzinfo=timezone.utc)
@@ -1495,7 +1595,7 @@ def enrich_event(
         row = _reset_expired_failure_window(connection, row, current_time)
         negative_until = _parse_timestamp(row["negative_until"])
         if negative_until and negative_until > current_time:
-            return event
+            return _reuse_cached_success(event, configured)
         facts: dict[str, Any] | None = None
         if row["stage1_json"]:
             try:
@@ -1559,7 +1659,7 @@ def enrich_event(
                     settings=configured, now=current_time, terminal=terminal,
                 )
         if facts is None:
-            return event
+            return _reuse_cached_success(event, configured)
         if _calendar_occurrence_overrides_non_event(facts, original, source_id):
             facts = {
                 **facts,
@@ -1667,7 +1767,7 @@ def enrich_event(
                     connection, row, stage=2, error=safe_error, usage=usage,
                     settings=configured, now=current_time, terminal=terminal,
                 )
-        return event
+        return _reuse_cached_success(event, configured)
 
 
 def enrich_events(events: list[Any], *, settings: AISettings | None = None) -> list[Any]:
@@ -1690,11 +1790,11 @@ def enrich_events(events: list[Any], *, settings: AISettings | None = None) -> l
             enriched.append(strip_restricted_copy(target))
             continue
         if configured.max_events and processed >= configured.max_events:
-            enriched.append(strip_restricted_copy(target))
+            enriched.append(_reuse_cached_success(target, configured))
             continue
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            enriched.append(strip_restricted_copy(target))
+            enriched.append(_reuse_cached_success(target, configured))
             continue
         # One event may need facts and summary retries. Divide the remaining
         # source budget across that worst case so a final cache miss cannot run
