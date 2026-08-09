@@ -101,6 +101,8 @@ def fetch() -> list:
 def _correct_categories(events: list) -> list:
     """Apply reviewed SiteKit format signals that generic hints cannot express."""
     for event in events:
+        if event.get("category_key") != "other":
+            continue
         title = event.get("title", "")
         description = event.get("description", "")
         key = ""

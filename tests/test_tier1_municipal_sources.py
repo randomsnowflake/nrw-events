@@ -362,11 +362,23 @@ class SitekitPaginationTests(unittest.TestCase):
                 "description": "Offenes Treffen für Interessierte.",
                 "category_key": "activities",
             },
+            {
+                "title": "Kinotag: Vortrag über Filmförderung",
+                "description": "Vortrag und Diskussion mit Branchenfachleuten.",
+                "category_key": "talk",
+                "category_label": "Vortrag & Wissen",
+                "category_confidence": 0.9,
+                "category_reason": "keyword:vortrag",
+            },
         ]
 
         regional_sitekit._correct_categories(events)
 
-        self.assertEqual([event["category_key"] for event in events], ["other", "activities"])
+        self.assertEqual(
+            [event["category_key"] for event in events],
+            ["other", "activities", "talk"],
+        )
+        self.assertEqual(events[2]["category_reason"], "keyword:vortrag")
 
 
 if __name__ == "__main__":
