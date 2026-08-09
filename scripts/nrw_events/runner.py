@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional, cast
 
-from . import ai_enrichment, common, config, detail_enrichment, highlights as highlight_selection, report, series as series_entities
+from . import ai_enrichment, common, config, detail_enrichment, highlights as highlight_selection, radio_primary_resolution, report, series as series_entities
 from .category_taxonomy import CATEGORIES
 from .health import SourceFetchResult, SourceResult, SourceStatus
 from .identity import assign_event_ids, content_hash, event_id
@@ -671,6 +671,19 @@ def _source_result_for_event(
     return results.get(event.source)
 
 
+def _publication_filter_reason(
+    event: CanonicalEvent, settings: config.RuntimeConfig,
+) -> str:
+    """Return the final publication rejection reason without mutating health data."""
+    if not common.event_in_window(event):
+        return "filter:window"
+    if event.distance_km is not None and event.distance_km > settings.radius_km:
+        return "filter:radius"
+    if event.score < settings.score_floor and event.status == "scheduled":
+        return "filter:score_floor"
+    return ""
+
+
 def _attach_cross_run_fields(
     events: Sequence[CanonicalEvent | dict], previous: dict, generated_at: str,
 ) -> list[CanonicalEvent]:
@@ -1297,18 +1310,40 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         # its boundary while other workers still need cache lookups.
         cache_warnings.extend(common.flush_detail_page_caches())
     source_import_duration_ms = round((time.monotonic() - import_started) * 1000)
+    radio_result = source_results.get("Radio Bonn/Rhein-Sieg")
+    if radio_result is not None and radio_result.research_leads:
+        matchable_events: list[CanonicalEvent] = []
+        filtered_later: list[CanonicalEvent] = []
+        for event in all_events:
+            if _publication_filter_reason(event, settings):
+                filtered_later.append(event)
+            else:
+                matchable_events.append(event)
+        resolution = radio_primary_resolution.resolve_radio_leads(
+            radio_result.research_leads,
+            matchable_events,
+            publication_filter=lambda event: _publication_filter_reason(event, settings),
+        )
+        all_events = [*filtered_later, *resolution.events]
+        radio_result.research_leads = list(resolution.research_leads)
+        radio_result.research_lead_count = len(radio_result.research_leads)
+        radio_result.research_lead_reasons = resolution.research_lead_reasons
+        radio_result.accepted_event_count = sum(
+            radio_primary_resolution.RADIO_SOURCE_ID in event.discovered_via
+            and not _publication_filter_reason(event, settings)
+            for event in resolution.events
+        )
+        radio_result.cancelled_events.extend(resolution.cancellations)
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:
-        if event.distance_km is not None and event.distance_km > settings.radius_km:
-            result = _source_result_for_event(event, source_results)
-            if result is not None:
-                result.reject("filter:radius")
+        rejection_reason = _publication_filter_reason(event, settings)
+        if rejection_reason == "filter:window":
             continue
-        if event.score < settings.score_floor and event.status == "scheduled":
+        if rejection_reason:
             result = _source_result_for_event(event, source_results)
             if result is not None:
-                result.reject("filter:score_floor")
+                result.reject(rejection_reason)
             continue
         filtered.append(event)
     cancellations = [

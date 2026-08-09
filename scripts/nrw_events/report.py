@@ -544,6 +544,12 @@ def _adopted_description(source: dict) -> dict:
 def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
+    discovered_via = list(winner.get("discovered_via") or [])
+    for source_id in duplicate.get("discovered_via") or []:
+        if source_id not in discovered_via:
+            discovered_via.append(source_id)
+    if discovered_via != list(winner.get("discovered_via") or []):
+        updates["discovered_via"] = discovered_via
     winner_start = winner.get("start_at")
     winner_end = winner.get("end_at")
     duplicate_start = duplicate.get("start_at")
