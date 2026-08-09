@@ -36,6 +36,7 @@ TARGET_SOURCE_IDS = frozenset({
     "bonn-de-events",
     "bonn-de-sports",
     "marktcom",
+    "radio-bonn-rhein-sieg",
 })
 PIPELINE_VERSION = "event-facts-summary-v5"
 OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v12"

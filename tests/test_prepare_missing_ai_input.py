@@ -44,7 +44,7 @@ class PrepareMissingAiInputTests(unittest.TestCase):
             output = root / "output.json"
             source.write_text('{"events": []}', encoding="utf-8")
             current.write_text(json.dumps({"events": [
-                {"event_id": "missing", "source_id": "marktcom", "title": "Missing", "date": "2026-08-10"}
+                {"event_id": "missing", "source_id": "radio-bonn-rhein-sieg", "title": "Missing", "date": "2026-08-10"}
             ]}), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "1 current missing events"):
                 MODULE.prepare(source, current, output, enrich_details=False)

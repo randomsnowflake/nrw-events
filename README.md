@@ -289,7 +289,6 @@ scripts/nrw_events/
     museum_koenig.py
     naturregion_sieg.py
     okken.py
-    qddw.py
     radiobonn.py
     regional_common.py
     regional_feeds.py
@@ -523,7 +522,6 @@ Redaktionsentscheidungen.
 | bonn-region | ionas4 regional | `ionas4-regional` | `python` |
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
-| bonn-region | KG Quer durch de Waat | `qddw` | `python` |
 | bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
@@ -543,6 +541,7 @@ Redaktionsentscheidungen.
 | bonn-region | Naturregion Sieg | `naturregion-sieg` | `python` |
 | bonn-region | Okken Märkte | `okken-m-rkte` | `python` |
 | bonn-region | Parkbuchhandlung | `parkbuchhandlung` | `python` |
+| bonn-region | Radio Bonn/Rhein-Sieg | `radio-bonn-rhein-sieg` | `python` |
 | bonn-region | Redüttchen | `red-ttchen` | `python` |
 | bonn-region | Regional HTML calendars | `regional-html-calendars` | `python` |
 | bonn-region | Regional venues | `regional-venues` | `python` |
@@ -623,8 +622,8 @@ Redaktionsentscheidungen.
   gelesen. Wenn der direkte Buchungspfad eine Tasting-Art ausweist, die
   Marketing-Überschrift aber nicht, ergänzt der Adapter diese sachliche
   Bezeichnung. So kann die allgemeine Titelähnlichkeitsprüfung beispielsweise
-  parallel gelistete „Schokoladentastings“ zusammenführen, ohne einzelne Termine
-  hart zu codieren.
+  ein parallel bei Radio Bonn/Rhein-Sieg gelistetes „Schokoladentasting“
+  zusammenführen, ohne Eventnamen oder Termine hart zu codieren.
 - **Kommunale und regionale Kalender:** Königswinter, Meckenheim, Much,
   Naturregion Sieg, IONAS4-Quellen, SiteKit-Kalender, Standard-Feeds,
   regionale HTML-Kalender, Tourismus-/Deskline-Kalender, regionale Venue-Kalender
@@ -644,10 +643,6 @@ Redaktionsentscheidungen.
   Beuel.net, Bad Godesberg Stadtmarketing, Hardtberg Kultur, BSV Roleber und
   BV Holzlar (`bonn_districts.py`) decken die Vereins- und Ortsfeste ab; der
   Bonner Termin von Rhein in Flammen kommt über `bonn_venues.py`.
-- **Warther Kirmes:** `qddw.py` liest den aktuellen Termin direkt aus der
-  Jahresübersicht des Mitveranstalters KG Quer durch de Waat. Das Jahr stammt aus
-  dem jährlichen „Frohes Neues Jahr“-Beitrag; der Adapter rollt eine alte
-  undatierte Übersicht deshalb nicht eigenmächtig ins Folgejahr weiter.
 - **Literatur in Bonn:** Literaturhaus Bonn (iCal) und Parkbuchhandlung Bad
   Godesberg liefern Autorenlesungen, Buchpremieren und Literaturgespräche
   (`bonn_literature.py`). Stehende Lesekreise und Literaturkreise werden

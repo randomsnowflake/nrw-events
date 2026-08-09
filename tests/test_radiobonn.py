@@ -6,8 +6,8 @@ from nrw_events.sources import SOURCES
 
 
 class RadioBonnLocationTests(unittest.TestCase):
-    def test_adapter_is_not_registered(self):
-        self.assertNotIn("Radio Bonn/Rhein-Sieg", SOURCES)
+    def test_adapter_is_registered(self):
+        self.assertIs(SOURCES["Radio Bonn/Rhein-Sieg"], radiobonn.fetch)
 
     def test_specific_city_wins_over_bonn_mentions(self):
         text = "Eitorf Live auf dem Marktplatz, empfohlen von Radio Bonn"

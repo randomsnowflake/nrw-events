@@ -574,11 +574,11 @@
       "callable": "nrw_events.sources.bonnjetzt:fetch"
     },
     {
-      "id": "qddw",
-      "display_name": "KG Quer durch de Waat",
+      "id": "radio-bonn-rhein-sieg",
+      "display_name": "Radio Bonn/Rhein-Sieg",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.qddw:fetch"
+      "callable": "nrw_events.sources.radiobonn:fetch"
     },
     {
       "id": "b-rgerverein-vilich-m-ldorf",
