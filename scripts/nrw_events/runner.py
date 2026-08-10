@@ -219,16 +219,23 @@ def _run_source(
             events = ai_enrichment.enrich_events(events, stats=ai_stats)
             result.ai_duration_ms = round((time.monotonic() - ai_started) * 1000)
             result.ai_candidate_event_count = ai_candidates
-            result.ai_skipped_event_count = sum(ai_stats.values())
-            # A skipped target event has no publishable description at all, so
-            # this is a content outage rather than a missed optimization. Warn
-            # instead of letting the source read as healthy.
-            if result.ai_skipped_event_count:
+            result.ai_skipped_event_count = sum(
+                count for key, count in ai_stats.items()
+                if key.endswith("_skipped_event_count")
+            )
+            result.ai_skipped_without_summary_event_count = sum(
+                count for key, count in ai_stats.items()
+                if key.endswith("_skipped_without_summary_event_count")
+            )
+            # Warm-cache restores are useful skip telemetry, but only a target
+            # that remains without a summary is a published content outage.
+            if result.ai_skipped_without_summary_event_count:
                 result.warning(
                     name,
                     "AIEnrichmentBudgetWarning",
-                    f"AI enrichment skipped {result.ai_skipped_event_count}/{ai_candidates} "
-                    "target events; those events publish without a description",
+                    f"AI enrichment skipped {result.ai_skipped_without_summary_event_count}/"
+                    f"{ai_candidates} target events without a cached summary; those events "
+                    "publish without a description",
                     source_id=SOURCE_IDS.get(name, ""),
                 )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None

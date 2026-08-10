@@ -149,9 +149,10 @@ class SourceResult:
     duration_ms: int = 0
     ai_duration_ms: int = 0
     ai_candidate_event_count: int = 0
-    # Target events the AI pass never reached. Restricted sources publish no
-    # source prose, so each one of these ships with an empty description.
+    # Target events the AI pass never reached, including warm-cache restores.
     ai_skipped_event_count: int = 0
+    # Skipped target events for which no cached summary could be restored.
+    ai_skipped_without_summary_event_count: int = 0
     event_sources: list[str] = field(default_factory=list)
     event_source_ids: list[str] = field(default_factory=list)
     cancelled_events: list[dict[str, Any]] = field(default_factory=list)
@@ -270,6 +271,7 @@ class SourceResult:
             "ai_duration_ms": self.ai_duration_ms,
             "ai_candidate_event_count": self.ai_candidate_event_count,
             "ai_skipped_event_count": self.ai_skipped_event_count,
+            "ai_skipped_without_summary_event_count": self.ai_skipped_without_summary_event_count,
             "event_sources": self.event_sources,
             "event_source_ids": self.event_source_ids,
             "cancelled_event_count": len(self.cancelled_events),

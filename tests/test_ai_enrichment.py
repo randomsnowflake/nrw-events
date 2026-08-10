@@ -598,15 +598,18 @@ class AIEnrichmentTests(unittest.TestCase):
         ))
         published_id = event_id(changed)
 
+        stats: dict[str, int] = {}
         [result] = ai_enrichment.enrich_events([
             changed,
-        ], settings=replace(self.settings, batch_timeout_seconds=-1))
+        ], settings=replace(self.settings, batch_timeout_seconds=-1), stats=stats)
 
         self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
         self.assertEqual("", result["description"])
         self.assertEqual("19:30", result["time"])
         self.assertEqual("Altes Rathaus", result["venue"])
         self.assertEqual(published_id, event_id(result))
+        self.assertEqual(1, stats["ai_deadline_skipped_event_count"])
+        self.assertEqual(0, stats["ai_deadline_skipped_without_summary_event_count"])
 
     def test_batch_reports_deadline_skips_so_blank_descriptions_are_visible(self):
         stats: dict[str, int] = {}
@@ -622,6 +625,7 @@ class AIEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(2, stats["ai_deadline_skipped_event_count"])
         self.assertEqual(0, stats["ai_cap_skipped_event_count"])
+        self.assertEqual(2, stats["ai_deadline_skipped_without_summary_event_count"])
         self.assertEqual(["", ""], [result["description"] for result in results])
 
     def test_batch_reports_cap_skips_separately_from_deadline_skips(self):
@@ -638,6 +642,7 @@ class AIEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(1, stats["ai_cap_skipped_event_count"])
         self.assertEqual(0, stats["ai_deadline_skipped_event_count"])
+        self.assertEqual(1, stats["ai_cap_skipped_without_summary_event_count"])
 
     def test_structured_facts_are_source_material_when_prose_is_missing(self):
         material = ai_enrichment._source_material(event(

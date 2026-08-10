@@ -1818,7 +1818,9 @@ def enrich_events(
     maximum_calls_per_event = max(2 * configured.max_attempts, 1)
     processed = 0
     capped = 0
+    capped_without_summary = 0
     expired = 0
+    expired_without_summary = 0
     enriched = list(events)
     pending: list[tuple[int, RawEvent]] = []
     for index, value in enumerate(events):
@@ -1834,16 +1836,19 @@ def enrich_events(
             continue
         if configured.max_events and processed >= configured.max_events:
             capped += 1
-            enriched[index] = _reuse_cached_success(target, configured)
+            cached = _reuse_cached_success(target, configured)
+            enriched[index] = cached
+            capped_without_summary += int(not str(cached.get("ai_summary", "")).strip())
             continue
         pending.append((index, target))
         processed += 1
 
-    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, bool]:
+    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, bool, bool]:
         index, target = item
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return index, _reuse_cached_success(target, configured), True
+            cached = _reuse_cached_success(target, configured)
+            return index, cached, True, not str(cached.get("ai_summary", "")).strip()
         # One event may need facts and summary retries. Divide the remaining
         # source budget across that worst case so every concurrently running
         # event still finishes within the shared wall-clock batch deadline.
@@ -1854,7 +1859,7 @@ def enrich_events(
         return index, enrich_event(
             target,
             settings=replace(configured, timeout_seconds=request_timeout),
-        ), False
+        ), False, False
 
     if pending:
         with ThreadPoolExecutor(
@@ -1863,10 +1868,13 @@ def enrich_events(
         ) as executor:
             # The worker returns its own skip flag rather than incrementing a
             # shared counter, so the tally stays correct without a lock.
-            for index, result, skipped in executor.map(enrich_one, pending):
+            for index, result, skipped, without_summary in executor.map(enrich_one, pending):
                 enriched[index] = result
                 expired += int(skipped)
+                expired_without_summary += int(without_summary)
     if stats is not None:
         stats["ai_deadline_skipped_event_count"] = expired
         stats["ai_cap_skipped_event_count"] = capped
+        stats["ai_deadline_skipped_without_summary_event_count"] = expired_without_summary
+        stats["ai_cap_skipped_without_summary_event_count"] = capped_without_summary
     return enriched

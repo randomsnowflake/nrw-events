@@ -115,6 +115,32 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertGreaterEqual(result.ai_duration_ms, 5)
         self.assertEqual(result.as_dict()["ai_duration_ms"], result.ai_duration_ms)
 
+    def test_runner_warns_only_for_skips_without_a_cached_summary(self):
+        event = {
+            "title": "Event", "source": "Bonn.de Events",
+            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
+        }
+
+        def cached_skip(events, *, stats):
+            stats.update({
+                "ai_deadline_skipped_event_count": 1,
+                "ai_cap_skipped_event_count": 0,
+                "ai_deadline_skipped_without_summary_event_count": 0,
+                "ai_cap_skipped_without_summary_event_count": 0,
+            })
+            return events
+
+        with mock.patch.object(runner.ai_enrichment, "is_target_event", return_value=True), \
+             mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=cached_skip):
+            result, _ = runner._run_source("Bonn.de Events", lambda: [event])
+
+        self.assertEqual(1, result.ai_skipped_event_count)
+        self.assertEqual(0, result.ai_skipped_without_summary_event_count)
+        self.assertFalse(any(
+            warning["error_type"] == "AIEnrichmentBudgetWarning"
+            for warning in result.warnings
+        ))
+
     def test_discovery_candidates_are_sanitized_research_leads_before_enrichment(self):
         event = {
             "title": "Discovered event", "source": "Radio Bonn/Rhein-Sieg",
