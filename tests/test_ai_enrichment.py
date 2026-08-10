@@ -13,7 +13,7 @@ import unittest
 from unittest import mock
 import urllib.request
 
-from nrw_events import ai_enrichment
+from nrw_events import ai_enrichment, common
 from nrw_events.identity import event_id
 
 
@@ -97,6 +97,17 @@ def event(**overrides):
     return value
 
 
+def in_window_event(**overrides):
+    """An ``event()`` dated inside the live import window.
+
+    The shared fixture pins a literal date so the recorded FACTS/SUMMARY prose
+    stays assertable. Batch behaviour depends on the window filter, so these
+    cases date the record relative to today instead.
+    """
+    day = (common.TODAY + timedelta(days=2)).strftime("%Y-%m-%d")
+    return event(start_date=day, end_date=day, date=day, **overrides)
+
+
 class FakeClient:
     def __init__(self, replies):
         self.replies = list(replies)
@@ -178,8 +189,8 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("openrouter", settings.provider)
         self.assertEqual("router-test-key", settings.api_key)
         self.assertEqual("deepseek/deepseek-v4-flash-0731", settings.model)
-        self.assertEqual(60, settings.batch_timeout_seconds)
-        self.assertEqual(4, settings.workers)
+        self.assertEqual(600, settings.batch_timeout_seconds)
+        self.assertEqual(8, settings.workers)
 
     def test_openrouter_client_enforces_structured_zdr_non_reasoning_requests(self):
         opener = RecordingOpener({
@@ -565,31 +576,73 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("", result["ai_summary"])
 
     def test_batch_deadline_reuses_cached_summary_for_changed_source_material(self):
-        source = event(description=(
+        # The batch path filters on the live import window, so this case dates
+        # both records relative to today instead of using the pinned fixture.
+        source = in_window_event(description=(
             "Klangraum bietet Kammermusik und ein Publikumsgespräch. Beginn ist um 19:30 Uhr "
             "im Alten Rathaus in Bonn. Der Eintritt ist frei und eine Anmeldung ist nötig."
         ))
+        occurrence = {
+            "start_date": source["start_date"],
+            "end_date": source["end_date"],
+        }
         ai_enrichment.enrich_event(
             source,
             settings=self.settings,
-            client=FakeClient([FACTS, SUMMARY]),
+            client=FakeClient([{**FACTS, **occurrence}, SUMMARY]),
             now=self.now,
         )
-        changed = event(description=(
+        changed = in_window_event(description=(
             "Aktualisierte Programminformation: Klangraum beginnt um 19:30 Uhr im Alten Rathaus "
             "in Bonn. Der Eintritt ist frei und eine Anmeldung ist nötig."
         ))
         published_id = event_id(changed)
 
+        stats: dict[str, int] = {}
         [result] = ai_enrichment.enrich_events([
             changed,
-        ], settings=replace(self.settings, batch_timeout_seconds=-1))
+        ], settings=replace(self.settings, batch_timeout_seconds=-1), stats=stats)
 
         self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
         self.assertEqual("", result["description"])
         self.assertEqual("19:30", result["time"])
         self.assertEqual("Altes Rathaus", result["venue"])
         self.assertEqual(published_id, event_id(result))
+        self.assertEqual(1, stats["ai_deadline_skipped_event_count"])
+        self.assertEqual(0, stats["ai_deadline_skipped_without_summary_event_count"])
+
+    def test_batch_reports_deadline_skips_so_blank_descriptions_are_visible(self):
+        stats: dict[str, int] = {}
+
+        results = ai_enrichment.enrich_events(
+            [
+                in_window_event(title="Erster Termin"),
+                in_window_event(title="Zweiter Termin"),
+            ],
+            settings=replace(self.settings, batch_timeout_seconds=-1),
+            stats=stats,
+        )
+
+        self.assertEqual(2, stats["ai_deadline_skipped_event_count"])
+        self.assertEqual(0, stats["ai_cap_skipped_event_count"])
+        self.assertEqual(2, stats["ai_deadline_skipped_without_summary_event_count"])
+        self.assertEqual(["", ""], [result["description"] for result in results])
+
+    def test_batch_reports_cap_skips_separately_from_deadline_skips(self):
+        stats: dict[str, int] = {}
+
+        ai_enrichment.enrich_events(
+            [
+                in_window_event(title="Erster Termin"),
+                in_window_event(title="Zweiter Termin"),
+            ],
+            settings=replace(self.settings, enabled=False, api_key="", max_events=1),
+            stats=stats,
+        )
+
+        self.assertEqual(1, stats["ai_cap_skipped_event_count"])
+        self.assertEqual(0, stats["ai_deadline_skipped_event_count"])
+        self.assertEqual(1, stats["ai_cap_skipped_without_summary_event_count"])
 
     def test_structured_facts_are_source_material_when_prose_is_missing(self):
         material = ai_enrichment._source_material(event(

@@ -110,15 +110,21 @@ class AISettings:
     provider: str = "openai"
     max_attempts: int = 2
     # Zero means permanent for this exact input hash and pipeline version.
-    negative_cache_hours: float = 0.0
+    # A week lets a transient provider fault or a summary the local quality
+    # gate rejected be retried, instead of leaving that event blank forever.
+    negative_cache_hours: float = 168.0
     timeout_seconds: float = 180.0
     # Bound the complete enrichment pass for one source. AI is optional
     # enrichment and must never keep the event import open indefinitely.
-    batch_timeout_seconds: float = 60.0
+    # The budget must still cover a full first pass over the largest source:
+    # restricted sources publish no source prose at all, so an event the
+    # deadline skips ships with an empty description. The runner reserves the
+    # same amount on the source deadline, so raising this stays consistent.
+    batch_timeout_seconds: float = 600.0
     # Independent events can safely use separate cache connections and API
     # requests. Keep this bounded so one large municipal source no longer
     # spends the complete batch budget processing records serially.
-    workers: int = 4
+    workers: int = 8
     max_events: int = 0
     facts_reasoning_effort: str = "none"
     summary_reasoning_effort: str = "none"
@@ -263,10 +269,10 @@ def settings_from_env() -> AISettings:
     )
     cache_db = Path(os.environ.get("NRW_EVENTS_AI_CACHE_DB", str(default_cache))).expanduser()
     max_attempts = int(os.environ.get("NRW_EVENTS_AI_MAX_ATTEMPTS", "2"))
-    negative_hours = float(os.environ.get("NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS", "0"))
+    negative_hours = float(os.environ.get("NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS", "168"))
     timeout = float(os.environ.get("NRW_EVENTS_AI_TIMEOUT_SECONDS", "180"))
-    batch_timeout = float(os.environ.get("NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS", "60"))
-    workers = int(os.environ.get("NRW_EVENTS_AI_WORKERS", "4"))
+    batch_timeout = float(os.environ.get("NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS", "600"))
+    workers = int(os.environ.get("NRW_EVENTS_AI_WORKERS", "8"))
     max_events = int(os.environ.get("NRW_EVENTS_AI_MAX_EVENTS", "0"))
     if not 1 <= max_attempts <= 5:
         raise ValueError("NRW_EVENTS_AI_MAX_ATTEMPTS must be between 1 and 5")
@@ -1795,12 +1801,26 @@ def enrich_event(
         return _reuse_cached_success(event, configured)
 
 
-def enrich_events(events: list[Any], *, settings: AISettings | None = None) -> list[Any]:
-    """Enrich only the configured target sources, with an optional pilot cap."""
+def enrich_events(
+    events: list[Any],
+    *,
+    settings: AISettings | None = None,
+    stats: dict[str, int] | None = None,
+) -> list[Any]:
+    """Enrich only the configured target sources, with an optional pilot cap.
+
+    Restricted sources publish no source prose, so an event this pass skips
+    ships with an empty description. Report every skip through ``stats`` so a
+    truncated batch surfaces as a source warning instead of silent blank pages.
+    """
     configured = settings or settings_from_env()
     deadline = time.monotonic() + configured.batch_timeout_seconds
     maximum_calls_per_event = max(2 * configured.max_attempts, 1)
     processed = 0
+    capped = 0
+    capped_without_summary = 0
+    expired = 0
+    expired_without_summary = 0
     enriched = list(events)
     pending: list[tuple[int, RawEvent]] = []
     for index, value in enumerate(events):
@@ -1815,16 +1835,20 @@ def enrich_events(events: list[Any], *, settings: AISettings | None = None) -> l
             enriched[index] = strip_restricted_copy(target)
             continue
         if configured.max_events and processed >= configured.max_events:
-            enriched[index] = _reuse_cached_success(target, configured)
+            capped += 1
+            cached = _reuse_cached_success(target, configured)
+            enriched[index] = cached
+            capped_without_summary += int(not str(cached.get("ai_summary", "")).strip())
             continue
         pending.append((index, target))
         processed += 1
 
-    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent]:
+    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, bool, bool]:
         index, target = item
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return index, _reuse_cached_success(target, configured)
+            cached = _reuse_cached_success(target, configured)
+            return index, cached, True, not str(cached.get("ai_summary", "")).strip()
         # One event may need facts and summary retries. Divide the remaining
         # source budget across that worst case so every concurrently running
         # event still finishes within the shared wall-clock batch deadline.
@@ -1835,13 +1859,22 @@ def enrich_events(events: list[Any], *, settings: AISettings | None = None) -> l
         return index, enrich_event(
             target,
             settings=replace(configured, timeout_seconds=request_timeout),
-        )
+        ), False, False
 
     if pending:
         with ThreadPoolExecutor(
             max_workers=min(configured.workers, len(pending)),
             thread_name_prefix="nrw-ai",
         ) as executor:
-            for index, result in executor.map(enrich_one, pending):
+            # The worker returns its own skip flag rather than incrementing a
+            # shared counter, so the tally stays correct without a lock.
+            for index, result, skipped, without_summary in executor.map(enrich_one, pending):
                 enriched[index] = result
+                expired += int(skipped)
+                expired_without_summary += int(without_summary)
+    if stats is not None:
+        stats["ai_deadline_skipped_event_count"] = expired
+        stats["ai_cap_skipped_event_count"] = capped
+        stats["ai_deadline_skipped_without_summary_event_count"] = expired_without_summary
+        stats["ai_cap_skipped_without_summary_event_count"] = capped_without_summary
     return enriched

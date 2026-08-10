@@ -215,9 +215,29 @@ def _run_source(
         )
         if ai_candidates:
             ai_started = time.monotonic()
-            events = ai_enrichment.enrich_events(events)
+            ai_stats: dict[str, int] = {}
+            events = ai_enrichment.enrich_events(events, stats=ai_stats)
             result.ai_duration_ms = round((time.monotonic() - ai_started) * 1000)
             result.ai_candidate_event_count = ai_candidates
+            result.ai_skipped_event_count = sum(
+                count for key, count in ai_stats.items()
+                if key.endswith("_skipped_event_count")
+            )
+            result.ai_skipped_without_summary_event_count = sum(
+                count for key, count in ai_stats.items()
+                if key.endswith("_skipped_without_summary_event_count")
+            )
+            # Warm-cache restores are useful skip telemetry, but only a target
+            # that remains without a summary is a published content outage.
+            if result.ai_skipped_without_summary_event_count:
+                result.warning(
+                    name,
+                    "AIEnrichmentBudgetWarning",
+                    f"AI enrichment skipped {result.ai_skipped_without_summary_event_count}/"
+                    f"{ai_candidates} target events without a cached summary; those events "
+                    "publish without a description",
+                    source_id=SOURCE_IDS.get(name, ""),
+                )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         # Discovery records prove that the parser is healthy and contribute to
         # raw source counts, even though the publication gate excludes them.
