@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import patch
 
@@ -294,6 +295,98 @@ class DetailEnrichmentTests(unittest.TestCase):
 
         self.assertIn("Sommerspecial", context["description"])
         self.assertEqual(context["price"], "30,00 € / 24,20 € (ermäßigt)")
+
+    def test_extracts_adfc_fastboot_copy_tour_facts_price_and_address(self):
+        payload = {
+            "tourLocations": [{
+                "type": "Startpunkt",
+                "street": "Bahnhof Hennef / Hennefer Wirtshaus",
+                "zipCode": "53773",
+                "city": "Hennef (Sieg)",
+            }],
+            "eventItem": {
+                "title": "Über Berg und Tal von Dorf zu Dorf",
+                "description": (
+                    '<p>Zunächst schieben wir die Räder hinter den Bahnhof.</p>'
+                    '<p>Danach führt die Tour über mehrere Dörfer zurück nach Hennef.</p>'
+                ),
+                "cShortDescription": (
+                    "Die Feierabendtour führt über ruhige Straßen und Wirtschaftswege."
+                ),
+                "cTourLengthKm": 24,
+                "cTourSpeedKmh": 15,
+                "cTourHeight": 380,
+            },
+            "eventItemPrices": [{
+                "groupName": "Nichtmitglieder",
+                "price": 2,
+                "cMemberPrice": False,
+            }],
+            "itemTags": [
+                {"category": "Geeignet für", "tag": "Pedelec"},
+                {"category": "Besondere Charakteristik /Thema", "tag": "Natur"},
+            ],
+        }
+        encoded = json.dumps(json.dumps(payload))
+        document = f"""
+        <meta name="description" content="Kurzer generischer ADFC-Teaser">
+        <h4>Tourdaten</h4>
+        <table>
+          <thead><tr>
+            <th>Tourlänge</th><th>Geschwindigkeit</th>
+            <th>Oberflächenqualität</th><th>Anstiege</th><th>Höhenmeter</th>
+          </tr></thead>
+          <tbody><tr>
+            <td>24 km</td><td>15 km/h</td><td>unebener Untergrund</td>
+            <td>hügelig</td><td>380 m</td>
+          </tr></tbody>
+        </table>
+        <script type="fastboot/shoebox" id="adfc-event">{encoded}</script>
+        """
+        event = self.event(
+            title='ADFC-Feierabendtour "Über Berg und Tal von Dorf zu Dorf"',
+            description=(
+                '„ADFC-Feierabendtour \"Über Berg und Tal von Dorf zu Dorf\"“ '
+                "findet am 13.08.2026 statt."
+            ),
+            description_html="",
+            venue="Bahnhof Hennef",
+            link=(
+                "https://touren-termine.adfc.de/radveranstaltung/"
+                "197023-uber-berg-und-tal-von-dorf-zu-dorf"
+            ),
+            source="ADFC Hennef",
+        )
+
+        context = detail_enrichment.extract_detail_context(document, event)
+        enriched = detail_enrichment.apply_detail_context(event, context)
+
+        self.assertIn("ruhige Straßen", enriched["description"])
+        self.assertIn("mehrere Dörfer", enriched["description"])
+        self.assertIn("Tourlänge: 24 km", enriched["description"])
+        self.assertIn("Oberflächenqualität: unebener Untergrund", enriched["description"])
+        self.assertIn("Geeignet für: Pedelec", enriched["description"])
+        self.assertIn("<h3>Tourdaten</h3>", enriched["description_html"])
+        self.assertEqual(enriched["description_source"], "scraped")
+        self.assertEqual(enriched["price"], "Nichtmitglieder: 2 €")
+        self.assertEqual(enriched["admission_basis"], "explicit")
+        self.assertEqual(
+            enriched["venue_address"],
+            "Bahnhof Hennef / Hennefer Wirtshaus, 53773 Hennef (Sieg)",
+        )
+
+    def test_malformed_adfc_fastboot_payload_falls_back_without_raising(self):
+        document = """
+        <meta name="description" content="Belastbarer öffentlicher Ersatztext">
+        <script type="fastboot/shoebox">not-json</script>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(link="https://touren-termine.adfc.de/radveranstaltung/defekt"),
+        )
+
+        self.assertEqual(context["description"], "Belastbarer öffentlicher Ersatztext")
 
 
 if __name__ == "__main__":

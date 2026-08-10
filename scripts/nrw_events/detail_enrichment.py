@@ -14,8 +14,9 @@ text is worse than an honest short description.
 from __future__ import annotations
 
 from collections import Counter
-from html import escape
+from html import escape, unescape
 from html.parser import HTMLParser
+import json
 import os
 import re
 import time
@@ -285,8 +286,174 @@ def _template_price(document: str) -> str:
     return ""
 
 
+def _adfc_shoebox(document: str, event: dict) -> dict | None:
+    """Decode the event payload embedded by the ADFC Ember application."""
+    try:
+        hostname = (urlsplit(str(event.get("link") or "")).hostname or "").casefold()
+    except ValueError:
+        return None
+    if hostname != "touren-termine.adfc.de":
+        return None
+
+    for value in re.findall(
+        r'<script[^>]+type=["\']fastboot/shoebox["\'][^>]*>(.*?)</script>',
+        document or "",
+        re.I | re.S,
+    ):
+        try:
+            payload = json.loads(unescape(value).strip())
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if isinstance(payload, dict) and isinstance(payload.get("eventItem"), dict):
+            return payload
+    return None
+
+
+def _adfc_table_facts(document: str) -> list[tuple[str, str]]:
+    """Read the visitor-facing tour labels paired with their displayed values."""
+    match = re.search(
+        r'<h[1-6][^>]*>\s*Tourdaten\s*</h[1-6]>(.*?</table>)',
+        document or "",
+        re.I | re.S,
+    )
+    if not match:
+        return []
+    table = match.group(1)
+    headings = [common.clean_html(value) for value in re.findall(
+        r"<th\b[^>]*>(.*?)</th>", table, re.I | re.S,
+    )]
+    body = re.search(r"<tbody\b[^>]*>(.*?)</tbody>", table, re.I | re.S)
+    values = [common.clean_html(value) for value in re.findall(
+        r"<td\b[^>]*>(.*?)</td>", body.group(1) if body else table, re.I | re.S,
+    )]
+    return [
+        (heading, value)
+        for heading, value in zip(headings, values)
+        if heading and value
+    ]
+
+
+def _display_number(value: object) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return ""
+    number = float(value)
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+def _adfc_structured_tour_facts(item: dict) -> list[tuple[str, str]]:
+    facts: list[tuple[str, str]] = []
+    for label, field, unit in (
+        ("Tourlänge", "cTourLengthKm", "km"),
+        ("Geschwindigkeit", "cTourSpeedKmh", "km/h"),
+        ("Höhenmeter", "cTourHeight", "m"),
+    ):
+        value = _display_number(item.get(field))
+        if value and float(item[field]) > 0:
+            facts.append((label, f"{value} {unit}"))
+    return facts
+
+
+def _adfc_price(payload: dict) -> str:
+    prices: list[str] = []
+    for item in payload.get("eventItemPrices") or []:
+        if not isinstance(item, dict):
+            continue
+        amount = _display_number(item.get("price"))
+        if not amount:
+            continue
+        label = common.clean_html(str(item.get("groupName") or ""))
+        value = "kostenfrei" if float(item["price"]) == 0 else f"{amount} €"
+        rendered = f"{label}: {value}" if label else value
+        if rendered not in prices:
+            prices.append(rendered)
+    return ", ".join(prices)[:240]
+
+
+def _adfc_location(payload: dict) -> tuple[str, str]:
+    locations = [
+        item for item in (payload.get("tourLocations") or [])
+        if isinstance(item, dict)
+    ]
+    if not locations:
+        return "", ""
+    locations.sort(key=lambda item: (
+        str(item.get("type") or "").casefold() != "startpunkt",
+        int(item.get("position") or 0),
+    ))
+    location = locations[0]
+    street = common.clean_html(str(location.get("street") or ""))
+    city_line = " ".join(filter(None, (
+        common.clean_html(str(location.get("zipCode") or "")),
+        common.clean_html(str(location.get("city") or "")),
+    )))
+    address = ", ".join(filter(None, (street, city_line)))
+    venue = common.clean_html(str(location.get("name") or "")) or street
+    return venue[:300], address[:500]
+
+
+def _adfc_detail_context(document: str, event: dict) -> dict[str, str] | None:
+    payload = _adfc_shoebox(document, event)
+    if payload is None:
+        return None
+    item = payload["eventItem"]
+    short = common.clean_html(str(item.get("cShortDescription") or ""))
+    full_html = richtext.sanitize_rich_text(str(item.get("description") or ""))
+    full_text = richtext.to_plain_text(full_html)
+    blocks: list[str] = []
+    if short and short.casefold() not in full_text.casefold():
+        blocks.append(f"<p>{escape(short, quote=False)}</p>")
+    if full_html:
+        blocks.append(full_html)
+
+    tour_facts = _adfc_table_facts(document) or _adfc_structured_tour_facts(item)
+    if tour_facts:
+        blocks.extend((
+            "<h3>Tourdaten</h3>",
+            "<ul>" + "".join(
+                f"<li><strong>{escape(label, quote=False)}:</strong> "
+                f"{escape(value, quote=False)}</li>"
+                for label, value in tour_facts
+            ) + "</ul>",
+        ))
+
+    tags: dict[str, list[str]] = {}
+    for tag in payload.get("itemTags") or []:
+        if not isinstance(tag, dict):
+            continue
+        category = common.clean_html(str(tag.get("category") or ""))
+        value = common.clean_html(str(tag.get("tag") or ""))
+        if category and value and value not in tags.setdefault(category, []):
+            tags[category].append(value)
+    if tags:
+        blocks.extend((
+            "<h3>Merkmale</h3>",
+            "<ul>" + "".join(
+                f"<li><strong>{escape(category, quote=False)}:</strong> "
+                f"{escape(', '.join(values), quote=False)}</li>"
+                for category, values in tags.items()
+            ) + "</ul>",
+        ))
+
+    description_html = richtext.sanitize_rich_text("".join(blocks))
+    venue, venue_address = _adfc_location(payload)
+    return {
+        "description": richtext.to_plain_text(description_html),
+        "description_html": description_html,
+        "price": _adfc_price(payload),
+        "venue": venue,
+        "venue_address": venue_address,
+    }
+
+
 def extract_detail_context(document: str, event: dict) -> dict[str, str]:
     """Extract richer, auditable fields from one event detail document."""
+    adfc_context = _adfc_detail_context(document, event)
+    if adfc_context is not None:
+        return adfc_context
     parser = _SemanticHTML()
     parser.feed(document or "")
     description, description_html = _best_description(
