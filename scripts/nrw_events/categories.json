@@ -80,6 +80,13 @@
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
+        },
+        {
+          "value": "wallfahrt",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
         }
       ]
     },
@@ -104,6 +111,13 @@
           "value": "hatha yoga",
           "match_mode": "word",
           "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "world championships",
+          "match_mode": "word",
+          "scope": "title",
           "weight": 1.0,
           "comment": "forced override"
         }

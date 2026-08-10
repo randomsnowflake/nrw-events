@@ -314,6 +314,8 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("", "Linedance-Schnupperworkshops Donnerstags", "", "workshop"),
             ("", "Offener Theaterworkshop", "", "workshop"),
             ("", "Running City Tours - Joggen & Sightseeing verbinden", "", "sports"),
+            ("", "6. GSBA World Championships", "", "sports"),
+            ("", "Rochuswallfahrt nach Seligenthal", "", "outdoor"),
             ("", "Public Viewing Fußball Weltmeisterschaft 2026", "", "festival"),
         ]
 
