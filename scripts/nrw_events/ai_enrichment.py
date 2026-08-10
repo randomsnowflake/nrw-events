@@ -10,7 +10,7 @@ from __future__ import annotations
 from contextlib import closing, contextmanager
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from email.message import Message
 import fcntl
@@ -39,8 +39,8 @@ TARGET_SOURCE_IDS = frozenset({
     "marktcom",
     "radio-bonn-rhein-sieg",
 })
-PIPELINE_VERSION = "event-facts-summary-v5"
-OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v12"
+PIPELINE_VERSION = "event-facts-summary-v6"
+OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v13"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash-0731"
 FACTS_OUTPUT_TOKEN_LIMIT = 5_000
@@ -1104,6 +1104,34 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
     source_material = str(payload.get("source_material") or "")
     structured_price = str(payload.get("price") or "")
     evidence_text = f"{structured_price}\n{source_material}"
+
+    def parsed_date(value: object) -> date | None:
+        try:
+            return datetime.fromisoformat(str(value or "")).date()
+        except ValueError:
+            return None
+
+    publication_start = parsed_date(payload.get("start_date"))
+    publication_end = parsed_date(payload.get("end_date")) or publication_start
+    extracted_start = parsed_date(cleaned.get("start_date")) or parsed_date(cleaned.get("end_date"))
+    extracted_end = parsed_date(cleaned.get("end_date")) or extracted_start
+    if (
+        publication_start
+        and publication_end
+        and extracted_start
+        and extracted_end
+        and (extracted_end < publication_start or extracted_start > publication_end)
+    ):
+        # Detail pages for calls, exhibitions and recurring calendars can discuss
+        # a related occurrence while the selected listing represents another day.
+        # Keep useful topical facts, but never let that related occurrence supply
+        # the public identity or poison every summary retry with its date/place.
+        for field in (
+            "title", "start_date", "end_date", "time", "time_note", "venue", "venue_address", "city",
+        ):
+            cleaned[field] = payload.get(field) or None
+        cleaned["end_date"] = payload.get("end_date") or payload.get("start_date") or None
+
     scope = {
         **cleaned,
         "_publication_start": payload.get("start_date"),
