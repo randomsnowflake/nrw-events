@@ -32,7 +32,7 @@ names or dates anywhere in the code. The script fans out across official APIs,
 JSON-LD pages, iCal feeds, municipal/regional calendars, venue calendars,
 nightlife sources, and web-search fallbacks. Current sources include Köln Open
 Data, Bonn.de JSON + sports + annual "Veranstaltungsjahr" listings, Harmonie
-Bonn, Meetup, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
+Bonn, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
 Wachtberg, Much, IONAS4/SiteKit/standard regional calendars, regional HTML and
 tourism calendars, Kinderflohmarkt.com, Grote & Hiller, Hofflohmärkte Köln,
@@ -134,7 +134,6 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 | bonn-region | Ludwig's Bonn | `ludwig-s-bonn` | `python` |
 | bonn-region | marktcom | `marktcom` | `python` |
 | bonn-region | Meckenheim | `meckenheim` | `python` |
-| bonn-region | Meetup | `meetup` | `python` |
 | bonn-region | Melan Märkte | `melan-m-rkte` | `python` |
 | bonn-region | Much | `much` | `python` |
 | bonn-region | Municipal MEC markets | `municipal-mec-markets` | `python` |
@@ -190,6 +189,7 @@ scripts/nrw_events/
   dates.py
   detail_enrichment.py
   event_builder.py
+  event_types.py
   event_vocabulary.py
   health.py
   highlights.py
@@ -252,7 +252,6 @@ scripts/nrw_events/
     max7.py
     mec_municipal.py
     meckenheim.py
-    meetup.py
     melan.py
     much.py
     museum_koenig.py
@@ -409,15 +408,6 @@ than scraping HTML** — prefer it.
   plus a contract case in `tests/sources/parser_cases.py`. For proprietary
   formats, create a `fetch()` module and register it in `CUSTOM_SOURCES`.
   Add any new town to `config.VENUE_COORDS`.
-
-### Meetup groups (active)
-
-Curated Bonn-area groups live in `config.MEETUP_GROUPS` and are fetched via each
-group's public iCal feed (`https://www.meetup.com/<slug>/events/ical/`, no auth).
-To add/remove: edit the list `(slug, default_city, category-hint, trust)`.
-**Re-probe periodically** — a `404` means the slug is wrong; a `200` with zero
-`BEGIN:VEVENT` means the group is inactive (drop it). Probe with:
-`curl -s 'https://www.meetup.com/<slug>/events/ical/' | grep -c BEGIN:VEVENT`.
 
 ## Notes on seasonality
 

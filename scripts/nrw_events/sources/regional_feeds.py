@@ -55,7 +55,10 @@ def _fetch_unkel_rss() -> list:
 
 def _event_from_unkel_item(item):
     title = item.findtext("title") or ""
-    link = _UNKEL_EVENTS_URL
+    # The RSS feed exposes the actual event detail URL.  Keeping the shared
+    # overview here used to prevent the universal detail pass from reaching
+    # the event copy and made every occurrence look like the same document.
+    link = (item.findtext("link") or "").strip() or _UNKEL_EVENTS_URL
     desc = item.findtext("description") or ""
     text = rc.clean(desc)
     if not any(place in f"{title} {text} {link}".lower()

@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 
-from .. import common
+from .. import common, richtext
 from . import regional_common as rc
 
 
@@ -42,6 +42,11 @@ def fetch() -> list:
                 url, cache_namespace="brueckenforum-bonn", timeout=20),
         ),
      source_id="brueckenforum-bonn"))
+    events.extend(rc.fetch_html_events(
+        "Musik auf der Rathaustreppe",
+        "http://www.rathausmusik.com/",
+        _events_from_rathausmusik,
+     source_id="rathausmusik"))
     return rc.dedupe(events)
 
 
@@ -183,6 +188,65 @@ def _events_from_pantheon(html: str) -> list:
     return events
 
 
+def _events_from_rathausmusik(html: str) -> list:
+    """Read the visually positioned band schedule without mixing neighbours."""
+    blocks: list[tuple[int, str]] = []
+    for match in re.finditer(
+        r'<div\b[^>]*class=["\'][^"\']*\bxr_txt\b[^"\']*["\'][^>]*style=["\']'
+        r'[^"\']*\btop:\s*(-?\d+)px[^"\']*["\'][^>]*>(.*?)</div>',
+        html or "", re.I | re.S,
+    ):
+        text = rc.clean(match.group(2))
+        if text:
+            blocks.append((int(match.group(1)), text))
+
+    events = []
+    seen: set[tuple[str, str]] = set()
+    for top, text in blocks:
+        heading = re.fullmatch(
+            r"(\d{1,2})\.\s*(Juli|August|September)\s+(.+)", text, re.I,
+        )
+        if not heading:
+            continue
+        day, month_name, band = heading.groups()
+        month = common.MONTH_DE[month_name.casefold()]
+        start = rc.date_for_window(int(day), month)
+        if not start:
+            continue
+        identity = (start.strftime("%Y-%m-%d"), rc.clean(band).casefold())
+        if identity in seen:
+            continue
+        seen.add(identity)
+        start = start.replace(hour=18, minute=0)
+        end = start.replace(hour=20, minute=0)
+        descriptions = [
+            (candidate_top, candidate)
+            for candidate_top, candidate in blocks
+            if top < candidate_top <= top + 500 and len(candidate) >= 55
+        ]
+        description = min(descriptions, key=lambda item: item[0])[1] if descriptions else ""
+        event = common.make_event(
+            f"Musik auf der Rathaustreppe: {band.strip()}",
+            start,
+            end,
+            "Beueler Rathausplatz",
+            "Bonn-Beuel",
+            description,
+            "http://www.rathausmusik.com/",
+            "Musik auf der Rathaustreppe",
+            "konzert live musik stadtteil",
+            1.0,
+            "18:00–20:00",
+            source_id="rathausmusik",
+        )
+        if event:
+            if description:
+                event["description_html"] = richtext.from_plain_text(description)
+                event["description_source"] = "scraped"
+            events.append(event)
+    return events
+
+
 def _events_from_springmaus(html: str) -> list:
     events = []
     for block in re.findall(r'<div class="[^"]*bg-\[#aba199\][\s\S]*?(?=<div class="[^"]*bg-\[#aba199\]|</main>|$)',
@@ -265,6 +329,15 @@ def _brueckenforum_detail_context(html: str) -> dict:
             and not re.fullmatch(r"\d{1,2}/\d{1,2}/20\d{2}.*", cleaned)
         ):
             description_candidates.append(cleaned)
+    visitor_copy = re.search(
+        r"<h4\b[^>]*>(.*?)</h4>\s*<p\b[^>]*>(.*?)</p>",
+        body,
+        re.S | re.I,
+    )
+    if visitor_copy:
+        bounded_copy = rc.clean(" ".join(visitor_copy.groups()))
+        if bounded_copy:
+            description_candidates.append(bounded_copy)
     description = common.concise_description(
         max(description_candidates, key=len) if description_candidates else "",
         max_chars=360,

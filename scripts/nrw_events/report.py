@@ -52,7 +52,7 @@ _CITYWIDE_VENUE_ALIAS_FAMILIES = {
 _REVIEWED_VENUE_ALIAS_FAMILIES = (
     frozenset({
         "moehneplatz bonn beuel", "moehneplatz", "rathaustreppe",
-        "beueler rathaustreppe", "beueler rathaus",
+        "beueler rathaustreppe", "beueler rathaus", "beueler rathausplatz",
     }),
     frozenset({
         "sieglarer marktplatz", "marktplatz sieglar", "troisdorf sieglar",

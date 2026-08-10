@@ -4,10 +4,11 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import http
+from nrw_events import http, report
 from nrw_events.sources import (
     bonn_venues,
     regional_feeds,
+    regional_html,
     regional_ionas4,
     regional_tourism,
     requested_venues,
@@ -323,6 +324,170 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("Theater am Tanzbrunnen", minimal["description"])
         self.assertEqual(minimal["description_source"], "generated")
 
+    def test_ruhrguide_expands_long_tour_span_into_explicit_local_dates(self):
+        broad = {
+            "title": "Conni – Das Musical!",
+            "start_date": "2025-10-25", "end_date": "2027-05-23",
+            "time": "15:00", "venue": "Theater am Tanzbrunnen", "city": "Köln",
+            "link": "https://www.ruhr-guide.de/veranstaltung/conni/",
+            "description": "Redaktioneller Tourtext.", "category": "Familie", "score": 0.68,
+        }
+        detail = """
+        <div class="wpem-single-event-body-content">
+          <p>Die redaktionelle Musicalbeschreibung darf nicht veröffentlicht werden.</p>
+          <p>Samstag 18.07.2026 – Theater am Tanzbrunnen, Köln (Vorstellungen um 13.00 &amp; 16.00 Uhr)</p>
+          <p>Sonntag 10.01.2027 – Stadthalle, Essen (Vorstellung um 14.00 Uhr)</p>
+        </div><!-- Event description section end -->
+        """
+
+        events = ruhrguide._expand_tour_ranges([broad], lambda _url: detail)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["start_date"], "2026-07-18")
+        self.assertEqual(events[0]["end_date"], "2026-07-18")
+        self.assertEqual(events[0]["time"], "13:00")
+        self.assertEqual(events[0]["time_note"], "Weitere Vorstellungen: 16:00 Uhr")
+        self.assertEqual(events[0]["venue"], "Theater am Tanzbrunnen")
+        self.assertEqual(events[0]["city"], "Köln")
+        self.assertNotIn("redaktionelle", events[0]["description"].casefold())
+
+    def test_ruhrguide_drops_unverifiable_long_tour_span(self):
+        broad = {
+            "title": "Tour ohne Einzeldaten",
+            "start_date": "2025-10-25", "end_date": "2027-05-23",
+            "time": "", "venue": "Erster Tourort", "city": "Köln",
+            "link": "https://www.ruhr-guide.de/veranstaltung/tour/",
+            "description": "", "category": "Kultur", "score": 0.65,
+        }
+
+        self.assertEqual(
+            ruhrguide._expand_tour_ranges([broad], lambda _url: "<html>keine Einzeldaten</html>"),
+            [],
+        )
+
+    def test_eitorf_cards_are_enriched_from_their_detail_page(self):
+        listing = """
+        <a class="card" href="/veranstaltungen/submited-events/eitorfer-weinfest/" data-date="2026-07-14">
+          <p class="title">Eitorfer Weinfest</p>
+          <p class="subtitle">14. Juli • 16:00 Uhr</p>
+          <p class="subtitle event-place">Eitorf</p>
+        </a>
+        """
+        detail = """
+        <section class="section single-page"><div class="content">
+          <div class="intro-text"><p>Weinfest mit drei Tagen Programm.</p></div>
+          <div class="text"><p><strong>Unser Programm</strong><br>Freitag und Samstag DJ Gabor.</p></div>
+          <div class="event-page-info">
+            <p class="subtitle event-place">Parkplatz vor dem Sportplatz Eitorf</p>
+            <p class="subtitle event-price">Preis: freier Eintritt</p>
+          </div>
+        </div></section>
+        """
+
+        [event] = regional_html._events_from_eitorf_cards(
+            listing, "https://www.eitorf.de", detail_fetcher=lambda _url: detail,
+        )
+
+        self.assertIn("DJ Gabor", event["description"])
+        self.assertIn("<strong>Unser Programm</strong>", event["description_html"])
+        self.assertEqual(event["venue"], "Parkplatz vor dem Sportplatz Eitorf")
+        self.assertEqual(event["price"], "freier Eintritt")
+
+    def test_broeltal_cards_are_enriched_before_the_shared_batch_budget(self):
+        listing = """
+        <a class="list-group-item list-group-item-action" href="/aktuelles/termine/veranstaltung/repair.html">
+          <h5>Döörper Repair-Café</h5><span>15.07.2026 - 10:15 bis 12:15 Uhr</span>
+        </a>
+        """
+        detail = """
+        <div class="tx-gbevents-pi1"><div class="card"><div class="card-body">
+          <h5>Döörper Repair-Café</h5>
+          <p>Das Team hilft bei der gemeinsamen Instandsetzung defekter Gegenstände.</p>
+          <p>Der Zugang erfolgt vom Mehrgenerationenpark aus.</p>
+        </div></div></div>
+        """
+
+        [event] = regional_html._events_from_broeltal(
+            listing, "https://www.broeltal.de", detail_fetcher=lambda _url: detail,
+        )
+
+        self.assertIn("Instandsetzung defekter Gegenstände", event["description"])
+        self.assertIn("Mehrgenerationenpark", event["description_html"])
+        self.assertEqual(event["description_source"], "scraped")
+
+    def test_brueckenforum_keeps_visitor_copy_and_ignores_stand_fee(self):
+        detail = """
+        <section id="single-event-header"><div class="module">
+          <h4>Achtung: Die Veranstaltung findet auf dem Beueler Rathausplatz statt.<br>
+            Die Gewerbegemeinschaft richtet dort einen Floh- und Trödelmarkt aus.</h4>
+          <p>Eintritt für Besucher: Kostenlos<br>Zeitraum: Immer von 11-17 Uhr</p>
+          <p>Ausstellende können ihren Stand für 10€ pro laufendem Meter buchen.</p>
+        </div></section>
+        """
+
+        context = requested_venues._brueckenforum_detail_context(detail)
+
+        self.assertIn("Beueler Rathausplatz", context["description"])
+        self.assertIn("Floh- und Trödelmarkt", context["description"])
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["time"], "11:00–17:00")
+        self.assertNotIn("10€", context["description"])
+
+    def test_rathausmusik_creates_direct_rich_primary_occurrences(self):
+        html = """
+        <div class="xr_txt xr_s6" style="position:absolute;top:1383px">
+          <span>13. August</span><span>Second Arrangement</span>
+        </div>
+        <div class="xr_txt xr_s4" style="position:absolute;top:1503px">
+          <span>Second Arrangement ist eine zehnköpfige Band aus Köln und Bonn.</span>
+          <span>Rock, Jazz und Pop treffen auf einen authentischen Bläsersatz.</span>
+        </div>
+        <div class="xr_txt xr_s6" style="position:absolute;top:1800px">
+          <span>13. August Second Arrangement</span>
+        </div>
+        <div class="xr_txt xr_s6" style="position:absolute;top:1915px">
+          <span>20. August First Lane</span>
+        </div>
+        <div class="xr_txt xr_s4" style="position:absolute;top:1979px">
+          <span>First Lane ist eine Bonner Melodic-Rock-Band mit eigenen Songs und Balladen.</span>
+        </div>
+        """
+
+        events = requested_venues._events_from_rathausmusik(html)
+
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["source_id"], "rathausmusik")
+        self.assertEqual(events[0]["time"], "18:00–20:00")
+        self.assertIn("zehnköpfige Band", events[0]["description"])
+        self.assertIn("authentischen Bläsersatz", events[0]["description_html"])
+        self.assertNotIn("First Lane", events[0]["description"])
+
+    def test_rathausmusik_supersedes_the_sparse_beuel_discovery_row(self):
+        direct = {
+            "title": "Musik auf der Rathaustreppe: Second Arrangement",
+            "start_date": "2026-08-13", "end_date": "2026-08-13",
+            "start_at": "2026-08-13T18:00+02:00", "end_at": "2026-08-13T20:00+02:00",
+            "date": "2026-08-13", "time": "18:00–20:00",
+            "venue": "Beueler Rathausplatz", "city": "Bonn",
+            "source": "Musik auf der Rathaustreppe", "source_id": "rathausmusik",
+            "score": 1.48,
+            "description": "Ausführliche Beschreibung der zehnköpfigen Band.",
+        }
+        discovery = {
+            "title": "Musik auf der Rathaustreppe: Second Arrangement (Steely Dan Tribute)",
+            "start_date": "2026-08-13", "end_date": "2026-08-13",
+            "start_at": "2026-08-13T18:00+02:00", "end_at": "",
+            "date": "2026-08-13", "time": "18:00",
+            "venue": "Möhneplatz", "city": "Bonn",
+            "source": "beuelhats.de", "source_id": "beuel-net",
+            "score": 1.4, "description": "Kurzer Termintext.",
+        }
+
+        [winner] = report.deduplicate([discovery, direct])
+
+        self.assertEqual(winner["source_id"], "rathausmusik")
+        self.assertIn("zehnköpfigen Band", winner["description"])
+
     def test_linz_parser_uses_current_cards_and_rich_detail_copy(self):
         listing_html = """
 <div class="standardteaser">
@@ -384,7 +549,10 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
                 "im Weinhaus zur Traube, Lühlingsgasse 5, Unkel statt."
             ),
         )
-        self.assertEqual(event and event["link"], "https://rhein.info/unkel/")
+        self.assertEqual(
+            event and event["link"],
+            "https://rhein.info/veranstaltungen/unkel-live-konzert-mit-the-end-of-blue/",
+        )
 
 
 if __name__ == "__main__":

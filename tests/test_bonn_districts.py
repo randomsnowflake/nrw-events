@@ -3,7 +3,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common
+from nrw_events import common, validation
 from nrw_events.sources import SOURCES, bonn_districts
 
 
@@ -14,6 +14,19 @@ BEUEL_HTML = """
 <div class="yel"><a href="/events/#14.08.2026"><span class="title">Kirmes Oberkassel</span><br>
 <b>Fr. 14.08. – 18.08. 23:59</b> | in 31 Tagen | <a href="/map/?q=Oberkassel">Oberkassel</a><br>
 Ab Freitag wird gemeinsam im Stadtteil gefeiert.<br><small>externer Link: <a href="https://example.test/kirmes">mehr</a></small></a></div>
+"""
+
+JMJ_KIRMES_HTML = """
+<div class="site-navigation">Nicht als Beschreibung übernehmen.</div>
+<div class="entry-content">
+  <h2>Programm</h2>
+  <script>window.noisyPayload = "Kirmes endet im Script";</script>
+  <p><strong>Freitag, 14. August 2026</strong></p>
+  <p><strong>18.00 Uhr</strong> Generalprobe und Aufstellen der Vogelstange.</p>
+  <h2>Große Neuheit ab der Kirmes 2026</h2>
+  <p>Ab 2026 startet die Kirmes schon am Freitag mit dem Aufstellen der Vogelstange. Der Samstag rückt stärker in den Mittelpunkt und die Saalabende finden samstags, sonntags und montags statt. Die Kirmes endet am Dienstag mit der Beerdigung des Kirmeskerls.</p>
+  <p>Werbetext, der nicht Teil der Übersicht ist.</p>
+</div><!-- .entry-content -->
 """
 
 BAD_GODESBERG_HTML = """
@@ -124,6 +137,42 @@ class BonnDistrictSourceTests(unittest.TestCase):
         ])
         self.assertEqual([event["source"] for event in events], ["green-juice.de", "example.test"])
         self.assertTrue(all(event["source_id"] == "beuel-net" for event in events))
+
+    def test_jmj_kirmes_uses_the_confirmed_primary_overview(self):
+        discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[1]
+        discovered["link"] = "https://www.jmj-online.de/"
+        [event] = bonn_districts._confirm_beuel_primary_sources(
+            [discovered],
+            primary_fetcher=lambda _url: JMJ_KIRMES_HTML,
+        )
+
+        self.assertIn("startet die Kirmes schon am Freitag", event["description"])
+        self.assertIn("Beerdigung des Kirmeskerls", event["description"])
+        self.assertIn("am Dienstag", event["description"])
+        self.assertNotIn("Außerordentliche Mitgliederversammlung", event["description"])
+        self.assertNotIn("Werbetext", event["description"])
+        self.assertNotIn("noisyPayload", event["description"])
+        self.assertEqual(event["description_source"], "scraped")
+        self.assertEqual(event["source_role"], "primary")
+        self.assertEqual(event["discovered_via"], ["beuel-net"])
+
+        canonical = validation.validate_event(event)
+
+        self.assertIn("startet die Kirmes schon am Freitag", canonical.description)
+        self.assertEqual(canonical.description_source, "scraped")
+
+    def test_non_jmj_beuel_primary_stays_master_data_only(self):
+        event = bonn_districts.events_from_beuel_html(BEUEL_HTML)[1]
+        event["source"] = "example.test"
+        event["source_id"] = "beuel-net"
+        event["link"] = "https://example.test/kirmes"
+        event["description"] = "Fremder redaktioneller Beschreibungstext."
+        event["description_source"] = "scraped"
+
+        canonical = validation.validate_event(event)
+
+        self.assertNotIn("Fremder redaktioneller", canonical.description)
+        self.assertEqual(canonical.description_source, "generated")
 
     def test_bonn_district_refinement_prefers_specific_configured_place(self):
         self.assertEqual(

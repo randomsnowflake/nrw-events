@@ -7,7 +7,7 @@ import re
 import urllib.parse
 from typing import Any
 
-from . import ai_enrichment, category_taxonomy, common, richtext
+from . import ai_enrichment, category_taxonomy, common, event_types, richtext
 from .models import (
     MAX_DISCOVERY_PROVENANCE_SOURCES,
     CanonicalEvent,
@@ -37,8 +37,17 @@ _VISITOR_ADMISSION = re.compile(
 def _requires_master_data_only(event: dict[str, Any]) -> bool:
     source_id = str(event.get("source_id") or "").casefold()
     source = str(event.get("source") or "").casefold()
+    link_host = (
+        urllib.parse.urlsplit(str(event.get("link") or "")).hostname or ""
+    ).casefold().removeprefix("www.")
+    verified_jmj_description = (
+        source_id == "beuel-net"
+        and source == "jmj-online.de"
+        and link_host == "jmj-online.de"
+        and event.get("description_source") == "scraped"
+    )
     return (
-        source_id in {"ruhr-guide", "beuel-net", "meetup"}
+        (source_id in {"ruhr-guide", "beuel-net", "meetup"} and not verified_jmj_description)
         or source_id.startswith("meetup-")
         or source in {"marktcom", "meetup", "ruhr-guide", "beuel.net"}
     )
@@ -356,6 +365,10 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         event.setdefault("category_reason", "")
     if event["category_key"] not in category_taxonomy.CATEGORY_BY_KEY:
         raise EventValidationError("category_key_invalid")
+    try:
+        event["event_types"] = event_types.classify_event_types(event)
+    except ValueError as exc:
+        raise EventValidationError(str(exc)) from exc
     decision = evaluate_event_quality(event)
     if decision.should_drop:
         raise EventValidationError(f"quality:{decision.rule_id}")

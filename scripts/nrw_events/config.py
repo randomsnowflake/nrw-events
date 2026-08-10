@@ -292,20 +292,6 @@ VENUE_COORDS = {
     "monheim am rhein": (51.0916, 6.8925), "leichlingen": (51.1061, 7.0187),
 }
 
-# ── Curated Meetup groups ───────────────────────────────────────────
-# Each exposes a public iCal feed at meetup.com/<slug>/events/ical/ (no auth).
-# Re-probe periodically: a 404 = wrong slug; 200 with 0 VEVENT = inactive group.
-# Tuple: (slug, default_city, category-hint, trust)
-MEETUP_GROUPS = [
-    ("bonner-ki-meetup", "Bonn", "ki tech meetup", 0.95),
-    ("jug-bonn", "Bonn", "java tech meetup", 0.9),
-    ("azure-bonn-meetup", "Bonn", "cloud tech meetup", 0.9),
-    ("rudel-koeln", "Köln", "wanderung outdoor natur meetup", 0.85),
-    ("board-games-in-bonn", "Bonn", "spiele meetup", 0.8),
-    ("sprachcafe-bonn", "Bonn", "sprache meetup", 0.8),
-]
-
-
 # Bonner Postleitzahlen je Stadtbezirk. Auf Ortsteilebene wäre die Zuordnung
 # nicht eindeutig — eine PLZ schneidet dort mehrere Ortsteile —, auf
 # Stadtbezirksebene ist sie es.

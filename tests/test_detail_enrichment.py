@@ -388,6 +388,262 @@ class DetailEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(context["description"], "Belastbarer öffentlicher Ersatztext")
 
+    def test_shared_unkel_overview_is_title_bounded_and_fetched_once(self):
+        document = """
+        <table><tbody>
+          <tr><td class="event-time"><div class="datum">12. August 2026</div></td>
+            <td class="event-description"><div class="accordion_container">
+              <h3 class="accordion_head">Repair-Café in Unkel<span>+</span></h3>
+              <div class="accordion_body"><p>Reparaturen, Tipps und Infos für viele Dinge des Alltags.</p>
+                <p>Ort: Tröötetempel in Unkel.</p>
+                <div class="locationlink">Veranstaltungsort: <i><a>Tröötetempel</a></i></div>
+              </div></div></td></tr>
+          <tr><td class="event-time"><div class="datum">16. August 2026</div></td>
+            <td class="event-description"><div class="accordion_container">
+              <h3 class="accordion_head">Wein – Wandern – Naturgenuss<span>+</span></h3>
+              <div class="accordion_body"><p>Eine kulturhistorisch-geologische Wanderung mit Weinprobe.</p>
+                <p><strong>Kosten:</strong> 54 Euro</p>
+              </div></div></td></tr>
+        </tbody></table>
+        """
+        link = "https://rhein.info/unkel/"
+        event_date = detail_enrichment.common.TODAY.strftime("%Y-%m-%d")
+        repair = self.event(
+            title="Repair-Café in Unkel", date=event_date,
+            start_date=event_date, end_date=event_date,
+            description="", description_html="", venue="", link=link,
+            source="VG Unkel", source_id="vg-unkel",
+        )
+        wine = self.event(
+            title="Wein - Wandern - Naturgenuss", date=event_date,
+            start_date=event_date, end_date=event_date,
+            description="", description_html="", link=link,
+            source="VG Unkel", source_id="vg-unkel",
+        )
+
+        with patch.object(detail_enrichment.common, "fetch_detail_url", return_value=document) as fetch:
+            enriched = detail_enrichment.enrich_events([repair, wine])
+
+        fetch.assert_called_once()
+        self.assertIn("Reparaturen, Tipps", enriched[0]["description"])
+        self.assertNotIn("Weinprobe", enriched[0]["description"])
+        self.assertEqual(enriched[0]["venue"], "Tröötetempel")
+        self.assertIn("Weinprobe", enriched[1]["description"])
+        self.assertEqual(enriched[1]["price"], "54 Euro")
+
+    def test_extracts_shared_rheinbach_sommerkino_facts(self):
+        document = """
+        <h2>Sommerkino für den guten Zweck</h2>
+        <p>Das Sommerkino bringt an sechs Abenden Open-Air-Kinoatmosphäre in die Rheinbacher Innenstadt.</p>
+        <p>Die Erlöse fließen in soziale Projekte in Rheinbach.</p>
+        <h2>Informationen zum Rheinbacher Sommerkino</h2>
+        <p>Es gilt das Jugendschutzgesetz.</p>
+        <p><strong>Einlass:</strong><br>Der Einlass beginnt an allen Tagen um 19:30 Uhr.</p>
+        <p><strong>Kosten:</strong><br>Die Karten kosten im Vorverkauf 8 Euro. Beim Erwerb aller Filmabende sind es 40 Euro.</p>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Sommerkino Rheinbach: Ach, diese Lücke",
+                link="https://www.wir-fuer-rheinbach.de/sommerkino",
+                source="Wir für Rheinbach", source_id="wir-fuer-rheinbach",
+            ),
+        )
+
+        self.assertIn("Open-Air-Kinoatmosphäre", context["description"])
+        self.assertIn("Jugendschutzgesetz", context["description"])
+        self.assertEqual(context["price"], "8 Euro im Vorverkauf")
+        self.assertEqual(context["venue_address"], "Bachstraße, Rheinbach")
+
+    def test_extracts_exact_pantheon_program_block_and_ticket_price(self):
+        document = """
+        <li id="t639994"><h2 class="event-title">Die Offene Bühne</h2>
+          <dl class="event-ticket-detail"><dt>Tickets</dt><dd>EUR 7.00 im Vorverkauf</dd></dl>
+          <div class="event-detail"><p>Mindestens sechs unterschiedliche Acts zeigen neue Nummern.</p>
+            <p>Das Publikum erlebt zwei abwechslungsreiche Stunden.</p>
+            <div class="event-less">Weniger Infos</div></div>
+        </li>
+        <li id="t643395"><h2 class="event-title">Cat Stevens Tribute</h2>
+          <div class="event-detail"><p>Ein anderer Konzerttext darf nicht übernommen werden.</p></div>
+        </li>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Die Offene Bühne", link="https://www.pantheon.de/programm/#t639994",
+                source="Pantheon Bonn", source_id="pantheon-bonn",
+            ),
+        )
+
+        self.assertIn("sechs unterschiedliche Acts", context["description"])
+        self.assertIn("abwechslungsreiche Stunden", context["description"])
+        self.assertNotIn("anderer Konzerttext", context["description"])
+        self.assertNotIn("Weniger Infos", context["description"])
+        self.assertEqual(context["price"], "7,00 € im Vorverkauf")
+
+    def test_extracts_rathausmusik_band_copy_by_visual_position(self):
+        document = """
+        <div class="xr_txt Normal_text xr_s6" style="position:absolute;top:1383px">
+          <span>13. August</span><span>Second Arrangement</span>
+        </div>
+        <div class="xr_txt Normal_text xr_s4" style="position:absolute;top:1503px">
+          <span>Second Arrangement ist eine 2019 gegründete zehnköpfige Band.</span>
+          <span>Sie spielt Rock, Jazz und Pop mit authentischem Bläsersatz.</span>
+        </div>
+        <div class="xr_txt Normal_text xr_s6" style="position:absolute;top:1915px">
+          <span>20. August First Lane</span>
+        </div>
+        <div class="xr_txt Normal_text xr_s4" style="position:absolute;top:1979px">
+          <span>First Lane ist eine Bonner Melodic-Rock-Band.</span>
+        </div>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Musik auf der Rathaustreppe: Second Arrangement",
+                link="http://www.rathausmusik.com/", source_id="rathausmusik",
+            ),
+        )
+
+        self.assertIn("zehnköpfige Band", context["description"])
+        self.assertIn("authentischem Bläsersatz", context["description"])
+        self.assertNotIn("First Lane", context["description"])
+
+    def test_extracts_eitorf_event_body_free_admission_and_venue(self):
+        document = """
+        <section class="section single-page"><div class="content">
+          <div class="intro-text"><p>Weinfest vom 14. bis 16. August.</p></div>
+          <div class="text"><p><strong>Unser Programm</strong><br>Freitag und Samstag DJ Gabor.</p>
+            <p><strong>Unsere Winzer</strong><br>Weingüter aus mehreren Regionen.</p></div>
+          <div class="event-page-info">
+            <p class="subtitle event-place">Parkplatz vor dem Sportplatz Eitorf</p>
+            <p class="subtitle event-price">Preis: freier Eintritt</p>
+          </div>
+        </div></section>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Weinfest in Eitorf",
+                link="https://www.eitorf.de/veranstaltungen/submited-events/eitorfer-weinfest/",
+                source_id="eitorf-events",
+            ),
+        )
+
+        self.assertIn("DJ Gabor", context["description"])
+        self.assertIn("Unsere Winzer", context["description_html"])
+        self.assertEqual(context["price"], "freier Eintritt")
+        self.assertEqual(context["venue"], "Parkplatz vor dem Sportplatz Eitorf")
+
+    def test_extracts_froscon_visit_facts_without_page_scripts(self):
+        document = """
+        <main><article id="content" class="content">
+          <h3>Ort &amp; Uhrzeit</h3>
+          <p>Hochschule Bonn-Rhein-Sieg<br>Grantham-Allee 20<br>53757 Sankt Augustin</p>
+          <p>Die Veranstaltung findet vom 15. bis 16. August 2026 statt.</p>
+          <p>Das Programm startet am Samstag um 09:30 Uhr und am Sonntag um 10:00 Uhr.</p>
+          <script>window.unrelated = "Navigation";</script>
+          <h3>Tickets</h3>
+          <p>Der Eintritt zur FrOSCon ist frei. Ihr braucht euch nicht zu registrieren.</p>
+          <h3>Verpflegung</h3><p>Speisen und Getränke können vor Ort erworben werden.</p>
+        </article></main>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(title="FrOSCon in Sankt Augustin", link="https://froscon.org/info/", source_id="froscon"),
+        )
+
+        self.assertIn("Programm startet", context["description"])
+        self.assertIn("nicht zu registrieren", context["description"])
+        self.assertNotIn("window.unrelated", context["description_html"])
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["venue"], "Hochschule Bonn-Rhein-Sieg")
+        self.assertEqual(context["venue_address"], "Grantham-Allee 20, 53757 Sankt Augustin")
+
+    def test_repeated_marabu_detail_page_enriches_each_occurrence(self):
+        document = """
+        <meta property="og:description" content="Eine ausführliche Theaterbeschreibung über Wahrheit, Täuschung und Manipulation für Jugendliche ab 14 Jahren.">
+        """
+        link = "https://www.theater-marabu.de/stueck/j-e-m-escape-at/"
+        event_date = detail_enrichment.common.TODAY.strftime("%Y-%m-%d")
+        events = [
+            self.event(title="J.E.M. Neues Stück", date=date, start_date=date, end_date=date,
+                       description="", description_html="", link=link,
+                       source="Brotfabrik Bonn", source_id="brotfabrik-bonn")
+            for date in (event_date, event_date)
+        ]
+
+        with patch.object(detail_enrichment.common, "fetch_detail_url", return_value=document) as fetch:
+            enriched = detail_enrichment.enrich_events(events)
+
+        fetch.assert_called_once()
+        self.assertTrue(all("Täuschung und Manipulation" in event["description"] for event in enriched))
+
+    def test_meetup_and_ruhr_guide_keep_only_extracted_master_data(self):
+        document = """
+        <meta property="og:description" content="Redaktioneller Plattformtext, der nicht veröffentlicht werden darf.">
+        <script type="application/ld+json">{
+          "@context": "https://schema.org", "@type": "Event", "name": "Open Data Bonn",
+          "location": {"@type": "Place", "name": "Testhalle", "address": {
+            "@type": "PostalAddress", "streetAddress": "Testweg 1",
+            "postalCode": "53111", "addressLocality": "Bonn"}}
+        }</script>
+        """
+        for source, source_id, link in (
+            ("Meetup", "meetup-open-data-bonn", "https://www.meetup.com/open-data-bonn/events/1/"),
+            ("Ruhr-Guide", "ruhr-guide", "https://www.ruhr-guide.de/veranstaltung/open-data-bonn/"),
+        ):
+            with self.subTest(source=source):
+                context = detail_enrichment.extract_detail_context(
+                    document, self.event(title="Open Data Bonn", source=source, source_id=source_id, link=link),
+                )
+                self.assertEqual(context["description"], "")
+                self.assertEqual(context["description_html"], "")
+                self.assertEqual(context["venue"], "Testhalle")
+                self.assertEqual(context["venue_address"], "Testweg 1 53111 Bonn")
+
+    def test_unmatched_shared_unkel_page_does_not_fall_back_to_another_event(self):
+        document = """
+        <main class="entry-content">
+          <h3 class="accordion_head">Kochkurs Español &amp; Vinos</h3>
+          <div class="accordion_body"><p>Paella-Abend.</p><p><strong>Eintritt</strong>: 79 Euro</p></div>
+        </main>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Konzert am Salmenfang: Los Manolos",
+                link="https://rhein.info/unkel/",
+                source_id="vg-unkel",
+            ),
+        )
+
+        self.assertEqual(context["description"], "")
+        self.assertEqual(context["price"], "")
+
+    def test_structured_detail_replaces_a_duplicated_trailing_city(self):
+        event = self.event(
+            venue_address="Joseph-Schumpeter-Allee 1, Bonn Bonn",
+            link="https://www.meetup.com/open-data-bonn/events/1/",
+            source_id="meetup-open-data-bonn",
+        )
+
+        enriched = detail_enrichment.apply_detail_context(event, {
+            "description": "",
+            "description_html": "",
+            "price": "",
+            "venue": "",
+            "venue_address": "Joseph-Schumpeter-Allee 1, Bonn",
+        })
+
+        self.assertEqual(enriched["venue_address"], "Joseph-Schumpeter-Allee 1, Bonn")
+
 
 if __name__ == "__main__":
     unittest.main()

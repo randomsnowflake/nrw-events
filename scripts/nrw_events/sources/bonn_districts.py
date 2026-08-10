@@ -33,6 +33,7 @@ _BRUESER_BERG_LOCAL_VENUES = (
     "hardtberghalle",
     "telekom dome",
 )
+_JMJ_HOST = "jmj-online.de"
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -305,6 +306,49 @@ def events_from_beuel_html(html: str) -> list:
     return regional_common.dedupe(events)
 
 
+def _jmj_kirmes_description(html: str) -> str:
+    """Extract the current organizer-written overview from the Kirmes page."""
+    entry = re.search(
+        r'<div\b[^>]*class=["\'][^"\']*\bentry-content\b[^"\']*["\'][^>]*>'
+        r'(.*?)</div>\s*<!--\s*\.entry-content\s*-->',
+        html or "", re.IGNORECASE | re.DOTALL,
+    )
+    if not entry:
+        return ""
+    body = re.sub(
+        r"<(?:script|style|blockquote)\b.*?</(?:script|style|blockquote)>",
+        "",
+        entry.group(1),
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    paragraphs = [
+        common.clean_html(paragraph)
+        for paragraph in re.findall(r"<p\b[^>]*>(.*?)</p>", body, re.IGNORECASE | re.DOTALL)
+    ]
+    overview = next((
+        paragraph for paragraph in paragraphs
+        if re.search(r"\bstartet\s+die\s+Kirmes\b", paragraph, re.IGNORECASE)
+        and re.search(r"\bKirmes\s+endet\b", paragraph, re.IGNORECASE)
+    ), "")
+    visitor_copy = re.search(
+        r"\bAb\s+20\d{2}\s+startet\s+die\s+Kirmes\b",
+        overview,
+        re.IGNORECASE,
+    )
+    return common.concise_description(
+        overview[visitor_copy.start():] if visitor_copy else overview,
+    )
+
+
+def _primary_description(event: dict, html: str, source: str) -> str:
+    is_kirmes = re.search(
+        r"\bkirmes\b", str(event.get("title") or ""), re.IGNORECASE,
+    )
+    if source != _JMJ_HOST or not is_kirmes:
+        return ""
+    return _jmj_kirmes_description(html)
+
+
 def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
     """Keep discovery records only when their linked first-party page is readable."""
     confirmed = []
@@ -325,7 +369,16 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
             continue
         event["source"] = source
         event["source_id"] = "beuel-net"
-        confirmed.append(common.keep_only_event_master_data(event))
+        description = _primary_description(event, str(primary_html), source)
+        if description:
+            event["description"] = description
+            event["description_html"] = ""
+            event["description_source"] = "scraped"
+            event["source_role"] = "primary"
+            event["discovered_via"] = ["beuel-net"]
+            confirmed.append(event)
+        else:
+            confirmed.append(common.keep_only_event_master_data(event))
     return confirmed
 
 

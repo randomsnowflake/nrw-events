@@ -3,7 +3,7 @@
 import re
 import urllib.parse
 
-from .. import common
+from .. import common, detail_enrichment
 from . import regional_common as rc
 
 _LOHMAR_BASE_URL = "https://www.lohmar.de/"
@@ -33,12 +33,24 @@ def fetch() -> list:
     events.extend(rc.fetch_html_events(
         "Eitorf",
         "https://www.eitorf.de/veranstaltungen/",
-        lambda html: _events_from_eitorf_cards(html, "https://www.eitorf.de"),
+        lambda html: _events_from_eitorf_cards(
+            html,
+            "https://www.eitorf.de",
+            detail_fetcher=lambda link: common.fetch_detail_url(
+                link, cache_namespace="eitorf-events", timeout=20,
+            ),
+        ),
      source_id="eitorf-events"))
     events.extend(rc.fetch_html_events(
         "Bröltal / Ruppichteroth",
         "https://www.broeltal.de/aktuelles/termine.html",
-        lambda html: _events_from_broeltal(html, "https://www.broeltal.de"),
+        lambda html: _events_from_broeltal(
+            html,
+            "https://www.broeltal.de",
+            detail_fetcher=lambda link: common.fetch_detail_url(
+                link, cache_namespace="broeltal-events", timeout=20,
+            ),
+        ),
      source_id="broeltal-ruppichteroth-events"))
     return rc.dedupe(events)
 
@@ -204,7 +216,7 @@ def _events_from_bornheim(html: str) -> list:
     return events
 
 
-def _events_from_eitorf_cards(html: str, base: str) -> list:
+def _events_from_eitorf_cards(html: str, base: str, detail_fetcher=None) -> list:
     events = []
     for block in re.findall(r'<a[^>]+class="[^"]*card[^"]*"[^>]+data-date="[^"]+".*?</a>', html, re.S | re.I):
         href = re.search(r'href="([^"]+)"', block, re.I)
@@ -230,6 +242,9 @@ def _events_from_eitorf_cards(html: str, base: str) -> list:
             rc.time_text(block_text),
         )
         if ev:
+            ev = _enrich_regional_detail(
+                ev, detail_fetcher, "Eitorf detail",
+            )
             events.append(ev)
     return events
 
@@ -248,7 +263,7 @@ def _eitorf_venue(place: str, text: str) -> str:
     return rc.clean(meeting_point.group(1)) if meeting_point else place
 
 
-def _events_from_broeltal(html: str, base: str) -> list:
+def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
     events = []
     blocks = re.findall(r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>',
                         html, re.S | re.I)
@@ -273,5 +288,22 @@ def _events_from_broeltal(html: str, base: str) -> list:
             rc.time_text(text),
         )
         if ev:
+            ev = _enrich_regional_detail(
+                ev, detail_fetcher, "Bröltal / Ruppichteroth detail",
+            )
             events.append(ev)
     return events
+
+
+def _enrich_regional_detail(event: dict, detail_fetcher, source: str) -> dict:
+    if not detail_fetcher or not common.window_contains(
+        common.parse_iso_date(str(event.get("start_date") or "")),
+    ):
+        return event
+    try:
+        document = detail_fetcher(str(event.get("link") or ""))
+        context = detail_enrichment.extract_detail_context(document, event)
+        return detail_enrichment.apply_detail_context(event, context)
+    except Exception as exc:
+        common.log_source_error(source, exc)
+        return event

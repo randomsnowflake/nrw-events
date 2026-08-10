@@ -68,6 +68,7 @@ class RawEvent(TypedDict, total=False):
     location_source: str
     score: float
     ranking_features: dict[str, float]
+    event_types: list[str]
     priority_bonus: float
     cancelled_at: str
     cancellation_source: str
@@ -173,6 +174,7 @@ class CanonicalEvent(Mapping[str, Any]):
     location_confidence: str = "unresolved"
     location_source: str = ""
     ranking_features: Optional[dict[str, float]] = None
+    event_types: list[str] = field(default_factory=list)
     priority_bonus: float = 0.0
     cancelled_at: str = ""
     cancellation_source: str = ""

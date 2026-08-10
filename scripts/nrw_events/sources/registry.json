@@ -175,13 +175,6 @@
       "callable": "nrw_events.sources.tik_bonn:fetch"
     },
     {
-      "id": "meetup",
-      "display_name": "Meetup",
-      "region": "bonn-region",
-      "adapter": "python",
-      "callable": "nrw_events.sources.meetup:fetch"
-    },
-    {
       "id": "rheinauen-flohmarkt",
       "display_name": "Rheinauen-Flohmarkt",
       "region": "bonn-region",
@@ -499,7 +492,7 @@
       "callable": "nrw_events.sources.requested_venues:fetch",
       "component_ids": [
         "kunstmuseum-bonn", "sankt-augustin-events", "pantheon-bonn",
-        "haus-der-springmaus", "brueckenforum-bonn"
+        "haus-der-springmaus", "brueckenforum-bonn", "rathausmusik"
       ]
     },
     {

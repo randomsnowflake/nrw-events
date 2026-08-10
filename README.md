@@ -20,7 +20,7 @@ nur Python 3 Standardbibliothek.
 Die aufbereiteten Termine werden unter https://www.veranstaltungen-bonn.de/ veröffentlicht; jeder Eintrag verweist zur Originalquelle.
 
 > **Unabhängig und nicht verbunden.** Dieses Repository ist nicht mit Bonn.de,
-> Köln Open Data, Bundeskunsthalle, Meetup, Exa, xAI oder irgendeiner
+> Köln Open Data, Bundeskunsthalle, Exa, xAI oder irgendeiner
 > anderen Quelle verbunden, gesponsert oder offiziell autorisiert. Es ist nur ein
 > freies Open-Source-Werkzeug, das öffentlich erreichbare Informationen bündelt.
 
@@ -222,6 +222,7 @@ scripts/nrw_events/
   dates.py
   detail_enrichment.py
   event_builder.py
+  event_types.py
   event_vocabulary.py
   health.py
   highlights.py
@@ -284,7 +285,6 @@ scripts/nrw_events/
     max7.py
     mec_municipal.py
     meckenheim.py
-    meetup.py
     melan.py
     much.py
     museum_koenig.py
@@ -536,7 +536,6 @@ Redaktionsentscheidungen.
 | bonn-region | Ludwig's Bonn | `ludwig-s-bonn` | `python` |
 | bonn-region | marktcom | `marktcom` | `python` |
 | bonn-region | Meckenheim | `meckenheim` | `python` |
-| bonn-region | Meetup | `meetup` | `python` |
 | bonn-region | Melan Märkte | `melan-m-rkte` | `python` |
 | bonn-region | Much | `much` | `python` |
 | bonn-region | Municipal MEC markets | `municipal-mec-markets` | `python` |
@@ -581,8 +580,7 @@ Redaktionsentscheidungen.
 - **Bonn.de-Ergänzungen:** Sportveranstaltungen sowie das jährliche
   „Veranstaltungsjahr“ mit Stadtteilfesten, Kirmes, Märkten und lokalen Terminen
   (`bonn.py`).
-- **iCal / RFC 5545:** Harmonie Bonn, Siegburg, Troisdorf, Wachtberg und kuratierte
-  Bonn-area Meetup-Gruppen.
+- **iCal / RFC 5545:** Harmonie Bonn, Siegburg, Troisdorf und Wachtberg.
 - **JSON-LD / schema.org:** Rheinauen-Flohmarkt, Kinderflohmarkt.com,
   VVS Siebengebirge, Hennef und
   weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
@@ -718,9 +716,6 @@ JSON-LD ist stabiler als HTML-Scraping.
 3. Nur für proprietäre Formate ein Modul mit `fetch()` schreiben und es in
    `CUSTOM_SOURCES` registrieren; dabei die gemeinsamen Parser verwenden.
 4. Neue Orte in `config.VENUE_COORDS` ergänzen, damit die Distanzwertung stimmt.
-
-Für Meetup-Gruppen: `config.MEETUP_GROUPS` bearbeiten. Öffentliche iCal-Feeds
-liegen unter `https://www.meetup.com/<slug>/events/ical/`.
 
 ## Ausgabe
 

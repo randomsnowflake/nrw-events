@@ -742,13 +742,13 @@ END:VCALENDAR
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["link"], "https://meinbadhonnef.de/kalender/veranstaltungen/")
 
-    def test_unkel_rss_uses_working_municipality_event_listing_url(self):
+    def test_unkel_rss_preserves_the_event_detail_url(self):
         import xml.etree.ElementTree as ET
 
         item = ET.fromstring("""
 <item>
   <title>Konzert am Salmenfang</title>
-  <link>https://rhein.info/veranstaltungen/dead-detail/</link>
+  <link>https://rhein.info/veranstaltungen/konzert-am-salmenfang/</link>
   <description>20.06.2026&lt;br/&gt;Unkel&lt;br/&gt;Konzert am Rhein</description>
 </item>
 """)
@@ -756,7 +756,10 @@ END:VCALENDAR
         event = regional_feeds._event_from_unkel_item(item)
 
         self.assertIsNotNone(event)
-        self.assertEqual(event and event["link"], "https://rhein.info/unkel/")
+        self.assertEqual(
+            event and event["link"],
+            "https://rhein.info/veranstaltungen/konzert-am-salmenfang/",
+        )
 
     def test_ahrtal_shapehub_uses_event_detail_url_for_cards(self):
         html = """
