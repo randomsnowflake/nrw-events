@@ -46,15 +46,31 @@ def _detail_fields(html: str) -> tuple[str, str]:
         re.S | re.I,
     )
     description = common.concise_description(body.group(1)) if body else ""
+    detail_text = common.clean_html(body.group(1) if body else "")
     price_match = re.search(
         r"Partyeintritt\s*(\d+(?:[,.]\d+)?)\s*€.*?(\d+(?:[,.]\d+)?)\s*€\s*Verzehr",
-        common.clean_html(body.group(1) if body else ""),
+        detail_text,
         re.I,
     )
     price = ""
     if price_match:
         admission, consumption = (value.replace(",", ".") for value in price_match.groups())
         price = f"{admission.rstrip('0').rstrip('.')} € + {consumption.rstrip('0').rstrip('.')} € Verzehr"
+    else:
+        party_match = re.search(
+            r"\bTanzparty\s*:\s*(\d+(?:[,.]\d+)?)\s*€",
+            detail_text,
+            re.I,
+        )
+        if party_match:
+            admission = party_match.group(1).replace(",", ".").rstrip("0").rstrip(".")
+            price = f"Tanzparty: {admission} €"
+            if re.search(
+                r"\bClassic\s*&\s*Premium\s+Mitglieder\b.*?\bParty\s+kostenlos\b",
+                detail_text,
+                re.I,
+            ):
+                price += "; Classic & Premium Mitglieder kostenlos"
     return description, price
 
 
@@ -109,6 +125,7 @@ def _events_from_listing(html: str, detail_loader=None) -> list:
                 if event:
                     if price:
                         event["price"] = price
+                        event["admission_basis"] = "explicit"
                     events.append(_nightlife(event))
     return rc.dedupe(events)
 

@@ -72,6 +72,39 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assertEqual(events[2]["venue_address"], "Maxstr. 7")
         self.assert_canonical(events[0])
 
+    def test_max7_keeps_paid_party_price_when_only_members_enter_free(self):
+        html = """
+        <div class='workshop-group-header '>Sa, 22.08.26</div>
+        <div class='workshop-group-header-2 '>Max7 Altstadt, Maxstr. 7</div>
+        <div class="workshop_or_party Workshop Party">
+          <a href='/tanzkurse-bonn/workshop∔party/6932/ballroom-night'>
+            <div class='line3'>ab 21:00 Gesellschaftstanzparty</div>
+          </a>
+        </div>
+        """
+        detail = """
+        <h2>Beschreibung</h2><div>
+        <strong>Preise:</strong><br>
+        1 Workshop + Party: 15€<br>
+        2 Workshops + Party: 20€<br>
+        Tanzparty: 5€<br><br>
+        <strong>Classic &amp; Premium Mitglieder:</strong><br>
+        Workshops 10€<br>Party kostenlos
+        </div><div class="col-lg-6">
+        """
+
+        events = max7._events_from_listing(html, lambda _url: detail)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["price"],
+            "Tanzparty: 5 €; Classic & Premium Mitglieder kostenlos",
+        )
+        self.assertEqual(events[0]["admission_basis"], "explicit")
+        canonical = canonicalize_event(events[0])
+        self.assertFalse(canonical.admission["isFree"])
+        self.assertEqual(canonical.admission["amount"], 5.0)
+
     def test_afterjobparty_uses_row_description_and_filters_vouchers(self):
         def row(event_id, item, description):
             return (
