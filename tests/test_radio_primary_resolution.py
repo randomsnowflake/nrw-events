@@ -725,6 +725,57 @@ class RadioFallbackDetailEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(event_id(after), published_id)
 
+    def test_shared_primary_url_enriches_every_promoted_occurrence(self):
+        entry = resolution.entry_for_key(("Sommerkino in Rheinbach", "2026-08-22"))
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        )
+        calls: list[str] = []
+
+        def fake_enrichment(drafts, *, cache_namespace):
+            self.assertEqual(cache_namespace, "radio-primary-fallback-v1")
+            [draft] = drafts
+            calls.append(draft["title"])
+            return [{
+                **draft,
+                "description": f"Programminformation zu {draft['title']}. " * 8,
+                "description_source": "scraped",
+            }]
+
+        with mock.patch.object(runner.detail_enrichment, "enrich_events", fake_enrichment):
+            enriched = runner._enrich_promoted_fallbacks(
+                outcome.events, outcome.promoted_fallback_event_ids,
+            )
+
+        self.assertEqual(len(calls), 6)
+        self.assertEqual(calls, [event.title for event in outcome.events])
+        self.assertTrue(all(event.description_source == "scraped" for event in enriched))
+
+    def test_late_fallback_enrichment_cache_is_flushed(self):
+        entry, _outcome = self._promoted_outcome()
+        context = RunContext(
+            config.RuntimeConfig(score_floor=0, series_ledger_json=""),
+            EventWindow(datetime(2026, 8, 6), datetime(2026, 8, 27)),
+            "radio-detail-cache", configure_logging("radio-detail-cache", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 8, 10, 12),
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+                mock.patch.object(resolution, "load_manifest", return_value=(entry,)), \
+                mock.patch.object(
+                    runner.detail_enrichment, "enrich_events",
+                    side_effect=lambda drafts, **_kwargs: drafts,
+                ), \
+                mock.patch.object(runner.common, "flush_detail_page_caches", return_value=[]) as flush:
+            runner.run_import(context, {
+                "Radio Bonn/Rhein-Sieg": lambda: [lead(entry.title, entry.start_date)],
+            })
+
+        self.assertEqual(
+            flush.call_args_list,
+            [mock.call(), mock.call("radio-primary-fallback-v1")],
+        )
+
     def test_unusable_detail_page_leaves_the_audited_fallback_untouched(self):
         _entry, outcome = self._promoted_outcome()
         [before] = outcome.events

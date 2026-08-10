@@ -1235,15 +1235,24 @@ def _enrich_promoted_fallbacks(
     if not indexes:
         return resolved
 
-    drafts = []
+    drafts: list[dict] = []
     for index in indexes:
         draft = resolved[index].to_dict()
         draft["preserved_event_id"] = event_id(resolved[index])
         drafts.append(draft)
 
-    for index, draft in zip(indexes, detail_enrichment.enrich_events(
-        drafts, cache_namespace="radio-primary-fallback-v1",
-    )):
+    # A manifest entry may expand into several occurrences with one audited
+    # primary URL. The generic detail pass deliberately rejects duplicate URLs
+    # in one batch as likely overview pages. These URLs are explicitly audited,
+    # so pass each occurrence separately; the shared cache fetches the document
+    # once while title-aware extraction still runs for every occurrence.
+    enriched_drafts = [
+        detail_enrichment.enrich_events(
+            [draft], cache_namespace="radio-primary-fallback-v1",
+        )[0]
+        for draft in drafts
+    ]
+    for index, draft in zip(indexes, enriched_drafts):
         try:
             resolved[index] = validate_event(draft)
         except EventValidationError as exc:
@@ -1462,6 +1471,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         resolved_events = _enrich_promoted_fallbacks(
             resolution.events, promoted_fallback_event_ids,
         )
+        # This detail pass occurs after the source-worker cache flush above.
+        # Persist its successful responses and failure backoff before exit.
+        cache_warnings.extend(common.flush_detail_page_caches(
+            "radio-primary-fallback-v1"
+        ))
         all_events = [*filtered_later, *resolved_events]
         radio_result.research_leads = list(resolution.research_leads)
         radio_result.research_lead_count = len(radio_result.research_leads)
