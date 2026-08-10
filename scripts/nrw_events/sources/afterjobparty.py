@@ -38,6 +38,11 @@ def _price(offer) -> str:
     if not isinstance(offer, dict) or offer.get("price") in (None, ""):
         return ""
     amount = common.parse_float(offer.get("price"))
+    # ticket.io exposes 0 for events whose online presale is no longer
+    # available. That is not a free ticket and must never become a public
+    # "Eintritt frei" claim downstream.
+    if amount <= 0:
+        return ""
     label = f"ab {amount:g} €"
     if str(offer.get("availability", "")).casefold().endswith("outofstock"):
         label += " (ausverkauft)"
@@ -91,6 +96,9 @@ def _events_from_listing(html: str) -> list:
             price = _price(item.get("offers"))
             if price:
                 event["price"] = price
+            offer = item.get("offers")
+            if isinstance(offer, dict) and str(offer.get("availability", "")).casefold().endswith("outofstock"):
+                event["availability"] = "SoldOut"
             events.append(_nightlife(event))
     return rc.dedupe(events)
 

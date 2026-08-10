@@ -125,6 +125,34 @@ class NightlifeSourceTests(unittest.TestCase):
         )
         self.assert_canonical(events[0])
 
+    def test_afterjobparty_does_not_turn_unavailable_zero_price_into_free_entry(self):
+        item = {
+            "@type": "MusicEvent",
+            "name": "AfterJobParty im Bonner Wohnzimmer",
+            "startDate": "2026-10-08T18:00:00+02:00",
+            "endDate": "2026-10-09T00:30:00+02:00",
+            "eventStatus": "EventScheduled",
+            "location": {
+                "name": "Beethovenhalle Bonn",
+                "address": {"addressLocality": "Bonn"},
+            },
+            "offers": {"price": 0, "availability": "OutOfStock"},
+            "url": "https://afterjobparty.ticket.io/sold-out/",
+        }
+        html = (
+            '<tr><td id="event-row-sold-out"><script type="application/ld+json">'
+            f'{json.dumps(item)}</script><li><span><i aria-hidden>info</i>'
+            '<span>Der Online-Vorverkauf ist nicht möglich.</span>'
+            '</span></li></td></tr>'
+        )
+
+        events = afterjobparty._events_from_listing(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["price"], "")
+        self.assertEqual(events[0]["availability"], "SoldOut")
+        self.assert_canonical(events[0])
+
     def test_rheinevents_parses_next_data_and_converts_utc_to_local_time(self):
         payload = {"props": {"pageProps": {"sellerPage": {"events": [{
             "name": "Barfuss am Strand Summer Closing",
