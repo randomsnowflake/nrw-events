@@ -1208,6 +1208,62 @@ def _retained_events_without_fresh_duplicate(
     ]
 
 
+def _enrich_promoted_fallbacks(
+    events: Sequence[CanonicalEvent],
+    promoted_fallback_event_ids: frozenset[str],
+) -> list[CanonicalEvent]:
+    """Read the audited primary page of every promoted Radio fallback.
+
+    A promoted fallback carries master data only: the lead's safe fields plus a
+    sentence built from them. Its link is the audited first-party URL, which is
+    the one page holding the venue, the hours and the programme.
+
+    The per-source detail pass runs while a source is imported, long before the
+    manifest resolves that URL, so these records are the only ones that never
+    get a second pass. Without it the site publishes its most visited Kirmes
+    pages with no venue and no description at all.
+
+    Identity is pinned before the fetch. Filling a blank venue would otherwise
+    move a URL that is already public; this mirrors how AI enrichment preserves
+    the pre-enrichment occurrence id.
+    """
+    resolved: list[CanonicalEvent] = list(events)
+    indexes = [
+        index for index, event in enumerate(resolved)
+        if event_id(event) in promoted_fallback_event_ids
+    ]
+    if not indexes:
+        return resolved
+
+    drafts: list[dict] = []
+    for index in indexes:
+        draft = resolved[index].to_dict()
+        draft["preserved_event_id"] = event_id(resolved[index])
+        drafts.append(draft)
+
+    # A manifest entry may expand into several occurrences with one audited
+    # primary URL. The generic detail pass deliberately rejects duplicate URLs
+    # in one batch as likely overview pages. These URLs are explicitly audited,
+    # so pass each occurrence separately; the shared cache fetches the document
+    # once while title-aware extraction still runs for every occurrence.
+    enriched_drafts = [
+        detail_enrichment.enrich_events(
+            [draft], cache_namespace="radio-primary-fallback-v1",
+        )[0]
+        for draft in drafts
+    ]
+    for index, draft in zip(indexes, enriched_drafts):
+        try:
+            resolved[index] = validate_event(draft)
+        except EventValidationError as exc:
+            # Enrichment is optional. A page that pushes the record past a
+            # quality rule leaves the audited fallback exactly as it was.
+            common.log_source_error(
+                f"{draft.get('source') or 'radio fallback'} primary detail", exc,
+            )
+    return resolved
+
+
 def _prefer_retained_primary_over_radio_fallback(
     fresh_events: list,
     retained_events: list,
@@ -1409,17 +1465,27 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             matchable_events,
             publication_filter=lambda event: _publication_filter_reason(event, settings),
         )
-        all_events = [*filtered_later, *resolution.events]
+        promoted_fallback_event_ids = resolution.promoted_fallback_event_ids
+        # The audited primary URL is only known now, so the promoted fallbacks
+        # get their detail pass here rather than during the source import.
+        resolved_events = _enrich_promoted_fallbacks(
+            resolution.events, promoted_fallback_event_ids,
+        )
+        # This detail pass occurs after the source-worker cache flush above.
+        # Persist its successful responses and failure backoff before exit.
+        cache_warnings.extend(common.flush_detail_page_caches(
+            "radio-primary-fallback-v1"
+        ))
+        all_events = [*filtered_later, *resolved_events]
         radio_result.research_leads = list(resolution.research_leads)
         radio_result.research_lead_count = len(radio_result.research_leads)
         radio_result.research_lead_reasons = resolution.research_lead_reasons
         radio_result.accepted_event_count = sum(
             radio_primary_resolution.RADIO_SOURCE_ID in event.discovered_via
             and not _publication_filter_reason(event, settings)
-            for event in resolution.events
+            for event in resolved_events
         )
         radio_result.cancelled_events.extend(resolution.cancellations)
-        promoted_fallback_event_ids = resolution.promoted_fallback_event_ids
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     for event in all_events:
