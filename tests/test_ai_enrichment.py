@@ -917,6 +917,51 @@ class AIEnrichmentTests(unittest.TestCase):
             cleaned["admission"],
         )
 
+    def test_conflicting_related_event_identity_is_removed_before_summary(self):
+        source = event(
+            title="Call for Ideas: Impact Pitch Night",
+            start_date="2026-08-11",
+            end_date="2026-08-11",
+            city="",
+            description=(
+                "Gesucht werden frühphasige Gründungsideen aus Bonn und dem Rhein-Sieg-Kreis. "
+                "Die zweite Bonner Impact Pitch Night findet am 3. November 2026 im DIGITALHUB statt. "
+                "Die besten Ideen erhalten Preisgelder und ein Pitch-Coaching."
+            ),
+        )
+        payload = ai_enrichment._input_payload(source, source["description"])
+        related_event = {
+            **FACTS,
+            "title": "Bonner Impact Pitch Night",
+            "start_date": "2026-11-03",
+            "end_date": "2026-11-03",
+            "time": "18:00",
+            "time_note": "Einlass ab 17:30 Uhr",
+            "venue": "DIGITALHUB",
+            "venue_address": "Rheinwerkallee 6, 53227 Bonn",
+            "city": "Sankt Augustin",
+        }
+
+        for start_date, end_date in (
+            ("2026-11-03", "2026-11-03"),
+            ("2026-11-03", None),
+            (None, "2026-11-03"),
+        ):
+            with self.subTest(start_date=start_date, end_date=end_date):
+                cleaned = ai_enrichment._sanitize_extracted_facts(
+                    {**related_event, "start_date": start_date, "end_date": end_date},
+                    payload,
+                )
+
+                self.assertEqual("Call for Ideas: Impact Pitch Night", cleaned["title"])
+                self.assertEqual("2026-08-11", cleaned["start_date"])
+                self.assertEqual("2026-08-11", cleaned["end_date"])
+                self.assertIsNone(cleaned["time"])
+                self.assertIsNone(cleaned["time_note"])
+                self.assertIsNone(cleaned["venue"])
+                self.assertIsNone(cleaned["venue_address"])
+                self.assertIsNone(cleaned["city"])
+
     def test_extracted_location_must_be_supported_by_source_material(self):
         source = event(
             city="",
