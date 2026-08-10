@@ -103,7 +103,7 @@ class RunnerOutputTests(unittest.TestCase):
             "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
         }
 
-        def delayed_enrichment(events):
+        def delayed_enrichment(events, **_):
             time.sleep(0.01)
             return events
 

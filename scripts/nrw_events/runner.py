@@ -215,9 +215,22 @@ def _run_source(
         )
         if ai_candidates:
             ai_started = time.monotonic()
-            events = ai_enrichment.enrich_events(events)
+            ai_stats: dict[str, int] = {}
+            events = ai_enrichment.enrich_events(events, stats=ai_stats)
             result.ai_duration_ms = round((time.monotonic() - ai_started) * 1000)
             result.ai_candidate_event_count = ai_candidates
+            result.ai_skipped_event_count = sum(ai_stats.values())
+            # A skipped target event has no publishable description at all, so
+            # this is a content outage rather than a missed optimization. Warn
+            # instead of letting the source read as healthy.
+            if result.ai_skipped_event_count:
+                result.warning(
+                    name,
+                    "AIEnrichmentBudgetWarning",
+                    f"AI enrichment skipped {result.ai_skipped_event_count}/{ai_candidates} "
+                    "target events; those events publish without a description",
+                    source_id=SOURCE_IDS.get(name, ""),
+                )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         # Discovery records prove that the parser is healthy and contribute to
         # raw source counts, even though the publication gate excludes them.

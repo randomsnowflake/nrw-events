@@ -115,7 +115,7 @@ class OpenIssueContractTests(unittest.TestCase):
 
         started = time.monotonic()
         with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
-                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events: events):
+                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events, **_: events):
             result = runner.run_import(context, {
                 "Fast": lambda: [raw_event()],
                 "Stalled": lambda: (time.sleep(1.0), [])[1],
@@ -142,7 +142,7 @@ class OpenIssueContractTests(unittest.TestCase):
         )
 
         with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
-                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events: events):
+                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events, **_: events):
             result = runner.run_import(context, {
                 "Large": lambda: (time.sleep(0.08), [raw_event()])[1],
             })
@@ -161,7 +161,7 @@ class OpenIssueContractTests(unittest.TestCase):
         )
 
         with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
-                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events: events):
+                mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=lambda events, **_: events):
             result = runner.run_import(context, {
                 "Stalled": lambda: (time.sleep(0.2), [])[1],
                 "Fast": lambda: [raw_event()],
@@ -189,7 +189,7 @@ class OpenIssueContractTests(unittest.TestCase):
                     ),
                 ), \
                 mock.patch.object(
-                    runner.ai_enrichment, "enrich_events", side_effect=lambda events: events,
+                    runner.ai_enrichment, "enrich_events", side_effect=lambda events, **_: events,
                 ):
             result = runner.run_import(context, {
                 "Bonn.de Events": lambda: (time.sleep(0.06), [raw_event()])[1],
@@ -222,7 +222,7 @@ class OpenIssueContractTests(unittest.TestCase):
                     ),
                 ), \
                 mock.patch.object(
-                    runner.ai_enrichment, "enrich_events", side_effect=lambda events: events,
+                    runner.ai_enrichment, "enrich_events", side_effect=lambda events, **_: events,
                 ):
             result = runner.run_import(context, {
                 "Bonn.de Events": lambda: (time.sleep(0.08), [raw_event()])[1],
