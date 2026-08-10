@@ -581,9 +581,10 @@ class AIEnrichmentTests(unittest.TestCase):
         ))
         published_id = event_id(changed)
 
-        [result] = ai_enrichment.enrich_events([
-            changed,
-        ], settings=replace(self.settings, batch_timeout_seconds=-1))
+        with mock.patch.object(ai_enrichment.common, "event_in_window", return_value=True):
+            [result] = ai_enrichment.enrich_events([
+                changed,
+            ], settings=replace(self.settings, batch_timeout_seconds=-1))
 
         self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
         self.assertEqual("", result["description"])
