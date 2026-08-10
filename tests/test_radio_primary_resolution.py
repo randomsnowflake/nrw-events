@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from nrw_events import config, radio_primary_resolution as resolution, report, runner
+from nrw_events.identity import event_id
 from nrw_events.models import MAX_DISCOVERY_PROVENANCE_SOURCES
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
@@ -89,6 +90,18 @@ class RadioPrimaryManifestTests(unittest.TestCase):
 
 
 class RadioPrimaryResolutionTests(unittest.TestCase):
+    def setUp(self):
+        # A promoted fallback now reads its audited primary URL, so the
+        # end-to-end cases in this class would otherwise fetch real pages.
+        # Resolution behaviour is what they assert; enrichment has its own
+        # tests in RadioFallbackDetailEnrichmentTests.
+        patcher = mock.patch.object(
+            runner.detail_enrichment, "enrich_events",
+            side_effect=lambda drafts, **_kwargs: drafts,
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_existing_first_party_event_wins_and_is_only_annotated(self):
         entry = resolution.entry_for_key(("Platz & Prost im Rhein Sieg Forum", "2026-08-08"))
         official = primary(
@@ -655,6 +668,100 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
             result.source_results["Radio Bonn/Rhein-Sieg"].cancelled_events[0]["status"],
             "cancelled",
         )
+
+
+class RadioFallbackDetailEnrichmentTests(unittest.TestCase):
+    """The promoted fallback must read the primary page the manifest audited."""
+
+    def _promoted_outcome(self):
+        entry = resolution.entry_for_key(("Warther Kirmes", "2026-08-07"))
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        )
+        return entry, outcome
+
+    def test_promoted_fallback_is_enriched_from_its_audited_primary_url(self):
+        entry, outcome = self._promoted_outcome()
+        [before] = outcome.events
+        # The promotion itself only carries master data; this is the defect.
+        self.assertEqual(before.venue, "")
+        self.assertEqual(before.description_source, "generated")
+
+        def fake_enrichment(drafts, *, cache_namespace):
+            self.assertEqual(cache_namespace, "radio-primary-fallback-v1")
+            [draft] = drafts
+            self.assertEqual(draft["link"], entry.primary_url)
+            return [{
+                **draft,
+                "venue": "Warther Festplatz",
+                "description": "Vier Tage Kirmes in der Warth mit Programm. " * 4,
+                "description_source": "scraped",
+            }]
+
+        with mock.patch.object(runner.detail_enrichment, "enrich_events", fake_enrichment):
+            [after] = runner._enrich_promoted_fallbacks(
+                outcome.events, outcome.promoted_fallback_event_ids,
+            )
+
+        self.assertEqual(after.venue, "Warther Festplatz")
+        self.assertEqual(after.description_source, "scraped")
+        self.assertIn("Vier Tage Kirmes", after.description)
+
+    def test_enrichment_never_moves_the_already_public_url(self):
+        _entry, outcome = self._promoted_outcome()
+        published_id = event_id(outcome.events[0])
+
+        with mock.patch.object(
+            runner.detail_enrichment, "enrich_events",
+            # Filling a blank venue changes the identity tuple, so the id would
+            # move unless the pre-enrichment occurrence id is pinned.
+            lambda drafts, *, cache_namespace: [
+                {**draft, "venue": "Warther Festplatz"} for draft in drafts
+            ],
+        ):
+            [after] = runner._enrich_promoted_fallbacks(
+                outcome.events, outcome.promoted_fallback_event_ids,
+            )
+
+        self.assertEqual(event_id(after), published_id)
+
+    def test_unusable_detail_page_leaves_the_audited_fallback_untouched(self):
+        _entry, outcome = self._promoted_outcome()
+        [before] = outcome.events
+
+        with mock.patch.object(
+            runner.detail_enrichment, "enrich_events",
+            lambda drafts, *, cache_namespace: [
+                {**draft, "start_date": "", "date": ""} for draft in drafts
+            ],
+        ):
+            [after] = runner._enrich_promoted_fallbacks(
+                outcome.events, outcome.promoted_fallback_event_ids,
+            )
+
+        self.assertEqual(after, before)
+
+    def test_events_that_were_not_promoted_are_never_fetched(self):
+        entry = resolution.entry_for_key(("Warther Kirmes", "2026-08-07"))
+        official = primary(
+            "Warther Kirmes", entry.start_date,
+            entry.primary_source, entry.primary_source_id, entry.primary_url,
+            venue="Warther Festplatz",
+        )
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [official], manifest=(entry,),
+        )
+        self.assertEqual(outcome.promoted_fallback_event_ids, frozenset())
+
+        def fail(*_args, **_kwargs):
+            raise AssertionError("no detail fetch without a promoted fallback")
+
+        with mock.patch.object(runner.detail_enrichment, "enrich_events", fail):
+            resolved = runner._enrich_promoted_fallbacks(
+                outcome.events, outcome.promoted_fallback_event_ids,
+            )
+
+        self.assertEqual(list(resolved), list(outcome.events))
 
 
 if __name__ == "__main__":
