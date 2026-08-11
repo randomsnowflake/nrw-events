@@ -123,6 +123,7 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 | bonn-region | ionas4 regional | `ionas4-regional` | `python` |
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
+| bonn-region | Kihapp – Veranstalterdaten | `kihapp` | `python` |
 | bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
@@ -242,6 +243,7 @@ scripts/nrw_events/
     hofflohmaerkte.py
     junges_theater_bonn.py
     katharinenhof.py
+    kihapp.py
     kinderflohmarkt.py
     kleines_theater.py
     koeln.py
