@@ -5,6 +5,8 @@ Reads:  naturregion-sieg.de/service/veranstaltungskalender
 Yields: Windeck, Eitorf, Hennef, Wissen and Sieg-region cultural/outdoor events.
 """
 
+import os
+import time
 from zoneinfo import ZoneInfo
 
 from .. import common
@@ -96,17 +98,50 @@ def _enrich_from_detail(event: dict, html: str) -> dict:
     return _merge_raw_jsonld_item(event, raw_items[0]) if raw_items else event
 
 
+def _detail_occurrences(event: dict, html: str) -> list[dict]:
+    """Expand an exact same-day JSON-LD schedule into bookable occurrences."""
+    title = common.clean_html(event.get("title", "")).casefold()
+    start_date = event.get("start_date", "")
+    raw_items = []
+    seen_bounds = set()
+    for item in common.jsonld_event_items(html):
+        item_title = common.clean_html(item.get("name", "")).casefold()
+        item_start = common.parse_iso_date(item.get("startDate", ""))
+        if item_title != title or not item_start or item_start.strftime("%Y-%m-%d") != start_date:
+            continue
+        bounds = (str(item.get("startDate", "")), str(item.get("endDate", "")))
+        if bounds not in seen_bounds:
+            seen_bounds.add(bounds)
+            raw_items.append(item)
+    if len(raw_items) <= 1:
+        return [_enrich_from_detail(event, html)]
+
+    # The shared JSON-LD parser intentionally collapses repeated title/date rows.
+    # Use its first canonical result for location/copy, then reapply each exact
+    # raw schedule bound so every separately bookable start time survives.
+    base = _enrich_from_detail(event, html)
+    return [_merge_raw_jsonld_item(base, item) for item in raw_items]
+
+
 def _enrich_listing_events(events: list, detail_fetcher) -> list:
-    return rc.enrich_descriptions(
-        events,
-        source=f"{_SOURCE} detail",
-        cache_namespace="naturregion-sieg",
-        extract_context=lambda html, event: _enrich_from_detail(event, html),
-        fallback=_fallback_description,
-        detail_fetcher=detail_fetcher,
-        needs_enrichment=lambda _event: True,
-        merge_context=lambda _event, enriched: enriched,
-    )
+    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
+    deadline = time.monotonic() + max(batch_timeout, 0.0)
+    enriched_events = []
+    for event in events:
+        occurrences = [event]
+        if common.event_in_window(event) and deadline - time.monotonic() >= 3.0:
+            try:
+                html = detail_fetcher(event.get("link", ""))
+                occurrences = _detail_occurrences(event, html)
+            except Exception as exc:
+                common.log_source_error(f"{_SOURCE} detail", exc)
+        for occurrence in occurrences:
+            replacement = occurrence.get("description") or _fallback_description(occurrence)
+            if replacement:
+                occurrence["description"] = replacement
+                occurrence["description_source"] = common.description_source_for(replacement)
+            enriched_events.append(occurrence)
+    return enriched_events
 
 
 def fetch() -> list:

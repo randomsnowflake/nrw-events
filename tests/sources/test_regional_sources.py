@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common
+from nrw_events import common, report, validation
 from nrw_events.sources import naturregion_sieg, regional_venues
 from tests.helpers import patch_window
 
@@ -228,3 +228,46 @@ class NaturregionSiegParserTests(unittest.TestCase):
         self.assertIn("Alpakas des Westens, Windeck", event["description"])
         self.assertTrue(event["description"].endswith("."))
         log_error.assert_called_once()
+
+    def test_same_day_detail_sessions_survive_canonical_deduplication(self):
+        listing_html = """
+<div class="tile tile--one-quarter tile--single-height">
+  <a href="/event/erlebnis-besucherbergwerk-grube-bindweide" class="tile__link">
+    <span class="tile__label-text">15.07.2026</span>
+    <p class="header__head">Erlebnis Besucherbergwerk Grube Bindweide</p>
+    <span class="icontext__text">Besucherbergwerk Grube Bindweide, Steinebach/Sieg</span>
+  </a>
+</div>
+"""
+        detail_items = ",".join(
+            """{
+              "@type": "Event",
+              "name": "Erlebnis Besucherbergwerk Grube Bindweide",
+              "description": "Einfahrt in das Erlebnisbergwerk im Westerwald.",
+              "startDate": "2026-07-15T%s:00+02:00",
+              "endDate": "2026-07-15T%s:00+02:00",
+              "location": {"@type": "Place", "name": "Besucherbergwerk Grube Bindweide",
+                "address": {"addressLocality": "Steinebach/Sieg"}}
+            }""" % (start, end)
+            for start, end in (
+                ("13:00", "14:15"), ("13:30", "14:45"), ("14:30", "15:45"),
+                ("15:00", "16:15"), ("15:30", "16:45"),
+            )
+        )
+        detail_html = (
+            '<script type="application/ld+json">'
+            '{"@context":"https://schema.org","@graph":[' + detail_items + "]}</script>"
+        )
+
+        with patch.object(common, "fetch_url", side_effect=[listing_html, detail_html]):
+            events = naturregion_sieg.fetch()
+
+        canonical = [validation.validate_event(event).to_dict() for event in events]
+        deduped = report.deduplicate(canonical)
+
+        self.assertEqual(len(deduped), 5)
+        self.assertEqual(
+            [event["time"] for event in deduped],
+            ["13:00–14:15", "13:30–14:45", "14:30–15:45", "15:00–16:15", "15:30–16:45"],
+        )
+        self.assertTrue(all(not event["all_day"] for event in deduped))
