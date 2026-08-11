@@ -264,6 +264,31 @@ def _beuel_city(venue: str) -> str:
     return common.refine_city_from_text("Bonn-Beuel", venue)
 
 
+def _dedupe_beuel_combined_festival(events: list) -> list:
+    """Collapse the two cards for the one Beuelfest/Promenadenfest programme."""
+    combined = {}
+    output = []
+    for event in events:
+        title = common.clean_html(event.get("title", "")).casefold()
+        is_combined_festival = "beuelfest" in title and "promenadenfest" in title
+        key = (
+            event.get("link", "").rstrip("/"),
+            event.get("start_date", ""),
+        )
+        if not is_combined_festival or not key[0]:
+            output.append(event)
+            continue
+        previous_index = combined.get(key)
+        if previous_index is None:
+            combined[key] = len(output)
+            output.append(event)
+            continue
+        previous = output[previous_index]
+        if event.get("end_date", "") > previous.get("end_date", ""):
+            output[previous_index] = event
+    return output
+
+
 def events_from_beuel_html(html: str) -> list:
     parser = _BeuelParser()
     parser.feed(html or "")
@@ -303,7 +328,7 @@ def events_from_beuel_html(html: str) -> list:
         )
         if event:
             events.append(common.keep_only_event_master_data(event))
-    return regional_common.dedupe(events)
+    return regional_common.dedupe(_dedupe_beuel_combined_festival(events))
 
 
 def _jmj_kirmes_description(html: str) -> str:
@@ -660,11 +685,14 @@ def events_from_holzlar_html(html: str) -> list:
         if not title or start is None:
             continue
         link = regional_common.first_group(_HOLZLAR_LINK.pattern, block) or HOLZLAR_URL
-        city = common.refine_city_from_text("Bonn-Holzlar", venue)
+        city = (
+            "Wuppertal" if "wuppertal" in venue.casefold()
+            else common.refine_city_from_text("Bonn-Holzlar", venue)
+        )
         event = common.make_event(
             title, start, end, venue, city,
             common.factual_event_description(
-                title, date_value=start, venue=venue, city=city,
+                title, date_value=start, end_date_value=end, venue=venue, city=city,
             ),
             link, "BV Holzlar",
             "stadtteil verein gemeinschaft", 1.0,
