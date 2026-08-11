@@ -41,7 +41,7 @@ TARGET_SOURCE_IDS = frozenset({
     "radio-bonn-rhein-sieg",
 })
 PIPELINE_VERSION = "event-facts-summary-v6"
-OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v14"
+OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v15"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash-0731"
 FACTS_OUTPUT_TOKEN_LIMIT = 5_000
@@ -1191,6 +1191,25 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
         or _NEGATIVE_REGISTRATION_PATTERN.search(registration)
     ):
         cleaned["registration"] = None
+    if (
+        not cleaned.get("registration")
+        and _REGISTRATION_PATTERN.search(source_material)
+        and not _NEGATIVE_REGISTRATION_PATTERN.search(source_material)
+    ):
+        neutral_facts = (
+            cleaned.get("neutral_facts")
+            if isinstance(cleaned.get("neutral_facts"), list)
+            else []
+        )
+        for index, fact in enumerate(neutral_facts):
+            text = str(fact).strip()
+            if _REGISTRATION_PATTERN.search(text) and not _NEGATIVE_REGISTRATION_PATTERN.search(text):
+                cleaned["registration"] = text
+                cleaned["neutral_facts"] = [
+                    *neutral_facts[:index],
+                    *neutral_facts[index + 1:],
+                ]
+                break
 
     organizer = str(cleaned.get("organizer") or "").strip()
     structured_organizer = str(payload.get("organizer") or "").strip()

@@ -924,6 +924,25 @@ class AIEnrichmentTests(unittest.TestCase):
             cleaned["admission"],
         )
 
+    def test_source_supported_registration_is_promoted_from_neutral_facts(self):
+        source = event(
+            description=(
+                "Gemeinsam werden im Museum Rätsel gelöst. Anmeldung: Begrenzte Teilnehmerzahl; "
+                "wir bitten um rechtzeitige Anmeldung."
+            ),
+        )
+        payload = ai_enrichment._input_payload(source, source["description"])
+        extracted = {
+            **FACTS,
+            "registration": None,
+            "neutral_facts": ["Anmeldung erforderlich."],
+        }
+
+        cleaned = ai_enrichment._sanitize_extracted_facts(extracted, payload)
+
+        self.assertEqual("Anmeldung erforderlich.", cleaned["registration"])
+        self.assertNotIn("Anmeldung erforderlich.", cleaned["neutral_facts"])
+
     def test_conflicting_related_event_identity_is_removed_before_summary(self):
         source = event(
             title="Call for Ideas: Impact Pitch Night",
