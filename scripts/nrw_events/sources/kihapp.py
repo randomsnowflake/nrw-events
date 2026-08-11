@@ -24,6 +24,16 @@ _REVIEWED_VENUE_OVERRIDES = {
         "Kölnstraße 250, 53117 Bonn",
     ),
 }
+_REVIEWED_OCCURRENCES = (
+    {
+        "title": "6th GSBA World Championships",
+        "date_text": "Aug 11 to 16, 2026",
+        "start": datetime(2026, 8, 11),
+        "end": datetime(2026, 8, 16),
+        "venue": "Sportpark Nord Bonn",
+        "link": "https://www.kihapp.com/tournaments/23960-6th-gsba-world-championships",
+    },
+)
 
 
 def _decoded_listing_html(payload: str) -> str:
@@ -218,6 +228,15 @@ def _listing_url(page: int) -> str:
     return URL if page == 1 else f"{URL}&page={page}"
 
 
+def _fetch_candidate(candidate: dict, detail_fetcher):
+    try:
+        detail = detail_fetcher(candidate["link"], timeout=20)
+        return _event_from_detail(candidate, detail)
+    except Exception as exc:
+        common.log_source_error(f"{SOURCE} detail", exc, source_id=SOURCE_ID)
+        return _event_from_detail(candidate, "")
+
+
 def fetch(*, listing_fetcher=None, detail_fetcher=None) -> list:
     listing_fetcher = listing_fetcher or common.fetch_url
     detail_fetcher = detail_fetcher or (
@@ -255,16 +274,9 @@ def fetch(*, listing_fetcher=None, detail_fetcher=None) -> list:
                 seen_links.add(candidate["link"])
                 if not common.window_contains(candidate["start"], candidate["end"]):
                     continue
-                try:
-                    detail = detail_fetcher(candidate["link"], timeout=20)
-                    event = _event_from_detail(candidate, detail)
-                    if event:
-                        events.append(event)
-                except Exception as exc:
-                    common.log_source_error(f"{SOURCE} detail", exc, source_id=SOURCE_ID)
-                    event = _event_from_detail(candidate, "")
-                    if event:
-                        events.append(event)
+                event = _fetch_candidate(candidate, detail_fetcher)
+                if event:
+                    events.append(event)
             next_page = _next_page(payload)
             if not next_page or next_page <= page:
                 break
@@ -274,4 +286,13 @@ def fetch(*, listing_fetcher=None, detail_fetcher=None) -> list:
         except Exception as exc:
             common.log_source_error(SOURCE, exc, source_id=SOURCE_ID)
             break
+    emitted_links = {event.get("link") for event in events}
+    for candidate in _REVIEWED_OCCURRENCES:
+        if candidate["link"] in emitted_links:
+            continue
+        if not common.window_contains(candidate["start"], candidate["end"]):
+            continue
+        event = _fetch_candidate(candidate, detail_fetcher)
+        if event:
+            events.append(event)
     return rc.dedupe_occurrences(events)

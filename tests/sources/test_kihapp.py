@@ -142,6 +142,33 @@ class KihappParserTests(unittest.TestCase):
         self.assertIn("Kihapp-Turnierkalender", events[0]["description"])
         log_error.assert_called_once()
 
+    def test_reviewed_occurrence_survives_move_from_upcoming_to_past(self):
+        unrelated = """
+        <tr data-date='1789171200' data-upcoming>
+          <td><a href='/tournaments/22972-idm-2026'>IDM 2026</a></td>
+          <td><span class='dates'>Sep 12, 2026</span><div class='location'>Meckenheim</div></td>
+        </tr>
+        """
+        detail_calls = []
+
+        def detail_fetch(url, **_kwargs):
+            detail_calls.append(url)
+            return GSBA_DETAIL
+
+        with (
+            patch.object(common, "TODAY", datetime(2026, 8, 12)),
+            patch.object(common, "END_DATE", datetime(2026, 8, 13)),
+        ):
+            events = kihapp.fetch(
+                listing_fetcher=lambda _url, **_kwargs: unrelated,
+                detail_fetcher=detail_fetch,
+            )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["start_date"], "2026-08-11")
+        self.assertEqual(events[0]["end_date"], "2026-08-16")
+        self.assertEqual(detail_calls, [kihapp._REVIEWED_OCCURRENCES[0]["link"]])
+
     def test_date_parser_handles_compact_dashes_and_new_year_ranges(self):
         start, end = kihapp._date_range("Aug 11–16, 2026")
         self.assertEqual((start, end), (datetime(2026, 8, 11), datetime(2026, 8, 16)))
@@ -155,7 +182,11 @@ class KihappParserTests(unittest.TestCase):
     def test_non_upcoming_pagination_boundary_is_not_parser_failure(self):
         page = "<tr><td><a href='/tournaments/1-old'>Old tournament</a></td></tr>"
 
-        with patch.object(common, "log_source_error") as log_error:
+        with (
+            patch.object(common, "TODAY", datetime(2027, 1, 1)),
+            patch.object(common, "END_DATE", datetime(2027, 1, 2)),
+            patch.object(common, "log_source_error") as log_error,
+        ):
             events = kihapp.fetch(listing_fetcher=lambda _url, **_kwargs: page)
 
         self.assertEqual(events, [])
