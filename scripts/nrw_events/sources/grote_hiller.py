@@ -18,6 +18,13 @@ _CITY_ALIASES = {
 }
 
 
+def _visitor_admission(html: str) -> str:
+    """Extract the labelled visitor price without adopting nearby stall fees."""
+    text = common.clean_html(html or "")
+    match = re.search(r"\bEintritt\s*:\s*(\d+(?:[,.]\d{1,2})?)\s*€", text, re.I)
+    return f"{match.group(1)} €" if match else ""
+
+
 def _listing_city(title: str, venue: str) -> str:
     """Prefer the explicit postal town over a misleading Bonn fallback."""
     postal_city = re.search(r"\b\d{5}\s+([^,]+)", venue)
@@ -28,7 +35,7 @@ def _listing_city(title: str, venue: str) -> str:
     return _CITY_ALIASES.get(city.casefold(), city)
 
 
-def _events_from_listing(html: str, page_url: str) -> list:
+def _events_from_listing(html: str, page_url: str, *, detail_fetcher=None) -> list:
     events = []
     blocks = re.split(
         r'(?=<div[^>]+id="markt\d+"[^>]+class="[^"]*\blisting\b)',
@@ -82,6 +89,15 @@ def _events_from_listing(html: str, page_url: str) -> list:
             time_text,
         )
         if event:
+            if detail_fetcher and "mädelsmarkt" in title.casefold() and link != page_url:
+                try:
+                    admission = _visitor_admission(detail_fetcher(link))
+                except Exception as exc:
+                    common.log_source_error("Grote & Hiller detail", exc)
+                    admission = ""
+                if admission:
+                    event["price"] = admission
+                    event["admission_basis"] = "explicit"
             events.append(event)
     return rc.dedupe(events)
 
@@ -90,7 +106,13 @@ def fetch() -> list:
     events = []
     for url in _URLS:
         try:
-            parsed = _events_from_listing(common.fetch_url(url, timeout=20), url)
+            parsed = _events_from_listing(
+                common.fetch_url(url, timeout=20),
+                url,
+                detail_fetcher=lambda link: common.fetch_detail_url(
+                    link, cache_namespace="grote-hiller", timeout=20,
+                ),
+            )
             common._record_endpoint(
                 url,
                 parser_type="html",

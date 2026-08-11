@@ -11,6 +11,7 @@ from nrw_events.sources import (
     hofflohmaerkte,
     kinderflohmarkt,
 )
+from nrw_events.validation import canonicalize_event
 from tests.helpers import patch_window
 
 
@@ -84,6 +85,36 @@ class MarketSourceTests(unittest.TestCase):
             event["link"],
             "https://www.grote-hiller.de/unsere-maerkte/hennef-meiersheide-maedelsmarkt/",
         )
+
+    def test_grote_hiller_extracts_visitor_admission_not_seller_fees(self):
+        html = """
+        <div id="markt1" class="row listing">
+          <mark>So, 06.09.2026</mark>
+          11:00 - <span>15:00 Uhr</span>
+          <h3 class="h2">Bergisch Gladbach, &quot;Bergischer Löwe&quot; Mädelsmarkt</h3>
+          <img src="/assets/marker-1.svg"><span>51465 Bergisch Gladbach, Konrad-Adenauer-Platz 1</span>
+          <a href="/unsere-maerkte/bergisch-gladbach-bergischer-loewe-maedelsmarkt/">Infos</a>
+        </div>
+        """
+        detail_html = """
+        <h3>Standgeld</h3>
+        <p>Gebrauchtware: 15,- € der laufende Meter. Jede weitere Verkäuferin
+        muss 4,- € Eintritt zahlen.</p>
+        <p>Eintritt: 4,00€ pro Person. Kinder bis 12 Jahre frei.</p>
+        """
+
+        events = grote_hiller._events_from_listing(
+            html,
+            "https://www.grote-hiller.de/maedelsflohmaerkte/",
+            detail_fetcher=lambda _url: detail_html,
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["price"], "4,00 €")
+        self.assertEqual(events[0]["admission_basis"], "explicit")
+        canonical = canonicalize_event(events[0])
+        self.assertEqual(canonical.admission["amount"], 4.0)
+        self.assertFalse(canonical.admission["isFree"])
 
     def test_grote_hiller_normalizes_denklingen_to_reichshof(self):
         html = """
