@@ -139,7 +139,12 @@ def _next_page(payload: str) -> int | None:
 
 def _valid_non_upcoming_page(payload: str) -> bool:
     html = _decoded_listing_html(payload)
-    return bool(re.search(r"<tr\b[^>]*>.*?/tournaments/\d+", html, re.S | re.I))
+    rows = re.findall(r"<tr\b[^>]*>.*?</tr>", html, re.S | re.I)
+    tournament_rows = [row for row in rows if re.search(r"/tournaments/\d+", row, re.I)]
+    return bool(tournament_rows) and all(
+        not re.search(r"<tr\b[^>]*\bdata-upcoming\b", row, re.I)
+        for row in tournament_rows
+    )
 
 
 def _detail_venue(html: str, fallback: str) -> str:

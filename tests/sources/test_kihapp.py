@@ -197,6 +197,19 @@ class KihappParserTests(unittest.TestCase):
 
         self.assertEqual(kihapp._listing_candidates(html), [])
 
+    def test_malformed_upcoming_tournament_row_is_a_parser_failure(self):
+        html = "<tr data-upcoming><td><a href='/tournaments/1-changed'>Changed</a></td></tr>"
+
+        with (
+            patch.object(common, "TODAY", datetime(2027, 1, 1)),
+            patch.object(common, "END_DATE", datetime(2027, 1, 2)),
+            patch.object(common, "log_source_error") as log_error,
+        ):
+            events = kihapp.fetch(listing_fetcher=lambda _url, **_kwargs: html)
+
+        self.assertEqual(events, [])
+        log_error.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
