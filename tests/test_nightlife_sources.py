@@ -208,6 +208,7 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assertAlmostEqual(events[0]["venue_longitude"], 7.1566788)
         self.assertEqual(events[0]["location_confidence"], "exact")
         self.assertIn("Felix Kröcher", events[0]["description"])
+        self.assertIn("von 14:00 bis 22:00 Uhr", events[0]["description"])
         self.assertEqual(events[0]["description_source"], "generated")
         self.assert_canonical(events[0])
 

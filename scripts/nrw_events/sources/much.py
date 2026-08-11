@@ -9,12 +9,15 @@ HTML scraping: fails soft (returns []) if the markup changes.
 """
 
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from .. import common
 from . import regional_common as rc
 
 _URL = "https://www.much.de/willkommen/veranstaltungen"
 _BASE = "https://www.much.de"
+_BERLIN = ZoneInfo("Europe/Berlin")
 
 
 def _comparable_text(value: str) -> str:
@@ -90,6 +93,29 @@ def _structured_detail_context(html: str, title: str) -> dict[str, str]:
 _fallback_description = rc.factual_fallback("Much")
 
 
+def _restore_detail_link_start_times(events: list) -> list:
+    """Restore Much's start time from its date/time-bearing detail URLs."""
+    for event in events:
+        if event.get("time") and not event.get("all_day"):
+            continue
+        match = re.search(
+            r"/detail/(\d{2}-\d{2}-\d{4})_(\d{2})(\d{2})(?:/|$)",
+            event.get("link") or "",
+        )
+        if not match:
+            continue
+        try:
+            start = datetime.strptime("".join(match.groups()), "%d-%m-%Y%H%M")
+        except ValueError:
+            continue
+        if event.get("start_date") and event["start_date"] != start.strftime("%Y-%m-%d"):
+            continue
+        event["time"] = start.strftime("%H:%M")
+        event["start_at"] = start.replace(tzinfo=_BERLIN).isoformat(timespec="minutes")
+        event["all_day"] = False
+    return events
+
+
 def _enrich_missing_descriptions(events: list, source: str) -> list:
     return rc.enrich_descriptions(
         events,
@@ -108,6 +134,7 @@ def fetch() -> list:
         html = common.fetch_url(_URL, timeout=20)
         events = common.events_from_time_listing(
             html, source, "Much", "lokal markt kultur outdoor konzert", 0.9, _BASE)
+        events = _restore_detail_link_start_times(events)
         return _enrich_missing_descriptions(events, source)
     except Exception as e:
         common.log_source_error(source, e)

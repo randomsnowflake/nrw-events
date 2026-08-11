@@ -107,6 +107,41 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["venue"], "Amb. Hospizdienst Much")
         self.assertEqual(context["venue_address"], "Dr. Wirtz Str. 6, 53804 Much")
 
+    def test_detail_link_times_restore_three_audited_occurrences(self):
+        events = [
+            {
+                "title": "Trauer Treff",
+                "start_date": "2026-08-11",
+                "link": "https://www.much.de/willkommen/veranstaltungen/detail/11-08-2026_1600/trauer-treff",
+                "time": "",
+                "start_at": "",
+                "all_day": True,
+            },
+            {
+                "title": "Hl. Messe anl. Patrozinium + Kirchweihfest",
+                "start_date": "2026-08-14",
+                "link": "https://www.much.de/willkommen/veranstaltungen/detail/14-08-2026_1900/hl-messe-anl-patrouinium-kirchweihfest",
+                "time": "",
+                "start_at": "",
+                "all_day": True,
+            },
+            {
+                "title": "Kirchweihfest mit Umtrunk und Fingerfood",
+                "start_date": "2026-08-14",
+                "link": "https://www.much.de/willkommen/veranstaltungen/detail/14-08-2026_1900/kirchweihfest-mit-umtrunk-und-fingerfood",
+                "time": "",
+                "start_at": "",
+                "all_day": True,
+            },
+        ]
+
+        restored = much._restore_detail_link_start_times(events)
+
+        self.assertEqual([event["time"] for event in restored], ["16:00", "19:00", "19:00"])
+        self.assertTrue(all(not event["all_day"] for event in restored))
+        self.assertEqual(restored[0]["start_at"], "2026-08-11T16:00+02:00")
+        self.assertEqual(restored[1]["start_at"], "2026-08-14T19:00+02:00")
+
     def test_fetch_enriches_repeated_empty_events_with_one_detail_request(self):
         events = [
             {"title": "Gartencafe der Solawi Much", "link": DETAIL_LINK, "description": ""},

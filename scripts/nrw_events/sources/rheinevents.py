@@ -75,8 +75,11 @@ def _events_from_listing(html: str) -> list:
         end = _local_datetime(str(item.get("end") or "")) or start
         venue = common.clean_html(str(item.get("locationName") or ""))
         city = common.clean_html(str(item.get("locationCity") or "Bonn"))
+        start_time = start.strftime("%H:%M") if start else ""
+        end_time = end.strftime("%H:%M") if start and end and end > start else ""
         description = common.factual_event_description(
-            title, date_value=start, venue=venue, city=city
+            title, date_value=start, time_text=start_time,
+            end_time_text=end_time, venue=venue, city=city,
         )
         slogan = common.clean_html(str(item.get("slogan") or ""))
         if slogan:
