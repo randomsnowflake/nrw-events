@@ -1656,6 +1656,8 @@ def infer_admission(
         return "", ""
     if _LIMITED_FREE_TRIAL_PATTERN.search(clean_html(description or "")):
         return "", ""
+    if admission == AdmissionDefault.SOURCE_CONFIRMED_FREE:
+        return "kostenlos", "explicit"
     if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
         return "kostenlos", "inferred"
     if _FREE_DESCRIPTION_BLOCK_PATTERN.search(clean_html_blocks(description or "")):

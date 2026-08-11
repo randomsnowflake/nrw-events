@@ -41,7 +41,7 @@ TARGET_SOURCE_IDS = frozenset({
     "radio-bonn-rhein-sieg",
 })
 PIPELINE_VERSION = "event-facts-summary-v6"
-OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v13"
+OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v14"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash-0731"
 FACTS_OUTPUT_TOKEN_LIMIT = 5_000
@@ -530,6 +530,8 @@ Schreibe keine Aussagen wie scheint, typischerweise, vermutlich, wahrscheinlich 
 Verwende ausschließlich Fakten zum ausgewählten start_date/end_date-Termin; andere Termine derselben Reihe
 bleiben vollständig weg. Verkäufer-, Händler- und Standinformationen bleiben auch im Text vollständig weg.
 Gesundheitliche Wirkungsbehauptungen werden nicht wiedergegeben.
+Wenn target_group leer ist, formuliere keine Zielgruppe und verwende nicht "richtet sich an". Eine vorhandene
+age_information darf nur als neutrale Altersangabe erscheinen, zum Beispiel "Teilnahme ab 8 Jahren".
 Das Objekt field_policy nennt gesperrte vorhandene Werte. Widersprich ihnen weder im Text noch in Attributen;
 lasse einen Konflikt vollständig weg. Gesperrte Werte sind keine Schreibfakten: Verwende sie im Text nur, wenn
 dieselbe Angabe auch in facts steht. Preis meint ausschließlich den Eintritt für Besucher, niemals Standgebühren,
@@ -1799,9 +1801,15 @@ def enrich_event(
             try:
                 request_payload = dict(stage2_payload)
                 if quality_feedback:
+                    retry_detail = ""
+                    if quality_feedback == "summary invents a target group":
+                        retry_detail = (
+                            " Das Feld target_group ist leer. Formuliere die Altersangabe neutral, "
+                            "zum Beispiel als 'Teilnahme ab 8 Jahren', und nicht als Zielgruppe."
+                        )
                     request_payload["retry_instruction"] = (
                         "Der vorige Text wurde von der lokalen Qualitätsprüfung abgelehnt: "
-                        f"{quality_feedback}. Schreibe vollständig neu und vermeide diesen Fehler."
+                        f"{quality_feedback}.{retry_detail} Schreibe vollständig neu und vermeide diesen Fehler."
                     )
                 result, usage = api.structured(
                     stage="summary", system=_SUMMARY_PROMPT, payload=request_payload,

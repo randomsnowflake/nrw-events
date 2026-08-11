@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 from .. import common
 from ..dates import resolve_yearless_date
+from ..models import AdmissionDefault
 from . import regional_common as rc
 
 
@@ -413,6 +414,7 @@ def _events_from_stummfilmtage(html: str) -> list:
                 "cinema-special stummfilm festival open air kino livemusik",
                 0.98,
                 source_id=_STUMMFILMTAGE_SOURCE_ID,
+                admission=AdmissionDefault.SOURCE_CONFIRMED_FREE,
                 default_category_key="cinema",
                 category_locked=True,
             )

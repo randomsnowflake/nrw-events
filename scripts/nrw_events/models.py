@@ -16,6 +16,7 @@ class AdmissionDefault(str, Enum):
     """Conservative admission assumptions explicitly declared by a source."""
 
     FREE_BY_NATURE = "free_by_nature"
+    SOURCE_CONFIRMED_FREE = "source_confirmed_free"
 
 
 class RawEvent(TypedDict, total=False):

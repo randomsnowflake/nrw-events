@@ -53,6 +53,38 @@ class AdmissionDefaultTests(unittest.TestCase):
         self.assertEqual(event["price"], "")
         self.assertEqual(event["admission_basis"], "")
 
+    def test_source_confirmed_free_is_explicit_but_never_overrides_a_charge(self):
+        free_event = common.make_event(
+            "Open-Air-Film",
+            datetime(2026, 7, 4, 21),
+            datetime(2026, 7, 4, 23),
+            "Arkadenhof",
+            "Bonn",
+            "Stummfilm mit Livemusik.",
+            "https://example.test/film",
+            "Stummfilmtage",
+            "kino",
+            admission=AdmissionDefault.SOURCE_CONFIRMED_FREE,
+        )
+        paid_event = common.make_event(
+            "Sondervorstellung",
+            datetime(2026, 7, 5, 21),
+            datetime(2026, 7, 5, 23),
+            "Arkadenhof",
+            "Bonn",
+            "Besuchereintritt 8 Euro.",
+            "https://example.test/sondervorstellung",
+            "Stummfilmtage",
+            "kino",
+            admission=AdmissionDefault.SOURCE_CONFIRMED_FREE,
+        )
+
+        self.assertEqual(free_event["price"], "kostenlos")
+        self.assertEqual(free_event["admission_basis"], "explicit")
+        self.assertEqual(canonicalize_event(free_event).admission["basis"], "structured")
+        self.assertEqual(paid_event["price"], "")
+        self.assertEqual(paid_event["admission_basis"], "")
+
     def test_canonical_admission_distinguishes_paid_donation_and_inferred_free(self):
         cases = (
             (

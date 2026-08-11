@@ -1020,6 +1020,41 @@ class AIEnrichmentTests(unittest.TestCase):
             client.calls[2]["payload"]["retry_instruction"],
         )
 
+    def test_age_information_retry_avoids_invented_target_group(self):
+        facts = {
+            **FACTS,
+            "target_group": [],
+            "age_information": "Ab 8 Jahren",
+        }
+        invented_target_group = {
+            **SUMMARY,
+            "ai_summary": (
+                "Das Escape Game richtet sich an Kinder ab 8 Jahren. "
+                "Im Museum werden mit Taschenlampen mehrere Rätsel gelöst."
+            ),
+        }
+        safe_summary = {
+            **SUMMARY,
+            "ai_summary": (
+                "Beim Escape Game werden im Museum mit Taschenlampen mehrere Rätsel gelöst. "
+                "Die Teilnahme ist ab 8 Jahren möglich."
+            ),
+        }
+        client = FakeClient([facts, invented_target_group, safe_summary])
+
+        result = ai_enrichment.enrich_event(
+            event(title="Escape Game im LVR Museum"),
+            settings=self.settings,
+            client=client,
+            now=self.now,
+        )
+
+        self.assertEqual(safe_summary["ai_summary"], result["ai_summary"])
+        self.assertIn(
+            "Formuliere die Altersangabe neutral",
+            client.calls[2]["payload"]["retry_instruction"],
+        )
+
     def test_varied_missing_detail_sentences_are_removed_before_quality_check(self):
         padded = {
             **SUMMARY,
