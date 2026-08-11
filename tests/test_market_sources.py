@@ -103,9 +103,11 @@ class MarketSourceTests(unittest.TestCase):
         <p>Eintritt: 4,00€ pro Person. Kinder bis 12 Jahre frei.</p>
         """
 
-        events = grote_hiller._events_from_listing(
-            html,
-            "https://www.grote-hiller.de/maedelsflohmaerkte/",
+        events = grote_hiller._enrich_visitor_admission(
+            grote_hiller._events_from_listing(
+                html,
+                "https://www.grote-hiller.de/maedelsflohmaerkte/",
+            ),
             detail_fetcher=lambda _url: detail_html,
         )
 
@@ -115,6 +117,29 @@ class MarketSourceTests(unittest.TestCase):
         canonical = canonicalize_event(events[0])
         self.assertEqual(canonical.admission["amount"], 4.0)
         self.assertFalse(canonical.admission["isFree"])
+
+    def test_grote_hiller_detail_fetches_stop_when_batch_budget_is_exhausted(self):
+        html = """
+        <div id="markt1" class="row listing">
+          <mark>So, 06.09.2026</mark>
+          11:00 - <span>15:00 Uhr</span>
+          <h3 class="h2">Bergisch Gladbach Mädelsmarkt</h3>
+          <img src="/assets/marker-1.svg"><span>51465 Bergisch Gladbach, Markt 1</span>
+          <a href="/unsere-maerkte/bergisch-gladbach-maedelsmarkt/">Infos</a>
+        </div>
+        """
+        events = grote_hiller._events_from_listing(
+            html, "https://www.grote-hiller.de/maedelsflohmaerkte/",
+        )
+        fetched = []
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "0"}):
+            grote_hiller._enrich_visitor_admission(
+                events, detail_fetcher=lambda url: fetched.append(url) or "",
+            )
+
+        self.assertEqual(fetched, [])
+        self.assertEqual(events[0]["price"], "")
 
     def test_grote_hiller_normalizes_denklingen_to_reichshof(self):
         html = """

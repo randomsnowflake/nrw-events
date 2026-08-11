@@ -117,8 +117,52 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["link"], "https://www.theater-bonn.de/de/programm/die-zauberfloete/42")
         self.assertEqual(fetched, [events[0]["link"]])
         self.assertIn("Prüfungen von Tamino und Pamina", events[0]["description"])
+        self.assertNotIn("im Theater auf der Bühne", events[0]["description"])
         self.assertEqual(events[0]["description_source"], "scraped")
         self.assert_canonical(events[0], "theater-bonn")
+
+    def test_theater_bonn_missing_programme_url_uses_ticket_without_detail_fetch(self):
+        payload = [{
+            "id": 44,
+            "url": "",
+            "title": "Gastspiel",
+            "date_full": "06.09.2026",
+            "date_time": "20:00 Uhr",
+            "description": "",
+            "status": "",
+            "categories": [{"name": "Schauspiel"}],
+            "tags": [{"name": "Schauspiel"}, {"name": "Opernhaus"}],
+            "ticket": {"url": "https://tickets.theater-bonn.de/44"},
+        }]
+        fetched = []
+
+        events = theater_bonn.events_from_payload(
+            payload, detail_fetcher=lambda url: fetched.append(url) or "",
+        )
+
+        self.assertEqual(fetched, [])
+        self.assertEqual(events[0]["link"], "https://tickets.theater-bonn.de/44")
+        self.assertEqual(events[0]["description_source"], "generated")
+
+    def test_theater_bonn_detail_fetches_stop_when_batch_budget_is_exhausted(self):
+        payload = [{
+            "id": 45,
+            "url": "/de/programm/eins/45",
+            "title": "Eins",
+            "date_full": "07.09.2026",
+            "date_time": "20:00 Uhr",
+            "description": "",
+            "status": "",
+        }]
+        fetched = []
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "0"}):
+            events = theater_bonn.events_from_payload(
+                payload, detail_fetcher=lambda url: fetched.append(url) or "",
+            )
+
+        self.assertEqual(fetched, [])
+        self.assertEqual(events[0]["description_source"], "generated")
 
     def test_junges_theater_parses_regular_and_kulturgarten_rows(self):
         html = """
