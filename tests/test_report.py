@@ -243,6 +243,34 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(merged["time"], "20:00")
         self.assertEqual(event_id(merged), event_id(winner))
 
+    def test_metadata_merge_fills_ai_summary_without_changing_winner_identity(self):
+        winner = {
+            "title": "Rheinaue parkrun", "start_date": "2026-08-15", "end_date": "2026-08-15",
+            "date": "2026-08-15", "city": "Bonn", "venue": "Rheinaue", "time": "09:00",
+            "start_at": "2026-08-15T09:00+02:00", "end_at": "2026-08-15T10:00+02:00",
+            "source": "Bonn.de Sports", "score": 1.2, "description": "", "price": "",
+            "link": "https://www.bonn.de/sport/rheinaue-parkrun", "ai_summary": "",
+        }
+        duplicate = {
+            **winner,
+            "source": "Bonn.de Events", "score": 0.9,
+            "link": "https://www.bonn.de/events/rheinaue-parkrun",
+            "ai_summary": "Am 15. August findet in der Rheinaue ein parkrun statt.",
+        }
+
+        [merged] = report.deduplicate([winner, duplicate])
+
+        self.assertEqual(merged["source"], winner["source"])
+        self.assertEqual(merged["link"], winner["link"])
+        self.assertEqual(merged["title"], winner["title"])
+        self.assertEqual(merged["time"], winner["time"])
+        self.assertEqual(merged["ai_summary"], duplicate["ai_summary"])
+        self.assertEqual(event_id(merged), event_id(winner))
+
+        winner_with_summary = {**winner, "ai_summary": "Bestehende Zusammenfassung."}
+        [preserved] = report.deduplicate([winner_with_summary, duplicate])
+        self.assertEqual(preserved["ai_summary"], "Bestehende Zusammenfassung.")
+
     def test_civic_market_absorbs_directory_title_variant_at_same_venue(self):
         base = {
             "start_date": "2026-08-23", "end_date": "2026-08-23",

@@ -64,6 +64,16 @@ def _fetch_calendar(city: str, source_id: str, url: str, trust: float) -> list:
     )
 
 
+def _merge_detail_context(event: dict, context: dict[str, str]) -> dict:
+    """Prefer reviewed SiteKit detail copy over a longer generic fallback."""
+    description = context.get("description", "").strip()
+    if description:
+        event["description"] = description
+        event["description_source"] = "scraped"
+        event["description_html"] = context.get("description_html", "")
+    return event
+
+
 def fetch() -> list:
     events = []
     for calendar in _CALENDARS:
@@ -76,8 +86,11 @@ def fetch() -> list:
         extract_context=lambda html, _event: _detail_context(html),
         fallback=lambda event: event.get("description", ""),
         needs_enrichment=lambda event: (
-            not event.get("venue") or event.get("category_key") == "other"
+            event.get("description_source") == "generated"
+            or not event.get("venue")
+            or event.get("category_key") == "other"
         ),
+        merge_context=_merge_detail_context,
     )
     for event in events:
         if event.get("category_key") != "other":

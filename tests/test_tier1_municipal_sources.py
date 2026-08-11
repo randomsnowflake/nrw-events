@@ -323,6 +323,34 @@ class SitekitPaginationTests(unittest.TestCase):
             "format:participatory-social-activity",
         )
 
+    def test_sitekit_replaces_long_generated_fallback_with_shorter_detail_facts(self):
+        listing = (
+            '<article class="SP-Teaser">'
+            '<a class="SP-Teaser__inner" href="/events/kinotag">'
+            '<h4 class="SP-Teaser__headline">Kinotag im Rheinforum</h4>'
+            '<span class="SP-Scheduling__date">18.08.2026 15:00</span>'
+            '<div class="SP-Teaser__abstract">"Der gestiefelte Kater".</div>'
+            '</a></article>'
+        )
+        detail = (
+            '<div class="SP-Paragraph"><p>geeignet ab 8 Jahre, Laufzeit: 87 min</p></div>'
+            '<div class="SP-Paragraph"><p>Eintritt: 2 Euro</p></div>'
+        )
+
+        with mock.patch.object(
+            regional_sitekit,
+            "_CALENDARS",
+            [("Wesseling", "sitekit-wesseling", "https://example.test/events", 0.9)],
+        ), mock.patch.object(common, "fetch_url", return_value=listing), mock.patch.object(
+            common, "fetch_detail_url", return_value=detail,
+        ):
+            [event] = regional_sitekit.fetch()
+
+        self.assertEqual(event["description_source"], "scraped")
+        self.assertIn("geeignet ab 8 Jahre", event["description"])
+        self.assertIn("2 Euro", event["description"])
+        self.assertNotIn("Veranstaltungskalender Wesseling", event["description"])
+
     def test_sitekit_reviewed_event_formats_get_deterministic_categories(self):
         events = [
             {

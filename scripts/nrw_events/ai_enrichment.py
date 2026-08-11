@@ -1,8 +1,8 @@
 """Two-stage, cached AI enrichment for legally restricted event sources.
 
-The source prose is input material only.  It is never copied to the public
-event contract: target events leave this module with an ``ai_summary`` or with
-no description at all.
+The source prose is input material only. It is never copied to the public event
+contract: target events leave this module with an ``ai_summary`` or a generated
+master-data fallback that remains useful without reproducing source copy.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ import urllib.request
 import weakref
 
 from . import category_taxonomy, common, config, richtext
+from .core import keep_only_event_master_data
 from .identity import event_id
 from .models import RawEvent, normalize_source_id
 
@@ -111,15 +112,15 @@ class AISettings:
     max_attempts: int = 2
     # Zero means permanent for this exact input hash and pipeline version.
     # A week lets a transient provider fault or a summary the local quality
-    # gate rejected be retried, instead of leaving that event blank forever.
+    # gate rejected be retried instead of leaving only the master-data fallback.
     negative_cache_hours: float = 168.0
     timeout_seconds: float = 180.0
     # Bound the complete enrichment pass for one source. AI is optional
     # enrichment and must never keep the event import open indefinitely.
     # The budget must still cover a full first pass over the largest source:
-    # restricted sources publish no source prose at all, so an event the
-    # deadline skips ships with an empty description. The runner reserves the
-    # same amount on the source deadline, so raising this stays consistent.
+    # restricted sources publish no source prose, so a skipped event otherwise
+    # remains at the minimal master-data fallback. The runner reserves the same
+    # amount on the source deadline, so raising this stays consistent.
     batch_timeout_seconds: float = 600.0
     # Independent events can safely use separate cache connections and API
     # requests. Keep this bounded so one large municipal source no longer
@@ -317,12 +318,21 @@ def is_target_event(event: Mapping[str, Any]) -> bool:
 
 
 def strip_restricted_copy(event: RawEvent) -> RawEvent:
-    """Enforce the no-source-copy publication rule, including failure paths."""
+    """Enforce the no-source-copy rule and keep failure paths useful.
+
+    A successful AI summary remains the only prose shown for restricted
+    sources. If AI is unavailable or rejects the record, publish a generated
+    sentence made solely from the event's master data instead of leaving the
+    detail page without any visitor-facing description.
+    """
+    summary_value: object = event.get("ai_summary")
+    summary = summary_value if isinstance(summary_value, str) else ""
     event["description"] = ""
     event["description_html"] = ""
     event["description_source"] = "generated"
-    if not isinstance(event.get("ai_summary"), str):
-        event["ai_summary"] = ""
+    event["ai_summary"] = summary
+    if not summary.strip():
+        keep_only_event_master_data(event)
     return event
 
 
@@ -1838,8 +1848,8 @@ def enrich_events(
     """Enrich only the configured target sources, with an optional pilot cap.
 
     Restricted sources publish no source prose, so an event this pass skips
-    ships with an empty description. Report every skip through ``stats`` so a
-    truncated batch surfaces as a source warning instead of silent blank pages.
+    keeps only its master-data fallback. Report every skip through ``stats`` so
+    a truncated batch surfaces as a source warning instead of silent thin pages.
     """
     configured = settings or settings_from_env()
     deadline = time.monotonic() + configured.batch_timeout_seconds

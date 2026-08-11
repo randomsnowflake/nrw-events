@@ -24,6 +24,37 @@ from tests.helpers import default_window, make_runner_env, patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_restricted_publication_boundary_removes_copy_adopted_during_dedup(self):
+        canonical = runner.validate_event({
+            "title": "Stadtgartenkonzert",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "start_date": "2026-08-28",
+            "end_date": "2026-08-28",
+            "date": "2026-08-28",
+            "time": "19:40",
+            "venue": "Stadtgarten",
+            "city": "Bonn",
+            "score": 1.0,
+            "description": "Quelltext, der nicht veröffentlicht werden darf.",
+            "description_source": "scraped",
+            "ai_summary": "Zulässige AI-Zusammenfassung.",
+        })
+        leaked_after_dedup = replace(
+            canonical,
+            description="Quelltext, der nicht veröffentlicht werden darf.",
+            description_html="<p>Quelltext, der nicht veröffentlicht werden darf.</p>",
+            description_source="scraped",
+            ai_summary="",
+        )
+
+        [published] = runner._enforce_restricted_publication_boundary([leaked_after_dedup])
+
+        self.assertEqual(published.description_source, "generated")
+        self.assertNotIn("Quelltext", published.description)
+        self.assertTrue(published.description)
+        self.assertTrue(published.description_html)
+
     def test_logger_emits_identical_worker_warning_once_but_keeps_info_progress(self):
         with mock.patch("sys.stderr", new=io.StringIO()):
             logger = configure_logging("dedupe", "INFO", "", "")
