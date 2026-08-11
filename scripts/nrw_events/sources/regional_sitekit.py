@@ -65,12 +65,23 @@ def _fetch_calendar(city: str, source_id: str, url: str, trust: float) -> list:
 
 
 def _merge_detail_context(event: dict, context: dict[str, str]) -> dict:
-    """Prefer reviewed SiteKit detail copy over a longer generic fallback."""
+    """Replace generated copy, but keep richer prose already scraped from the listing."""
     description = context.get("description", "").strip()
-    if description:
+    current = event.get("description", "").strip()
+    should_replace = (
+        description
+        and (
+            event.get("description_source") == "generated"
+            or len(description) > len(current)
+        )
+    )
+    if should_replace:
         event["description"] = description
         event["description_source"] = "scraped"
         event["description_html"] = context.get("description_html", "")
+    else:
+        context.pop("description", None)
+        context.pop("description_html", None)
     return event
 
 
