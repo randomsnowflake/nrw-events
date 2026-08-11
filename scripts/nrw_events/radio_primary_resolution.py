@@ -42,8 +42,9 @@ _ALLOWED_MATCH_STRATEGIES = frozenset({
 _ALLOWED_ENTRY_FIELDS = frozenset({
     "title", "start_date", "primary_url", "primary_source", "primary_source_id",
     "evidence_status", "verified_at", "fallback_publication", "corrections",
-    "resolution_mode", "match_strategy", "withhold_reason", "occurrences",
+    "primary_facts", "resolution_mode", "match_strategy", "withhold_reason", "occurrences",
 })
+_ALLOWED_PRIMARY_FACTS = frozenset({"description", "price", "category"})
 _SAFE_LEAD_FIELDS = frozenset({
     "title", "date", "time", "time_note", "start_date", "end_date", "all_day",
     "ongoing", "timezone", "status", "venue", "city", "category", "category_key",
@@ -71,6 +72,7 @@ class RadioPrimaryEntry:
     verified_at: str
     fallback_publication: bool
     corrections: Mapping[str, str] = field(default_factory=dict)
+    primary_facts: Mapping[str, str] = field(default_factory=dict)
     resolution_mode: str = ""
     match_strategy: str = ""
     withhold_reason: str = ""
@@ -152,6 +154,21 @@ def _parse_occurrences(raw: object, title: str) -> tuple[Mapping[str, str], ...]
     return tuple(occurrences)
 
 
+def _parse_primary_facts(raw: object, title: str) -> Mapping[str, str]:
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or set(raw) - _ALLOWED_PRIMARY_FACTS:
+        raise ValueError(f"radio primary manifest: invalid primary_facts for {title}")
+    facts: dict[str, str] = {}
+    for field_name, value in raw.items():
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(
+                f"radio primary manifest: invalid primary {field_name} for {title}"
+            )
+        facts[field_name] = value.strip()
+    return facts
+
+
 def _parse_entry(raw: object) -> RadioPrimaryEntry:
     if not isinstance(raw, dict):
         raise ValueError("radio primary manifest: every entry must be an object")
@@ -213,6 +230,7 @@ def _parse_entry(raw: object) -> RadioPrimaryEntry:
         raise ValueError(f"radio primary manifest: invalid match_strategy for {title}")
     withhold_reason = _optional_text(raw, "withhold_reason")
     occurrences = _parse_occurrences(raw.get("occurrences"), title)
+    primary_facts = _parse_primary_facts(raw.get("primary_facts"), title)
     if not fallback and not resolution_mode and not withhold_reason:
         raise ValueError(f"radio primary manifest: non-fallback entry lacks disposition for {title}")
     if fallback and (resolution_mode or withhold_reason):
@@ -229,6 +247,10 @@ def _parse_entry(raw: object) -> RadioPrimaryEntry:
         raise ValueError(f"radio primary manifest: detail match_strategy conflicts for {title}")
     if occurrences and not fallback:
         raise ValueError(f"radio primary manifest: occurrences require fallback publication for {title}")
+    if primary_facts and not fallback:
+        raise ValueError(f"radio primary manifest: primary_facts require fallback publication for {title}")
+    if primary_facts and evidence_status != "confirmed":
+        raise ValueError(f"radio primary manifest: primary_facts require confirmed evidence for {title}")
     return RadioPrimaryEntry(
         title=title,
         start_date=start_date,
@@ -239,6 +261,7 @@ def _parse_entry(raw: object) -> RadioPrimaryEntry:
         verified_at=_iso_date(_required_text(raw, "verified_at"), "verified_at"),
         fallback_publication=fallback,
         corrections=normalized_corrections,
+        primary_facts=primary_facts,
         resolution_mode=resolution_mode,
         match_strategy=match_strategy,
         withhold_reason=withhold_reason,
@@ -468,6 +491,10 @@ def _promote_fallback(
         venue=str(raw.get("venue") or ""),
         city=str(raw.get("city") or ""),
     )
+    if entry.primary_facts:
+        raw.update(entry.primary_facts)
+        if "description" in entry.primary_facts:
+            raw["description_source"] = "scraped"
     raw["description_html"] = ""
     return validate_event(raw)
 

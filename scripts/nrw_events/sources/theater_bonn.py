@@ -1,4 +1,6 @@
-"""Official Theater Bonn JSON calendar."""
+"""Official Theater Bonn JSON calendar and programme details."""
+
+import re
 
 from .. import category_taxonomy, common
 from . import regional_common as rc
@@ -51,17 +53,33 @@ def _format_label(item: dict) -> str:
     return next((label for label in labels if label), "")
 
 
+def _programme_link(item: dict) -> str:
+    return rc.abs_url(
+        "https://www.theater-bonn.de/", rc.clean(item.get("url", "")),
+    )
+
+
 def _link(item: dict) -> str:
     ticket = item.get("ticket") or {}
     link = (
-        rc.clean(ticket.get("url", "") if isinstance(ticket, dict) else "")
+        _programme_link(item)
+        or rc.clean(ticket.get("url", "") if isinstance(ticket, dict) else "")
         or rc.clean(item.get("link_to_registration_url", ""))
         or _CALENDAR
     )
     return rc.abs_url("https://www.theater-bonn.de/", link)
 
 
-def events_from_payload(items: list[dict]) -> list[dict]:
+def _detail_description(html: str) -> str:
+    body = rc.first_group(
+        r'<div[^>]+class=["\'][^"\']*\breadmore-text\b[^"\']*["\'][^>]*>(.*?)</div>',
+        html,
+        flags=re.I | re.S,
+    )
+    return common.concise_description(rc.clean_blocks(body))
+
+
+def events_from_payload(items: list[dict], detail_fetcher=None) -> list[dict]:
     events = []
     for item in items:
         if not isinstance(item, dict):
@@ -75,6 +93,12 @@ def events_from_payload(items: list[dict]) -> list[dict]:
         title = rc.clean(item.get("title", ""))
         venue = _venue(item)
         description = common.concise_description(item.get("description", ""))
+        programme_link = _programme_link(item)
+        if not description and programme_link and detail_fetcher and common.window_contains(start):
+            try:
+                description = _detail_description(detail_fetcher(programme_link))
+            except Exception as exc:
+                common.log_source_error(f"{_SOURCE} detail", exc)
         description_generated = not description
         if description_generated:
             description = common.factual_event_description(
@@ -111,7 +135,12 @@ def fetch() -> list[dict]:
     try:
         payload = common.fetch_json(_API, timeout=30)
         items = payload if isinstance(payload, list) else payload.get("events", [])
-        return events_from_payload(items)
+        return events_from_payload(
+            items,
+            detail_fetcher=lambda url: common.fetch_detail_url(
+                url, cache_namespace="theater-bonn-v3", timeout=20,
+            ),
+        )
     except Exception as exc:
         common.log_source_error(_SOURCE, exc)
         return []
