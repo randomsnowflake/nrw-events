@@ -13,7 +13,7 @@ SPEC.loader.exec_module(MODULE)
 
 
 class PrepareMissingAiInputTests(unittest.TestCase):
-    def test_selects_only_restricted_events_that_are_still_completely_blank(self):
+    def test_selects_restricted_events_that_are_blank_or_only_have_a_generated_fallback(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "source.json"
@@ -21,20 +21,22 @@ class PrepareMissingAiInputTests(unittest.TestCase):
             output = root / "output.json"
             events = [
                 {"event_id": "blank", "source_id": "marktcom", "title": "Blank", "date": "2026-08-10", "description": "Source material"},
+                {"event_id": "fallback", "source_id": "marktcom", "title": "Fallback", "date": "2026-08-10", "description": "Source material"},
                 {"event_id": "done", "source_id": "marktcom", "title": "Done", "date": "2026-08-10", "description": "Source material"},
                 {"event_id": "normal", "source_id": "other", "title": "Normal", "date": "2026-08-10"},
             ]
             source.write_text(json.dumps({"events": events}), encoding="utf-8")
             current.write_text(json.dumps({"events": [
                 {**events[0], "description": ""},
-                {**events[1], "description": "", "ai_summary": "Generated"},
-                events[2],
+                {**events[1], "description": "Generated master-data fallback", "description_source": "generated"},
+                {**events[2], "description": "", "ai_summary": "Generated"},
+                events[3],
             ]}), encoding="utf-8")
             result = MODULE.prepare(source, current, output, enrich_details=False)
             prepared = json.loads(output.read_text(encoding="utf-8"))["events"]
-            self.assertEqual([event["event_id"] for event in prepared], ["blank"])
-            self.assertEqual(result["selected"], 1)
-            self.assertEqual(result["with_source_material_before_detail"], 1)
+            self.assertEqual([event["event_id"] for event in prepared], ["blank", "fallback"])
+            self.assertEqual(result["selected"], 2)
+            self.assertEqual(result["with_source_material_before_detail"], 2)
 
     def test_fails_when_current_event_is_missing_from_source_snapshot(self):
         with tempfile.TemporaryDirectory() as directory:

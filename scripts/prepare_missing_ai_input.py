@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare only still-empty restricted events for cached AI enrichment."""
+"""Prepare restricted events still missing AI copy for cached enrichment."""
 
 from __future__ import annotations
 
@@ -39,8 +39,13 @@ def prepare(
         for event in current_events
         if ai_enrichment.is_target_event(event)
         and not str(event.get("ai_summary") or "").strip()
-        and not str(event.get("description") or "").strip()
-        and not str(event.get("description_html") or "").strip()
+        and (
+            str(event.get("description_source") or "").strip().casefold() == "generated"
+            or (
+                not str(event.get("description") or "").strip()
+                and not str(event.get("description_html") or "").strip()
+            )
+        )
     }
     selected = [
         dict(event)
