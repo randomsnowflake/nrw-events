@@ -81,9 +81,10 @@ class BonnTheaterSourceTests(unittest.TestCase):
             ["stage", "stage", "stage", "concert"],
         )
 
-    def test_theater_bonn_uses_ticket_link_and_factual_description(self):
+    def test_theater_bonn_uses_programme_url_and_detail_copy_when_api_copy_is_blank(self):
         payload = [{
             "id": 42,
+            "url": "/de/programm/die-zauberfloete/42",
             "title": "Die Zauberflöte",
             "date_full": "04.09.2026",
             "date_time": "19:30 Uhr",
@@ -97,15 +98,71 @@ class BonnTheaterSourceTests(unittest.TestCase):
             "id": 43, "title": "Abgesagt", "date_full": "05.09.2026",
             "date_time": "20:00 Uhr", "status": "abgesagt",
         }]
-        events = theater_bonn.events_from_payload(payload)
+        fetched = []
+
+        def detail_fetcher(url):
+            fetched.append(url)
+            return """
+                <div class="readmore-text">
+                  <p>Eine Oper über die Prüfungen von Tamino und Pamina.</p>
+                  <p>Mozarts Musiktheater in deutscher Sprache.</p>
+                </div>
+            """
+
+        events = theater_bonn.events_from_payload(payload, detail_fetcher=detail_fetcher)
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["venue"], "Opernhaus")
         self.assertEqual(events[0]["time"], "19:30")
         self.assertEqual(events[0]["category_key"], "stage")
-        self.assertEqual(events[0]["link"], "https://tickets.theater-bonn.de/42")
-        self.assertIn("Veranstaltungsort", events[0]["description"])
-        self.assertEqual(events[0]["description_source"], "generated")
+        self.assertEqual(events[0]["link"], "https://www.theater-bonn.de/de/programm/die-zauberfloete/42")
+        self.assertEqual(fetched, [events[0]["link"]])
+        self.assertIn("Prüfungen von Tamino und Pamina", events[0]["description"])
+        self.assertNotIn("im Theater auf der Bühne", events[0]["description"])
+        self.assertEqual(events[0]["description_source"], "scraped")
         self.assert_canonical(events[0], "theater-bonn")
+
+    def test_theater_bonn_missing_programme_url_uses_ticket_without_detail_fetch(self):
+        payload = [{
+            "id": 44,
+            "url": "",
+            "title": "Gastspiel",
+            "date_full": "06.09.2026",
+            "date_time": "20:00 Uhr",
+            "description": "",
+            "status": "",
+            "categories": [{"name": "Schauspiel"}],
+            "tags": [{"name": "Schauspiel"}, {"name": "Opernhaus"}],
+            "ticket": {"url": "https://tickets.theater-bonn.de/44"},
+        }]
+        fetched = []
+
+        events = theater_bonn.events_from_payload(
+            payload, detail_fetcher=lambda url: fetched.append(url) or "",
+        )
+
+        self.assertEqual(fetched, [])
+        self.assertEqual(events[0]["link"], "https://tickets.theater-bonn.de/44")
+        self.assertEqual(events[0]["description_source"], "generated")
+
+    def test_theater_bonn_detail_fetches_stop_when_batch_budget_is_exhausted(self):
+        payload = [{
+            "id": 45,
+            "url": "/de/programm/eins/45",
+            "title": "Eins",
+            "date_full": "07.09.2026",
+            "date_time": "20:00 Uhr",
+            "description": "",
+            "status": "",
+        }]
+        fetched = []
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "0"}):
+            events = theater_bonn.events_from_payload(
+                payload, detail_fetcher=lambda url: fetched.append(url) or "",
+            )
+
+        self.assertEqual(fetched, [])
+        self.assertEqual(events[0]["description_source"], "generated")
 
     def test_junges_theater_parses_regular_and_kulturgarten_rows(self):
         html = """

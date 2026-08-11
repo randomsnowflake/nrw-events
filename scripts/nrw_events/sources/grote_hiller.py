@@ -1,6 +1,8 @@
 """Direct market dates from the Grote & Hiller organizer listings."""
 
+import os
 import re
+import time
 
 from .. import common
 from . import regional_common as rc
@@ -16,6 +18,13 @@ _URLS = (
 _CITY_ALIASES = {
     "denklingen": "Reichshof",
 }
+
+
+def _visitor_admission(html: str) -> str:
+    """Extract the labelled visitor price without adopting nearby stall fees."""
+    text = common.clean_html(html or "")
+    match = re.search(r"\bEintritt\s*:\s*(\d+(?:[,.]\d{1,2})?)\s*€", text, re.I)
+    return f"{match.group(1)} €" if match else ""
 
 
 def _listing_city(title: str, venue: str) -> str:
@@ -86,6 +95,39 @@ def _events_from_listing(html: str, page_url: str) -> list:
     return rc.dedupe(events)
 
 
+def _enrich_visitor_admission(events: list, detail_fetcher=None) -> list:
+    """Fetch each eligible detail once within a bounded source-level budget."""
+    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
+    deadline = time.monotonic() + max(batch_timeout, 0.0)
+    admission_by_link = {}
+    failed_links = set()
+    for event in events:
+        link = (event.get("link") or "").strip()
+        if "mädelsmarkt" not in (event.get("title") or "").casefold() or not link:
+            continue
+        remaining = deadline - time.monotonic()
+        if link not in admission_by_link and link not in failed_links:
+            if remaining < 3.0:
+                break
+            request_timeout = 20.0 if remaining >= 40.0 else max(1.0, remaining / 3.0)
+            try:
+                html = (
+                    detail_fetcher(link) if detail_fetcher
+                    else common.fetch_detail_url(
+                        link, cache_namespace="grote-hiller", timeout=request_timeout,
+                    )
+                )
+                admission_by_link[link] = _visitor_admission(html)
+            except Exception as exc:
+                failed_links.add(link)
+                common.log_source_error("Grote & Hiller detail", exc)
+        admission = admission_by_link.get(link, "")
+        if admission:
+            event["price"] = admission
+            event["admission_basis"] = "explicit"
+    return events
+
+
 def fetch() -> list:
     events = []
     for url in _URLS:
@@ -100,4 +142,4 @@ def fetch() -> list:
             events.extend(parsed)
         except Exception as exc:
             common.log_source_error("Grote & Hiller", exc)
-    return rc.dedupe(events)
+    return rc.dedupe(_enrich_visitor_admission(events))

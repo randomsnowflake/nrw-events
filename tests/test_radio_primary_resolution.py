@@ -73,6 +73,10 @@ class RadioPrimaryManifestTests(unittest.TestCase):
             [{**valid, "primary_url": "", "fallback_publication": True}],
             [{**valid, "primary_url": "javascript:alert(1)"}],
             [{**valid, "evidence_status": "probable"}],
+            [{**valid, "primary_facts": {"description_html": "<p>copy</p>"}}],
+            [{**valid, "evidence_status": "probable", "fallback_publication": False,
+              "withhold_reason": "insufficient_first_party_evidence",
+              "primary_facts": {"description": "Unconfirmed copy"}}],
         ]
         for entries in invalid_entries:
             with self.subTest(entries=entries):
@@ -292,6 +296,48 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         self.assertNotIn("RADIO COPY", serialized)
         self.assertNotIn("RADIO HTML", serialized)
         self.assertNotIn("RADIO AI", serialized)
+
+    def test_promotions_apply_only_manifest_verified_primary_facts(self):
+        expected = {
+            ("Willi Bellinghausens´s Dancing Sound", "2026-08-11"): {
+                "description": "Deutsche Schlager. Eintritt frei.",
+                "price": "kostenlos",
+                "category_key": "concert",
+            },
+            ("Benefiz-Konzert in Bad Honnef", "2026-08-20"): {
+                "description": (
+                    "Auf Einladung der Bürgerstiftung kommt wieder die mitreißende Bonner Band "
+                    "„Plenty Fourty“ mit Soul and Funk im modern Style von Joe Cocker, "
+                    "Aretha Franklin, van Morrisson, Tina Turner, Tower of Power und anderen, "
+                    "die keinen auf den Sitzen hält."
+                ),
+                "price": "",
+                "category_key": "concert",
+            },
+        }
+        for key, facts in expected.items():
+            with self.subTest(key=key):
+                entry = resolution.entry_for_key(key)
+                dirty = lead(
+                    entry.title, entry.start_date,
+                    description="RADIO COPY MUST NOT SURVIVE",
+                    price="99 Euro",
+                    category_key="sports",
+                    category_label="Sport",
+                )
+
+                [event] = resolution.resolve_radio_leads(
+                    [dirty], [], manifest=(entry,),
+                ).events
+
+                self.assertEqual(event.description, facts["description"])
+                self.assertEqual(event.price, facts["price"])
+                self.assertEqual(event.category_key, facts["category_key"])
+                self.assertEqual(event.category_label, "Konzert")
+                self.assertEqual(event.description_source, "scraped")
+                self.assertEqual(event.discovered_via, [RADIO_ID])
+                self.assertEqual(event.link, entry.primary_url)
+                self.assertNotIn("RADIO COPY", json.dumps(event.to_dict(), ensure_ascii=False))
 
     def test_city_correction_recomputes_stale_radio_location_fields(self):
         entry = resolution.entry_for_key(("Platz & Prost im Rhein Sieg Forum", "2026-08-08"))

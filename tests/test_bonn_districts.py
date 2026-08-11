@@ -122,6 +122,52 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(event["venue"], "Beueler Rathausplatz (Möhneplatz)")
         self.assertEqual(event["city"], "Bonn-Beuel")
 
+    def test_beuel_combined_festival_is_kept_once(self):
+        html = """
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">🍻 Beuelfest und Promenadenfest</span><br>
+        <b>Sa. 05.09.2026 10:00</b> | <a href="/map/?q=Möhneplatz">Möhneplatz</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">🍻 Promenadenfest und Beuelfest</span><br>
+        <b>Sa. 05.09. – 06.09. 18:00</b> | <a href="/map/?q=Rheinufer">Rheinufer</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        """
+
+        events = bonn_districts.events_from_beuel_html(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["start_date"], "2026-09-05")
+        self.assertEqual(events[0]["end_date"], "2026-09-06")
+        self.assertEqual(events[0]["venue"], "Rheinufer")
+
+    def test_beuel_combined_festival_programme_items_stay_distinct(self):
+        html = """
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">Beuelfest und Promenadenfest: Kinderprogramm</span><br>
+        <b>Sa. 05.09.2026 10:00</b> | <a href="/map/?q=Möhneplatz">Möhneplatz</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">Beuelfest und Promenadenfest: Abendkonzert</span><br>
+        <b>Sa. 05.09.2026 18:00</b> | <a href="/map/?q=Rheinufer">Rheinufer</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        """
+
+        events = bonn_districts.events_from_beuel_html(html)
+
+        self.assertEqual(len(events), 2)
+        self.assertEqual([event["time"] for event in events], ["10:00", "18:00"])
+
+    def test_beuel_events_sharing_a_primary_page_are_not_generically_collapsed(self):
+        html = """
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">Kinderfest</span><br>
+        <b>Sa. 05.09.2026 10:00</b> | <a href="/map/?q=Möhneplatz">Möhneplatz</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">Abendkonzert</span><br>
+        <b>Sa. 05.09.2026 18:00</b> | <a href="/map/?q=Möhneplatz">Möhneplatz</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        """
+
+        events = bonn_districts.events_from_beuel_html(html)
+
+        self.assertEqual([event["title"] for event in events], ["Kinderfest", "Abendkonzert"])
+
     def test_beuel_discovery_record_is_only_kept_after_primary_source_fetch(self):
         discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)
         fetched = []
@@ -260,6 +306,47 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events[1]["link"],
                          "https://bv-holzlar.de/veranstaltung/martinszug-holzlar/")
         self.assertTrue(all(event["description"] for event in events))
+
+    def test_holzlar_fallback_represents_range_and_external_destination(self):
+        html = HOLZLAR_HTML + """
+        <div class="elementor e-loop-item post-1902 veranstaltung type-veranstaltung status-publish">
+          <div class="elementor-widget-heading"><p class="elementor-heading-title elementor-size-default">05</p></div>
+          <div class="elementor-widget-icon-list"><ul class="elementor-icon-list-items">
+            <li><span class="elementor-icon-list-text">September</span></li>
+            <li><span class="elementor-icon-list-text">2026</span></li>
+            <li><span class="elementor-icon-list-text">Wuppertal Schwebodrohm</span></li>
+          </ul></div>
+          <div class="elementor-widget-theme-post-title"><h2 class="elementor-heading-title elementor-size-default">BV Roleber-Gielgen / BV Holzlar: Herbstfahrt</h2></div>
+          <a href="https://bv-holzlar.de/veranstaltung/bv-roleber-gielgen-bv-holzlar-herbstfahrt/">Mehr erfahren</a>
+        </div>
+        """
+
+        events = bonn_districts.events_from_holzlar_html(html)
+        weinfest = next(event for event in events if event["title"] == "BV Kohlkaul: Weinfest")
+        herbstfahrt = next(event for event in events if event["title"].endswith("Herbstfahrt"))
+
+        self.assertIn("14.08.2026 bis 15.08.2026", weinfest["description"])
+        self.assertEqual(herbstfahrt["city"], "Wuppertal")
+        self.assertIn("Wuppertal Schwebodrohm", herbstfahrt["description"])
+        self.assertNotIn("Bonn-Holzlar", herbstfahrt["description"])
+
+    def test_holzlar_destination_mention_does_not_move_bonn_departure(self):
+        html = """
+        <div class="elementor e-loop-item post-1903 veranstaltung type-veranstaltung status-publish">
+          <div class="elementor-widget-heading"><p class="elementor-heading-title elementor-size-default">06</p></div>
+          <div class="elementor-widget-icon-list"><ul class="elementor-icon-list-items">
+            <li><span class="elementor-icon-list-text">September</span></li>
+            <li><span class="elementor-icon-list-text">2026</span></li>
+            <li><span class="elementor-icon-list-text">Treffpunkt Holzlar für Busfahrt nach Wuppertal</span></li>
+          </ul></div>
+          <div class="elementor-widget-theme-post-title"><h2 class="elementor-heading-title elementor-size-default">Tagesfahrt</h2></div>
+          <a href="https://bv-holzlar.de/veranstaltung/tagesfahrt/">Mehr erfahren</a>
+        </div>
+        """
+
+        [event] = bonn_districts.events_from_holzlar_html(html)
+
+        self.assertEqual(event["city"], "Bonn-Holzlar")
 
     def test_holzlar_range_across_a_month_boundary_keeps_start_before_end(self):
         start, end = bonn_districts._holzlar_dates("30.-02.", "September", "2026")

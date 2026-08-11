@@ -422,6 +422,11 @@
       "corrections": {
         "time": "19:30–22:00",
         "venue": "Parkrestaurant Rheinaue"
+      },
+      "primary_facts": {
+        "description": "Deutsche Schlager. Eintritt frei.",
+        "price": "kostenlos",
+        "category": "Deutsche Schlager Konzert Musik"
       }
     },
     {
@@ -706,6 +711,10 @@
         "title": "Benefizkonzert: Plenty Fourty auf dem Annaplatz",
         "time": "19:30",
         "venue": "Annaplatz Rommersdorf"
+      },
+      "primary_facts": {
+        "description": "Auf Einladung der Bürgerstiftung kommt wieder die mitreißende Bonner Band „Plenty Fourty“ mit Soul and Funk im modern Style von Joe Cocker, Aretha Franklin, van Morrisson, Tina Turner, Tower of Power und anderen, die keinen auf den Sitzen hält.",
+        "category": "Soul Funk Konzert Musik"
       }
     },
     {

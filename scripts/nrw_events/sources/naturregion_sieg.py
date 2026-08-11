@@ -5,6 +5,8 @@ Reads:  naturregion-sieg.de/service/veranstaltungskalender
 Yields: Windeck, Eitorf, Hennef, Wissen and Sieg-region cultural/outdoor events.
 """
 
+import os
+import time
 from zoneinfo import ZoneInfo
 
 from .. import common, richtext
@@ -115,17 +117,68 @@ def _enrich_from_detail(event: dict, html: str) -> dict:
     return enriched
 
 
-def _enrich_listing_events(events: list, detail_fetcher) -> list:
-    return rc.enrich_descriptions(
-        events,
-        source=f"{_SOURCE} detail",
-        cache_namespace="naturregion-sieg",
-        extract_context=lambda html, event: _enrich_from_detail(event, html),
-        fallback=_fallback_description,
-        detail_fetcher=detail_fetcher,
-        needs_enrichment=lambda _event: True,
-        merge_context=lambda _event, enriched: enriched,
-    )
+def _detail_occurrences(event: dict, html: str) -> list[dict]:
+    """Expand an exact same-day JSON-LD schedule into bookable occurrences."""
+    title = common.clean_html(event.get("title", "")).casefold()
+    start_date = event.get("start_date", "")
+    raw_items = []
+    seen_bounds = set()
+    for item in common.jsonld_event_items(html):
+        item_title = common.clean_html(item.get("name", "")).casefold()
+        item_start = common.parse_iso_date(item.get("startDate", ""))
+        if item_title != title or not item_start or item_start.strftime("%Y-%m-%d") != start_date:
+            continue
+        bounds = (str(item.get("startDate", "")), str(item.get("endDate", "")))
+        if bounds not in seen_bounds:
+            seen_bounds.add(bounds)
+            raw_items.append(item)
+    if len(raw_items) <= 1:
+        return [_enrich_from_detail(event, html)]
+
+    # The shared JSON-LD parser intentionally collapses repeated title/date rows.
+    # Use its first canonical result for location/copy, then reapply each exact
+    # raw schedule bound so every separately bookable start time survives.
+    base = _enrich_from_detail(event, html)
+    return [_merge_raw_jsonld_item(base, item) for item in raw_items]
+
+
+def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
+    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
+    deadline = time.monotonic() + max(batch_timeout, 0.0)
+    html_by_link = {}
+    failed_links = set()
+    enriched_events = []
+    for event in events:
+        occurrences = [event]
+        link = (event.get("link") or "").strip()
+        remaining = deadline - time.monotonic()
+        if (
+            common.event_in_window(event)
+            and link
+            and link not in html_by_link
+            and link not in failed_links
+            and remaining >= 3.0
+        ):
+            try:
+                request_timeout = 20.0 if remaining >= 40.0 else max(1.0, remaining / 3.0)
+                html_by_link[link] = (
+                    detail_fetcher(link) if detail_fetcher
+                    else common.fetch_detail_url(
+                        link, cache_namespace="naturregion-sieg", timeout=request_timeout,
+                    )
+                )
+            except Exception as exc:
+                failed_links.add(link)
+                common.log_source_error(f"{_SOURCE} detail", exc)
+        if link in html_by_link:
+            occurrences = _detail_occurrences(event, html_by_link[link])
+        for occurrence in occurrences:
+            replacement = occurrence.get("description") or _fallback_description(occurrence)
+            if replacement:
+                occurrence["description"] = replacement
+                occurrence["description_source"] = common.description_source_for(replacement)
+            enriched_events.append(occurrence)
+    return enriched_events
 
 
 def fetch() -> list:
@@ -134,11 +187,7 @@ def fetch() -> list:
         events = common.events_from_ecmaps_tiles(
             html, _SOURCE, _SOURCE, _CATEGORY, _TRUST, _BASE,
         )
-        return _enrich_listing_events(
-            events,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="naturregion-sieg", timeout=20),
-        )
+        return _enrich_listing_events(events)
     except Exception as e:
         common.log_source_error(_SOURCE, e)
         return []
