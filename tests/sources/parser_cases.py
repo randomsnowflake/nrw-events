@@ -632,7 +632,7 @@ END:VCALENDAR
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Amazônia Indigenous Worlds")
 
-    def test_bundeskunsthalle_event_api_keeps_next_primary_series_occurrence(self):
+    def test_bundeskunsthalle_event_api_keeps_every_primary_series_occurrence(self):
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
         search_page = """
 <form id="event-search-form" data-api-search-url="/events-api/search-results">
@@ -658,6 +658,14 @@ END:VCALENDAR
   </a></h3>
   <div class="hover-content"><p>Elektronische Musik, kühle Drinks und Fingerfood mit Blick über Bonn.</p></div>
 </article>
+<article class="card style--pink">
+  <div class="badge badge--free">Kostenlos</div>
+  <h3><a href="https://www.bundeskunsthalle.de/veranstaltungen/detail/10137">
+    Sundowner Bar
+    <span class="events__card__date">Mi., 22. Juli, 18 – 22 Uhr</span>
+  </a></h3>
+  <div class="hover-content"><p>Elektronische Musik, kühle Drinks und Fingerfood mit Blick über Bonn.</p></div>
+</article>
 """
 
         def fake_fetch(url, *args, **kwargs):
@@ -668,12 +676,18 @@ END:VCALENDAR
             events = bundeskunsthalle.fetch()
 
         sundowner = [event for event in events if event["title"] == "Sundowner Bar"]
-        self.assertEqual(len(sundowner), 1)
-        self.assertEqual(sundowner[0]["date"], "2026-07-15")
-        self.assertEqual(sundowner[0]["time"], "18:00–22:00")
-        self.assertEqual(sundowner[0]["price"], "kostenlos")
-        self.assertEqual(sundowner[0]["source"], "Bundeskunsthalle")
-        self.assertEqual(sundowner[0]["link"], "https://www.bundeskunsthalle.de/veranstaltungen/detail/10136")
+        self.assertEqual(len(sundowner), 2)
+        self.assertEqual([event["date"] for event in sundowner], ["2026-07-15", "2026-07-22"])
+        self.assertTrue(all(event["time"] == "18:00–22:00" for event in sundowner))
+        self.assertTrue(all(event["price"] == "kostenlos" for event in sundowner))
+        self.assertTrue(all(event["source"] == "Bundeskunsthalle" for event in sundowner))
+        self.assertEqual(
+            [event["link"] for event in sundowner],
+            [
+                "https://www.bundeskunsthalle.de/veranstaltungen/detail/10136",
+                "https://www.bundeskunsthalle.de/veranstaltungen/detail/10137",
+            ],
+        )
         fields = dict(post_form.call_args.args[1])
         self.assertEqual(fields["tx[startDate]"], "2026-07-13")
         self.assertEqual(fields["tx[endedBeforeDate]"], "2026-07-26")

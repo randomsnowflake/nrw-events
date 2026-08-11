@@ -74,7 +74,12 @@ def _needs_detail(event: dict) -> bool:
     description = richtext.to_plain_text(str(
         event.get("description_html") or event.get("description") or ""
     )).strip()
-    return len(description) < 240 or not str(event.get("venue") or "").strip()
+    return len(description) < 240 or _invalid_short_venue(str(event.get("venue") or ""))
+
+
+def _invalid_short_venue(value: str) -> bool:
+    """Treat empty and one-character venue fragments as missing source data."""
+    return len(re.sub(r"[^a-z0-9]+", "", common.clean_html(value).casefold())) <= 1
 
 
 def _attributes(attrs: list[tuple[str, str | None]]) -> dict[str, str]:
@@ -473,6 +478,42 @@ def _context_from_fragment(
     }
 
 
+def _klimaviertel_overview_context(document: str, event: dict) -> dict[str, str] | None:
+    """Match one event on Klimaviertel's shared calendar by title and date."""
+    if _event_hostname(event) not in {"klimaviertel-beuel.de", "www.klimaviertel-beuel.de"}:
+        return None
+    wanted_title = _title_key(str(event.get("title") or ""))
+    wanted_date = str(event.get("start_date") or event.get("date") or "")[:10]
+    item = next((
+        candidate
+        for candidate in common.jsonld_event_items(document or "")
+        if isinstance(candidate, dict)
+        and _title_key(str(candidate.get("name") or "")) == wanted_title
+        and str(candidate.get("startDate") or "")[:10] == wanted_date
+    ), None)
+    if item is None:
+        # This URL contains several events. Never fall back to a neighbouring
+        # JSON-LD record when the requested occurrence is not on the page.
+        return _context_from_fragment("")
+
+    description_html = richtext.sanitize_rich_text(str(item.get("description") or ""))
+    location = item.get("location") if isinstance(item.get("location"), dict) else {}
+    address = location.get("address") if isinstance(location.get("address"), dict) else {}
+    address_parts = [
+        common.clean_html(str(address.get(key) or ""))
+        for key in ("streetAddress", "postalCode", "addressLocality")
+    ]
+    venue_address = " ".join(dict.fromkeys(part for part in address_parts if part))
+    price = common._jsonld_admission_price(item)
+    return {
+        "description": richtext.to_plain_text(description_html),
+        "description_html": description_html,
+        "price": price or "",
+        "venue": common.clean_html(str(location.get("name") or ""))[:300],
+        "venue_address": venue_address[:500],
+    }
+
+
 def _pantheon_detail_context(document: str, event: dict) -> dict[str, str] | None:
     if _event_hostname(event) not in {"pantheon.de", "www.pantheon.de"}:
         return None
@@ -651,6 +692,7 @@ def _froscon_detail_context(document: str, event: dict) -> dict[str, str] | None
 
 def _source_specific_detail_context(document: str, event: dict) -> dict[str, str] | None:
     for extractor in (
+        _klimaviertel_overview_context,
         _pantheon_detail_context,
         _rheinbach_sommerkino_context,
         _unkel_detail_context,
@@ -676,6 +718,7 @@ def _master_data_only(event: dict) -> bool:
 def _supports_repeated_detail(event: dict) -> bool:
     host = _event_hostname(event)
     return host in {
+        "klimaviertel-beuel.de", "www.klimaviertel-beuel.de",
         "pantheon.de", "www.pantheon.de",
         "rhein.info", "www.rhein.info",
         "rathausmusik.com", "www.rathausmusik.com",
@@ -788,7 +831,7 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
     for field in ("venue", "venue_address"):
         current = str(enriched.get(field) or "").strip()
         candidate = str(context.get(field) or "").strip()
-        if not current and candidate:
+        if candidate and (not current or (field == "venue" and _invalid_short_venue(current))):
             enriched[field] = candidate
         elif field == "venue_address" and candidate:
             words = current.split()

@@ -19,6 +19,10 @@ from .normalization import comparison_text
 LEDGER_SCHEMA_VERSION = 1
 LEDGER_RETENTION_DAYS = 400
 
+_SUNDOWNER_BAR_TITLES = re.compile(
+    r"^sundowner bar(?: auf dem dach der bundeskunsthalle| terrassen edition)?$"
+)
+
 
 def _clamped_date(year: int, month: int, day: int) -> date:
     """Build a date while keeping seasonal estimates inside the month."""
@@ -33,13 +37,22 @@ def _stem(title: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _series_title(event: Mapping[str, Any]) -> str:
+    """Return a verified stable title for narrowly known title variants."""
+    title = str(event.get("series_title") or event.get("title") or "").strip()
+    venue = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
+    if venue == "bundeskunsthalle" and _SUNDOWNER_BAR_TITLES.fullmatch(_stem(title)):
+        return "Sundowner Bar"
+    return title
+
+
 def _series_key(event: Mapping[str, Any]) -> tuple[str, str] | None:
     venue = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
     if not venue:
         venue_name = comparison_text(str(event.get("venue") or ""))
         city = comparison_text(str(event.get("city") or ""))
         venue = f"{city}\n{venue_name}" if city else venue_name
-    title = _stem(str(event.get("series_title") or event.get("title") or ""))
+    title = _stem(_series_title(event))
     if not venue or len(title) < 4:
         return None
     return venue, title
@@ -56,6 +69,7 @@ def _canonicalize_stored(records: Mapping[str, dict[str, Any]]) -> dict[str, dic
     canonical: dict[str, dict[str, Any]] = {}
     for old_id, raw in records.items():
         record = dict(raw)
+        record["title"] = _series_title(record)
         key = _series_key(record)
         series_id = _identifier(key) if key else old_id
         existing = canonical.get(series_id)
@@ -186,7 +200,7 @@ def enrich_events(
         current_groups.setdefault(series_id, []).append(event)
         record = stored.setdefault(series_id, {
             "series_id": series_id,
-            "title": str(event.get("series_title") or event.get("title") or ""),
+            "title": _series_title(event),
             "venue": str(event.get("venue") or ""),
             "canonical_venue_id": str(event.get("venue_id") or ""),
             "city": str(event.get("city") or ""),
@@ -236,7 +250,7 @@ def enrich_events(
             continue
         record = stored.setdefault(series_id, {
             "series_id": series_id,
-            "title": str(event.get("series_title") or event.get("title") or ""),
+            "title": _series_title(event),
             "venue": str(event.get("venue") or ""),
             "canonical_venue_id": str(event.get("venue_id") or ""),
             "city": str(event.get("city") or ""),

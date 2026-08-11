@@ -145,13 +145,18 @@ def _card_times(date_text: str) -> tuple[int, int, int, int] | None:
     )
 
 
-def _series_key(event: dict) -> tuple[str, str]:
+def _occurrence_key(event: dict) -> tuple[str, str, str, str]:
     normalize = lambda value: re.sub(r"[^a-zäöüß0-9]", "", (value or "").casefold())
-    return normalize(event.get("title", "")), normalize(event.get("description", ""))
+    return (
+        normalize(event.get("title", "")),
+        normalize(event.get("description", "")),
+        str(event.get("start_date") or ""),
+        str(event.get("time") or ""),
+    )
 
 
 def _events_from_search_results(content: str, source: str = "Bundeskunsthalle") -> list:
-    events_by_series = {}
+    events_by_occurrence = {}
     for article in re.findall(r'<article class="card\b.*?</article>', content or "", re.S | re.I):
         heading = re.search(r'<h3[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>', article, re.S | re.I)
         if not heading:
@@ -199,11 +204,9 @@ def _events_from_search_results(content: str, source: str = "Bundeskunsthalle") 
         if "badge--free" in article or re.search(r"\bKostenlos\b", common.clean_html(article), re.I):
             event["price"] = "kostenlos"
 
-        key = _series_key(event)
-        current = events_by_series.get(key)
-        if current is None or event["start_date"] < current["start_date"]:
-            events_by_series[key] = event
-    return sorted(events_by_series.values(), key=lambda event: (event["start_date"], event["title"]))
+        key = _occurrence_key(event)
+        events_by_occurrence.setdefault(key, event)
+    return sorted(events_by_occurrence.values(), key=lambda event: (event["start_date"], event["title"]))
 
 
 def _fetch_program_events(source: str) -> list:

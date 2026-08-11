@@ -364,6 +364,97 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual(winter["season_start_month"], 4)
         self.assertEqual(winter["season_end_month"], 10)
 
+    def test_sundowner_title_variants_share_the_verified_bundeskunsthalle_series(self):
+        events = [
+            raw_event(
+                title,
+                day,
+                venue="Bundeskunsthalle",
+                venue_id="bundeskunsthalle",
+                source=source,
+                source_id=source_id,
+            )
+            for title, day, source, source_id in (
+                ("Sundowner Bar", "2026-08-12", "Bundeskunsthalle", "bundeskunsthalle"),
+                (
+                    "Sundowner Bar auf dem Dach der Bundeskunsthalle",
+                    "2026-08-19",
+                    "Bonn.de Events",
+                    "bonn-de-events",
+                ),
+                (
+                    "Sundowner Bar – Terrassen-Edition",
+                    "2026-08-28",
+                    "Bundeskunsthalle",
+                    "bundeskunsthalle",
+                ),
+            )
+        ]
+        unrelated = raw_event(
+            "Sundowner Bar",
+            "2026-08-21",
+            venue="Hotelterrasse",
+            venue_id="hotelterrasse",
+        )
+
+        rows, metadata, _updated = series.enrich_events(
+            [*events, unrelated],
+            {"schema_version": 1, "series": {}},
+            today=date(2026, 8, 11),
+            generated_at="2026-08-11T12:00:00",
+        )
+
+        sundowner = [row for row in rows if row["venue_id"] == "bundeskunsthalle"]
+        self.assertEqual(len({row["series_id"] for row in sundowner}), 1)
+        self.assertEqual({row["series_title"] for row in sundowner}, {"Sundowner Bar"})
+        self.assertEqual(
+            metadata[0]["occurrence_dates"],
+            ["2026-08-12", "2026-08-19", "2026-08-28"],
+        )
+        self.assertNotIn("series_id", rows[-1])
+
+    def test_sundowner_ledger_title_variants_migrate_into_one_series(self):
+        ledger = {"schema_version": 1, "series": {
+            "short-title": {
+                "series_id": "short-title",
+                "title": "Sundowner Bar",
+                "venue": "Bundeskunsthalle",
+                "canonical_venue_id": "bundeskunsthalle",
+                "city": "Bonn",
+                "category_key": "nightlife",
+                "first_seen": "2026-08-05T12:00:00",
+                "last_seen": "2026-08-12T12:00:00",
+                "occurrences": {"first": "2026-08-05", "second": "2026-08-12"},
+                "announced_dates": [],
+            },
+            "roof-title": {
+                "series_id": "roof-title",
+                "title": "Sundowner Bar auf dem Dach der Bundeskunsthalle",
+                "venue": "Bundeskunsthalle",
+                "canonical_venue_id": "bundeskunsthalle",
+                "city": "Bonn",
+                "category_key": "nightlife",
+                "first_seen": "2026-08-12T12:00:00",
+                "last_seen": "2026-08-19T12:00:00",
+                "occurrences": {"duplicate": "2026-08-12", "third": "2026-08-19"},
+                "announced_dates": [],
+            },
+        }}
+
+        _rows, metadata, updated = series.enrich_events(
+            [],
+            ledger,
+            today=date(2026, 8, 11),
+            generated_at="2026-08-11T12:00:00",
+        )
+
+        self.assertEqual(len(updated["series"]), 1)
+        self.assertEqual(metadata[0]["title"], "Sundowner Bar")
+        self.assertEqual(
+            metadata[0]["occurrence_dates"],
+            ["2026-08-05", "2026-08-12", "2026-08-19"],
+        )
+
     def test_series_season_estimate_clamps_leap_day_in_both_candidate_years(self):
         ledger = {"schema_version": 1, "series": {"leap-day": {
             "series_id": "leap-day", "title": "Schalttag-Reihe", "venue": "Haus",

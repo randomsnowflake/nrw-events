@@ -584,6 +584,55 @@ class DetailEnrichmentTests(unittest.TestCase):
         fetch.assert_called_once()
         self.assertTrue(all("Täuschung und Manipulation" in event["description"] for event in enriched))
 
+    def test_shared_klimaviertel_calendar_replaces_one_character_venues(self):
+        event_date = detail_enrichment.common.TODAY.strftime("%Y-%m-%d")
+        document = f"""
+        <script type="application/ld+json">[
+          {{"@type":"Event","name":"Ein Garten für Beuel","startDate":"{event_date}T18:00:00+02:00",
+           "description":"Erster Spatenstich im Gemeinschaftsgarten.",
+           "location":{{"@type":"Place","name":"Gemeinschaftsgarten Ecke Hermannstr./Feldstr.",
+             "address":{{"streetAddress":"Feldstraße","postalCode":"53225","addressLocality":"Bonn"}}}}}},
+          {{"@type":"Event","name":"Repair Café in der Brotfabrik","startDate":"{event_date}T15:00:00+02:00",
+           "location":{{"@type":"Place","name":"Brotfabrik, Studio 6"}}}}
+        ]</script>
+        """
+        events = [
+            self.event(
+                title="Ein Garten für Beuel", venue="g", link="https://klimaviertel-beuel.de/termine/",
+                description="x" * 300, description_html=f"<p>{'x' * 300}</p>",
+            ),
+            self.event(
+                title="Repair Café in der Brotfabrik", venue="x", link="https://klimaviertel-beuel.de/termine/",
+                description="y" * 300, description_html=f"<p>{'y' * 300}</p>",
+            ),
+        ]
+
+        with patch.object(detail_enrichment.common, "fetch_detail_url", return_value=document) as fetch:
+            enriched = detail_enrichment.enrich_events(events)
+
+        fetch.assert_called_once()
+        self.assertEqual(enriched[0]["venue"], "Gemeinschaftsgarten Ecke Hermannstr./Feldstr.")
+        self.assertEqual(enriched[0]["venue_address"], "Feldstraße 53225 Bonn")
+        self.assertEqual(enriched[1]["venue"], "Brotfabrik, Studio 6")
+
+    def test_shared_klimaviertel_calendar_does_not_use_a_different_occurrence(self):
+        document = """
+        <script type="application/ld+json">{
+          "@type":"Event","name":"Ein Garten für Beuel","startDate":"2026-09-19T18:00:00+02:00",
+          "location":{"@type":"Place","name":"Ein anderer Terminort"}
+        }</script>
+        """
+        event = self.event(
+            title="Ein Garten für Beuel", date="2026-08-13", start_date="2026-08-13",
+            venue="g", link="https://klimaviertel-beuel.de/termine/",
+        )
+
+        context = detail_enrichment.extract_detail_context(document, event)
+        enriched = detail_enrichment.apply_detail_context(event, context)
+
+        self.assertEqual(context["venue"], "")
+        self.assertEqual(enriched["venue"], "g")
+
     def test_meetup_and_ruhr_guide_keep_only_extracted_master_data(self):
         document = """
         <meta property="og:description" content="Redaktioneller Plattformtext, der nicht veröffentlicht werden darf.">
