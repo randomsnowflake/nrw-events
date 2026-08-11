@@ -78,6 +78,7 @@ class RawEvent(TypedDict, total=False):
     series_id: str
     series_title: str
     run_id: str
+    early_publication: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +186,7 @@ class CanonicalEvent(Mapping[str, Any]):
     series_id: str = ""
     series_title: str = ""
     run_id: str = ""
+    early_publication: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

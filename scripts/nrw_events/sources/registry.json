@@ -359,6 +359,13 @@
       "callable": "nrw_events.sources.bonn:fetch_press_festivals"
     },
     {
+      "id": "tourismus-nrw-puetzchens-markt",
+      "display_name": "Tourismus NRW Pützchens Markt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.tourismus_nrw_featured:fetch"
+    },
+    {
       "id": "bundeskunsthalle",
       "display_name": "Bundeskunsthalle",
       "region": "bonn-region",

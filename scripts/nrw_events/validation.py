@@ -314,6 +314,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if status == "scheduled" and common.event_status(event["title"], event["description"]) == "postponed":
         status = "postponed"
     event["status"] = status
+    event["early_publication"] = bool(event.get("early_publication", False))
     # URLs contain venue slugs and navigation words such as ``museum`` or
     # ``events``; they are transport metadata, not editorial category evidence.
     try:

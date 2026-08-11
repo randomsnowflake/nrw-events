@@ -28,6 +28,7 @@ PUBLIC_EVENT_FIELDS = frozenset({
     "source", "source_id", "score",
     "ranking_features", "priority_bonus",
     "event_types",
+    "early_publication",
     "cancelled_at", "cancellation_source", "replacement_start_date",
     "first_seen_at", "content_hash",
     "series_id", "series_title", "run_id",

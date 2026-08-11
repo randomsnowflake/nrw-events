@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional, cast
 
-from . import ai_enrichment, common, config, detail_enrichment, highlights as highlight_selection, radio_primary_resolution, report, series as series_entities
+from . import ai_enrichment, common, config, detail_enrichment, early_publication, highlights as highlight_selection, radio_primary_resolution, report, series as series_entities
 from .category_taxonomy import CATEGORIES
 from .health import (
     bounded_diagnostic_text,
@@ -130,6 +130,7 @@ class ImportResult:
     series_ledger: dict[str, object] = field(default_factory=dict)
     warnings: tuple[dict[str, str], ...] = ()
     timings: dict[str, int] = field(default_factory=dict)
+    early_announcements: tuple[CanonicalEvent, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,7 +291,7 @@ def _run_source(
                 # Malformed date types are structural defects, not source-wide
                 # failures. Let canonical validation reject just this record.
                 in_window = True
-            if not in_window:
+            if not in_window and not early_publication.is_eligible(event):
                 result.announced_events.append(event)
                 continue
             if title_looks_truncated(
@@ -305,7 +306,7 @@ def _run_source(
                 )
             try:
                 canonical_event = validate_event(event)
-                if not common.event_in_window(canonical_event):
+                if not common.event_in_window(canonical_event) and not early_publication.is_eligible(canonical_event):
                     continue
                 if canonical_event.status in {"cancelled", "postponed"}:
                     canonical_cancellation_key = cancellation_key(canonical_event)
@@ -1501,9 +1502,12 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         radio_result.cancelled_events.extend(resolution.cancellations)
     _attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
+    early_candidates: list[CanonicalEvent] = []
     for event in all_events:
         rejection_reason = _publication_filter_reason(event, settings)
         if rejection_reason == "filter:window":
+            if early_publication.is_eligible(event):
+                early_candidates.append(event)
             continue
         if rejection_reason:
             result = _source_result_for_event(event, source_results)
@@ -1612,17 +1616,26 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     run_status = _run_status(source_results, len(deduped))
     if import_warnings and run_status != "failed":
         run_status = "degraded"
+    early_deduped = _enforce_restricted_publication_boundary(
+        report.deduplicate(early_candidates)
+    )
     return ImportResult(
-        tuple(deduped), source_results, len(filtered) + len(retained),
-        run_status, retention, tuple(series_metadata), series_ledger,
-        import_warnings,
-        {
+        events=tuple(deduped),
+        source_results=source_results,
+        pre_dedup_count=len(filtered) + len(retained),
+        run_status=run_status,
+        retention=retention,
+        series=tuple(series_metadata),
+        series_ledger=series_ledger,
+        warnings=import_warnings,
+        timings={
             "source_import_duration_ms": source_import_duration_ms,
             "ai_processing_duration_ms": sum(
                 result.ai_duration_ms for result in source_results.values()
             ),
             "total_import_duration_ms": round((time.monotonic() - import_started) * 1000),
         },
+        early_announcements=tuple(early_deduped),
     )
 
 
@@ -1637,6 +1650,14 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         event["ranking_features"] = features
         event["priority_bonus"] = round(sum(features.values()), 2)
     events.sort(key=lambda event: -(event["score"] + event["priority_bonus"]))
+    early_announcements = assign_event_ids(
+        event.to_dict() for event in import_result.early_announcements
+    )
+    for event in early_announcements:
+        features = report.ranking_features(event)
+        event["ranking_features"] = features
+        event["priority_bonus"] = round(sum(features.values()), 2)
+    early_announcements.sort(key=lambda event: (event["start_date"], event["title"]))
     issues = _import_issues(source_results)
     quality_metrics = summarize_event_quality(events)
     source_result_payloads = {
@@ -1690,6 +1711,8 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         "expired_retained_event_count": import_result.retention.get("expired_retained_event_count", 0),
         "retained_sources": import_result.retention.get("retained_sources", []),
         "event_count": len(events), "quality_metrics": quality_metrics,
+        "early_announcement_count": len(early_announcements),
+        "early_announcements": early_announcements,
         "series": list(import_result.series),
         "events_path": context.settings.json_out,
     }

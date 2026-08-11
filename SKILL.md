@@ -164,6 +164,7 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 | bonn-region | Theater im Ballsaal | `theater-im-ballsaal` | `python` |
 | bonn-region | Theater Marabu | `theater-marabu` | `python` |
 | bonn-region | TiK Theater im Keller | `tik-theater-im-keller` | `python` |
+| bonn-region | Tourismus NRW Pützchens Markt | `tourismus-nrw-puetzchens-markt` | `python` |
 | bonn-region | Troisdorf | `troisdorf` | `ical` |
 | bonn-region | Universität Bonn | `uni-bonn` | `python` |
 | bonn-region | Veranstaltungen Brüser Berg | `veranstaltungen-brueser-berg` | `python` |
@@ -189,6 +190,7 @@ scripts/nrw_events/
   core.py
   dates.py
   detail_enrichment.py
+  early_publication.py
   event_builder.py
   event_types.py
   event_vocabulary.py
@@ -280,6 +282,7 @@ scripts/nrw_events/
     theater_im_ballsaal.py
     theater_marabu.py
     tik_bonn.py
+    tourismus_nrw_featured.py
     uni_bonn.py
 ```
 <!-- END GENERATED MODULES -->
