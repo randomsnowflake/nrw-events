@@ -30,8 +30,8 @@ _NON_DOCUMENT_SUFFIXES = (
     ".png", ".svg", ".webp", ".xml", ".zip",
 )
 _SKIPPED_HOSTS = {
-    "example.com", "example.org", "example.test", "localhost",
-    "www.example.com", "www.example.org",
+    "example.com", "example.org", "example.test", "kihapp.com", "localhost",
+    "www.example.com", "www.example.org", "www.kihapp.com",
 }
 _CONTENT_TOKENS = {
     "article-content", "content-detail", "detail-content", "entry-content",

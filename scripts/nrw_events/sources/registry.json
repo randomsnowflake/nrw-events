@@ -584,6 +584,13 @@
       "callable": "nrw_events.sources.bonnjetzt:fetch"
     },
     {
+      "id": "kihapp",
+      "display_name": "Kihapp – Veranstalterdaten",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.kihapp:fetch"
+    },
+    {
       "id": "radio-bonn-rhein-sieg",
       "display_name": "Radio Bonn/Rhein-Sieg",
       "region": "bonn-region",
