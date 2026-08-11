@@ -302,6 +302,7 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
             ("Willi Bellinghausens´s Dancing Sound", "2026-08-11"): {
                 "description": "Deutsche Schlager. Eintritt frei.",
                 "price": "kostenlos",
+                "category_key": "concert",
             },
             ("Benefiz-Konzert in Bad Honnef", "2026-08-20"): {
                 "description": (
@@ -311,6 +312,7 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
                     "die keinen auf den Sitzen hält."
                 ),
                 "price": "",
+                "category_key": "concert",
             },
         }
         for key, facts in expected.items():
@@ -320,6 +322,8 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
                     entry.title, entry.start_date,
                     description="RADIO COPY MUST NOT SURVIVE",
                     price="99 Euro",
+                    category_key="sports",
+                    category_label="Sport",
                 )
 
                 [event] = resolution.resolve_radio_leads(
@@ -328,6 +332,8 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
 
                 self.assertEqual(event.description, facts["description"])
                 self.assertEqual(event.price, facts["price"])
+                self.assertEqual(event.category_key, facts["category_key"])
+                self.assertEqual(event.category_label, "Konzert")
                 self.assertEqual(event.description_source, "scraped")
                 self.assertEqual(event.discovered_via, [RADIO_ID])
                 self.assertEqual(event.link, entry.primary_url)

@@ -266,11 +266,16 @@ def _beuel_city(venue: str) -> str:
 
 def _dedupe_beuel_combined_festival(events: list) -> list:
     """Collapse the two cards for the one Beuelfest/Promenadenfest programme."""
+    audited_titles = {
+        "beuelfest und promenadenfest",
+        "promenadenfest und beuelfest",
+    }
     combined = {}
     output = []
     for event in events:
         title = common.clean_html(event.get("title", "")).casefold()
-        is_combined_festival = "beuelfest" in title and "promenadenfest" in title
+        normalized_title = re.sub(r"[^\w]+", " ", title).strip()
+        is_combined_festival = normalized_title in audited_titles
         key = (
             event.get("link", "").rstrip("/"),
             event.get("start_date", ""),
@@ -685,10 +690,16 @@ def events_from_holzlar_html(html: str) -> list:
         if not title or start is None:
             continue
         link = regional_common.first_group(_HOLZLAR_LINK.pattern, block) or HOLZLAR_URL
-        city = (
-            "Wuppertal" if "wuppertal" in venue.casefold()
-            else common.refine_city_from_text("Bonn-Holzlar", venue)
+        is_audited_wuppertal_destination = (
+            "herbstfahrt" in title.casefold()
+            and venue.casefold() == "wuppertal schwebodrohm"
         )
+        if is_audited_wuppertal_destination:
+            city = "Wuppertal"
+        elif "wuppertal" in venue.casefold():
+            city = "Bonn-Holzlar"
+        else:
+            city = common.refine_city_from_text("Bonn-Holzlar", venue)
         event = common.make_event(
             title, start, end, venue, city,
             common.factual_event_description(

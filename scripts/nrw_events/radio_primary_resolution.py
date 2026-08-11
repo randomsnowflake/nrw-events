@@ -492,6 +492,9 @@ def _promote_fallback(
         city=str(raw.get("city") or ""),
     )
     if entry.primary_facts:
+        if "category" in entry.primary_facts:
+            raw.pop("category_key", None)
+            raw.pop("category_label", None)
         raw.update(entry.primary_facts)
         if "description" in entry.primary_facts:
             raw["description_source"] = "scraped"

@@ -139,6 +139,21 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["end_date"], "2026-09-06")
         self.assertEqual(events[0]["venue"], "Rheinufer")
 
+    def test_beuel_combined_festival_programme_items_stay_distinct(self):
+        html = """
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">Beuelfest und Promenadenfest: Kinderprogramm</span><br>
+        <b>Sa. 05.09.2026 10:00</b> | <a href="/map/?q=Möhneplatz">Möhneplatz</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        <div class="yel"><a href="/events/#05.09.2026"><span class="title">Beuelfest und Promenadenfest: Abendkonzert</span><br>
+        <b>Sa. 05.09.2026 18:00</b> | <a href="/map/?q=Rheinufer">Rheinufer</a><br>
+        <a href="https://beuelhats.de/veranstaltungen">externer Link</a></a></div>
+        """
+
+        events = bonn_districts.events_from_beuel_html(html)
+
+        self.assertEqual(len(events), 2)
+        self.assertEqual([event["time"] for event in events], ["10:00", "18:00"])
+
     def test_beuel_events_sharing_a_primary_page_are_not_generically_collapsed(self):
         html = """
         <div class="yel"><a href="/events/#05.09.2026"><span class="title">Kinderfest</span><br>
@@ -314,6 +329,24 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(herbstfahrt["city"], "Wuppertal")
         self.assertIn("Wuppertal Schwebodrohm", herbstfahrt["description"])
         self.assertNotIn("Bonn-Holzlar", herbstfahrt["description"])
+
+    def test_holzlar_destination_mention_does_not_move_bonn_departure(self):
+        html = """
+        <div class="elementor e-loop-item post-1903 veranstaltung type-veranstaltung status-publish">
+          <div class="elementor-widget-heading"><p class="elementor-heading-title elementor-size-default">06</p></div>
+          <div class="elementor-widget-icon-list"><ul class="elementor-icon-list-items">
+            <li><span class="elementor-icon-list-text">September</span></li>
+            <li><span class="elementor-icon-list-text">2026</span></li>
+            <li><span class="elementor-icon-list-text">Treffpunkt Holzlar für Busfahrt nach Wuppertal</span></li>
+          </ul></div>
+          <div class="elementor-widget-theme-post-title"><h2 class="elementor-heading-title elementor-size-default">Tagesfahrt</h2></div>
+          <a href="https://bv-holzlar.de/veranstaltung/tagesfahrt/">Mehr erfahren</a>
+        </div>
+        """
+
+        [event] = bonn_districts.events_from_holzlar_html(html)
+
+        self.assertEqual(event["city"], "Bonn-Holzlar")
 
     def test_holzlar_range_across_a_month_boundary_keeps_start_before_end(self):
         start, end = bonn_districts._holzlar_dates("30.-02.", "September", "2026")

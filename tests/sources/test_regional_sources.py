@@ -342,3 +342,39 @@ class NaturregionSiegParserTests(unittest.TestCase):
             ["13:00–14:15", "13:30–14:45", "14:30–15:45", "15:00–16:15", "15:30–16:45"],
         )
         self.assertTrue(all(not event["all_day"] for event in deduped))
+
+    def test_detail_enrichment_respects_batch_budget_and_deduplicates_links(self):
+        events = [
+            {
+                "title": f"Event {index}",
+                "date": "2026-07-15",
+                "start_date": "2026-07-15",
+                "end_date": "2026-07-15",
+                "link": f"https://naturregion-sieg.de/event/{index // 2}",
+                "description": "",
+                "city": "Windeck",
+                "venue": "",
+            }
+            for index in range(20)
+        ]
+        clock = [0.0]
+        calls = []
+
+        def fetch_detail(url, *, cache_namespace, timeout):
+            calls.append((url, timeout))
+            clock[0] += timeout
+            return ""
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "25"}), \
+             patch.object(naturregion_sieg.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(common, "fetch_detail_url", side_effect=fetch_detail), \
+             patch.object(
+                 naturregion_sieg, "_detail_occurrences",
+                 side_effect=lambda event, _html: [event],
+             ):
+            enriched = naturregion_sieg._enrich_listing_events(events)
+
+        self.assertEqual(len(enriched), 20)
+        self.assertLessEqual(clock[0], 25.0)
+        self.assertEqual(len(calls), len({url for url, _timeout in calls}))
+        self.assertLess(len(calls), 10)
