@@ -1301,6 +1301,19 @@ def _prefer_retained_primary_over_radio_fallback(
     return fresh, remaining_retained
 
 
+def _enforce_restricted_publication_boundary(events: list) -> list:
+    """Reapply the no-source-copy contract after cross-source deduplication."""
+    protected = []
+    for event in events:
+        if not ai_enrichment.is_target_event(event):
+            protected.append(event)
+            continue
+        raw = event.to_dict()
+        ai_enrichment.strip_restricted_copy(raw)
+        protected.append(validate_event(raw))
+    return protected
+
+
 def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], list]],
                            executor_factory=_DetachedThreadPoolExecutor) -> ImportResult:
     """Execute, validate, filter, and deduplicate sources in memory."""
@@ -1533,7 +1546,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     )
     # The fresh canonical record wins wholesale. Retained records are only
     # appended when no fresh record represents that occurrence.
-    deduped = [*fresh_deduped, *retained_only]
+    deduped = _enforce_restricted_publication_boundary([
+        *fresh_deduped, *retained_only,
+    ])
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = _reconcile_published_ids(deduped, previous)
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)

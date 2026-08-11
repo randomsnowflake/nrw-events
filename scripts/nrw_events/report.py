@@ -649,6 +649,13 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     ):
         updates.update(_adopted_description(duplicate))
 
+    # AI copy is generated independently of the source record that wins
+    # canonical identity. A higher-authority duplicate must not discard a
+    # validated summary that another copy of the same occurrence already has.
+    # Keep this fill-only: never overwrite the winner's own accepted summary.
+    if not winner.get("ai_summary") and duplicate.get("ai_summary"):
+        updates["ai_summary"] = duplicate["ai_summary"]
+
     # Classification is derived data, but a broad aggregator label must not
     # override a usable classification from the canonical publisher. Peers may
     # still improve one another, and any source may fill an uncategorized record.

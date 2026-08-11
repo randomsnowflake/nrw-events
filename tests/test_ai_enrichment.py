@@ -379,8 +379,8 @@ class AIEnrichmentTests(unittest.TestCase):
 
         self.assertEqual([7.5], seen_timeouts)
         self.assertEqual("done", result[0]["ai_summary"])
-        self.assertEqual("", result[1]["description"])
-        self.assertEqual("", result[1]["description_html"])
+        self.assertIn("Second", result[1]["description"])
+        self.assertTrue(result[1]["description_html"])
 
     def test_independent_events_are_enriched_concurrently_in_input_order(self):
         values = [event(title="First"), event(title="Second")]
@@ -522,13 +522,17 @@ class AIEnrichmentTests(unittest.TestCase):
 
     def test_disabled_or_missing_key_never_falls_back_to_source_copy(self):
         source = event()
+        source_description = source["description"]
         settings = ai_enrichment.AISettings(
             enabled=False, api_key="", model="gpt-5.6-luna",
             cache_db=Path(self.temporary.name) / "unused.sqlite3",
         )
         result = ai_enrichment.enrich_event(source, settings=settings, client=FakeClient([]))
-        self.assertEqual("", result["description"])
-        self.assertEqual("", result["description_html"])
+        self.assertIn("Klangraum", result["description"])
+        self.assertIn("09.08.2026", result["description"])
+        self.assertNotIn(source_description, result["description"])
+        self.assertEqual("generated", result["description_source"])
+        self.assertTrue(result["description_html"])
         self.assertEqual("", result["ai_summary"])
 
     def test_disabled_provider_reuses_summary_for_same_occurrence_after_identity_enrichment(self):
@@ -611,7 +615,7 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual(1, stats["ai_deadline_skipped_event_count"])
         self.assertEqual(0, stats["ai_deadline_skipped_without_summary_event_count"])
 
-    def test_batch_reports_deadline_skips_so_blank_descriptions_are_visible(self):
+    def test_batch_reports_deadline_skips_while_publishing_master_data_fallbacks(self):
         stats: dict[str, int] = {}
 
         results = ai_enrichment.enrich_events(
@@ -626,7 +630,8 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual(2, stats["ai_deadline_skipped_event_count"])
         self.assertEqual(0, stats["ai_cap_skipped_event_count"])
         self.assertEqual(2, stats["ai_deadline_skipped_without_summary_event_count"])
-        self.assertEqual(["", ""], [result["description"] for result in results])
+        self.assertTrue(all(result["description"] for result in results))
+        self.assertTrue(all(result["description_source"] == "generated" for result in results))
 
     def test_batch_reports_cap_skips_separately_from_deadline_skips(self):
         stats: dict[str, int] = {}
@@ -728,6 +733,8 @@ class AIEnrichmentTests(unittest.TestCase):
         ])
         result = ai_enrichment.enrich_event(event(), settings=self.settings, client=first, now=self.now)
         self.assertEqual("", result["ai_summary"])
+        self.assertIn("Klangraum", result["description"])
+        self.assertEqual("generated", result["description_source"])
         self.assertEqual(["facts", "summary", "summary"], [call["stage"] for call in first.calls])
 
         blocked = FakeClient([])

@@ -7,7 +7,7 @@ Yields: Windeck, Eitorf, Hennef, Wissen and Sieg-region cultural/outdoor events.
 
 from zoneinfo import ZoneInfo
 
-from .. import common
+from .. import common, richtext
 from . import regional_common as rc
 
 _URL = "https://naturregion-sieg.de/service/veranstaltungskalender"
@@ -72,28 +72,47 @@ def _enrich_from_detail(event: dict, html: str) -> dict:
     )
     title = common.clean_html(event.get("title", "")).casefold()
     start_date = event.get("start_date", "")
+    matching_items = []
+    for item in common.jsonld_event_items(html):
+        item_title = common.clean_html(item.get("name", "")).casefold()
+        item_start = common.parse_iso_date(item.get("startDate", ""))
+        if item_title == title and item_start and item_start.strftime("%Y-%m-%d") == start_date:
+            matching_items.append(item)
     exact = [
         candidate for candidate in candidates
         if common.clean_html(candidate.get("title", "")).casefold() == title
         and candidate.get("start_date", "") == start_date
     ]
     if exact:
-        return _merge_detail_event(event, exact[0])
+        enriched = _merge_detail_event(event, exact[0])
+    else:
+        same_date = [
+            candidate for candidate in candidates
+            if candidate.get("start_date", "") == start_date
+        ]
+        if len(same_date) == 1:
+            enriched = _merge_detail_event(event, same_date[0])
+        else:
+            enriched = _merge_raw_jsonld_item(event, matching_items[0]) if matching_items else event
 
-    same_date = [
-        candidate for candidate in candidates
-        if candidate.get("start_date", "") == start_date
-    ]
-    if len(same_date) == 1:
-        return _merge_detail_event(event, same_date[0])
-
-    raw_items = []
-    for item in common.jsonld_event_items(html):
-        item_title = common.clean_html(item.get("name", "")).casefold()
-        item_start = common.parse_iso_date(item.get("startDate", ""))
-        if item_title == title and item_start and item_start.strftime("%Y-%m-%d") == start_date:
-            raw_items.append(item)
-    return _merge_raw_jsonld_item(event, raw_items[0]) if raw_items else event
+    # Some Feratel detail pages leave JSON-LD ``description`` empty while the
+    # reviewed page summary is present in og:description/meta description.
+    # Prefer that real source copy over the listing's generic factual fallback.
+    matched_copy_is_empty = bool(matching_items) and not any(
+        common.concise_description(item.get("description", ""))
+        for item in matching_items
+    )
+    has_usable_description = bool(common.concise_description(enriched.get("description", "")))
+    if matched_copy_is_empty and (
+        not has_usable_description or enriched.get("description_source") == "generated"
+    ):
+        meta_description = rc.meta_description(html)
+        if meta_description:
+            enriched = dict(enriched)
+            enriched["description"] = meta_description
+            enriched["description_html"] = richtext.from_plain_text(meta_description)
+            enriched["description_source"] = "scraped"
+    return enriched
 
 
 def _enrich_listing_events(events: list, detail_fetcher) -> list:

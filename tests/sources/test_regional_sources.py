@@ -204,6 +204,77 @@ class NaturregionSiegParserTests(unittest.TestCase):
         self.assertEqual(event["category_key"], "outdoor")
         self.assertFalse(common.is_junk_event(event))
 
+    def test_fetch_uses_detail_meta_description_when_jsonld_copy_is_empty(self):
+        listing_html = """
+<div class="tile tile--one-quarter tile--single-height">
+  <a href="/event/grube-bindweide" class="tile__link">
+    <span class="tile__label-text">16.07.2026</span>
+    <p class="header__head">Erlebnis Besucherbergwerk Grube Bindweide</p>
+    <span class="icontext__text">Besucherbergwerk Grube Bindweide, Steinebach/Sieg</span>
+  </a>
+</div>
+"""
+        detail_html = """
+<meta property="og:description" content="Einfahrt in das Erlebnisbergwerk im Westerwald">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Event",
+  "name": "Erlebnis Besucherbergwerk Grube Bindweide",
+  "description": "",
+  "startDate": "2026-07-16T13:00:00+02:00",
+  "endDate": "2026-07-16T14:15:00+02:00"
+}
+</script>
+"""
+
+        with patch.object(common, "fetch_url", side_effect=[listing_html, detail_html]):
+            [event] = naturregion_sieg.fetch()
+
+        self.assertEqual(event["description"], "Einfahrt in das Erlebnisbergwerk im Westerwald")
+        self.assertEqual(
+            event["description_html"],
+            "<p>Einfahrt in das Erlebnisbergwerk im Westerwald</p>",
+        )
+        self.assertEqual(event["description_source"], "scraped")
+        self.assertEqual(event["time"], "13:00–14:15")
+
+    def test_detail_meta_description_is_ignored_without_a_matching_occurrence(self):
+        listing_html = """
+<div class="tile tile--one-quarter tile--single-height">
+  <a href="/event/grube-bindweide" class="tile__link">
+    <span class="tile__label-text">16.07.2026</span>
+    <p class="header__head">Erlebnis Besucherbergwerk Grube Bindweide</p>
+    <span class="icontext__text">Besucherbergwerk Grube Bindweide, Steinebach/Sieg</span>
+  </a>
+</div>
+"""
+        [event] = common.events_from_ecmaps_tiles(
+            listing_html,
+            naturregion_sieg._SOURCE,
+            naturregion_sieg._SOURCE,
+            naturregion_sieg._CATEGORY,
+            naturregion_sieg._TRUST,
+            naturregion_sieg._BASE,
+        )
+        detail_html = """
+<meta name="description" content="Generic regional tourism portal">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Event",
+  "name": "Ein anderes Ereignis",
+  "description": "",
+  "startDate": "2026-07-17T13:00:00+02:00"
+}
+</script>
+"""
+
+        enriched = naturregion_sieg._enrich_from_detail(event, detail_html)
+
+        self.assertEqual(enriched["description"], "")
+        self.assertNotIn("Generic regional tourism portal", enriched["description"])
+
     def test_fetch_keeps_a_complete_fallback_when_detail_request_fails(self):
         listing_html = """
 <div class="tile tile--one-quarter tile--single-height">

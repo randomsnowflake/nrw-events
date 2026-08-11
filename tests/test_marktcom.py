@@ -177,13 +177,17 @@ class MarktcomSourceTests(unittest.TestCase):
             with self.subTest(title=event["title"]):
                 self.assertNotIn("Beschreibung des Marktes", event["title"])
 
-    def test_directory_copy_is_retained_only_until_the_common_ai_boundary(self):
+    def test_directory_copy_is_replaced_by_master_data_fallback_at_publication_boundary(self):
         event = next(e for e in self._events() if e["city"] == "Köln")
 
         self.assertIn("Beschreibung des Marktes", event["description"])
         published = validate_event(event).to_dict()
-        self.assertEqual("", published["description"])
-        self.assertEqual("", published["description_html"])
+        self.assertIn("Antik-Trödelmarkt", published["description"])
+        self.assertIn("Pferderennbahn Parkplatz", published["description"])
+        self.assertNotIn("Beschreibung des Marktes", published["description"])
+        self.assertNotIn(event["organizer"], published["description"])
+        self.assertEqual("generated", published["description_source"])
+        self.assertTrue(published["description_html"])
         self.assertEqual("", published["ai_summary"])
         self.assertEqual(event["organizer"], "Trödelfabrik Köln")
 
