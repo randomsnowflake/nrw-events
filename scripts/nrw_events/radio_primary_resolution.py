@@ -59,10 +59,10 @@ _DERIVED_LOCATION_FIELDS = frozenset({
     "venue_id", "venue_address", "venue_district", "venue_type", "venue_latitude",
     "venue_longitude", "distance_km", "location_confidence", "location_source",
 })
-# Dispositions of an audited fallback that reached no published record this run.
+# Dispositions of an audited fallback whose source data cannot be trusted this run.
 # The empty string is the entry the editors dropped from this week's article: it
 # produced no lead at all, so the resolution loop never assigned it anything.
-_UNPUBLISHED_FALLBACK_DISPOSITIONS = frozenset({"", "fallback_filtered", "fallback_invalid"})
+_UNPUBLISHED_FALLBACK_DISPOSITIONS = frozenset({"", "fallback_invalid"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -530,7 +530,6 @@ def resolve_radio_leads(
     dispositions: dict[tuple[str, str], str] = {}
     cancellations: list[dict[str, object]] = []
     promoted_fallback_event_ids: set[str] = set()
-    published_fallback_source_ids: set[str] = set()
 
     for lead in leads:
         key = _lead_key(lead)
@@ -608,7 +607,6 @@ def resolve_radio_leads(
                 continue
             events.extend(accepted_promotions)
             promoted_fallback_event_ids.update(event_id(event) for event in accepted_promotions)
-            published_fallback_source_ids.add(entry.primary_source_id)
             for promoted in accepted_promotions:
                 if promoted.status in {"cancelled", "postponed"}:
                     cancellations.append(promoted.to_dict())
@@ -632,10 +630,6 @@ def resolve_radio_leads(
         and entry.evidence_status == "confirmed"
         and dispositions.get(entry.key, "") in _UNPUBLISHED_FALLBACK_DISPOSITIONS
     }
-    # Several entries can audit the same publication source. One of them
-    # publishing means that source is represented and needs no substitute.
-    unpublished_fallback_source_ids -= published_fallback_source_ids
-
     return RadioResolutionOutcome(
         events=tuple(events),
         research_leads=tuple(research_leads),

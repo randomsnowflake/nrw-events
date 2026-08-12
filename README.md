@@ -746,10 +746,10 @@ JSON-LD ist stabiler als HTML-Scraping.
   `expired_retained_event_count` und `retained_sources` dokumentieren die Entscheidung.
   Erfolgreiche leere Quellen ersetzen ihren bisherigen Snapshot; nur Fehler,
   Parser-Leerstände, planmäßige Auslassungen und auffällige Nullergebnisse lösen
-  die Aufbewahrung aus. Ein bestätigter auditierter Radio-Fallback, der in diesem
-  Lauf keinen veröffentlichten Datensatz erzeugt hat, wird ebenfalls aufbewahrt:
-  seine Publikationsquelle hat keine eigene Runner-Quelle, die für sie eintreten
-  könnte. Fenster- und Ablaufprüfung bleiben davon unberührt.
+  die Aufbewahrung aus. Ein bestätigter auditierter Radio-Fallback, dessen Lead
+  in diesem Lauf fehlt oder ungültig geworden ist, wird ebenfalls aufbewahrt:
+  der aus dem Manifest publizierte Datensatz hat keinen eigenen Runner, der
+  seinen Ausfall melden könnte. Fenster- und Ablaufprüfung bleiben davon unberührt.
   `failed` bleibt für Läufe ohne veröffentlichbare Events oder
   Infrastruktur-/Konfigurationsfehler reserviert.
 
