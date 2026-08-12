@@ -10,13 +10,19 @@ from nrw_events.sources import tourismus_nrw_featured
 from tests.helpers import make_runner_env, patch_window
 
 
-def page(*, identifier=11030, organizer="Bundesstadt Bonn", date_range="11.09.2026 - 15.09.2026"):
+def page(
+    *,
+    identifier=11030,
+    organizer="Bundesstadt Bonn",
+    organizer_value=None,
+    date_range="11.09.2026 - 15.09.2026",
+):
     event = {
         "@type": "Event",
         "identifier": identifier,
         "name": "Pützchens Markt",
         "description": "Dieser fremde redaktionelle Text darf nicht publiziert werden.",
-        "organizer": {"@type": "Organization", "legalName": organizer},
+        "organizer": organizer_value or {"@type": "Organization", "legalName": organizer},
         "isAccessibleForFree": "http://schema.org/True",
         "image": [{"url": "https://example.test/protected.jpg"}],
     }
@@ -46,6 +52,14 @@ class TourismusNrwFeaturedTests(unittest.TestCase):
     def test_rejects_a_changed_identity_or_unverified_organizer(self):
         self.assertEqual(tourismus_nrw_featured.events_from_html(page(identifier=999)), [])
         self.assertEqual(tourismus_nrw_featured.events_from_html(page(organizer="Unbekannt")), [])
+
+    def test_rejects_non_object_organizer_data_without_failing_the_source(self):
+        self.assertEqual(
+            tourismus_nrw_featured.events_from_html(
+                page(organizer_value="Bundesstadt Bonn"),
+            ),
+            [],
+        )
 
     def test_rejects_a_missing_or_backwards_date_range(self):
         self.assertEqual(tourismus_nrw_featured.events_from_html(page(date_range="")), [])
