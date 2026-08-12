@@ -64,6 +64,15 @@ class RichTextStructureTests(unittest.TestCase):
             "<p>Absatz eins.</p><p>Zeile A<br>Zeile B</p>",
         )
 
+    def test_plain_text_does_not_emit_markdown_as_visible_copy(self):
+        self.assertEqual(
+            richtext.from_plain_text(
+                "Am **Samstag** gibt es [Damenbekleidung](https://example.test), "
+                "`Deko` und _Vintage_."
+            ),
+            "<p>Am Samstag gibt es Damenbekleidung, Deko und Vintage.</p>",
+        )
+
 
 class RichTextSafetyTests(unittest.TestCase):
     """The output is constructed from a fixed vocabulary, not filtered.

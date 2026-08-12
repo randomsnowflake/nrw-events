@@ -200,11 +200,21 @@ def from_plain_text(text: str) -> str:
     breaks; they simply gain no headings or lists, because that structure was
     lost before this point rather than being withheld here.
     """
-    paragraphs = [block.strip() for block in re.split(r"\n{2,}", text or "") if block.strip()]
+    text = _strip_markdown(text or "")
+    paragraphs = [block.strip() for block in re.split(r"\n{2,}", text) if block.strip()]
     return "".join(
         "<p>" + "<br>".join(escape(line, quote=False) for line in block.split("\n")) + "</p>"
         for block in paragraphs
     )
+
+
+def _strip_markdown(text: str) -> str:
+    """Remove formatting syntax when a source labels Markdown as plain text."""
+    text = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    text = re.sub(r"(^|\n)\s{0,3}#{1,6}\s+", r"\1", text)
+    text = re.sub(r"(^|\n)\s{0,3}(?:[-*+]|\d+[.)])\s+", r"\1", text)
+    return re.sub(r"[*_~`]+", "", text)
 
 
 def _comparison_key(text: str) -> str:
