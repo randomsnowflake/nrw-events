@@ -59,6 +59,10 @@ _DERIVED_LOCATION_FIELDS = frozenset({
     "venue_id", "venue_address", "venue_district", "venue_type", "venue_latitude",
     "venue_longitude", "distance_km", "location_confidence", "location_source",
 })
+# Dispositions of an audited fallback that reached no published record this run.
+# The empty string is the entry the editors dropped from this week's article: it
+# produced no lead at all, so the resolution loop never assigned it anything.
+_UNPUBLISHED_FALLBACK_DISPOSITIONS = frozenset({"", "fallback_filtered", "fallback_invalid"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +94,10 @@ class RadioResolutionOutcome:
     dispositions: Mapping[tuple[str, str], str]
     cancellations: tuple[dict[str, object], ...] = ()
     promoted_fallback_event_ids: frozenset[str] = frozenset()
+    # Publication sources an audited fallback owns but did not fill this run.
+    # They exist nowhere else in the run, so callers must treat them as a source
+    # whose fresh data is missing rather than as an event that simply ended.
+    unpublished_fallback_source_ids: frozenset[str] = frozenset()
 
     @property
     def research_lead_reasons(self) -> dict[str, int]:
@@ -522,6 +530,7 @@ def resolve_radio_leads(
     dispositions: dict[tuple[str, str], str] = {}
     cancellations: list[dict[str, object]] = []
     promoted_fallback_event_ids: set[str] = set()
+    published_fallback_source_ids: set[str] = set()
 
     for lead in leads:
         key = _lead_key(lead)
@@ -599,6 +608,7 @@ def resolve_radio_leads(
                 continue
             events.extend(accepted_promotions)
             promoted_fallback_event_ids.update(event_id(event) for event in accepted_promotions)
+            published_fallback_source_ids.add(entry.primary_source_id)
             for promoted in accepted_promotions:
                 if promoted.status in {"cancelled", "postponed"}:
                     cancellations.append(promoted.to_dict())
@@ -610,10 +620,27 @@ def resolve_radio_leads(
         research_leads.append(unresolved)
         dispositions[key] = "awaiting_existing_primary"
 
+    # The manifest, not the lead set, is the authority on what an audited
+    # fallback owes this run. A lead only exists while the editors keep its
+    # paragraph in their rotating weekly article, so scanning leads cannot see
+    # the entry that silently fell out of it — the exact case that drops a
+    # multi-day event out of the feed mid-run.
+    unpublished_fallback_source_ids = {
+        entry.primary_source_id
+        for entry in entries
+        if entry.fallback_publication
+        and entry.evidence_status == "confirmed"
+        and dispositions.get(entry.key, "") in _UNPUBLISHED_FALLBACK_DISPOSITIONS
+    }
+    # Several entries can audit the same publication source. One of them
+    # publishing means that source is represented and needs no substitute.
+    unpublished_fallback_source_ids -= published_fallback_source_ids
+
     return RadioResolutionOutcome(
         events=tuple(events),
         research_leads=tuple(research_leads),
         dispositions=dispositions,
         cancellations=tuple(cancellations),
         promoted_fallback_event_ids=frozenset(promoted_fallback_event_ids),
+        unpublished_fallback_source_ids=frozenset(unpublished_fallback_source_ids),
     )
