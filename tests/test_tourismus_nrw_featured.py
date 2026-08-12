@@ -61,6 +61,18 @@ class TourismusNrwFeaturedTests(unittest.TestCase):
             [],
         )
 
+    def test_uses_the_first_structured_organizer_from_an_array(self):
+        [event] = tourismus_nrw_featured.events_from_html(
+            page(
+                organizer_value=[
+                    "malformed organizer",
+                    {"@type": "Organization", "legalName": "Bundesstadt Bonn"},
+                ],
+            ),
+        )
+
+        self.assertEqual(event["organizer"], "Bundesstadt Bonn")
+
     def test_rejects_a_missing_or_backwards_date_range(self):
         self.assertEqual(tourismus_nrw_featured.events_from_html(page(date_range="")), [])
         self.assertEqual(
