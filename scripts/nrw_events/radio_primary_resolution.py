@@ -59,11 +59,10 @@ _DERIVED_LOCATION_FIELDS = frozenset({
     "venue_id", "venue_address", "venue_district", "venue_type", "venue_latitude",
     "venue_longitude", "distance_km", "location_confidence", "location_source",
 })
-# Dispositions of an audited fallback that reached no published record this run.
+# Dispositions of an audited fallback whose source data cannot be trusted this run.
 # The empty string is the entry the editors dropped from this week's article: it
 # produced no lead at all, so the resolution loop never assigned it anything.
 _UNPUBLISHED_FALLBACK_DISPOSITIONS = frozenset({"", "fallback_invalid"})
-_RETAINABLE_FALLBACK_FILTERS = frozenset({"filter:window"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -531,7 +530,6 @@ def resolve_radio_leads(
     dispositions: dict[tuple[str, str], str] = {}
     cancellations: list[dict[str, object]] = []
     promoted_fallback_event_ids: set[str] = set()
-    fallback_filter_reasons: dict[tuple[str, str], str] = {}
 
     for lead in leads:
         key = _lead_key(lead)
@@ -606,7 +604,6 @@ def resolve_radio_leads(
                 unresolved["reason"] = f"primary_fallback_filtered:{filter_name}"
                 research_leads.append(unresolved)
                 dispositions[key] = "fallback_filtered"
-                fallback_filter_reasons[key] = rejection_reason
                 continue
             events.extend(accepted_promotions)
             promoted_fallback_event_ids.update(event_id(event) for event in accepted_promotions)
@@ -631,15 +628,8 @@ def resolve_radio_leads(
         for entry in entries
         if entry.fallback_publication
         and entry.evidence_status == "confirmed"
-        and (
-            dispositions.get(entry.key, "") in _UNPUBLISHED_FALLBACK_DISPOSITIONS
-            or (
-                dispositions.get(entry.key) == "fallback_filtered"
-                and fallback_filter_reasons.get(entry.key) in _RETAINABLE_FALLBACK_FILTERS
-            )
-        )
+        and dispositions.get(entry.key, "") in _UNPUBLISHED_FALLBACK_DISPOSITIONS
     }
-
     return RadioResolutionOutcome(
         events=tuple(events),
         research_leads=tuple(research_leads),
