@@ -249,6 +249,64 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertAlmostEqual(venue.venue_latitude or 0, 50.7221437)
         self.assertAlmostEqual(venue.venue_longitude or 0, 7.1134825)
 
+    def test_siegburg_marktplatz_aliases_share_one_stable_identity_and_point(self):
+        for label in (
+            "Marktplatz",
+            "Marktplatz Siegburg",
+            "Siegburger Marktplatz",
+            "Denkmal am Markt",
+        ):
+            venue = resolve_venue(label, "Siegburg")
+            self.assertEqual(venue.venue, "Marktplatz Siegburg")
+            self.assertEqual(venue.venue_id, "siegburg-marktplatz")
+            self.assertAlmostEqual(venue.venue_latitude or 0, 50.79706)
+            self.assertAlmostEqual(venue.venue_longitude or 0, 7.20717)
+
+    def test_burg_wissem_is_an_exact_registered_place(self):
+        burg = resolve_venue("Burg Wissem", "Troisdorf")
+
+        self.assertEqual(burg.venue_id, "burg-wissem")
+        self.assertAlmostEqual(burg.venue_latitude or 0, 50.8174198)
+
+    def test_new_page_venues_have_stable_identities_and_exact_points(self):
+        cases = (
+            ("Stadtgarten am Alten Zoll", "Bonn", "stadtgarten-alter-zoll-bonn", 50.7345375),
+            ("Museum Koenig", "Bonn", "museum-koenig-bonn", 50.7221437),
+            ("August Macke Haus", "Bonn", "museum-august-macke-haus", 50.7374719),
+            ("Treff Kassenraum Schloss Augustusburg", "Brühl", "schloss-augustusburg-bruehl", 50.8284022),
+            ("Pferderennbahn Parkplatz", "Köln", "pferderennbahn-parkplatz-koeln", 50.9844437),
+            ("Trödelscheune Waldbröl", "Waldbröl", "troedelscheune-waldbroel", 50.8963377),
+        )
+
+        for label, city, venue_id, latitude in cases:
+            with self.subTest(label=label):
+                venue = resolve_venue(label, city)
+                self.assertEqual(venue.venue_id, venue_id)
+                self.assertAlmostEqual(venue.venue_latitude or 0, latitude)
+
+    def test_alter_and_alten_zoll_share_the_venue_but_not_the_rhine_dock(self):
+        for label in ("Alter Zoll", "Alten Zoll", "Stadtgarten am Alten Zoll"):
+            with self.subTest(label=label):
+                venue = resolve_venue(label, "Bonn")
+                self.assertEqual(venue.venue_id, "stadtgarten-alter-zoll-bonn")
+
+        dock = resolve_venue("Bonn Alter Zoll - Landebrücke 4", "Bonn")
+        self.assertNotEqual(dock.venue_id, "stadtgarten-alter-zoll-bonn")
+
+    def test_augustusburg_room_label_and_parent_share_one_identity(self):
+        parent = resolve_venue("Schloss Augustusburg - UNESCO-Welterbe", "Brühl")
+        meeting_point = resolve_venue("Treff Kassenraum Schloss Augustusburg", "Brühl")
+
+        self.assertEqual(parent.venue_id, "schloss-augustusburg-bruehl")
+        self.assertEqual(meeting_point.venue_id, parent.venue_id)
+        self.assertEqual(meeting_point.venue, "Schloss Augustusburg")
+
+    def test_theaterplatz_keeps_its_verified_exact_point_without_a_page_identity(self):
+        theaterplatz = resolve_venue("Theaterplatz", "Bonn-Bad Godesberg")
+
+        self.assertFalse(theaterplatz.venue_id)
+        self.assertAlmostEqual(theaterplatz.venue_longitude or 0, 7.1542197)
+
     def test_unknown_casing_is_preserved_instead_of_title_cased(self):
         resolution = resolve_venue("brauhaus im stiefel", "Bonn")
 

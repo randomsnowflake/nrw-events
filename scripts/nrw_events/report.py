@@ -544,6 +544,32 @@ def _adopted_description(source: dict) -> dict:
 def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
+    link_identity_counts = link_identity_counts or {}
+    def unique_detail_link(event: dict) -> list[str]:
+        link = str(event.get("link") or "")
+        if not link:
+            return []
+        is_detail = event.get("link_kind") == "detail" or (
+            not event.get("link_kind")
+            and link_identity_counts.get(_normalized_link_key(link), 0)
+            < _REUSED_OVERVIEW_LINK_THRESHOLD
+        )
+        return [link] if is_detail else []
+
+    source_links = list(dict.fromkeys([
+        *(winner.get("source_links") or []),
+        *unique_detail_link(winner),
+        *(duplicate.get("source_links") or []),
+        *unique_detail_link(duplicate),
+    ]))[:20]
+    if source_links:
+        updates["source_links"] = source_links
+    previous_event_ids = list(dict.fromkeys([
+        *(winner.get("previous_event_ids") or []),
+        *(duplicate.get("previous_event_ids") or []),
+    ]))[:20]
+    if previous_event_ids:
+        updates["previous_event_ids"] = previous_event_ids
     discovered_via = list(winner.get("discovered_via") or [])
     for source_id in duplicate.get("discovered_via") or []:
         if len(discovered_via) >= MAX_DISCOVERY_PROVENANCE_SOURCES:
@@ -617,7 +643,6 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
 
     winner_link = winner.get("link", "")
     duplicate_link = duplicate.get("link", "")
-    link_identity_counts = link_identity_counts or {}
     winner_link_is_reused = (
         winner_link
         and link_identity_counts.get(_normalized_link_key(winner_link), 0)

@@ -490,7 +490,7 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
 
         [event] = outcome.events
         self.assertEqual(event.time, "18:00")
-        self.assertEqual(event.venue, "Siegburger Marktplatz")
+        self.assertEqual(event.venue, "Marktplatz Siegburg")
         self.assertTrue(event.start_at.endswith("T18:00:00+02:00"))
 
     def test_verified_correction_matrix_is_applied(self):

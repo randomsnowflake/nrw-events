@@ -816,6 +816,25 @@ class CrossRunRetentionTests(unittest.TestCase):
 
         self.assertEqual([event["preserved_event_id"] for event in reconciled], ["late", "early"])
 
+    def test_cross_run_id_reconciliation_keeps_all_published_ids_linked_by_detail_urls(self):
+        previous = {"events": [
+            {"event_id": "canonical", "title": "Street Food Festival", "start_date": "2026-08-28", "source_id": "city-marketing", "time": "15:00", "venue": "Innenstadt", "city": "Bonn-Bad Godesberg", "link": "https://city.example/street-food", "link_kind": "detail", "source_links": ["https://city.example/street-food"]},
+            {"event_id": "legacy", "title": "Street Food Festival", "start_date": "2026-08-28", "source_id": "bonn", "time": "15:00", "venue": "Innenstadt", "city": "Bonn-Bad Godesberg", "link": "https://bonn.example/street-food", "link_kind": "detail", "source_links": ["https://bonn.example/street-food"]},
+        ]}
+        current = [{
+            "title": "Street Food Festival", "start_date": "2026-08-28",
+            "source_id": "city-marketing", "time": "15:00", "venue": "Innenstadt",
+            "city": "Bonn-Bad Godesberg", "link": "https://city.example/street-food",
+            "link_kind": "detail", "source_links": [
+                "https://city.example/street-food", "https://bonn.example/street-food",
+            ],
+        }]
+
+        [reconciled] = runner._reconcile_published_ids(current, previous)
+
+        self.assertEqual(reconciled["preserved_event_id"], "canonical")
+        self.assertEqual(reconciled["previous_event_ids"], ["legacy"])
+
     def test_cross_run_id_reconciliation_skips_ambiguous_groups(self):
         previous = {"events": [
             {"event_id": "one", "title": "Open Day", "start_date": "2026-07-27", "source_id": "calendar", "city": "Bonn", "link": "https://example.test/calendar"},

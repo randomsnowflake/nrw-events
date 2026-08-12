@@ -137,6 +137,11 @@ def assign_event_ids(events: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]
     suffixed in content order, so the outcome stays independent of feed order.
     """
     assigned = [{**event, "event_id": event_id(event)} for event in events]
+    for record in assigned:
+        record["previous_event_ids"] = [
+            identifier for identifier in dict.fromkeys(record.get("previous_event_ids") or [])
+            if identifier and identifier != record["event_id"]
+        ][:20]
     by_id: dict[str, list[dict[str, Any]]] = {}
     for record in assigned:
         by_id.setdefault(record["event_id"], []).append(record)

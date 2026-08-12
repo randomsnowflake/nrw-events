@@ -6,7 +6,7 @@ import urllib.parse
 from datetime import datetime
 from html.parser import HTMLParser
 
-from .. import common
+from .. import common, normalization
 from . import regional_common
 
 
@@ -495,6 +495,19 @@ def _bad_godesberg_descriptions(raw: str) -> dict[str, str]:
     return descriptions
 
 
+def _bad_godesberg_venue(title: str, description: str) -> str:
+    """Use only explicit detail-page place evidence; the calendar has none."""
+    text = normalization.comparison_text(f"{title} {description}", separator="")
+    if "rigalschewiese" in text or "rigalschenwiese" in text:
+        return "Rigal'sche Wiese"
+    # The recurring antique market uses several streets and squares. A detail
+    # page mentioning Theaterplatz among them must not collapse the whole route
+    # onto one pin, while the Street Food page explicitly names only this square.
+    if "theaterplatz" in text and not any(marker in text for marker in ("antik", "troedelmarkt")):
+        return "Theaterplatz"
+    return "Bad Godesberger Innenstadt"
+
+
 def events_from_bad_godesberg_html(html: str, descriptions: dict[str, str]) -> list:
     parser = _BadGodesbergCalendarParser()
     parser.feed(html or "")
@@ -510,8 +523,9 @@ def events_from_bad_godesberg_html(html: str, descriptions: dict[str, str]) -> l
         description = descriptions.get(link) or common.factual_event_description(
             title, date_value=start, venue="Bad Godesberger Innenstadt", city="Bonn-Bad Godesberg"
         )
+        venue = _bad_godesberg_venue(title, description)
         event = common.make_event(
-            title, start, end, "Bad Godesberger Innenstadt", "Bonn-Bad Godesberg",
+            title, start, end, venue, "Bonn-Bad Godesberg",
             description, link, "Bad Godesberg Stadtmarketing",
             "stadtfest markt familie kultur", 1.0, all_day=True,
         )

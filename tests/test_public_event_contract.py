@@ -31,6 +31,7 @@ PUBLIC_EVENT_FIELDS = frozenset({
     "early_publication",
     "cancelled_at", "cancellation_source", "replacement_start_date",
     "first_seen_at", "content_hash",
+    "source_links", "previous_event_ids",
     "series_id", "series_title", "run_id",
 })
 
@@ -47,6 +48,7 @@ PUBLIC_VENUE_IDS = frozenset({
     "botanische-gaerten-bonn",
     "brueckenforum-bonn",
     "bundeskunsthalle",
+    "burg-wissem",
     "contra-kreis-theater",
     "die-werke-bonn",
     "euro-theater-central",
@@ -69,6 +71,7 @@ PUBLIC_VENUE_IDS = frozenset({
     "museum-koenig-bonn",
     "oper-bonn",
     "pantheon-theater",
+    "pferderennbahn-parkplatz-koeln",
     "repair-cafe-mva-bonn",
     "rex-lichtspieltheater",
     "rhein-sieg-forum",
@@ -76,11 +79,15 @@ PUBLIC_VENUE_IDS = frozenset({
     "rheinbuehne-kabarett",
     "schauspielhaus-bad-godesberg",
     "selbstwerk-bonn",
+    "siegburg-marktplatz",
+    "schloss-augustusburg-bruehl",
     "stadthalle-remagen",
+    "stadtgarten-alter-zoll-bonn",
     "stadtmuseum-siegburg",
     "theater-im-ballsaal",
     "theater-im-keller-bonn",
     "theater-marabu",
+    "troedelscheune-waldbroel",
     "werkstattbuehne-bonn",
 })
 

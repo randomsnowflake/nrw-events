@@ -168,7 +168,7 @@ class MarktcomSourceTests(unittest.TestCase):
     def test_venue_is_kept_in_the_title_to_avoid_same_day_collisions(self):
         event = next(e for e in self._events() if e["city"] == "Köln")
 
-        self.assertEqual(event["venue"], "Pferderennbahn Parkplatz")
+        self.assertEqual(event["venue"], "Pferderennbahn-Parkplatz Köln")
         self.assertIn("Pferderennbahn", event["title"])
         self.assertIn("Antik-Trödelmarkt", event["title"])
 

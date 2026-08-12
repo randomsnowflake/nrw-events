@@ -264,6 +264,27 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if link_kind not in {"", "detail", "overview"}:
         raise EventValidationError("link_kind_invalid")
     event["link_kind"] = link_kind
+    source_links = event.get("source_links") or []
+    if not isinstance(source_links, (list, tuple)):
+        raise EventValidationError("source_links_invalid")
+    validated_source_links: list[str] = []
+    for value in source_links:
+        link = str(value or "").strip()
+        parsed = urllib.parse.urlsplit(link)
+        if not link or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise EventValidationError("source_links_invalid")
+        if link not in validated_source_links:
+            validated_source_links.append(link)
+    if link_kind == "detail" and event["link"] and event["link"] not in validated_source_links:
+        validated_source_links.append(event["link"])
+    event["source_links"] = validated_source_links[:20]
+    previous_event_ids = event.get("previous_event_ids") or []
+    if not isinstance(previous_event_ids, (list, tuple)):
+        raise EventValidationError("previous_event_ids_invalid")
+    event["previous_event_ids"] = list(dict.fromkeys(
+        str(value or "").strip() for value in previous_event_ids
+        if str(value or "").strip()
+    ))[:20]
     _canonical_temporal_fields(event)
     event["title"] = normalize_event_title(
         event["title"],

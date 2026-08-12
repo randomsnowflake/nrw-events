@@ -803,9 +803,17 @@ def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
         return iso_value[11:16] if len(iso_value) >= 16 else ""
 
     score = 0
-    current_link = str(current.get("link") or "").rstrip("/")
-    prior_link = str(prior.get("link") or "").rstrip("/")
-    if current_link and prior_link and current_link == prior_link:
+    def source_links(event: CanonicalEvent | dict) -> set[str]:
+        links = {
+            report._normalized_link_key(str(value))
+            for value in (event.get("source_links") or [])
+            if str(value or "").strip()
+        }
+        if event.get("link_kind") == "detail" and event.get("link"):
+            links.add(report._normalized_link_key(str(event.get("link"))))
+        return links
+
+    if source_links(current) & source_links(prior):
         score += 8
     if current.get("source_id") and current.get("source_id") == _event_source_id(prior):
         score += 4
@@ -848,6 +856,16 @@ def _uniquely_disambiguates_occurrence(
     def normalized_link(event: CanonicalEvent | dict) -> str:
         return str(event.get("link") or "").rstrip("/")
 
+    def normalized_source_links(event: CanonicalEvent | dict) -> set[str]:
+        links = {
+            report._normalized_link_key(str(value))
+            for value in (event.get("source_links") or [])
+            if str(value or "").strip()
+        }
+        if event.get("link_kind") == "detail" and event.get("link"):
+            links.add(report._normalized_link_key(str(event.get("link"))))
+        return links
+
     def normalized_venue(event: CanonicalEvent | dict) -> str:
         return str(event.get("venue_id") or "") or comparison_text(str(event.get("venue") or ""))
 
@@ -860,6 +878,12 @@ def _uniquely_disambiguates_occurrence(
             and sum(getter(event) == value for event in prior_group) == 1
         ):
             return True
+    shared_source_links = normalized_source_links(current) & normalized_source_links(prior)
+    if shared_source_links and any(
+        sum(link in normalized_source_links(event) for event in prior_group) == 1
+        for link in shared_source_links
+    ):
+        return True
     return False
 
 
@@ -952,15 +976,37 @@ def _reconcile_published_ids(
 
     used_current: set[int] = set()
     used_prior_ids: set[str] = set()
-    for _score, index, prior in sorted(candidate_pairs, key=lambda item: item[0], reverse=True):
+    candidates_by_current: dict[int, list[tuple[int, dict]]] = {}
+    for score, index, prior in candidate_pairs:
+        candidates_by_current.setdefault(index, []).append((score, prior))
+    for index, candidates in sorted(candidates_by_current.items()):
+        current = reconciled[index]
+        natural_id = event_id(current)
+        candidates.sort(
+            key=lambda item: (item[0], str(item[1].get("event_id")) == natural_id),
+            reverse=True,
+        )
+        _score, prior = candidates[0]
         prior_id = str(prior["event_id"])
         if index in used_current or prior_id in used_prior_ids:
             continue
-        current = reconciled[index]
+        inherited_ids = list(dict.fromkeys([
+            *(current.get("previous_event_ids") or []),
+            *(
+                str(candidate.get("event_id") or "").strip()
+                for _candidate_score, candidate in candidates
+                if str(candidate.get("event_id") or "").strip() != prior_id
+            ),
+            *(prior.get("previous_event_ids") or []),
+        ]))[:20]
+        updates = {
+            "preserved_event_id": prior_id,
+            "previous_event_ids": inherited_ids,
+        }
         reconciled[index] = (
-            {**current, "preserved_event_id": prior_id}
+            {**current, **updates}
             if isinstance(current, dict)
-            else replace(current, preserved_event_id=prior_id)
+            else replace(current, **updates)
         )
         used_current.add(index)
         used_prior_ids.add(prior_id)

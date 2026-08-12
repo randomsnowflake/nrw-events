@@ -76,7 +76,7 @@ class RheinAntikSourceTests(unittest.TestCase):
         self.assertEqual(event["end_date"], "2026-10-11")
 
     def test_badges_are_stripped_from_the_venue(self):
-        for start_date, venue in (("2026-09-27", "Marktplatz"),
+        for start_date, venue in (("2026-09-27", "Marktplatz Siegburg"),
                                   ("2026-10-10", "Industriedenkmal Sayner Hütte")):
             with self.subTest(start_date=start_date):
                 self.assertEqual(self._by_date(start_date)["venue"], venue)

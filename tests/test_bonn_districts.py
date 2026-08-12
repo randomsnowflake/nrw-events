@@ -246,7 +246,24 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["date"], "2026-04-19")
         self.assertEqual(events[0]["city"], "Bonn-Bad Godesberg")
+        self.assertEqual(events[0]["venue"], "Rigal'sche Wiese")
         self.assertIn("Herzenslust", events[0]["description"])
+
+    def test_bad_godesberg_uses_explicit_theaterplatz_but_keeps_multi_area_market_broad(self):
+        self.assertEqual(
+            bonn_districts._bad_godesberg_venue(
+                "Street Food Festival",
+                "Mehr als 20 Stände bieten ihre Speisen auf dem Theaterplatz an.",
+            ),
+            "Theaterplatz",
+        )
+        self.assertEqual(
+            bonn_districts._bad_godesberg_venue(
+                "Antik- und Trödelmarkt",
+                "Stände stehen auf dem Theaterplatz, am Fronhof und am Michaelshof.",
+            ),
+            "Bad Godesberger Innenstadt",
+        )
 
     def test_hardtberg_rest_parser_keeps_event_time_and_excerpt(self):
         raw = json.dumps([{
