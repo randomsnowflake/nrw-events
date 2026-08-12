@@ -52,8 +52,10 @@ def _event_nodes(html: str) -> list[dict]:
 def _organizer_name(event: dict) -> str:
     organizer = event.get("organizer") or event.get("contributor") or {}
     if isinstance(organizer, list):
-        organizer = organizer[0] if organizer else {}
-    return str((organizer or {}).get("legalName") or (organizer or {}).get("name") or "").strip()
+        organizer = next((item for item in organizer if isinstance(item, dict)), {})
+    if not isinstance(organizer, dict):
+        return ""
+    return str(organizer.get("legalName") or organizer.get("name") or "").strip()
 
 
 def events_from_html(html: str) -> list[dict]:
