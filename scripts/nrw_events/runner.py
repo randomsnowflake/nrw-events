@@ -56,6 +56,7 @@ EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
 SNAPSHOT_GENERATIONS_KEPT = 3
 _DISCOVERY_ONLY_SOURCE_IDS = frozenset({"radio-bonn-rhein-sieg"})
+_RADIO_RUNNER_SOURCE = "Radio Bonn/Rhein-Sieg"
 
 _RESEARCH_LEAD_MASTER_FIELDS = (
     "title", "source", "source_id", "source_role", "discovered_via",
@@ -503,7 +504,11 @@ def _is_discovery_only_event(event: dict) -> bool:
     )
 
 
-def _retention_labels(results: dict[str, SourceResult], previous: dict) -> set[str]:
+def _retention_labels(
+    results: dict[str, SourceResult],
+    previous: dict,
+    unpublished_fallback_source_ids: frozenset[str] = frozenset(),
+) -> set[str]:
     """Return stable logical source IDs whose fresh data cannot be trusted."""
     previous_results = previous.get("source_results") or {}
     previous_event_ids = {
@@ -574,13 +579,27 @@ def _retention_labels(results: dict[str, SourceResult], previous: dict) -> set[s
                 # individual groups. Preserve the legacy group conservatively
                 # for this one migration run; new snapshots use child IDs.
                 labels.add("meetup")
+
+    # An audited Radio fallback is promoted from the manifest and owns no runner
+    # source, so nothing above can ever name it. Its whole publication depends on
+    # a lead the editors rotate in and out weekly: the run after the paragraph
+    # disappears, the event would leave the feed while it is still running.
+    # Only a source that actually published last night is worth naming here, and
+    # a real adapter that meanwhile owns that ID stays authoritative.
+    fresh_source_ids = {
+        source_id for result in results.values() for source_id in result.event_source_ids
+    }
+    labels.update(
+        (unpublished_fallback_source_ids & previous_event_ids) - fresh_source_ids
+    )
     return labels
 
 
 def _retain_previous_events(
     results: dict[str, SourceResult], previous: dict, context: RunContext,
+    unpublished_fallback_source_ids: frozenset[str] = frozenset(),
 ) -> tuple[list[CanonicalEvent], dict[str, object]]:
-    labels = _retention_labels(results, previous)
+    labels = _retention_labels(results, previous, unpublished_fallback_source_ids)
     empty_summary: dict[str, object] = {
         "fresh_event_count": 0,
         "retained_event_count": 0,
@@ -623,6 +642,11 @@ def _retain_previous_events(
             if source_id in labels and warning.get("source"):
                 source_names[source_id] = str(warning["source"])
                 runner_sources[source_id] = runner_source
+    # A promoted fallback has no runner source, yet the Radio adapter is what
+    # feeds it. Booking it there keeps the summary readable and lets the next run
+    # recover the label from the snapshot when Radio itself is unavailable.
+    for label in unpublished_fallback_source_ids & labels:
+        runner_sources.setdefault(label, _RADIO_RUNNER_SOURCE)
     retained: list[CanonicalEvent] = []
     expired_counts = {label: 0 for label in labels}
     candidate_counts = {label: 0 for label in labels}
@@ -1464,8 +1488,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         # its boundary while other workers still need cache lookups.
         cache_warnings.extend(common.flush_detail_page_caches())
     source_import_duration_ms = round((time.monotonic() - import_started) * 1000)
-    radio_result = source_results.get("Radio Bonn/Rhein-Sieg")
+    radio_result = source_results.get(_RADIO_RUNNER_SOURCE)
     promoted_fallback_event_ids: frozenset[str] = frozenset()
+    unpublished_fallback_source_ids: frozenset[str] = frozenset()
     if radio_result is not None and radio_result.research_leads:
         matchable_events: list[CanonicalEvent] = []
         filtered_later: list[CanonicalEvent] = []
@@ -1480,6 +1505,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             publication_filter=lambda event: _publication_filter_reason(event, settings),
         )
         promoted_fallback_event_ids = resolution.promoted_fallback_event_ids
+        unpublished_fallback_source_ids = resolution.unpublished_fallback_source_ids
         # The audited primary URL is only known now, so the promoted fallbacks
         # get their detail pass here rather than during the source import.
         resolved_events = _enrich_promoted_fallbacks(
@@ -1540,7 +1566,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     fresh_deduped = report.deduplicate(
         [*filtered, *previous_cancellations], cancellations=all_cancellations,
     )
-    retained, retention = _retain_previous_events(source_results, previous, context)
+    retained, retention = _retain_previous_events(
+        source_results, previous, context, unpublished_fallback_source_ids,
+    )
     retained_deduped = report.deduplicate(retained, cancellations=all_cancellations)
     fresh_deduped, retained_deduped = _prefer_retained_primary_over_radio_fallback(
         fresh_deduped, retained_deduped, promoted_fallback_event_ids,

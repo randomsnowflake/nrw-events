@@ -2,6 +2,7 @@ import json
 import tempfile
 import tomllib
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
@@ -764,6 +765,249 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
             result.source_results["Radio Bonn/Rhein-Sieg"].cancelled_events[0]["status"],
             "cancelled",
         )
+
+
+class UnpublishedFallbackSourceTests(unittest.TestCase):
+    """The manifest, not the lead set, decides which fallbacks went missing."""
+
+    ENTRY_KEY = ("WM Philippinischer Stockkampf", "2026-08-11")
+
+    def test_entry_without_a_lead_this_run_is_reported_as_unpublished(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        outcome = resolution.resolve_radio_leads([], [], manifest=(entry,))
+
+        self.assertEqual(outcome.events, ())
+        self.assertEqual(
+            outcome.unpublished_fallback_source_ids,
+            frozenset({entry.primary_source_id}),
+        )
+
+    def test_published_fallback_is_not_reported_as_unpublished(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        )
+
+        self.assertEqual(outcome.dispositions[entry.key], "promoted_fallback")
+        self.assertEqual(outcome.unpublished_fallback_source_ids, frozenset())
+
+    def test_filtered_promotion_is_not_reported_as_unpublished(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        for reason in ("filter:window", "filter:radius", "filter:score_floor"):
+            with self.subTest(reason=reason):
+                outcome = resolution.resolve_radio_leads(
+                    [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+                    publication_filter=lambda event, reason=reason: reason,
+                )
+
+                self.assertEqual(outcome.dispositions[entry.key], "fallback_filtered")
+                self.assertEqual(outcome.unpublished_fallback_source_ids, frozenset())
+
+    def test_missing_sibling_keeps_shared_source_eligible_for_retention(self):
+        missing = resolution.entry_for_key(self.ENTRY_KEY)
+        published = replace(
+            missing,
+            title="Sibling fallback",
+            start_date="2026-08-12",
+        )
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(published.title, published.start_date)], [],
+            manifest=(missing, published),
+        )
+
+        self.assertEqual(outcome.dispositions[published.key], "promoted_fallback")
+        self.assertEqual(
+            outcome.unpublished_fallback_source_ids,
+            frozenset({missing.primary_source_id}),
+        )
+
+    def test_entry_served_by_an_existing_primary_record_is_not_reported(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+        official = primary(
+            entry.corrections["title"], entry.start_date, entry.primary_source,
+            entry.primary_source_id, entry.primary_url,
+        )
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [official], manifest=(entry,),
+        )
+
+        self.assertEqual(outcome.dispositions[entry.key], "matched_existing_primary")
+        self.assertEqual(outcome.unpublished_fallback_source_ids, frozenset())
+
+    def test_withheld_and_unconfirmed_entries_are_never_reported(self):
+        withheld = resolution.entry_for_key(("Beachparty in Eudenbach", "2026-08-08"))
+        probable = resolution.entry_for_key(("Mädelskram und Scheunentrödel", "2026-08-09"))
+
+        outcome = resolution.resolve_radio_leads([], [], manifest=(withheld, probable))
+
+        self.assertEqual(outcome.unpublished_fallback_source_ids, frozenset())
+
+
+class RadioFallbackRetentionTests(unittest.TestCase):
+    """A promoted fallback must outlive the week its editorial lead rotates out.
+
+    Radio Bonn is discovery-only, so the audited fallback publishes under a
+    source id no adapter ever scrapes. Nothing else in the run can vouch for it:
+    the night the editors rotate its paragraph out the entry produces no lead,
+    the promotion never happens, and a running multi-day event would otherwise
+    leave the feed while it is still going on.
+    """
+
+    ENTRY_KEY = ("WM Philippinischer Stockkampf", "2026-08-11")
+    RAW_DISCOVERY_ROW = {
+        "title": "WM Philippinischer Stockkampf", "source": "Radio Bonn/Rhein-Sieg",
+        "source_id": RADIO_ID, "source_role": "discovery", "date": "2026-08-11",
+        "start_date": "2026-08-11", "end_date": "2026-08-16", "score": 1.0,
+        "city": "Bonn", "link": "https://radiobonn.example/wochentipps",
+    }
+
+    def _previous_snapshot(self, entry, *, with_discovery_row: bool = False) -> dict:
+        """Return the snapshot of the last run that still saw the lead."""
+        [published] = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+        ).events
+        events = [published.to_dict()]
+        if with_discovery_row:
+            events.append(dict(self.RAW_DISCOVERY_ROW))
+        return {
+            "generated_at": "2026-08-11T05:00:00",
+            "events": events,
+            "source_results": {},
+        }
+
+    def _run_without_the_lead(self, entry, previous, window):
+        """Import a week whose editorial article no longer carries the entry."""
+        context = RunContext(
+            config.RuntimeConfig(score_floor=0, radius_km=1000, series_ledger_json=""),
+            window, "radio-retention",
+            configure_logging("radio-retention", "ERROR", "", ""),
+            clock=lambda: window.start,
+        )
+        with mock.patch.object(runner, "_previous_snapshot", return_value=previous), \
+                mock.patch.object(resolution, "load_manifest", return_value=(entry,)):
+            return runner.run_import(context, {
+                "Radio Bonn/Rhein-Sieg": lambda: [lead("Unaudited weekly tip", "2026-08-20")],
+            })
+
+    def test_running_championship_survives_the_week_its_lead_disappears(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        result = self._run_without_the_lead(
+            entry,
+            self._previous_snapshot(entry),
+            EventWindow(datetime(2026, 8, 12), datetime(2026, 9, 2)),
+        )
+
+        [event] = result.events
+        self.assertEqual(event.title, "6. GSBA World Championships")
+        self.assertEqual(event.source_id, entry.primary_source_id)
+        self.assertEqual(event.end_date, "2026-08-16")
+        self.assertEqual(result.retention["retained_event_count"], 1)
+        [retained_source] = result.retention["retained_sources"]
+        self.assertEqual(retained_source["source_id"], entry.primary_source_id)
+        self.assertEqual(retained_source["source"], entry.primary_source)
+        self.assertEqual(retained_source["runner_source"], "Radio Bonn/Rhein-Sieg")
+
+    def test_retained_fallback_still_expires_once_the_championship_is_over(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        result = self._run_without_the_lead(
+            entry,
+            self._previous_snapshot(entry),
+            EventWindow(datetime(2026, 8, 17), datetime(2026, 9, 7)),
+        )
+
+        self.assertEqual(result.events, ())
+        self.assertEqual(result.retention["retained_event_count"], 0)
+        self.assertEqual(result.retention["expired_retained_event_count"], 1)
+
+    def test_raw_discovery_row_is_never_retained_alongside_the_promotion(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        result = self._run_without_the_lead(
+            entry,
+            self._previous_snapshot(entry, with_discovery_row=True),
+            EventWindow(datetime(2026, 8, 12), datetime(2026, 9, 2)),
+        )
+
+        [event] = result.events
+        self.assertEqual(event.source_role, "primary")
+        self.assertNotIn(RADIO_ID, {
+            source["source_id"] for source in result.retention["retained_sources"]
+        })
+
+    def test_active_score_filter_does_not_restore_the_previous_fallback(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+        previous = self._previous_snapshot(entry)
+        window = EventWindow(datetime(2026, 8, 12), datetime(2026, 9, 2))
+        context = RunContext(
+            config.RuntimeConfig(score_floor=1.0, radius_km=1000, series_ledger_json=""),
+            window, "radio-filter-retention",
+            configure_logging("radio-filter-retention", "ERROR", "", ""),
+            clock=lambda: window.start,
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value=previous), \
+                mock.patch.object(resolution, "load_manifest", return_value=(entry,)):
+            result = runner.run_import(context, {
+                "Radio Bonn/Rhein-Sieg": lambda: [
+                    lead(entry.title, entry.start_date, score=0.1),
+                ],
+            })
+
+        self.assertEqual(result.events, ())
+        self.assertEqual(result.retention["retained_event_count"], 0)
+
+    def test_missing_sibling_is_retained_when_shared_source_publishes_fresh_event(self):
+        missing = resolution.entry_for_key(("SWB Sommerfestival: Höösch", "2026-08-12"))
+        published = resolution.entry_for_key((
+            "SWB Sommerfestival: Groenland & Mariuzz", "2026-08-13",
+        ))
+        previous_events = resolution.resolve_radio_leads(
+            [
+                lead(missing.title, missing.start_date),
+                lead(published.title, published.start_date),
+            ],
+            [],
+            manifest=(missing, published),
+        ).events
+        previous = {
+            "generated_at": "2026-08-12T05:00:00",
+            "events": [event.to_dict() for event in previous_events],
+            "source_results": {},
+        }
+        window = EventWindow(datetime(2026, 8, 12), datetime(2026, 9, 2))
+        context = RunContext(
+            config.RuntimeConfig(score_floor=0, radius_km=1000, series_ledger_json=""),
+            window, "radio-sibling-retention",
+            configure_logging("radio-sibling-retention", "ERROR", "", ""),
+            clock=lambda: window.start,
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value=previous), \
+                mock.patch.object(resolution, "load_manifest", return_value=(missing, published)), \
+                mock.patch.object(
+                    runner, "_enrich_promoted_fallbacks", side_effect=lambda events, _ids: events,
+                ):
+            result = runner.run_import(context, {
+                "Radio Bonn/Rhein-Sieg": lambda: [
+                    lead(published.title, published.start_date),
+                ],
+            })
+
+        self.assertEqual(
+            {(event.title, event.start_date) for event in result.events},
+            {
+                ("SWB Sommerfestival: Höösch", "2026-08-12"),
+                ("SWB Sommerfestival: Groenland & Mariuzz", "2026-08-13"),
+            },
+        )
+        self.assertEqual(result.retention["retained_event_count"], 1)
 
 
 class RadioFallbackDetailEnrichmentTests(unittest.TestCase):
