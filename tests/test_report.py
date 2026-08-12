@@ -756,6 +756,59 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["time"], "18:00–20:00")
         self.assertEqual(deduped[0]["end_at"], "2026-07-31T20:00+02:00")
 
+    def test_directory_title_with_venue_suffix_merges_into_authoritative_fair(self):
+        authoritative = {
+            "title": "Kaldauer Rochus Kirmes", "start_date": "2026-08-16",
+            "end_date": "2026-08-16", "date": "2026-08-16",
+            "city": "Siegburg", "venue": "Kaldauer Zentrum", "score": 1.32,
+            "source": "Siegburg", "source_id": "siegburg",
+            "description": "Sonntag: 11 Uhr Kinder-Trödelmarkt und Familienfest.",
+            "price": "", "link": "https://events.siegburg.de/rochus-kirmes",
+            "time": "", "start_at": "", "end_at": "",
+            "category_key": "festival", "run_id": "rochus-kirmes-2026",
+        }
+        directory_clone = {
+            **authoritative,
+            "title": "Kaldauen Rochus Kirmes, Kaldauer Zentrum",
+            "score": 0.9, "source": "Kinderflohmarkt.com",
+            "source_id": "kinderflohmarkt-com",
+            "description": "Kinderflohmarkt mit Ständen an der Kirmes.",
+            "link": "https://kinderflohmarkt.example/kaldauer-zentrum/#t21365",
+            "time": "11:00–14:00", "start_at": "2026-08-16T11:00+02:00",
+            "end_at": "2026-08-16T14:00+02:00", "run_id": "",
+        }
+
+        [merged] = report.deduplicate([directory_clone, authoritative])
+
+        self.assertEqual(merged["source"], "Siegburg")
+        self.assertEqual(merged["time"], "")
+        self.assertEqual(merged["start_at"], "")
+        self.assertEqual(merged["end_at"], "")
+        self.assertIn(event_id(directory_clone), merged["previous_event_ids"])
+
+    def test_directory_venue_suffix_does_not_absorb_a_named_fair_subevent(self):
+        base = {
+            "start_date": "2026-08-16", "end_date": "2026-08-16",
+            "date": "2026-08-16", "city": "Siegburg",
+            "venue": "Kaldauer Zentrum", "description": "", "price": "",
+            "time": "11:00", "start_at": "2026-08-16T11:00+02:00",
+            "end_at": "", "category_key": "festival",
+        }
+        events = [
+            {
+                **base, "title": "Kaldauer Rochus Kirmes", "score": 1.32,
+                "source": "Siegburg", "link": "https://siegburg.example/kirmes",
+            },
+            {
+                **base,
+                "title": "Kinderflohmarkt an der Rochus-Kirmes, Kaldauer Zentrum",
+                "score": 0.9, "source": "Kinderflohmarkt.com",
+                "link": "https://kinderflohmarkt.example/termin",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
     def test_relaxed_aggregator_title_match_requires_same_start_time(self):
         shared = {
             "start_date": "2026-07-31", "end_date": "2026-07-31",

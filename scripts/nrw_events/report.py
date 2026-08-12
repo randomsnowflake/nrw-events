@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from urllib import parse as urlparse
 
 from . import common
+from .identity import event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent
 from .normalization import comparison_text
 
@@ -440,6 +441,15 @@ def _titles_match(left: dict, right: dict) -> bool:
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
 
 
+def _title_words_without_venue_suffix(event: dict) -> tuple[str, ...]:
+    """Drop an exact venue suffix added by directory-style event titles."""
+    words = tuple(comparison_text(event.get("title", "")).split())
+    venue_words = tuple(_venue_comparison_text(event).split())
+    if venue_words and len(words) > len(venue_words) and words[-len(venue_words):] == venue_words:
+        return words[:-len(venue_words)]
+    return words
+
+
 def _aggregator_title_variant_matches(left: dict, right: dict) -> bool:
     """Match a concise aggregator title to a fuller authoritative title."""
     left_authority = source_authority(left.get("source", ""))
@@ -450,11 +460,42 @@ def _aggregator_title_variant_matches(left: dict, right: dict) -> bool:
     right_start = right.get("start_at")
     if not left_start or left_start != right_start:
         return False
-    left_words = set(comparison_text(left.get("title", "")).split())
-    right_words = set(comparison_text(right.get("title", "")).split())
+    left_words = set(_title_words_without_venue_suffix(left))
+    right_words = set(_title_words_without_venue_suffix(right))
     return (
         min(len(left_words), len(right_words)) >= 3
         and (left_words <= right_words or right_words <= left_words)
+    )
+
+
+def _venue_qualified_aggregator_title_matches(left: dict, right: dict) -> bool:
+    """Match a directory clone whose title appends its exact venue.
+
+    The venue, city, category and occurrence checks remain independent guards.
+    Removing only an exact suffix avoids treating a genuinely named programme
+    point at the same fair as another spelling of the fair itself.
+    """
+    left_authority = source_authority(left.get("source", ""))
+    right_authority = source_authority(right.get("source", ""))
+    if min(left_authority, right_authority) > 1 or max(left_authority, right_authority) < 2:
+        return False
+    if not left.get("category_key") or left.get("category_key") != right.get("category_key"):
+        return False
+    if _normalized_city(left.get("city", "")) != _normalized_city(right.get("city", "")):
+        return False
+    left_venue = _venue_comparison_text(left)
+    right_venue = _venue_comparison_text(right)
+    if not left_venue or left_venue != right_venue:
+        return False
+    left_words = _title_words_without_venue_suffix(left)
+    right_words = _title_words_without_venue_suffix(right)
+    if min(len(left_words), len(right_words)) < 2:
+        return False
+    left_title = "".join(left_words)
+    right_title = "".join(right_words)
+    return (
+        min(len(left_title), len(right_title)) >= 12
+        and SequenceMatcher(None, left_title, right_title).ratio() >= 0.92
     )
 
 
@@ -541,7 +582,13 @@ def _adopted_description(source: dict) -> dict:
     }
 
 
-def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
+def _merge_duplicate_metadata(
+    winner,
+    duplicate,
+    *,
+    link_identity_counts=None,
+    adopt_schedule=True,
+):
     """Keep the authoritative record and enrich it field by field."""
     updates = {}
     link_identity_counts = link_identity_counts or {}
@@ -564,10 +611,18 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     ]))[:20]
     if source_links:
         updates["source_links"] = source_links
+    duplicate_alias = (
+        event_id(duplicate)
+        if winner.get("source") != duplicate.get("source")
+        and event_id(duplicate) != event_id(winner)
+        else ""
+    )
     previous_event_ids = list(dict.fromkeys([
         *(winner.get("previous_event_ids") or []),
         *(duplicate.get("previous_event_ids") or []),
+        duplicate_alias,
     ]))[:20]
+    previous_event_ids = [identifier for identifier in previous_event_ids if identifier]
     if previous_event_ids:
         updates["previous_event_ids"] = previous_event_ids
     discovered_via = list(winner.get("discovered_via") or [])
@@ -610,6 +665,8 @@ def _merge_duplicate_metadata(winner, duplicate, *, link_identity_counts=None):
     for field in (
         "price", "availability", "venue", "organizer", "time", "time_note", "start_at", "end_at",
     ):
+        if not adopt_schedule and field in {"time", "time_note", "start_at", "end_at"}:
+            continue
         if field == "price" and separate_admission_charge:
             continue
         winner_value_is_missing = not winner.get(field)
@@ -738,6 +795,7 @@ def events_are_duplicates(left, right) -> bool:
             and (
                 _titles_match(left, right)
                 or _aggregator_title_variant_matches(left, right)
+                or _venue_qualified_aggregator_title_matches(left, right)
             )
         )
     )
@@ -762,18 +820,21 @@ def deduplicate(
             candidate["score"],
             _duration_days(candidate),
         )
-        return (
-            _merge_duplicate_metadata(
-                candidate,
-                current,
-                link_identity_counts=link_identity_counts,
-            )
+        winner, duplicate = (
+            (candidate, current)
             if candidate_rank > current_rank
-            else _merge_duplicate_metadata(
-                current,
-                candidate,
-                link_identity_counts=link_identity_counts,
-            )
+            else (current, candidate)
+        )
+        protect_authoritative_schedule = (
+            _venue_qualified_aggregator_title_matches(winner, duplicate)
+            and source_authority(winner.get("source", ""))
+            > source_authority(duplicate.get("source", ""))
+        )
+        return _merge_duplicate_metadata(
+            winner,
+            duplicate,
+            link_identity_counts=link_identity_counts,
+            adopt_schedule=not protect_authoritative_schedule,
         )
 
     authoritative_cancellations = [
