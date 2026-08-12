@@ -2,6 +2,7 @@ import json
 import tempfile
 import tomllib
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
@@ -792,7 +793,7 @@ class UnpublishedFallbackSourceTests(unittest.TestCase):
         self.assertEqual(outcome.dispositions[entry.key], "promoted_fallback")
         self.assertEqual(outcome.unpublished_fallback_source_ids, frozenset())
 
-    def test_filtered_promotion_is_reported_as_unpublished(self):
+    def test_window_filtered_promotion_is_reported_as_unpublished(self):
         entry = resolution.entry_for_key(self.ENTRY_KEY)
 
         outcome = resolution.resolve_radio_leads(
@@ -804,6 +805,36 @@ class UnpublishedFallbackSourceTests(unittest.TestCase):
         self.assertEqual(
             outcome.unpublished_fallback_source_ids,
             frozenset({entry.primary_source_id}),
+        )
+
+    def test_active_configuration_filter_is_not_retained(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(entry.title, entry.start_date)], [], manifest=(entry,),
+            publication_filter=lambda event: "filter:score_floor",
+        )
+
+        self.assertEqual(outcome.dispositions[entry.key], "fallback_filtered")
+        self.assertEqual(outcome.unpublished_fallback_source_ids, frozenset())
+
+    def test_missing_sibling_keeps_shared_source_eligible_for_retention(self):
+        published = resolution.entry_for_key(self.ENTRY_KEY)
+        missing = replace(
+            published,
+            title="Sibling event",
+            start_date="2026-05-03",
+        )
+
+        outcome = resolution.resolve_radio_leads(
+            [lead(published.title, published.start_date)], [],
+            manifest=(published, missing),
+        )
+
+        self.assertEqual(outcome.dispositions[published.key], "promoted_fallback")
+        self.assertEqual(
+            outcome.unpublished_fallback_source_ids,
+            frozenset({published.primary_source_id}),
         )
 
     def test_entry_served_by_an_existing_primary_record_is_not_reported(self):
