@@ -42,6 +42,14 @@ TARGET_SOURCE_IDS = frozenset({
 })
 PIPELINE_VERSION = "event-facts-summary-v6"
 OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v15"
+# Facts and summaries have independent compatibility boundaries. Bump this
+# only when the extraction prompt, schema, or facts sanitization changes. A
+# summary-only change should bump the provider pipeline version above and keep
+# this value stable so the expensive extraction result can be reused.
+FACTS_PIPELINE_VERSION = "event-facts-v1"
+_LEGACY_FACTS_PIPELINE_VERSION = "event-facts-v1"
+_LEGACY_OPENAI_COMBINED_PIPELINE_VERSION = "event-facts-summary-v6"
+_LEGACY_OPENROUTER_COMBINED_PIPELINE_VERSION = "event-facts-summary-v15"
 DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_OPENROUTER_MODEL = "deepseek/deepseek-v4-flash-0731"
 FACTS_OUTPUT_TOKEN_LIMIT = 5_000
@@ -65,6 +73,10 @@ class AIEnrichmentError(RuntimeError):
         super().__init__(message)
         self.usage = usage
         self.transient = transient
+
+
+class AICacheMissBudgetExceeded(RuntimeError):
+    """A safe stop before an unexpected cache invalidation can run up costs."""
 
 
 def _read_bounded_response(
@@ -127,6 +139,9 @@ class AISettings:
     # spends the complete batch budget processing records serially.
     workers: int = 8
     max_events: int = 0
+    # Limit newly billable cache identities per UTC day and summary pipeline.
+    # Zero is an explicit operator override for a deliberate full reprocess.
+    max_new_cache_rows_per_day: int = 0
     facts_reasoning_effort: str = "none"
     summary_reasoning_effort: str = "none"
     # Keep ZDR by default. This can be relaxed explicitly for controlled
@@ -275,6 +290,9 @@ def settings_from_env() -> AISettings:
     batch_timeout = float(os.environ.get("NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS", "600"))
     workers = int(os.environ.get("NRW_EVENTS_AI_WORKERS", "8"))
     max_events = int(os.environ.get("NRW_EVENTS_AI_MAX_EVENTS", "0"))
+    max_new_cache_rows_per_day = int(
+        os.environ.get("NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY", "150")
+    )
     if not 1 <= max_attempts <= 5:
         raise ValueError("NRW_EVENTS_AI_MAX_ATTEMPTS must be between 1 and 5")
     if not 0 <= negative_hours <= 24 * 30:
@@ -287,6 +305,10 @@ def settings_from_env() -> AISettings:
         raise ValueError("NRW_EVENTS_AI_WORKERS must be between 1 and 16")
     if not 0 <= max_events <= 100_000:
         raise ValueError("NRW_EVENTS_AI_MAX_EVENTS must be between 0 and 100000")
+    if not 0 <= max_new_cache_rows_per_day <= 100_000:
+        raise ValueError(
+            "NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY must be between 0 and 100000"
+        )
     provider = os.environ.get("NRW_EVENTS_AI_PROVIDER", "openai").strip().casefold()
     if provider not in {"openai", "openrouter"}:
         raise ValueError("NRW_EVENTS_AI_PROVIDER must be openai or openrouter")
@@ -304,6 +326,7 @@ def settings_from_env() -> AISettings:
         batch_timeout_seconds=batch_timeout,
         workers=workers,
         max_events=max_events,
+        max_new_cache_rows_per_day=max_new_cache_rows_per_day,
         facts_reasoning_effort=_env_reasoning_effort("NRW_EVENTS_AI_FACTS_REASONING_EFFORT"),
         summary_reasoning_effort=_env_reasoning_effort(
             "NRW_EVENTS_AI_SUMMARY_REASONING_EFFORT",
@@ -806,6 +829,7 @@ def _locked_database(path: Path, *, cache_key: str) -> Iterator[sqlite3.Connecti
                                 event_key TEXT NOT NULL,
                                 input_hash TEXT NOT NULL,
                                 pipeline_version TEXT NOT NULL,
+                                facts_pipeline_version TEXT NOT NULL DEFAULT '',
                                 source_id TEXT NOT NULL,
                                 model TEXT NOT NULL,
                                 stage1_json TEXT NOT NULL DEFAULT '',
@@ -835,6 +859,11 @@ def _locked_database(path: Path, *, cache_key: str) -> Iterator[sqlite3.Connecti
                                 "ALTER TABLE ai_event_enrichment "
                                 "ADD COLUMN cost_usd REAL NOT NULL DEFAULT 0"
                             )
+                        if "facts_pipeline_version" not in columns:
+                            connection.execute(
+                                "ALTER TABLE ai_event_enrichment ADD COLUMN "
+                                "facts_pipeline_version TEXT NOT NULL DEFAULT ''"
+                            )
                         connection.commit()
                         _INITIALIZED_DATABASES.add(normalized_path)
                     finally:
@@ -859,26 +888,152 @@ def cache_pipeline_version(settings: AISettings) -> str:
     )
 
 
+def facts_cache_version(settings: AISettings) -> str:
+    """Return the narrower compatibility key for reusable extracted facts."""
+    return (
+        f"{FACTS_PIPELINE_VERSION}:{settings.provider}:{settings.model}:"
+        f"facts-{settings.facts_reasoning_effort}"
+    )
+
+
+def _legacy_facts_pipeline_pattern(settings: AISettings) -> str:
+    """Map the last combined namespaces to the first split facts version."""
+    if FACTS_PIPELINE_VERSION != _LEGACY_FACTS_PIPELINE_VERSION:
+        return ""
+    if settings.provider == "openai":
+        return f"{_LEGACY_OPENAI_COMBINED_PIPELINE_VERSION}:{settings.model}"
+    return (
+        f"{_LEGACY_OPENROUTER_COMBINED_PIPELINE_VERSION}:{settings.provider}:{settings.model}:"
+        f"facts-{settings.facts_reasoning_effort}:summary-%"
+    )
+
+
 def _ensure_row(connection: sqlite3.Connection, *, event_key: str, digest: str, source_id: str, settings: AISettings, now: datetime) -> sqlite3.Row:
     stamp = _timestamp(now)
     pipeline_version = cache_pipeline_version(settings)
-    connection.execute(
-        """
-        INSERT OR IGNORE INTO ai_event_enrichment
-            (event_key, input_hash, pipeline_version, source_id, model, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (event_key, digest, pipeline_version, source_id, settings.model, stamp, stamp),
-    )
-    connection.commit()
+    facts_version = facts_cache_version(settings)
+    identity = (event_key, digest, pipeline_version)
     row = connection.execute(
         """SELECT * FROM ai_event_enrichment
            WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
-        (event_key, digest, pipeline_version),
+        identity,
     ).fetchone()
     if row is None:
+        # Different event locks can enter concurrently. Serialize the count and
+        # insertion so the daily cost fuse cannot be exceeded by a cache storm.
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            row = connection.execute(
+                """SELECT * FROM ai_event_enrichment
+                   WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+                identity,
+            ).fetchone()
+            if row is None and settings.max_new_cache_rows_per_day:
+                day_start = now.astimezone(timezone.utc).date().isoformat()
+                created_today = connection.execute(
+                    """SELECT COUNT(*) FROM ai_event_enrichment
+                       WHERE pipeline_version = ? AND created_at >= ?""",
+                    (pipeline_version, f"{day_start}T00:00:00+00:00"),
+                ).fetchone()[0]
+                if created_today >= settings.max_new_cache_rows_per_day:
+                    connection.rollback()
+                    raise AICacheMissBudgetExceeded(
+                        "daily AI cache-miss budget reached "
+                        f"({created_today}/{settings.max_new_cache_rows_per_day})"
+                    )
+            if row is None:
+                connection.execute(
+                    """
+                    INSERT INTO ai_event_enrichment
+                        (event_key, input_hash, pipeline_version, facts_pipeline_version,
+                         source_id, model, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event_key, digest, pipeline_version, facts_version,
+                        source_id, settings.model, stamp, stamp,
+                    ),
+                )
+                connection.commit()
+                row = connection.execute(
+                    """SELECT * FROM ai_event_enrichment
+                       WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+                    identity,
+                ).fetchone()
+        except BaseException:
+            if connection.in_transaction:
+                connection.rollback()
+            raise
+    if row is None:
         raise AIEnrichmentError("AI cache row could not be created")
+    if not row["facts_pipeline_version"]:
+        # The current pre-split row was produced by exactly this facts code.
+        # Label it lazily, without changing its summary cache identity.
+        connection.execute(
+            """UPDATE ai_event_enrichment SET facts_pipeline_version = ?
+               WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+            (facts_version, *identity),
+        )
+        connection.commit()
+        row = connection.execute(
+            """SELECT * FROM ai_event_enrichment
+               WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+            identity,
+        ).fetchone()
     return row
+
+
+def _reuse_compatible_facts(
+    connection: sqlite3.Connection,
+    row: sqlite3.Row,
+    *,
+    settings: AISettings,
+    now: datetime,
+) -> sqlite3.Row:
+    """Seed a new summary namespace from a compatible successful facts row."""
+    if row["stage1_json"]:
+        return row
+    cached = connection.execute(
+        """SELECT stage1_json
+             FROM ai_event_enrichment
+            WHERE event_key = ? AND input_hash = ? AND source_id = ? AND model = ?
+              AND (
+                    facts_pipeline_version = ?
+                    OR (facts_pipeline_version = '' AND pipeline_version LIKE ?)
+                  )
+              AND stage1_json != ''
+              AND pipeline_version != ?
+         ORDER BY updated_at DESC
+            LIMIT 1""",
+        (
+            row["event_key"], row["input_hash"], row["source_id"], row["model"],
+            facts_cache_version(settings), _legacy_facts_pipeline_pattern(settings),
+            row["pipeline_version"],
+        ),
+    ).fetchone()
+    if cached is None:
+        return row
+    try:
+        facts = json.loads(cached["stage1_json"])
+    except (TypeError, json.JSONDecodeError):
+        return row
+    if not isinstance(facts, dict):
+        return row
+    connection.execute(
+        """UPDATE ai_event_enrichment
+              SET stage1_json = ?, updated_at = ?
+            WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+        (
+            cached["stage1_json"], _timestamp(now), row["event_key"],
+            row["input_hash"], row["pipeline_version"],
+        ),
+    )
+    connection.commit()
+    return connection.execute(
+        """SELECT * FROM ai_event_enrichment
+           WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+        (row["event_key"], row["input_hash"], row["pipeline_version"]),
+    ).fetchone()
 
 
 def _record_success(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: int, payload: Mapping[str, Any], usage: Usage, now: datetime) -> sqlite3.Row:
@@ -1682,6 +1837,9 @@ def enrich_event(
             connection, event_key=key, digest=digest, source_id=source_id,
             settings=configured, now=current_time,
         )
+        row = _reuse_compatible_facts(
+            connection, row, settings=configured, now=current_time,
+        )
         row = _reset_expired_failure_window(connection, row, current_time)
         negative_until = _parse_timestamp(row["negative_until"])
         if negative_until and negative_until > current_time:
@@ -1886,6 +2044,8 @@ def enrich_events(
     capped_without_summary = 0
     expired = 0
     expired_without_summary = 0
+    cache_budget_skipped = 0
+    cache_budget_skipped_without_summary = 0
     enriched = list(events)
     pending: list[tuple[int, RawEvent]] = []
     for index, value in enumerate(events):
@@ -1908,12 +2068,12 @@ def enrich_events(
         pending.append((index, target))
         processed += 1
 
-    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, bool, bool]:
+    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, bool, bool, bool, bool]:
         index, target = item
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             cached = _reuse_cached_success(target, configured)
-            return index, cached, True, not str(cached.get("ai_summary", "")).strip()
+            return index, cached, True, not str(cached.get("ai_summary", "")).strip(), False, False
         # One event may need facts and summary retries. Divide the remaining
         # source budget across that worst case so every concurrently running
         # event still finishes within the shared wall-clock batch deadline.
@@ -1921,10 +2081,18 @@ def enrich_events(
             configured.timeout_seconds,
             remaining / maximum_calls_per_event,
         )
-        return index, enrich_event(
-            target,
-            settings=replace(configured, timeout_seconds=request_timeout),
-        ), False, False
+        try:
+            result = enrich_event(
+                target,
+                settings=replace(configured, timeout_seconds=request_timeout),
+            )
+            return index, result, False, False, False, False
+        except AICacheMissBudgetExceeded:
+            cached = _reuse_cached_success(target, configured)
+            return (
+                index, cached, False, False, True,
+                not str(cached.get("ai_summary", "")).strip(),
+            )
 
     if pending:
         with ThreadPoolExecutor(
@@ -1933,13 +2101,19 @@ def enrich_events(
         ) as executor:
             # The worker returns its own skip flag rather than incrementing a
             # shared counter, so the tally stays correct without a lock.
-            for index, result, skipped, without_summary in executor.map(enrich_one, pending):
+            for index, result, skipped, without_summary, budget_skipped, budget_without_summary in executor.map(enrich_one, pending):
                 enriched[index] = result
                 expired += int(skipped)
                 expired_without_summary += int(without_summary)
+                cache_budget_skipped += int(budget_skipped)
+                cache_budget_skipped_without_summary += int(budget_without_summary)
     if stats is not None:
         stats["ai_deadline_skipped_event_count"] = expired
         stats["ai_cap_skipped_event_count"] = capped
         stats["ai_deadline_skipped_without_summary_event_count"] = expired_without_summary
         stats["ai_cap_skipped_without_summary_event_count"] = capped_without_summary
+        stats["ai_cache_budget_skipped_event_count"] = cache_budget_skipped
+        stats[
+            "ai_cache_budget_skipped_without_summary_event_count"
+        ] = cache_budget_skipped_without_summary
     return enriched

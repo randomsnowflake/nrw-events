@@ -80,7 +80,12 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 `NRW_EVENTS_CACHE_DIR`, `NRW_EVENTS_AI_MAX_ATTEMPTS`,
 `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS`, `NRW_EVENTS_AI_TIMEOUT_SECONDS`,
 `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS`, `NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS`,
-`NRW_EVENTS_AI_MAX_EVENTS`, and `NRW_EVENTS_AI_MODEL`.
+`NRW_EVENTS_AI_MAX_EVENTS`, `NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY`, and
+`NRW_EVENTS_AI_MODEL`. The facts and summary stages have independent cache
+compatibility versions: summary-only prompt or quality changes reuse successful
+facts, while extraction prompt/schema/sanitizer changes intentionally invalidate
+both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
+`0` only for a deliberate, monitored full reprocess.
 
 ### Registered sources
 

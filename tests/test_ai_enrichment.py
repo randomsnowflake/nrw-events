@@ -191,6 +191,7 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("deepseek/deepseek-v4-flash-0731", settings.model)
         self.assertEqual(600, settings.batch_timeout_seconds)
         self.assertEqual(8, settings.workers)
+        self.assertEqual(150, settings.max_new_cache_rows_per_day)
 
     def test_openrouter_client_enforces_structured_zdr_non_reasoning_requests(self):
         opener = RecordingOpener({
@@ -687,6 +688,141 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("19:30", first["time"])
         self.assertEqual("concert", first["category_key"])
         self.assertEqual("Bonner Klangräume", first["series_title"])
+
+    def test_summary_pipeline_change_reuses_compatible_cached_facts(self):
+        ai_enrichment.enrich_event(
+            event(),
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        summary_only = FakeClient([SUMMARY])
+
+        with mock.patch.object(
+            ai_enrichment,
+            "cache_pipeline_version",
+            return_value="event-summary-next:gpt-5.6-luna",
+        ):
+            result = ai_enrichment.enrich_event(
+                event(),
+                settings=self.settings,
+                client=summary_only,
+                now=self.now + timedelta(days=1),
+            )
+
+        self.assertEqual(["summary"], [call["stage"] for call in summary_only.calls])
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+
+    def test_summary_pipeline_change_migrates_unlabelled_v15_facts(self):
+        settings = replace(
+            self.settings,
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            summary_reasoning_effort="low",
+        )
+        ai_enrichment.enrich_event(
+            event(), settings=settings, client=FakeClient([FACTS, SUMMARY]), now=self.now,
+        )
+        with closing(sqlite3.connect(settings.cache_db)) as connection:
+            connection.execute(
+                "UPDATE ai_event_enrichment SET facts_pipeline_version = ''"
+            )
+            connection.commit()
+        summary_only = FakeClient([SUMMARY])
+
+        with mock.patch.object(
+            ai_enrichment,
+            "cache_pipeline_version",
+            return_value="event-facts-summary-v16:openrouter:deepseek/deepseek-v4-flash-0731:"
+            "facts-none:summary-low",
+        ):
+            ai_enrichment.enrich_event(
+                event(), settings=settings, client=summary_only,
+                now=self.now + timedelta(days=1),
+            )
+
+        self.assertEqual(["summary"], [call["stage"] for call in summary_only.calls])
+
+    def test_facts_pipeline_change_does_not_reuse_incompatible_cached_facts(self):
+        ai_enrichment.enrich_event(
+            event(),
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        refreshed = FakeClient([FACTS, SUMMARY])
+
+        with mock.patch.object(
+            ai_enrichment,
+            "cache_pipeline_version",
+            return_value="event-summary-next:gpt-5.6-luna",
+        ), mock.patch.object(
+            ai_enrichment,
+            "facts_cache_version",
+            return_value="event-facts-next:gpt-5.6-luna",
+        ):
+            ai_enrichment.enrich_event(
+                event(),
+                settings=self.settings,
+                client=refreshed,
+                now=self.now + timedelta(days=1),
+            )
+
+        self.assertEqual(["facts", "summary"], [call["stage"] for call in refreshed.calls])
+
+    def test_daily_new_cache_row_budget_blocks_an_accidental_full_reprocess(self):
+        settings = replace(self.settings, max_new_cache_rows_per_day=1)
+        ai_enrichment.enrich_event(
+            event(title="First"),
+            settings=settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+
+        with self.assertRaises(ai_enrichment.AICacheMissBudgetExceeded):
+            ai_enrichment.enrich_event(
+                event(title="Second"),
+                settings=settings,
+                client=FakeClient([FACTS, SUMMARY]),
+                now=self.now,
+            )
+
+    def test_batch_reports_daily_cache_budget_skips(self):
+        settings = replace(self.settings, max_new_cache_rows_per_day=1)
+        ai_enrichment.enrich_event(
+            in_window_event(title="First"),
+            settings=settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=datetime.now(timezone.utc),
+        )
+        stats: dict[str, int] = {}
+
+        [result] = ai_enrichment.enrich_events(
+            [in_window_event(title="Second")], settings=settings, stats=stats,
+        )
+
+        self.assertEqual(1, stats["ai_cache_budget_skipped_event_count"])
+        self.assertEqual(
+            1, stats["ai_cache_budget_skipped_without_summary_event_count"]
+        )
+        self.assertEqual("", result["ai_summary"])
+        self.assertTrue(result["description"])
+
+    def test_zero_daily_new_cache_row_budget_explicitly_allows_full_reprocess(self):
+        settings = replace(self.settings, max_new_cache_rows_per_day=0)
+        for title in ("First", "Second"):
+            ai_enrichment.enrich_event(
+                event(title=title),
+                settings=settings,
+                client=FakeClient([FACTS, SUMMARY]),
+                now=self.now,
+            )
+
+        with closing(sqlite3.connect(settings.cache_db)) as connection:
+            self.assertEqual(
+                2,
+                connection.execute("SELECT COUNT(*) FROM ai_event_enrichment").fetchone()[0],
+            )
 
     def test_cache_is_separate_per_provider(self):
         ai_enrichment.enrich_event(
