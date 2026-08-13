@@ -1537,7 +1537,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     radio_result = source_results.get(_RADIO_RUNNER_SOURCE)
     promoted_fallback_event_ids: frozenset[str] = frozenset()
     unpublished_fallback_source_ids: frozenset[str] = frozenset()
-    if radio_result is not None and radio_result.research_leads:
+    if radio_result is not None:
         matchable_events: list[CanonicalEvent] = []
         filtered_later: list[CanonicalEvent] = []
         for event in all_events:
