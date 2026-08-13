@@ -880,8 +880,10 @@ class RadioFallbackRetentionTests(unittest.TestCase):
             "source_results": {},
         }
 
-    def _run_without_the_lead(self, entry, previous, window):
+    def _run_without_the_lead(self, entry, previous, window, *, weekly_rows=None):
         """Import a week whose editorial article no longer carries the entry."""
+        if weekly_rows is None:
+            weekly_rows = [lead("Unaudited weekly tip", "2026-08-20")]
         context = RunContext(
             config.RuntimeConfig(score_floor=0, radius_km=1000, series_ledger_json=""),
             window, "radio-retention",
@@ -891,7 +893,7 @@ class RadioFallbackRetentionTests(unittest.TestCase):
         with mock.patch.object(runner, "_previous_snapshot", return_value=previous), \
                 mock.patch.object(resolution, "load_manifest", return_value=(entry,)):
             return runner.run_import(context, {
-                "Radio Bonn/Rhein-Sieg": lambda: [lead("Unaudited weekly tip", "2026-08-20")],
+                "Radio Bonn/Rhein-Sieg": lambda: weekly_rows,
             })
 
     def test_running_championship_survives_the_week_its_lead_disappears(self):
@@ -912,6 +914,20 @@ class RadioFallbackRetentionTests(unittest.TestCase):
         self.assertEqual(retained_source["source_id"], entry.primary_source_id)
         self.assertEqual(retained_source["source"], entry.primary_source)
         self.assertEqual(retained_source["runner_source"], "Radio Bonn/Rhein-Sieg")
+
+    def test_running_championship_survives_an_empty_radio_result(self):
+        entry = resolution.entry_for_key(self.ENTRY_KEY)
+
+        result = self._run_without_the_lead(
+            entry,
+            self._previous_snapshot(entry),
+            EventWindow(datetime(2026, 8, 12), datetime(2026, 9, 2)),
+            weekly_rows=[],
+        )
+
+        [event] = result.events
+        self.assertEqual(event.source_id, entry.primary_source_id)
+        self.assertEqual(result.retention["retained_event_count"], 1)
 
     def test_retained_fallback_still_expires_once_the_championship_is_over(self):
         entry = resolution.entry_for_key(self.ENTRY_KEY)
