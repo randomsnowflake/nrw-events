@@ -14,6 +14,7 @@ text is worse than an honest short description.
 from __future__ import annotations
 
 from collections import Counter
+from datetime import datetime
 from html import escape, unescape
 from html.parser import HTMLParser
 import json
@@ -722,6 +723,51 @@ def _bundeskunsthalle_detail_context(document: str, event: dict) -> dict[str, st
     return context if context["description"] else None
 
 
+def _dein_phonzimmer_detail_context(document: str, event: dict) -> dict[str, str] | None:
+    """Read the bounded WordPress article, including one matching series date."""
+    if _event_hostname(event) not in {"dein-phonzimmer.de", "www.dein-phonzimmer.de"}:
+        return None
+    entry = re.search(
+        r'<div\b[^>]+class=["\'][^"\']*\bentry-content\b[^"\']*["\'][^>]*>'
+        r'(.*?)(?=</article>)',
+        document or "", re.I | re.S,
+    )
+    if not entry:
+        return None
+
+    body = entry.group(1)
+    # The shared Mirecourtplatz page contains a common introduction followed by
+    # several dated programme rows and galleries. Keep the common visitor facts
+    # plus only the row belonging to this occurrence.
+    schedule = re.search(
+        r'<p\b[^>]*>\s*<strong>\s*Termine:\s*</strong>\s*</p>', body, re.I | re.S,
+    )
+    if schedule:
+        intro = body[:schedule.start()]
+        wanted_date = str(event.get("start_date") or event.get("date") or "")[:10]
+        date_label = ""
+        try:
+            date_label = datetime.strptime(wanted_date, "%Y-%m-%d").strftime("%d.%m.%Y")
+        except ValueError:
+            pass
+        occurrence = ""
+        if date_label:
+            match = re.search(
+                rf'<p\b[^>]*>(?:(?!</p>).)*?\b{re.escape(date_label)}\b(?:(?!</p>).)*?</p>',
+                body[schedule.end():], re.I | re.S,
+            )
+            occurrence = match.group(0) if match else ""
+        body = intro + occurrence
+
+    body = re.sub(
+        r'<p\b[^>]*>\s*<a\b[^>]*>\s*zurück\s+zur\s+Startseite\s*</a>\s*</p>',
+        "", body, flags=re.I | re.S,
+    )
+    body = re.sub(r'<figure\b.*?</figure>', "", body, flags=re.I | re.S)
+    context = _context_from_fragment(body)
+    return context if context["description"] else None
+
+
 def _source_specific_detail_context(document: str, event: dict) -> dict[str, str] | None:
     for extractor in (
         _klimaviertel_overview_context,
@@ -732,6 +778,7 @@ def _source_specific_detail_context(document: str, event: dict) -> dict[str, str
         _eitorf_detail_context,
         _froscon_detail_context,
         _bundeskunsthalle_detail_context,
+        _dein_phonzimmer_detail_context,
     ):
         context = extractor(document, event)
         if context is not None:
@@ -757,6 +804,7 @@ def _supports_repeated_detail(event: dict) -> bool:
         "rathausmusik.com", "www.rathausmusik.com",
         "theater-marabu.de", "www.theater-marabu.de",
         "wir-fuer-rheinbach.de", "www.wir-fuer-rheinbach.de",
+        "dein-phonzimmer.de", "www.dein-phonzimmer.de",
     }
 
 

@@ -456,6 +456,67 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "8 Euro im Vorverkauf")
         self.assertEqual(context["venue_address"], "Bachstraße, Rheinbach")
 
+    def test_dein_phonzimmer_shared_page_extracts_intro_and_matching_occurrence(self):
+        document = """
+        <article><div class="entry-content">
+          <p><a href="https://dein-phonzimmer.de">zurück zur Startseite</a></p>
+          <figure><img src="poster.jpg"></figure>
+          <p>Genießen Sie einen lauen Sommerabend am Rhein, bei französischer Musik zum Mitsingen.</p>
+          <p>Texthefte inklusive Übersetzungen werden bereitgestellt.</p>
+          <p>Bei Regen wird das Konzert unter die Konrad-Adenauer-Brücke verlegt.</p>
+          <p><strong>Termine:</strong></p>
+          <p><strong>19.08.2026 – „Dance &amp; Chante“</strong> – französische Chansons zum Mitsingen und Mittanzen</p>
+          <p>… <a href="/playlist-19">zur Playlist vom 19.08.2026</a></p>
+          <p><strong>26.08.2026 – „L'univers d'Édith Piaf“</strong> – Chansons von Édith Piaf</p>
+          <figure><img src="gallery.jpg"></figure>
+        </div></article>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Mitsingkonzert Französisch und Kölsch",
+                start_date="2026-08-19", date="2026-08-19", end_date="2026-08-19",
+                link="https://dein-phonzimmer.de/mirecourtplatzkonzert-2/",
+                source="Bonn.de Events", source_id="bonn-de-events",
+            ),
+        )
+
+        self.assertIn("lauen Sommerabend", context["description"])
+        self.assertIn("Dance & Chante", context["description"])
+        self.assertIn("Bei Regen", context["description"])
+        self.assertNotIn("Édith Piaf", context["description"])
+        self.assertNotIn("zurück zur Startseite", context["description"])
+        self.assertNotIn("zur Playlist", context["description"])
+
+    def test_dein_phonzimmer_shared_page_is_fetched_once_and_enriches_each_date(self):
+        document = """
+        <article><div class="entry-content">
+          <p>Französische Musik zum Mitsingen mit bereitgestellten Textheften und Übersetzungen.</p>
+          <p>Bei Regen findet das Konzert unter der Konrad-Adenauer-Brücke statt.</p>
+          <p><strong>Termine:</strong></p>
+          <p><strong>19.08.2026 – „Dance &amp; Chante“</strong> – französische Chansons zum Mittanzen</p>
+          <p><strong>26.08.2026 – „Édith Piaf“</strong> – französische Chansons zum Mitsingen</p>
+        </div></article>
+        """
+        link = "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/"
+        events = [
+            self.event(title="Termin eins", start_date="2026-08-19", date="2026-08-19", end_date="2026-08-19", link=link),
+            self.event(title="Termin zwei", start_date="2026-08-26", date="2026-08-26", end_date="2026-08-26", link=link),
+        ]
+
+        with patch.object(detail_enrichment.common, "event_in_window", return_value=True), patch.object(
+            detail_enrichment.common, "fetch_detail_url", return_value=document,
+        ) as fetch:
+            enriched = detail_enrichment.enrich_events(events)
+
+        fetch.assert_called_once()
+        self.assertIn("Dance & Chante", enriched[0]["description"])
+        self.assertNotIn("Édith Piaf", enriched[0]["description"])
+        self.assertIn("Édith Piaf", enriched[1]["description"])
+        self.assertEqual(enriched[0]["description_source"], "scraped")
+        self.assertEqual(enriched[1]["description_source"], "scraped")
+
     def test_extracts_exact_pantheon_program_block_and_ticket_price(self):
         document = """
         <li id="t639994"><h2 class="event-title">Die Offene Bühne</h2>
