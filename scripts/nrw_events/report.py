@@ -192,7 +192,10 @@ def _dedup_blocking_keys(event: dict) -> set[tuple[str, ...]]:
     start_at = str(event.get("start_at") or "")
     words = tuple(
         word for word in comparison_text(event.get("title", "")).split()
-        if len(word) >= 4 and word not in {"eine", "einer", "einem", "einen", "oder"}
+        if len(word) >= 3 and word not in {
+            "das", "der", "die", "ein", "eine", "einer", "einem", "einen",
+            "und", "oder", "von", "vom", "zur", "zum",
+        }
     )
     second = words[1] if len(words) > 1 else ""
     last = words[-1] if words else ""
@@ -456,12 +459,24 @@ def _aggregator_title_variant_matches(left: dict, right: dict) -> bool:
     right_authority = source_authority(right.get("source", ""))
     if min(left_authority, right_authority) > 1 or max(left_authority, right_authority) < 2:
         return False
+    source_ids = {left.get("source_id", ""), right.get("source_id", "")}
     left_start = left.get("start_at")
     right_start = right.get("start_at")
-    if not left_start or left_start != right_start:
+    if left_start and right_start and left_start != right_start:
+        return False
+    if "kunstrasen-bonn" not in source_ids and (not left_start or not right_start):
         return False
     left_words = set(_title_words_without_venue_suffix(left))
     right_words = set(_title_words_without_venue_suffix(right))
+    # KUNST!RASEN's first-party ticket shop deliberately uses the headliner as
+    # its concise title, while Bonn.jetzt appends guests or tour copy.  The
+    # shared exact start, venue, date, category and authority guards above keep
+    # this exception occurrence-specific instead of turning artist names into
+    # global aliases.
+    if "kunstrasen-bonn" in source_ids:
+        shorter, longer = sorted((left_words, right_words), key=len)
+        if shorter <= longer and len(shorter) >= 1 and len("".join(shorter)) >= 3:
+            return True
     return (
         min(len(left_words), len(right_words)) >= 3
         and (left_words <= right_words or right_words <= left_words)

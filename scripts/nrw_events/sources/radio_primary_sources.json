@@ -862,11 +862,11 @@
     {
       "title": "Laurentius Kirmes",
       "start_date": "2026-08-14",
-      "primary_url": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
-      "primary_source": "Bonn district festivals",
-      "primary_source_id": "bonn-district-festivals",
+      "primary_url": "https://lupe-events.de/event/kirmes-in-lessenich-2026",
+      "primary_source": "LuPe Events",
+      "primary_source_id": "lupe-events",
       "evidence_status": "confirmed",
-      "verified_at": "2026-08-11",
+      "verified_at": "2026-08-13",
       "fallback_publication": false,
       "corrections": {"title": "Laurentius-Kirmes", "end_date": "2026-08-16"},
       "resolution_mode": "match_existing_primary"

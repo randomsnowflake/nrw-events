@@ -77,6 +77,62 @@
       "callable": "nrw_events.sources.koeln:fetch"
     },
     {
+      "id": "lupe-events",
+      "display_name": "LuPe Events",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.lupe_events:fetch"
+    },
+    {
+      "id": "bonnlive",
+      "display_name": "BonnLive",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonnlive:fetch"
+    },
+    {
+      "id": "kunstrasen-bonn",
+      "display_name": "KUNST!RASEN Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.kunstrasen_bonn:fetch"
+    },
+    {
+      "id": "beethovenfest-bonn",
+      "display_name": "Beethovenfest Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.beethovenfest_bonn:fetch"
+    },
+    {
+      "id": "rif-events",
+      "display_name": "RiF Events",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.rif_events:fetch"
+    },
+    {
+      "id": "fedcon-events",
+      "display_name": "FedCon Events",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.fedcon_events:fetch"
+    },
+    {
+      "id": "b-future-festival",
+      "display_name": "b° future festival",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.b_future_festival:fetch"
+    },
+    {
+      "id": "in-guten-kreisen",
+      "display_name": "In guten Kreisen",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.in_guten_kreisen:fetch"
+    },
+    {
       "id": "bonn-de-events",
       "display_name": "Bonn.de Events",
       "region": "bonn-region",

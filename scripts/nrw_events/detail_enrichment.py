@@ -690,6 +690,38 @@ def _froscon_detail_context(document: str, event: dict) -> dict[str, str] | None
     return _context_from_fragment(fragment, price=price, venue=venue, venue_address=address)
 
 
+def _bundeskunsthalle_detail_context(document: str, event: dict) -> dict[str, str] | None:
+    """Read the editorial intro grid from an exhibition detail page.
+
+    Bundeskunsthalle pages have no Event JSON-LD or semantic description
+    attribute. Their complete introduction is split across several ``ce-wrap``
+    blocks inside the first content section; later sections are galleries,
+    accordions and related programme and must not be absorbed.
+    """
+    if _event_hostname(event) not in {"bundeskunsthalle.de", "www.bundeskunsthalle.de"}:
+        return None
+    main = re.search(r'<main\b[^>]+id=["\']main-content["\'][^>]*>(.*)', document or "", re.I | re.S)
+    if not main:
+        return None
+    intro = re.search(
+        r'<section\b[^>]+class=["\'][^"\']*\bpt-0\b[^"\']*["\'][^>]*>(.*?)</section>',
+        main.group(1), re.I | re.S,
+    )
+    if not intro:
+        return None
+    blocks = re.findall(
+        r'<div\b[^>]+class=["\'][^"\']*\bce-wrap\b[^"\']*["\'][^>]*>(.*?)</div>',
+        intro.group(1), re.I | re.S,
+    )
+    fragment = "".join(blocks)
+    price = "kostenlos" if re.search(
+        r'class=["\'][^"\']*page-header__date[^"\']*["\'][^>]*>[^<]*(?:Admission\s+free|Eintritt\s+frei)',
+        main.group(1), re.I | re.S,
+    ) else ""
+    context = _context_from_fragment(fragment, price=price)
+    return context if context["description"] else None
+
+
 def _source_specific_detail_context(document: str, event: dict) -> dict[str, str] | None:
     for extractor in (
         _klimaviertel_overview_context,
@@ -699,6 +731,7 @@ def _source_specific_detail_context(document: str, event: dict) -> dict[str, str
         _rathausmusik_detail_context,
         _eitorf_detail_context,
         _froscon_detail_context,
+        _bundeskunsthalle_detail_context,
     ):
         context = extractor(document, event)
         if context is not None:

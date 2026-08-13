@@ -94,6 +94,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 |---|---|---|---|
 | bonn-region | AfterJobParty Bonn | `afterjobparty-bonn` | `python` |
 | bonn-region | Bad Godesberg Stadtmarketing | `bad-godesberg-stadtmarketing` | `python` |
+| bonn-region | Beethovenfest Bonn | `beethovenfest-bonn` | `python` |
 | bonn-region | Beuel.net | `beuel-net` | `python` |
 | bonn-region | BFF Bonner Schifffahrt | `bff-bonner-schifffahrt` | `python` |
 | bonn-region | Biertasting Bonn | `biertasting-bonn` | `python` |
@@ -103,9 +104,11 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Bonn.de Sports | `bonn-de-sports` | `python` |
 | bonn-region | Bonn.jetzt | `bonn-jetzt` | `python` |
 | bonn-region | Bonner Weihnachtsmarkt | `bonner-weihnachtsmarkt` | `python` |
+| bonn-region | BonnLive | `bonnlive` | `python` |
 | bonn-region | BSV Roleber | `bsv-roleber` | `python` |
 | bonn-region | Bundeskunsthalle | `bundeskunsthalle` | `python` |
 | bonn-region | BV Holzlar | `bv-holzlar` | `python` |
+| bonn-region | b° future festival | `b-future-festival` | `python` |
 | bonn-region | Bürgerverein Vilich-Müldorf | `b-rgerverein-vilich-m-ldorf` | `python` |
 | bonn-region | Choco Dealer | `choco-dealer` | `python` |
 | bonn-region | Craftquelle Bonn | `craftquelle-bonn` | `python` |
@@ -115,6 +118,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Deskline regional | `deskline-regional` | `python` |
 | bonn-region | Deutsches Museum Bonn | `deutsches-museum-bonn` | `python` |
 | bonn-region | Exa Search | `exa-search` | `python` |
+| bonn-region | FedCon Events | `fedcon-events` | `python` |
 | bonn-region | Geide Märkte | `geide-m-rkte` | `python` |
 | bonn-region | Grok Search | `grok-search` | `python` |
 | bonn-region | Grote & Hiller | `grote-hiller` | `python` |
@@ -125,6 +129,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Hennef | `hennef` | `json_ld` |
 | bonn-region | HofFloh Bonn | `hoffloh-bonn` | `python` |
 | bonn-region | Hofflohmärkte Köln | `hofflohm-rkte-k-ln` | `python` |
+| bonn-region | In guten Kreisen | `in-guten-kreisen` | `python` |
 | bonn-region | ionas4 regional | `ionas4-regional` | `python` |
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
@@ -133,11 +138,13 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
 | bonn-region | Krewelshof Kindersachen-Flohmarkt | `krewelshof-kindersachen-flohmarkt` | `python` |
+| bonn-region | KUNST!RASEN Bonn | `kunstrasen-bonn` | `python` |
 | bonn-region | Köln Open Data | `k-ln-open-data` | `python` |
 | bonn-region | Königswinter | `k-nigswinter` | `python` |
 | bonn-region | Lampert Märkte | `lampert-m-rkte` | `python` |
 | bonn-region | Literaturhaus Bonn | `literaturhaus-bonn` | `python` |
 | bonn-region | Ludwig's Bonn | `ludwig-s-bonn` | `python` |
+| bonn-region | LuPe Events | `lupe-events` | `python` |
 | bonn-region | marktcom | `marktcom` | `python` |
 | bonn-region | Meckenheim | `meckenheim` | `python` |
 | bonn-region | Melan Märkte | `melan-m-rkte` | `python` |
@@ -156,6 +163,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Rheinauen-Flohmarkt | `rheinauen-flohmarkt` | `python` |
 | bonn-region | Rheinbach Flohmarkt | `rheinbach-flohmarkt` | `python` |
 | bonn-region | RheinEvents | `rheinevents` | `python` |
+| bonn-region | RiF Events | `rif-events` | `python` |
 | bonn-region | Ruhr-Guide | `ruhr-guide` | `python` |
 | bonn-region | Salsa in Bonn | `salsa-in-bonn` | `python` |
 | bonn-region | Siegburg | `siegburg` | `python` |
@@ -227,6 +235,8 @@ scripts/nrw_events/
     registry.json
     __init__.py
     afterjobparty.py
+    b_future_festival.py
+    beethovenfest_bonn.py
     bonn.py
     bonn_districts.py
     bonn_food.py
@@ -235,11 +245,13 @@ scripts/nrw_events/
     bonner_weihnachtsmarkt.py
     bonnjetzt.py
     bonnkirmes.py
+    bonnlive.py
     bundeskunsthalle.py
     cinema_specials.py
     coelln_antik_design.py
     coelln_konzept.py
     deutsches_museum_bonn.py
+    fedcon_events.py
     fixed_markets.py
     flohmarkt.py
     geide.py
@@ -248,6 +260,7 @@ scripts/nrw_events/
     haus_der_geschichte.py
     hoffloh_bonn.py
     hofflohmaerkte.py
+    in_guten_kreisen.py
     junges_theater_bonn.py
     katharinenhof.py
     kihapp.py
@@ -256,7 +269,9 @@ scripts/nrw_events/
     koeln.py
     koenigswinter.py
     krewelshof.py
+    kunstrasen_bonn.py
     lampert.py
+    lupe_events.py
     marktcom.py
     max7.py
     mec_municipal.py
@@ -278,6 +293,7 @@ scripts/nrw_events/
     rhein_antik.py
     rheinbach_flohmarkt.py
     rheinevents.py
+    rif_events.py
     ruhrguide.py
     salsainbonn.py
     search.py

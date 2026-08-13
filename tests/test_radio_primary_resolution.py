@@ -398,7 +398,7 @@ class RadioPrimaryResolutionTests(unittest.TestCase):
         )
 
         self.assertEqual(len(outcome.events), 1)
-        self.assertEqual(outcome.events[0].source_id, "bonn-district-festivals")
+        self.assertEqual(outcome.events[0].source_id, "lupe-events")
         self.assertEqual(outcome.events[0].discovered_via, [RADIO_ID])
         self.assertEqual(outcome.dispositions[entry.key], "matched_existing_primary")
 
