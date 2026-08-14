@@ -886,6 +886,7 @@ def fetch_detail_url(
     brightdata_fallback: bool = False,
     brightdata: bool = False,
     cache_failures: bool = False,
+    retry_attempts: Optional[int] = None,
     **fetch_kwargs: Any,
 ) -> str:
     """Fetch a public event detail page through the persistent TTL cache.
@@ -893,7 +894,9 @@ def fetch_detail_url(
     Successful responses are cached by default. Sources that must enforce a
     strict request ceiling can set ``cache_failures=True``; a failed attempt is
     then represented by an empty cached body until the TTL expires. Set
-    ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to bypass both memory and disk.
+    ``retry_attempts`` controls transport behavior without changing the cached
+    representation's identity. Set ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to
+    bypass both memory and disk.
     """
     if brightdata and brightdata_fallback:
         raise ValueError("brightdata and brightdata_fallback are mutually exclusive")
@@ -906,9 +909,12 @@ def fetch_detail_url(
     else:
         fetcher = fetch_url
         transport = "direct"
+    transport_kwargs = dict(fetch_kwargs)
+    if retry_attempts is not None:
+        transport_kwargs["retry_attempts"] = retry_attempts
     ttl_seconds = _detail_page_cache_ttl_seconds()
     if not ttl_seconds:
-        return fetcher(url, timeout=timeout, **fetch_kwargs)
+        return fetcher(url, timeout=timeout, **transport_kwargs)
     cache_parameters = json.dumps(
         {
             "url": url,
@@ -939,7 +945,7 @@ def fetch_detail_url(
         state["entries"].pop(cache_key, None)
 
     try:
-        body = fetcher(url, timeout=timeout, **fetch_kwargs)
+        body = fetcher(url, timeout=timeout, **transport_kwargs)
     except Exception:
         if cache_failures:
             with _DETAIL_PAGE_CACHE_LOCK:

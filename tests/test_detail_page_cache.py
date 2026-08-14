@@ -227,6 +227,22 @@ class DetailPageCacheTests(unittest.TestCase):
         self.assertEqual(direct.call_count, 2)
         proxy.assert_called_once()
 
+    def test_retry_policy_reuses_the_existing_representation_cache_key(self):
+        url = "https://example.org/events/detail/retry-policy"
+        with patch.object(common, "fetch_url", return_value="body") as fetch:
+            self.assertEqual(
+                common.fetch_detail_url(url, cache_namespace="retry-policy"),
+                "body",
+            )
+            self.assertEqual(
+                common.fetch_detail_url(
+                    url, cache_namespace="retry-policy", retry_attempts=1,
+                ),
+                "body",
+            )
+
+        fetch.assert_called_once_with(url, timeout=15)
+
 
 if __name__ == "__main__":
     unittest.main()
