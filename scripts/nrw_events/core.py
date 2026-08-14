@@ -397,12 +397,15 @@ def fetch_url(
     sec_fetch_mode: str = "navigate",
     sec_fetch_dest: str = "document",
     expected_content_types: Optional[tuple] = None,
+    retry_attempts: Optional[int] = None,
 ) -> str:
     """GET a URL and return decoded text. Raises on network/HTTP error.
 
     Defaults model a browser document navigation for HTML event pages. Feed/API
     callers should pass a content-specific ``accept`` value so negotiating
-    endpoints do not return their human HTML fallback instead of data.
+    endpoints do not return their human HTML fallback instead of data. Optional
+    best-effort requests may lower ``retry_attempts`` so one broken detail page
+    cannot consume a source's complete enrichment budget.
     """
     hdrs = browser_headers(
         accept=accept,
@@ -412,7 +415,12 @@ def fetch_url(
     )
     deadline = _request_deadline()
     settings = _runtime_state().settings
-    for attempt in range(settings.http_retry_attempts):
+    attempts = (
+        settings.http_retry_attempts
+        if retry_attempts is None
+        else max(int(retry_attempts), 1)
+    )
+    for attempt in range(attempts):
         try:
             started = time.perf_counter()
             req = urllib.request.Request(url, headers=hdrs)
@@ -457,7 +465,7 @@ def fetch_url(
                 )
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
-            retry = attempt < settings.http_retry_attempts - 1 and _is_retryable_fetch_error(exc)
+            retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
             delay = _retry_delay(exc, attempt) if retry else 0
             _close_http_error(exc)
             if not retry:
@@ -878,6 +886,7 @@ def fetch_detail_url(
     brightdata_fallback: bool = False,
     brightdata: bool = False,
     cache_failures: bool = False,
+    retry_attempts: Optional[int] = None,
     **fetch_kwargs: Any,
 ) -> str:
     """Fetch a public event detail page through the persistent TTL cache.
@@ -885,7 +894,9 @@ def fetch_detail_url(
     Successful responses are cached by default. Sources that must enforce a
     strict request ceiling can set ``cache_failures=True``; a failed attempt is
     then represented by an empty cached body until the TTL expires. Set
-    ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to bypass both memory and disk.
+    ``retry_attempts`` controls transport behavior without changing the cached
+    representation's identity. Set ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to
+    bypass both memory and disk.
     """
     if brightdata and brightdata_fallback:
         raise ValueError("brightdata and brightdata_fallback are mutually exclusive")
@@ -898,9 +909,12 @@ def fetch_detail_url(
     else:
         fetcher = fetch_url
         transport = "direct"
+    transport_kwargs = dict(fetch_kwargs)
+    if retry_attempts is not None:
+        transport_kwargs["retry_attempts"] = retry_attempts
     ttl_seconds = _detail_page_cache_ttl_seconds()
     if not ttl_seconds:
-        return fetcher(url, timeout=timeout, **fetch_kwargs)
+        return fetcher(url, timeout=timeout, **transport_kwargs)
     cache_parameters = json.dumps(
         {
             "url": url,
@@ -931,7 +945,7 @@ def fetch_detail_url(
         state["entries"].pop(cache_key, None)
 
     try:
-        body = fetcher(url, timeout=timeout, **fetch_kwargs)
+        body = fetcher(url, timeout=timeout, **transport_kwargs)
     except Exception:
         if cache_failures:
             with _DETAIL_PAGE_CACHE_LOCK:

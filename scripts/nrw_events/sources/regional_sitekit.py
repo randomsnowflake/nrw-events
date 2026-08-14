@@ -101,6 +101,12 @@ def fetch() -> list:
             or not event.get("venue")
             or event.get("category_key") == "other"
         ),
+        detail_fetcher=lambda url: common.fetch_detail_url(
+            url,
+            cache_namespace="regional-sitekit-detail",
+            timeout=15,
+            retry_attempts=1,
+        ),
         merge_context=_merge_detail_context,
     )
     for event in events:

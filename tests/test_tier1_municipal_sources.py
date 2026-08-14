@@ -45,6 +45,32 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
         ids = [source_id for _city, source_id, _url, _trust in regional_sitekit._CALENDARS]
         self.assertEqual(len(ids), len(set(ids)))
 
+    def test_sitekit_detail_failures_do_not_consume_the_batch_on_retries(self):
+        patch_window(self, datetime(2026, 8, 14), datetime(2026, 8, 31))
+        listing = (
+            '<article class="SP-Teaser">'
+            '<a class="SP-Teaser__inner" href="/events/bingo">'
+            '<h4 class="SP-Teaser__headline">Bingo!</h4>'
+            '<span class="SP-Scheduling__date">21.08.2026</span>'
+            '</a></article>'
+        )
+
+        with mock.patch.object(
+            regional_sitekit,
+            "_CALENDARS",
+            [("Wesseling", "sitekit-wesseling", "https://example.test/events", 0.9)],
+        ), mock.patch.object(common, "fetch_url", return_value=listing), mock.patch.object(
+            common, "fetch_detail_url", return_value=""
+        ) as detail_fetch:
+            regional_sitekit.fetch()
+
+        detail_fetch.assert_called_once_with(
+            "https://example.test/events/bingo",
+            cache_namespace="regional-sitekit-detail",
+            timeout=15,
+            retry_attempts=1,
+        )
+
     def test_sitekit_pagination_metadata_and_url_are_supported(self):
         html = (
             '<div class="SP-Pagination" '
