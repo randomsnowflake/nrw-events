@@ -54,6 +54,48 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "Kostenfrei")
         self.assertEqual(context["venue_address"], "Eifelwall 5 50674 Köln")
 
+    def test_visible_tribe_cost_overrides_incorrect_jsonld_currency(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Salsa Cubana, Bachata & Discofox Workshops",
+          "offers": {"@type": "Offer", "price": "5", "priceCurrency": "USD"}
+        }
+        </script>
+        <span class="tribe-events-cost">€5 + MVZ €5</span>
+        <li class="tribe-events-meta-item">
+          <span class="tribe-events-event-cost-label tribe-events-meta-label">Eintritt:</span>
+          <span class="tribe-events-event-cost tribe-events-meta-value">€5 + MVZ €5</span>
+        </li>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Salsa Cubana, Bachata & Discofox Workshops",
+                link="https://www.salsainbonn.de/event/salsa-cubana-bachata-discofox-workshops-6/",
+            ),
+        )
+
+        self.assertEqual(context["price"], "€5 + MVZ €5")
+
+    def test_jsonld_event_price_overrides_unscoped_semantic_price(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Workshop: Architekturfotografie",
+          "offers": {"@type": "Offer", "price": "12", "priceCurrency": "EUR"}
+        }
+        </script>
+        <aside><span itemprop="price">29 Euro für den Bildband</span></aside>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, self.event())
+
+        self.assertEqual(context["price"], "12 EUR")
+
     def test_richer_detail_replaces_teaser_and_explicit_price_is_reclassified(self):
         context = {
             "description": "Eine deutlich längere, vollständige Beschreibung mit allen wichtigen Hinweisen für den Besuch.",
