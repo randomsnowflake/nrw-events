@@ -147,6 +147,19 @@ class HttpHeaderTests(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 2)
         sleep.assert_called_once()
 
+    def test_fetch_url_can_disable_retries_for_optional_detail_enrichment(self):
+        transient = urllib.error.HTTPError(
+            "https://example.org/detail", 500, "Internal Server Error", Message(), None)
+        self.addCleanup(transient.close)
+
+        with patch("nrw_events.common.urllib.request.urlopen", side_effect=transient) as urlopen, \
+             patch("nrw_events.common.time.sleep") as sleep:
+            with self.assertRaises(urllib.error.HTTPError):
+                common.fetch_url("https://example.org/detail", retry_attempts=1)
+
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
+
     def test_fetch_url_does_not_retry_non_transient_http_errors(self):
         not_found = urllib.error.HTTPError(
             "https://example.org/missing", 404, "Not Found", Message(), None)

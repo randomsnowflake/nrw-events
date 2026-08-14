@@ -397,12 +397,15 @@ def fetch_url(
     sec_fetch_mode: str = "navigate",
     sec_fetch_dest: str = "document",
     expected_content_types: Optional[tuple] = None,
+    retry_attempts: Optional[int] = None,
 ) -> str:
     """GET a URL and return decoded text. Raises on network/HTTP error.
 
     Defaults model a browser document navigation for HTML event pages. Feed/API
     callers should pass a content-specific ``accept`` value so negotiating
-    endpoints do not return their human HTML fallback instead of data.
+    endpoints do not return their human HTML fallback instead of data. Optional
+    best-effort requests may lower ``retry_attempts`` so one broken detail page
+    cannot consume a source's complete enrichment budget.
     """
     hdrs = browser_headers(
         accept=accept,
@@ -412,7 +415,12 @@ def fetch_url(
     )
     deadline = _request_deadline()
     settings = _runtime_state().settings
-    for attempt in range(settings.http_retry_attempts):
+    attempts = (
+        settings.http_retry_attempts
+        if retry_attempts is None
+        else max(int(retry_attempts), 1)
+    )
+    for attempt in range(attempts):
         try:
             started = time.perf_counter()
             req = urllib.request.Request(url, headers=hdrs)
@@ -457,7 +465,7 @@ def fetch_url(
                 )
         except Exception as exc:
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
-            retry = attempt < settings.http_retry_attempts - 1 and _is_retryable_fetch_error(exc)
+            retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
             delay = _retry_delay(exc, attempt) if retry else 0
             _close_http_error(exc)
             if not retry:
