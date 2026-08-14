@@ -284,6 +284,17 @@ def _visible_labeled_value(document: str, *labels: str) -> str:
 
 def _template_price(document: str) -> str:
     """Extract a price from a known event-only field without broad guessing."""
+    tribe_cost = re.search(
+        r'<(?P<tag>[a-z0-9]+)[^>]+class=["\'][^"\']*'
+        r'(?:tribe-events-cost|tribe-events-event-cost)(?=\s|["\'])'
+        r'[^"\']*["\'][^>]*>(?P<value>.*?)</(?P=tag)>',
+        document or "",
+        re.I | re.S,
+    )
+    if tribe_cost:
+        price = common.clean_html(tribe_cost.group("value"))
+        if price:
+            return price[:240]
     if "MyEventButton" in (document or "") and "springmaus-theater.de" in (document or ""):
         for value in re.findall(r'<div[^>]+class=["\']mb-4["\'][^>]*>([^<]+)</div>', document, re.I):
             cleaned = common.clean_html(value)
@@ -851,7 +862,10 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
     }
     for item in _jsonld_candidates(document or "", str(event.get("title") or ""))[:1]:
         structured_price = common._jsonld_admission_price(item)
-        if structured_price is not None:
+        # A calendar's visitor-facing event cost is stronger evidence than its
+        # generated JSON-LD. Plugins can retain a default currency there even
+        # while rendering the organizer's complete price correctly.
+        if structured_price is not None and not context["price"]:
             context["price"] = structured_price
         location = item.get("location")
         if isinstance(location, dict):
