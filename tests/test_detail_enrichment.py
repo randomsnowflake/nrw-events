@@ -80,6 +80,22 @@ class DetailEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(context["price"], "€5 + MVZ €5")
 
+    def test_jsonld_event_price_overrides_unscoped_semantic_price(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Workshop: Architekturfotografie",
+          "offers": {"@type": "Offer", "price": "12", "priceCurrency": "EUR"}
+        }
+        </script>
+        <aside><span itemprop="price">29 Euro für den Bildband</span></aside>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, self.event())
+
+        self.assertEqual(context["price"], "12 EUR")
+
     def test_richer_detail_replaces_teaser_and_explicit_price_is_reclassified(self):
         context = {
             "description": "Eine deutlich längere, vollständige Beschreibung mit allen wichtigen Hinweisen für den Besuch.",

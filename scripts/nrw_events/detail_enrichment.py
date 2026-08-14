@@ -282,8 +282,8 @@ def _visible_labeled_value(document: str, *labels: str) -> str:
     return common.clean_html(match.group(1)).lstrip(" :–-")[:240] if match else ""
 
 
-def _template_price(document: str) -> str:
-    """Extract a price from a known event-only field without broad guessing."""
+def _tribe_price(document: str) -> str:
+    """Extract The Events Calendar's visitor-facing event cost."""
     tribe_cost = re.search(
         r'<(?P<tag>[a-z0-9]+)[^>]+class=["\'][^"\']*'
         r'(?:tribe-events-cost|tribe-events-event-cost)(?=\s|["\'])'
@@ -295,6 +295,13 @@ def _template_price(document: str) -> str:
         price = common.clean_html(tribe_cost.group("value"))
         if price:
             return price[:240]
+    return ""
+
+
+def _template_price(document: str) -> str:
+    """Extract a price from a known event-only field without broad guessing."""
+    if price := _tribe_price(document):
+        return price
     if "MyEventButton" in (document or "") and "springmaus-theater.de" in (document or ""):
         for value in re.findall(r'<div[^>]+class=["\']mb-4["\'][^>]*>([^<]+)</div>', document, re.I):
             cleaned = common.clean_html(value)
@@ -845,6 +852,7 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
     description, description_html = _best_description(
         document or "", parser, str(event.get("title") or ""),
     )
+    tribe_price = _tribe_price(document)
     context = {
         "description": description,
         "description_html": description_html,
@@ -865,7 +873,7 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
         # A calendar's visitor-facing event cost is stronger evidence than its
         # generated JSON-LD. Plugins can retain a default currency there even
         # while rendering the organizer's complete price correctly.
-        if structured_price is not None and not context["price"]:
+        if structured_price is not None and not tribe_price:
             context["price"] = structured_price
         location = item.get("location")
         if isinstance(location, dict):
