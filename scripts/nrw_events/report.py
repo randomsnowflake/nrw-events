@@ -39,6 +39,7 @@ _MARKET_DIRECTORY_SOURCE_MARKERS = (
 _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
     "bonn.de events", "bonn.de sports", "bonn district festivals",
 )
+_CIVIC_AGGREGATOR_SOURCE_EXACT = frozenset({"ahrtal"})
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 _REUSED_OVERVIEW_LINK_THRESHOLD = 5
 _CITYWIDE_VENUE_ALIAS_FAMILIES = {
@@ -81,7 +82,10 @@ def source_authority(source: str) -> int:
         return 1
     if any(marker in normalized for marker in _MARKET_DIRECTORY_SOURCE_MARKERS):
         return 1
-    if any(marker in normalized for marker in _CIVIC_AGGREGATOR_SOURCE_MARKERS):
+    if (
+        normalized in _CIVIC_AGGREGATOR_SOURCE_EXACT
+        or any(marker in normalized for marker in _CIVIC_AGGREGATOR_SOURCE_MARKERS)
+    ):
         return 2
     return 3
 
@@ -280,6 +284,24 @@ def _citywide_venue_alias_family(event: dict, title_family: str) -> int | None:
     return None
 
 
+def _concrete_numeric_units(value: str) -> set[str]:
+    return {
+        re.sub(r"\s+", "", match)
+        for match in re.findall(
+            r"(?<!\d)\d{1,4}(?:(?:\s*[a-z])|(?:\s*[/-]\s*\d{1,4}\s*[a-z]?))?(?!\d)",
+            value.casefold(),
+        )
+    }
+
+
+def _concrete_venue_units(event: dict) -> set[str]:
+    # A structured address is stronger place evidence than numbers embedded in
+    # the venue name (for example "Halle 1"). Only fall back to the name when
+    # the address carries no house or unit number.
+    address_units = _concrete_numeric_units(str(event.get("venue_address", "")))
+    return address_units or _concrete_numeric_units(str(event.get("venue", "")))
+
+
 def _locations_compatible(left: dict, right: dict) -> bool:
     left_venue_text = _venue_comparison_text(left)
     right_venue_text = _venue_comparison_text(right)
@@ -287,11 +309,24 @@ def _locations_compatible(left: dict, right: dict) -> bool:
     right_venue = comparison_text(right_venue_text, separator="")
     left_venue_tokens = set(left_venue_text.split())
     right_venue_tokens = set(right_venue_text.split())
+    # Ignore five-digit postcodes but retain house/unit numbers, including
+    # forms such as 10a. Shared postcodes must not hide a 10-vs-100 conflict.
+    left_venue_numbers = _concrete_venue_units(left)
+    right_venue_numbers = _concrete_venue_units(right)
     cities_match = (
         _normalized_city(left.get("city", ""))
         == _normalized_city(right.get("city", ""))
     )
     if cities_match:
+        # Concrete address evidence outranks source ownership and fuzzy venue
+        # aliases. This prevents same-source records at house numbers 10 and
+        # 100 (or units 10a and 10b) from collapsing into one occurrence.
+        if (
+            left_venue_numbers
+            and right_venue_numbers
+            and left_venue_numbers.isdisjoint(right_venue_numbers)
+        ):
+            return False
         if left.get("source") and left.get("source") == right.get("source"):
             return True
         left_title = normalize_title(left.get("title", ""))
@@ -354,6 +389,11 @@ def _locations_compatible(left: dict, right: dict) -> bool:
 def _venue_comparison_text(event: dict) -> str:
     """Normalize a venue while ignoring a redundant leading city label."""
     venue = comparison_text(event.get("venue", ""))
+    address = comparison_text(event.get("venue_address", ""))
+    if address and venue and venue not in address:
+        venue = f"{venue} {address}"
+    elif address:
+        venue = address
     if len(comparison_text(venue, separator="")) < 2:
         return ""
     city = _normalized_city(event.get("city", ""))
@@ -437,11 +477,37 @@ def _titles_match(left: dict, right: dict) -> bool:
     right_title = normalize_title(right.get("title", ""))
     if left_title == right_title:
         return True
+    # Fair calendars inconsistently add a locative "in" and the edition year.
+    # The funfair taxonomy plus the independent date/place guards make this a
+    # narrow event-family identity rule rather than a global stop-word rewrite.
+    left_funfair = _funfair_title_identity(left)
+    right_funfair = _funfair_title_identity(right)
+    if left_funfair and left_funfair == right_funfair:
+        return True
     if min(len(left_title), len(right_title)) >= 12 and (
         left_title in right_title or right_title in left_title
     ):
         return True
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
+
+
+def _funfair_title_identity(event: dict) -> tuple[str, ...]:
+    if "funfair" not in (event.get("event_types") or ()):
+        return ()
+    identity = tuple(
+        token
+        for token in comparison_text(event.get("title", "")).split()
+        if token != "in" and not re.fullmatch(r"20\d{2}", token)
+    )
+    # "Kirmes" alone is not an identity: two neighbourhood fairs can share a
+    # date while an aggregator omits both exact places. Require the place/name
+    # token that makes the reviewed Röttgen variant safe to compare.
+    return identity if len(identity) >= 2 else ()
+
+
+def _same_funfair_title_identity(left: dict, right: dict) -> bool:
+    left_identity = _funfair_title_identity(left)
+    return bool(left_identity and left_identity == _funfair_title_identity(right))
 
 
 def _title_words_without_venue_suffix(event: dict) -> tuple[str, ...]:
@@ -786,7 +852,11 @@ def _is_radio_aggregation_link(link: str) -> bool:
 
 def events_are_duplicates(left, right) -> bool:
     """Return whether two canonical records represent the same occurrence."""
-    if _series_tokens(left.get("title", "")) != _series_tokens(right.get("title", "")):
+    if (
+        _series_tokens(left.get("title", ""))
+        != _series_tokens(right.get("title", ""))
+        and not _same_funfair_title_identity(left, right)
+    ):
         return False
     left_link = _normalized_link_key(left.get("link", ""))
     right_link = _normalized_link_key(right.get("link", ""))

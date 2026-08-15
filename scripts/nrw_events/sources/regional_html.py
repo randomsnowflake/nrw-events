@@ -199,13 +199,21 @@ def _events_from_bornheim(html: str) -> list:
         if not title_text:
             continue
         for date_text in dates:
+            start = rc.parse_dt(date_text)
+            description = common.factual_event_description(
+                title_text,
+                date_value=start,
+                city="Bornheim",
+                calendar_name="Bornheim",
+                categories=(cat,),
+            )
             ev = common.make_event(
                 title_text,
-                rc.parse_dt(date_text),
+                start,
                 None,
                 "",
                 "Bornheim",
-                rc.clean(part),
+                description,
                 rc.abs_url("https://www.bornheim.de", href.group(1) if href else ""),
                 "Bornheim",
                 f"bornheim {cat} lokal markt kultur natur",
