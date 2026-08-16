@@ -1550,8 +1550,9 @@ _FREE_ADMISSION_PATTERNS = (
     r"\beintritt\s+(?:auch\s+)?(?:zu|für|fuer)\s+[^.]{1,60}\s+"
     r"(?:ist|bleibt)\s+(?:frei|kostenlos|kostenfrei)\b",
     r"\bfreier\s+eintritt\b",
+    r"\b(?:kostenloser|kostenfreier)\s+eintritt\b",
     r"\b(?:bei|mit)\s+frei(?:em|en)\s+eintritt\b",
-    r"\b(?:teilnahme|veranstaltung|performance|workshop|angebote?|programm|sportangebot|termin|event)"
+    r"\b(?:teilnahme|veranstaltung|ausstellung|ferienprogramm|performance|workshop|angebote?|programm|sportangebot|termin|event)"
     r"\s+.{0,90}\b(?:ist|sind)\s+(?:kostenlos|kostenfrei)\b",
     r"\b(?:kostenlos(?:e[rsn]?|em|en|es)?|kostenfrei(?:e[rsn]?|em|en|es)?)[,\s–-]+"
     r"(?:[a-zäöüß-]+[,\s]+){0,2}(?:teilnahme|veranstaltung|angebot|programm|sportangebot|"
