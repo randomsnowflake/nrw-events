@@ -119,26 +119,9 @@ class MarktcomSourceTests(unittest.TestCase):
                 self.assertFalse(marktcom._is_integrated_organizer(organizer))
 
     def test_new_first_party_sources_are_not_duplicated_from_the_directory(self):
-        for organizer in ("Melan macht Märkte", "Krewelshof", "Schmitt Veranstaltungen"):
+        for organizer in ("Melan macht Märkte", "Krewelshof"):
             with self.subTest(organizer=organizer):
                 self.assertTrue(marktcom._is_integrated_organizer(organizer))
-
-    def test_targeted_first_party_replacements_do_not_drop_other_organizer_events(self):
-        self.assertTrue(marktcom._has_first_party_replacement(
-            "BV Wilberhofen-Rossel",
-            "Dorf-Flohmarkt Dorf-Trödel",
-            "Windeck",
-        ))
-        self.assertTrue(marktcom._has_first_party_replacement(
-            "Rieder-Märkte",
-            "REWE Ihr Kaufpark Solingen-Aufderhöhe",
-            "Solingen",
-        ))
-        self.assertFalse(marktcom._has_first_party_replacement(
-            "Rieder-Märkte",
-            "Hagebaumarkt Haan",
-            "Haan",
-        ))
 
     def test_hyphenated_municipality_is_preserved(self):
         html = _listing(

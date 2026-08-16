@@ -233,6 +233,7 @@ scripts/nrw_events/
   jsonld.py
   junk_rules.py
   location.py
+  market_source_fallbacks.py
   models.py
   normalization.py
   observability.py

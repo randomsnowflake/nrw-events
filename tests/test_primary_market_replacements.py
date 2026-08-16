@@ -1,6 +1,11 @@
 import unittest
 from datetime import datetime
+from unittest import mock
 
+from nrw_events import config, runner
+from nrw_events.market_source_fallbacks import partition_directory_fallbacks
+from nrw_events.observability import configure_logging
+from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.sources import (
     SOURCES,
     regional_common,
@@ -8,6 +13,7 @@ from nrw_events.sources import (
     rossel_wilberhofen,
     schmitt_markets,
 )
+from nrw_events.validation import validate_event
 from tests.helpers import patch_window
 
 
@@ -103,6 +109,149 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         location = "<p>Friedenstraße 96, 42699 Solingen</p>"
         with self.assertRaisesRegex(regional_common.ParserEmptyError, "address or hours"):
             rieder_markets._events_from_pages(terms, location, strict=True)
+
+    @staticmethod
+    def _canonical(
+        title, date, city, source, source_id, organizer="", venue="Marktplatz",
+    ):
+        return validate_event({
+            "title": title,
+            "source": source,
+            "source_id": source_id,
+            "date": date,
+            "start_date": date,
+            "end_date": date,
+            "city": city,
+            "venue": venue,
+            "organizer": organizer,
+            "score": 1.0,
+        })
+
+    def _directory_cohort(self):
+        rows = (
+            ("Dorf-Flohmarkt Dorf-Trödel Windeck", "2026-08-16", "Windeck", "BV Wilberhofen-Rossel", "Wilberhofen"),
+            ("Flohmarkt 56626 Andernach, Kaufland", "2026-08-16", "Andernach", "Schmitt Veranstaltungen", "Kaufland"),
+            ("Flohmarkt REWE Ihr Kaufpark Solingen-Aufderhöhe", "2026-08-16", "Solingen", "Rieder-Märkte", "REWE Ihr Kaufpark Solingen-Aufderhöhe"),
+            ("Flohmarkt 56218 Mülheim-Kärlich, Kaufland", "2026-08-23", "Mülheim-Kärlich", "Schmitt Veranstaltungen", "Kaufland"),
+            ("Flohmarkt 56170 Bendorf, Kaufland", "2026-08-30", "Bendorf", "Schmitt Veranstaltungen", "Kaufland"),
+            ("Flohmarkt HELLWEG Monheim", "2026-09-06", "Monheim Am Rhein", "Rieder-Märkte", "HELLWEG"),
+            ("Flohmarkt Kirmesplatz Reisholz", "2026-09-13", "Düsseldorf", "Rieder-Märkte", "Kirmesplatz"),
+        )
+        return [
+            self._canonical(title, date, city, "marktcom", "marktcom", organizer, venue)
+            for title, date, city, organizer, venue in rows
+        ]
+
+    def _primary_cohort(self):
+        rows = (
+            ("Dorf-Flohmarkt Wilberhofen", "2026-08-16", "Windeck", "Bürgerverein Rossel-Wilberhofen", "rossel-wilberhofen-dorfflohmarkt"),
+            ("Flohmarkt Andernach, Kaufland", "2026-08-16", "Andernach", "Schmitt Veranstaltungen", "schmitt-veranstaltungen"),
+            ("Trödelmarkt Solingen-Aufderhöhe, REWE Ihr Kaufpark", "2026-08-16", "Solingen", "Rieder Märkte", "rieder-solingen-rewe"),
+            ("Flohmarkt Mülheim-Kärlich, Kaufland", "2026-08-23", "Mülheim-Kärlich", "Schmitt Veranstaltungen", "schmitt-veranstaltungen"),
+            ("Flohmarkt Bendorf, Kaufland", "2026-08-30", "Bendorf", "Schmitt Veranstaltungen", "schmitt-veranstaltungen"),
+        )
+        return [
+            self._canonical(title, date, city, source, source_id)
+            for title, date, city, source, source_id in rows
+        ]
+
+    def test_primary_sources_preserve_the_full_seven_event_directory_cohort(self):
+        kept, replaced = partition_directory_fallbacks([
+            *self._directory_cohort(), *self._primary_cohort(),
+        ])
+
+        self.assertEqual(len(kept), 7)
+        self.assertEqual(len(replaced), 5)
+        self.assertEqual(
+            {event.source_id for event in kept},
+            {
+                "rossel-wilberhofen-dorfflohmarkt",
+                "schmitt-veranstaltungen",
+                "rieder-solingen-rewe",
+                "marktcom",
+            },
+        )
+        self.assertEqual(
+            {(event.start_date, event.city) for event in kept},
+            {(event.start_date, event.city) for event in self._directory_cohort()},
+        )
+
+    def test_marktcom_is_retained_when_primary_sources_return_nothing(self):
+        directory = self._directory_cohort()
+
+        kept, replaced = partition_directory_fallbacks(directory)
+
+        self.assertEqual(kept, directory)
+        self.assertEqual(replaced, [])
+
+    def test_partial_primary_results_replace_only_matching_occurrences(self):
+        directory = self._directory_cohort()
+        [_windeck, andernach, *_rest] = self._primary_cohort()
+
+        kept, replaced = partition_directory_fallbacks([*directory, andernach])
+
+        self.assertEqual(len(kept), 7)
+        self.assertEqual(len(replaced), 1)
+        self.assertEqual(replaced[0].city, "Andernach")
+        self.assertTrue(any(
+            event.city == "Windeck" and event.source_id == "marktcom"
+            for event in kept
+        ))
+
+    def test_runner_uses_marktcom_only_for_primary_occurrence_gaps(self):
+        directory = [event.to_dict() for event in self._directory_cohort()]
+        primary = [event.to_dict() for event in self._primary_cohort()]
+        sources = {
+            "marktcom": lambda: directory,
+            "Bürgerverein Rossel-Wilberhofen": lambda: primary[:1],
+            "Schmitt Veranstaltungen": lambda: [primary[1], *primary[3:]],
+            "Rieder Märkte": lambda: primary[2:3],
+        }
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 8, 16), datetime(2026, 9, 13)),
+            "market-fallbacks",
+            configure_logging("market-fallbacks", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 8, 16, 12),
+        )
+
+        with mock.patch.object(
+            runner.detail_enrichment,
+            "enrich_events",
+            side_effect=lambda events, **_kwargs: events,
+        ):
+            result = runner.run_import(context, sources)
+
+        self.assertEqual(len(result.events), 7)
+        self.assertEqual(
+            result.source_results["marktcom"].rejection_reasons,
+            {"filter:first_party_replacement": 5},
+        )
+
+    def test_runner_retains_fallback_when_primary_record_is_not_publishable(self):
+        directory = [event.to_dict() for event in self._directory_cohort()]
+        [windeck, *_rest] = [event.to_dict() for event in self._primary_cohort()]
+        windeck["score"] = 0.1
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json="", score_floor=0.8),
+            EventWindow(datetime(2026, 8, 16), datetime(2026, 9, 13)),
+            "market-filtered-primary",
+            configure_logging("market-filtered-primary", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 8, 16, 12),
+        )
+
+        with mock.patch.object(
+            runner.detail_enrichment,
+            "enrich_events",
+            side_effect=lambda events, **_kwargs: events,
+        ):
+            result = runner.run_import(context, {
+                "marktcom": lambda: directory,
+                "Bürgerverein Rossel-Wilberhofen": lambda: [windeck],
+            })
+
+        self.assertEqual(len(result.events), 7)
+        self.assertTrue(all(event.source_id == "marktcom" for event in result.events))
 
 
 if __name__ == "__main__":
