@@ -102,7 +102,7 @@ def _series_place_key(event) -> str:
 def suppress_redundant_series_umbrellas(
     events: list[CanonicalEvent],
 ) -> list[CanonicalEvent]:
-    """Drop a covered civic-calendar umbrella when first-party programme rows exist.
+    """Drop a covered lower-authority umbrella when first-party programme rows exist.
 
     This is deliberately narrower than duplicate matching: one generic calendar
     row can represent several concrete programme items, so it cannot be merged
@@ -115,11 +115,13 @@ def suppress_redundant_series_umbrellas(
         series_title = comparison_text(str(event.get("series_title") or ""))
         title = comparison_text(str(event.get("title") or ""))
         place = _series_place_key(event)
+        authority = source_authority(str(event.get("source") or ""))
         if (
             series_title
             and title != series_title
             and place
             and event.get("status") == "scheduled"
+            and authority == 3
         ):
             start_date = str(event.get("start_date") or "")
             end_date = str(event.get("end_date") or start_date)
@@ -127,7 +129,7 @@ def suppress_redundant_series_umbrellas(
                 programme_rows[(series_title, place)].append((
                     start_date,
                     end_date,
-                    source_authority(str(event.get("source") or "")),
+                    authority,
                 ))
 
     result = []
