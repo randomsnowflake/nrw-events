@@ -329,6 +329,18 @@ def _rex_venue(schedule_text: str, fallback_text: str) -> str:
 
 
 def _events_from_stummfilmtage(html: str) -> list:
+    page_text = rc.clean(html or "")
+    edition_m = re.search(
+        r"Das\s+(\d+)\.\s*Bonner\s+Sommerkino\s*[-–—]\s*Internationale\s+Stummfilmtage",
+        page_text,
+        re.I,
+    )
+    if edition_m:
+        series_title = (
+            f"Internationale Stummfilmtage – {edition_m.group(1)}. Bonner Sommerkino"
+        )
+    else:
+        series_title = "Internationale Stummfilmtage"
     calendar_m = re.search(r'id="spielplan-calendar"(.*?)(?=</section>)', html or "", re.S | re.I)
     if not calendar_m:
         return []
@@ -419,6 +431,7 @@ def _events_from_stummfilmtage(html: str) -> list:
                 category_locked=True,
             )
             if event:
+                event["series_title"] = series_title
                 events.append(event)
     return events
 

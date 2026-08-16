@@ -6,7 +6,7 @@ from unittest import mock
 from datetime import date, datetime
 from pathlib import Path
 
-from nrw_events import common, config, highlights, runner, series
+from nrw_events import common, config, highlights, report, runner, series
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.source_specs import AdapterType, SourceSpec, adapter_for, load_source_specs, typed_adapter_for
@@ -412,6 +412,137 @@ class OpenIssueContractTests(unittest.TestCase):
             ["2026-08-12", "2026-08-19", "2026-08-28"],
         )
         self.assertNotIn("series_id", rows[-1])
+
+    def test_primary_program_suppresses_only_covered_lower_authority_umbrellas(self):
+        series_title = "Internationale Stummfilmtage – 42. Bonner Sommerkino"
+        primary = [
+            raw_event(
+                title,
+                day,
+                source="Internationale Stummfilmtage",
+                source_id="internationale-stummfilmtage",
+                series_title=series_title,
+                venue="Arkadenhof Universität Bonn",
+                venue_id="arkadenhof-universitaet-bonn",
+            )
+            for title, day in (
+                ("Should Men Walk Home?", "2026-08-17"),
+                ("Schatten der Weltstadt", "2026-08-17"),
+            )
+        ]
+        covered_umbrella = raw_event(
+            series_title,
+            "2026-08-17",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
+        fallback_umbrella = raw_event(
+            series_title,
+            "2026-08-18",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
+        different_venue = raw_event(
+            series_title,
+            "2026-08-17",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            venue="Brotfabrik Bonn",
+            venue_id="brotfabrik-bonn",
+        )
+        peer_umbrella = raw_event(
+            series_title,
+            "2026-08-17",
+            source="Festival venue",
+            source_id="festival-venue",
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
+        multiday_fallback = raw_event(
+            series_title,
+            "2026-08-17",
+            end_date="2026-08-18",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
+
+        result = report.suppress_redundant_series_umbrellas([
+            *primary, covered_umbrella, fallback_umbrella, different_venue,
+            peer_umbrella, multiday_fallback,
+        ])
+
+        self.assertEqual(
+            [(event["title"], event["start_date"], event["venue_id"]) for event in result],
+            [
+                ("Should Men Walk Home?", "2026-08-17", "arkadenhof-universitaet-bonn"),
+                ("Schatten der Weltstadt", "2026-08-17", "arkadenhof-universitaet-bonn"),
+                (series_title, "2026-08-18", "arkadenhof-universitaet-bonn"),
+                (series_title, "2026-08-17", "brotfabrik-bonn"),
+                (series_title, "2026-08-17", "arkadenhof-universitaet-bonn"),
+                (series_title, "2026-08-17", "arkadenhof-universitaet-bonn"),
+            ],
+        )
+
+    def test_runner_publishes_primary_program_as_series_and_keeps_uncovered_fallback(self):
+        series_title = "Internationale Stummfilmtage – 42. Bonner Sommerkino"
+        primary = [
+            raw_event(
+                title,
+                "2026-08-17",
+                source="Internationale Stummfilmtage",
+                source_id="internationale-stummfilmtage",
+                series_title=series_title,
+                venue="Arkadenhof Universität Bonn",
+                venue_id="arkadenhof-universitaet-bonn",
+            )
+            for title in ("Should Men Walk Home?", "Schatten der Weltstadt")
+        ]
+        civic = [
+            raw_event(
+                series_title,
+                day,
+                source="Bonn.de Events",
+                source_id="bonn-de-events",
+                venue="Arkadenhof Universität Bonn",
+                venue_id="arkadenhof-universitaet-bonn",
+            )
+            for day in ("2026-08-17", "2026-08-18")
+        ]
+        settings = config.RuntimeConfig(
+            score_floor=0,
+            radius_km=1000,
+            series_ledger_json="",
+        )
+        context = RunContext(
+            settings,
+            EventWindow(datetime(2026, 8, 17), datetime(2026, 8, 18)),
+            "primary-series",
+            configure_logging("primary-series", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 8, 16, 12),
+        )
+
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}):
+            result = runner.run_import(context, {
+                "Internationale Stummfilmtage": lambda: primary,
+                "Bonn.de Events": lambda: civic,
+            })
+
+        self.assertEqual(
+            [(event.title, event.start_date, event.source_id) for event in result.events],
+            [
+                ("Should Men Walk Home?", "2026-08-17", "internationale-stummfilmtage"),
+                ("Schatten der Weltstadt", "2026-08-17", "internationale-stummfilmtage"),
+                (series_title, "2026-08-18", "bonn-de-events"),
+            ],
+        )
+        self.assertEqual(len({event.series_id for event in result.events}), 1)
+        self.assertEqual({event.series_title for event in result.events}, {series_title})
 
     def test_sundowner_ledger_title_variants_migrate_into_one_series(self):
         ledger = {"schema_version": 1, "series": {
