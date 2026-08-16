@@ -446,6 +446,34 @@ class OpenIssueContractTests(unittest.TestCase):
             venue="Arkadenhof Universität Bonn",
             venue_id="arkadenhof-universitaet-bonn",
         )
+        cancelled_primary = raw_event(
+            "Cancelled programme",
+            "2026-08-18",
+            status="cancelled",
+            source="Internationale Stummfilmtage",
+            source_id="internationale-stummfilmtage",
+            series_title=series_title,
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
+        postponed_primary = raw_event(
+            "Postponed programme",
+            "2026-08-19",
+            status="postponed",
+            source="Internationale Stummfilmtage",
+            source_id="internationale-stummfilmtage",
+            series_title=series_title,
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
+        postponed_fallback = raw_event(
+            series_title,
+            "2026-08-19",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
         different_venue = raw_event(
             series_title,
             "2026-08-17",
@@ -473,7 +501,8 @@ class OpenIssueContractTests(unittest.TestCase):
         )
 
         result = report.suppress_redundant_series_umbrellas([
-            *primary, covered_umbrella, fallback_umbrella, different_venue,
+            *primary, cancelled_primary, postponed_primary,
+            covered_umbrella, fallback_umbrella, postponed_fallback, different_venue,
             peer_umbrella, multiday_fallback,
         ])
 
@@ -482,7 +511,10 @@ class OpenIssueContractTests(unittest.TestCase):
             [
                 ("Should Men Walk Home?", "2026-08-17", "arkadenhof-universitaet-bonn"),
                 ("Schatten der Weltstadt", "2026-08-17", "arkadenhof-universitaet-bonn"),
+                ("Cancelled programme", "2026-08-18", "arkadenhof-universitaet-bonn"),
+                ("Postponed programme", "2026-08-19", "arkadenhof-universitaet-bonn"),
                 (series_title, "2026-08-18", "arkadenhof-universitaet-bonn"),
+                (series_title, "2026-08-19", "arkadenhof-universitaet-bonn"),
                 (series_title, "2026-08-17", "brotfabrik-bonn"),
                 (series_title, "2026-08-17", "arkadenhof-universitaet-bonn"),
                 (series_title, "2026-08-17", "arkadenhof-universitaet-bonn"),

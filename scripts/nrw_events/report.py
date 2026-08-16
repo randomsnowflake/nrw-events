@@ -115,7 +115,12 @@ def suppress_redundant_series_umbrellas(
         series_title = comparison_text(str(event.get("series_title") or ""))
         title = comparison_text(str(event.get("title") or ""))
         place = _series_place_key(event)
-        if series_title and title != series_title and place:
+        if (
+            series_title
+            and title != series_title
+            and place
+            and event.get("status") == "scheduled"
+        ):
             start_date = str(event.get("start_date") or "")
             end_date = str(event.get("end_date") or start_date)
             if start_date:
