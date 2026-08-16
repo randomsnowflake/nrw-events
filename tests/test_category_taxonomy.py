@@ -76,6 +76,11 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("Repaircafe im Selbstwerk Bonn", "workshop"),
             ("AfterJobParty Museumsmeile", "nightlife"),
             ("Hennefer Radsporttag", "sports"),
+            ("Naturyoga für jedermann auf der Insel", "sports"),
+            ("Köln Triathlon", "sports"),
+            ("Bilderbuchkino in der Stadtbücherei", "cinema"),
+            ("Internationale Orgelkunst: Sommer-Orgelfestival", "concert"),
+            ("2. Bad Honnefer Kleinkunstpreis", "stage"),
             ('ADFC-Feierabendtour "Über Berg und Tal"', "outdoor"),
         )
 
