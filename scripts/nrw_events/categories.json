@@ -18,6 +18,20 @@
       "key": "activities",
       "keywords": [
         {
+          "value": "cryptoparty",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "wissens-olympiade",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
           "value": "fotoclub",
           "match_mode": "word",
           "scope": "all",
@@ -75,6 +89,13 @@
       "key": "outdoor",
       "keywords": [
         {
+          "value": "sonntagsspaziergang",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
           "value": "soundwalk",
           "match_mode": "word",
           "scope": "all",
@@ -93,6 +114,20 @@
     {
       "key": "sports",
       "keywords": [
+        {
+          "value": "karate",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
+          "value": "turnier",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
         {
           "value": "gymnastik",
           "match_mode": "word_suffix",
@@ -127,6 +162,13 @@
       "key": "festival",
       "keywords": [
         {
+          "value": "fassanstich",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
           "value": "biker-treffen",
           "match_mode": "word",
           "scope": "all",
@@ -149,6 +191,18 @@
           "value": "karikatur",
           "match_mode": "word_prefix",
           "scope": "all",
+          "weight": 1.0,
+          "comment": "forced override"
+        }
+      ]
+    },
+    {
+      "key": "market",
+      "keywords": [
+        {
+          "value": "kleidertauschbörse",
+          "match_mode": "word_suffix",
+          "scope": "title",
           "weight": 1.0,
           "comment": "forced override"
         }
