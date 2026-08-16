@@ -499,11 +499,29 @@ class OpenIssueContractTests(unittest.TestCase):
             venue="Arkadenhof Universität Bonn",
             venue_id="arkadenhof-universitaet-bonn",
         )
+        aggregator_program = raw_event(
+            "Aggregator programme item",
+            "2026-08-17",
+            source="Eventbrite",
+            source_id="eventbrite",
+            series_title=series_title,
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
+        lower_authority_umbrella = raw_event(
+            series_title,
+            "2026-08-17",
+            source="Tourismus NRW",
+            source_id="tourismus-nrw",
+            venue="Arkadenhof Universität Bonn",
+            venue_id="arkadenhof-universitaet-bonn",
+        )
 
         result = report.suppress_redundant_series_umbrellas([
             *primary, cancelled_primary, postponed_primary,
             covered_umbrella, fallback_umbrella, postponed_fallback, different_venue,
-            peer_umbrella, multiday_fallback,
+            peer_umbrella, multiday_fallback, aggregator_program,
+            lower_authority_umbrella,
         ])
 
         self.assertEqual(
@@ -517,6 +535,8 @@ class OpenIssueContractTests(unittest.TestCase):
                 (series_title, "2026-08-19", "arkadenhof-universitaet-bonn"),
                 (series_title, "2026-08-17", "brotfabrik-bonn"),
                 (series_title, "2026-08-17", "arkadenhof-universitaet-bonn"),
+                (series_title, "2026-08-17", "arkadenhof-universitaet-bonn"),
+                ("Aggregator programme item", "2026-08-17", "arkadenhof-universitaet-bonn"),
                 (series_title, "2026-08-17", "arkadenhof-universitaet-bonn"),
             ],
         )
