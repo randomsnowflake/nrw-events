@@ -75,7 +75,15 @@ _INTEGRATED_ORGANIZERS = (
     "geide", "grote", "hiller", "lampert", "okken", "cölln", "coelln",
     "hofflohmärkte", "hofflohmaerkte", "hoffloh", "kinderflohmarkt",
     "rhein antik", "rhein-antik", "brückenforum", "brueckenforum",
-    "katharinenhof", "melan", "krewelshof",
+    "katharinenhof", "melan", "krewelshof", "schmitt veranstaltungen",
+)
+
+# Some first-party adapters intentionally cover only one recurring market rather
+# than every event from an organizer. Drop only the matching directory record so
+# unrelated markets retain coverage.
+_FIRST_PARTY_EVENT_REPLACEMENTS = (
+    ("bv wilberhofen rossel", "dorf flohmarkt", "windeck"),
+    ("rieder märkte", "rewe ihr kaufpark solingen aufderhöhe", "solingen"),
 )
 
 # Safety stop for pagination; reaching it is logged rather than silently truncated.
@@ -112,6 +120,18 @@ def listing_url(category_id: int, page: int = 1) -> str:
 def _is_integrated_organizer(organizer: str) -> bool:
     normalized = " ".join((organizer or "").casefold().split())
     return any(marker in normalized for marker in _INTEGRATED_ORGANIZERS)
+
+
+def _identity_text(value: str) -> str:
+    return " ".join(re.sub(r"[^\w]+", " ", (value or "").casefold()).split())
+
+
+def _has_first_party_replacement(organizer: str, event_name: str, city: str) -> bool:
+    identity = tuple(_identity_text(value) for value in (organizer, event_name, city))
+    return any(
+        all(marker in value for marker, value in zip(replacement, identity))
+        for replacement in _FIRST_PARTY_EVENT_REPLACEMENTS
+    )
 
 
 def _market_title(event_name: str, category_label: str, city: str) -> str:
@@ -183,6 +203,8 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
 
         link = rc.abs_url(_BASE_URL, name_match.group(1))
         venue = rc.clean(name_match.group(2))
+        if _has_first_party_replacement(organizer, venue, city):
+            continue
         if detail_fetcher and re.search(r"(?:\.\.\.|…)$", venue):
             try:
                 complete_title = _detail_title(detail_fetcher(link))
