@@ -19,7 +19,7 @@ def _events_from_pages(news_html: str, calendar_html: str, *, strict: bool = Fal
     calendar = common.clean_html(calendar_html or "")
     year_match = re.search(r"Termine(?: und Veranstaltungen)?\s+(20\d{2})", calendar, re.I)
     calendar_match = re.search(
-        r"16\.08\.\s+ab\s+09:30.*?Traditionelles\s+Rochusfest",
+        r"(\d{1,2})\.(\d{1,2})\.\s+ab\s+09:30.*?Traditionelles\s+Rochusfest",
         calendar,
         re.I,
     )
@@ -38,6 +38,9 @@ def _events_from_pages(news_html: str, calendar_html: str, *, strict: bool = Fal
         return []
 
     year = int(year_match.group(1))
+    calendar_day, calendar_month = (
+        int(value) for value in calendar_match.groups()
+    )
     day, start_hour, start_minute, end_hour, end_minute = (
         int(value) for value in event_match.groups()
     )
@@ -48,7 +51,7 @@ def _events_from_pages(news_html: str, calendar_html: str, *, strict: bool = Fal
         if strict:
             raise rc.ParserEmptyError("Rossel-Wilberhofen date contract changed")
         return []
-    if day != 16:
+    if (day, 8) != (calendar_day, calendar_month):
         if strict:
             raise rc.ParserEmptyError("Rossel-Wilberhofen news/calendar dates disagree")
         return []

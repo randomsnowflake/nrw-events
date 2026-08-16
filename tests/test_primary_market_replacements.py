@@ -54,6 +54,32 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         with self.assertRaises(regional_common.ParserEmptyError):
             rossel_wilberhofen._events_from_pages(news, calendar.replace("2026", ""), strict=True)
 
+    def test_rossel_wilberhofen_derives_the_day_from_the_calendar(self):
+        news = """
+        <meta property="og:site_name" content="Bürgerverein Rossel-Wilberhofen">
+        <p>Am Sonntag, den 17. August findet zudem in der Zeit zwischen
+        10.00-18.00 Uhr wieder ein Dorf-Flohmarkt im gesamten Ort statt.</p>
+        """
+        calendar = """
+        <h2>Termine und Veranstaltungen</h2><h3>2026</h3>
+        <tr><td>17.08.</td><td>ab 09:30</td><td>Rund um die Rochuskapelle</td>
+        <td>Traditionelles Rochusfest</td></tr>
+        """
+
+        [event] = rossel_wilberhofen._events_from_pages(news, calendar, strict=True)
+
+        self.assertEqual(event["date"], "2026-08-17")
+
+        with self.assertRaisesRegex(
+            regional_common.ParserEmptyError,
+            "news/calendar dates disagree",
+        ):
+            rossel_wilberhofen._events_from_pages(
+                news,
+                calendar.replace("17.08.", "16.08."),
+                strict=True,
+            )
+
     def test_schmitt_parses_official_calendar_and_visitor_start(self):
         html = """
         <h2>Unsere Markttermine - Für weitere Infos einfach Termin anklicken!</h2>
@@ -215,11 +241,12 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
             clock=lambda: datetime(2026, 8, 16, 12),
         )
 
-        with mock.patch.object(
-            runner.detail_enrichment,
-            "enrich_events",
-            side_effect=lambda events, **_kwargs: events,
-        ):
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+             mock.patch.object(
+                 runner.detail_enrichment,
+                 "enrich_events",
+                 side_effect=lambda events, **_kwargs: events,
+             ):
             result = runner.run_import(context, sources)
 
         self.assertEqual(len(result.events), 7)
@@ -240,11 +267,12 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
             clock=lambda: datetime(2026, 8, 16, 12),
         )
 
-        with mock.patch.object(
-            runner.detail_enrichment,
-            "enrich_events",
-            side_effect=lambda events, **_kwargs: events,
-        ):
+        with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
+             mock.patch.object(
+                 runner.detail_enrichment,
+                 "enrich_events",
+                 side_effect=lambda events, **_kwargs: events,
+             ):
             result = runner.run_import(context, {
                 "marktcom": lambda: directory,
                 "Bürgerverein Rossel-Wilberhofen": lambda: [windeck],
