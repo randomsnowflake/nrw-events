@@ -109,6 +109,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Bundeskunsthalle | `bundeskunsthalle` | `python` |
 | bonn-region | BV Holzlar | `bv-holzlar` | `python` |
 | bonn-region | b° future festival | `b-future-festival` | `python` |
+| bonn-region | Bürgerverein Rossel-Wilberhofen | `rossel-wilberhofen-dorfflohmarkt` | `python` |
 | bonn-region | Bürgerverein Vilich-Müldorf | `b-rgerverein-vilich-m-ldorf` | `python` |
 | bonn-region | Choco Dealer | `choco-dealer` | `python` |
 | bonn-region | Craftquelle Bonn | `craftquelle-bonn` | `python` |
@@ -163,9 +164,11 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Rheinauen-Flohmarkt | `rheinauen-flohmarkt` | `python` |
 | bonn-region | Rheinbach Flohmarkt | `rheinbach-flohmarkt` | `python` |
 | bonn-region | RheinEvents | `rheinevents` | `python` |
+| bonn-region | Rieder Märkte | `rieder-solingen-rewe` | `python` |
 | bonn-region | RiF Events | `rif-events` | `python` |
 | bonn-region | Ruhr-Guide | `ruhr-guide` | `python` |
 | bonn-region | Salsa in Bonn | `salsa-in-bonn` | `python` |
+| bonn-region | Schmitt Veranstaltungen | `schmitt-veranstaltungen` | `python` |
 | bonn-region | Siegburg | `siegburg` | `python` |
 | bonn-region | SiteKit regional | `sitekit-regional` | `python` |
 | bonn-region | Standard regional feeds | `standard-regional-feeds` | `python` |
@@ -215,6 +218,7 @@ scripts/nrw_events/
   jsonld.py
   junk_rules.py
   location.py
+  market_source_fallbacks.py
   models.py
   normalization.py
   observability.py
@@ -293,9 +297,12 @@ scripts/nrw_events/
     rhein_antik.py
     rheinbach_flohmarkt.py
     rheinevents.py
+    rieder_markets.py
     rif_events.py
+    rossel_wilberhofen.py
     ruhrguide.py
     salsainbonn.py
+    schmitt_markets.py
     search.py
     siebengebirge.py
     siegburg.py

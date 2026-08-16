@@ -35,6 +35,7 @@ from .health import (
     SourceStatus,
 )
 from .identity import assign_event_ids, content_hash, event_id
+from .market_source_fallbacks import partition_directory_fallbacks
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
 from .observability import configure_logging, log, redact
@@ -1587,6 +1588,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 result.reject(rejection_reason, event, in_window=True)
             continue
         filtered.append(event)
+    filtered, replaced_market_fallbacks = partition_directory_fallbacks(filtered)
+    for event in replaced_market_fallbacks:
+        result = _source_result_for_event(event, source_results)
+        if result is not None:
+            result.reject("filter:first_party_replacement", event, in_window=True)
     cancellations = [
         event
         for result in source_results.values()
