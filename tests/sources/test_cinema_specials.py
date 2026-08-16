@@ -165,6 +165,7 @@ class CinemaSpecialSourceTests(unittest.TestCase):
 
     def test_stummfilmtage_builds_dates_from_tabs_and_skips_empty_day(self):
         html = """
+<p>Das 42. Bonner Sommerkino - Internationale Stummfilmtage findet im Arkadenhof statt.</p>
 <section id="spielplan-calendar">
   <div>Programm <br/>August 2026</div>
   <a data-w-tab="Tab 1"><div class="headline-date">13</div></a>
@@ -196,6 +197,10 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["admission_basis"], "explicit")
         self.assertEqual(validate_event(events[0])["admission"]["basis"], "structured")
         self.assertEqual(events[0]["category_key"], "cinema")
+        self.assertEqual(
+            events[0]["series_title"],
+            "Internationale Stummfilmtage – 42. Bonner Sommerkino",
+        )
         self.assertEqual(
             events[0]["category_reason"],
             "source:locked-default:cinema",

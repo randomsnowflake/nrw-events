@@ -90,6 +90,70 @@ def source_authority(source: str) -> int:
     return 3
 
 
+def _series_place_key(event) -> str:
+    venue_id = str(event.get("venue_id") or "").strip()
+    if venue_id:
+        return f"venue:{venue_id}"
+    venue = comparison_text(str(event.get("venue") or ""))
+    city = comparison_text(str(event.get("city") or ""))
+    return f"label:{city}\n{venue}" if venue else ""
+
+
+def suppress_redundant_series_umbrellas(
+    events: list[CanonicalEvent],
+) -> list[CanonicalEvent]:
+    """Drop a covered civic-calendar umbrella when first-party programme rows exist.
+
+    This is deliberately narrower than duplicate matching: one generic calendar
+    row can represent several concrete programme items, so it cannot be merged
+    into an arbitrary child.  Only a single-day umbrella whose exact title is a
+    higher-authority event's explicit ``series_title`` is removed.  Uncovered
+    dates, different venues, peers, and multi-day fallbacks remain publishable.
+    """
+    programme_rows = defaultdict(list)
+    for event in events:
+        series_title = comparison_text(str(event.get("series_title") or ""))
+        title = comparison_text(str(event.get("title") or ""))
+        place = _series_place_key(event)
+        if (
+            series_title
+            and title != series_title
+            and place
+            and event.get("status") == "scheduled"
+        ):
+            start_date = str(event.get("start_date") or "")
+            end_date = str(event.get("end_date") or start_date)
+            if start_date:
+                programme_rows[(series_title, place)].append((
+                    start_date,
+                    end_date,
+                    source_authority(str(event.get("source") or "")),
+                ))
+
+    result = []
+    for event in events:
+        title = comparison_text(str(event.get("title") or ""))
+        start_date = str(event.get("start_date") or "")
+        end_date = str(event.get("end_date") or start_date)
+        place = _series_place_key(event)
+        authority = source_authority(str(event.get("source") or ""))
+        covered = bool(
+            title
+            and place
+            and start_date
+            and start_date == end_date
+            and any(
+                programme_start <= start_date <= programme_end
+                and programme_authority > authority
+                for programme_start, programme_end, programme_authority
+                in programme_rows.get((title, place), ())
+            )
+        )
+        if not covered:
+            result.append(event)
+    return result
+
+
 # ── Dedup ───────────────────────────────────────────────────────────
 
 def normalize_title(title: str) -> str:

@@ -1633,6 +1633,8 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     deduped = _enforce_restricted_publication_boundary([
         *fresh_deduped, *retained_only,
     ])
+    deduped = report.suppress_redundant_series_umbrellas(deduped)
+    published_event_ids = {event_id(event) for event in deduped}
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = _reconcile_published_ids(deduped, previous)
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
@@ -1682,6 +1684,8 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
 
     actual_by_source: dict[str, int] = {}
     for event in retained_only:
+        if event_id(event) not in published_event_ids:
+            continue
         actual_by_source[event.source_id] = actual_by_source.get(event.source_id, 0) + 1
     retained_sources = retention.get("retained_sources")
     if isinstance(retained_sources, list):
