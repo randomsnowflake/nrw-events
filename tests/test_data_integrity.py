@@ -96,6 +96,40 @@ class DataIntegrityTests(unittest.TestCase):
 
         self.assertEqual(event.category_key, "outdoor")
 
+    def test_validation_backfills_reason_for_matching_canonical_category(self):
+        event = validate_event({
+            "title": "Straßenfest im Agnesviertel",
+            "source": "Kölner Straßenfeste",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Köln",
+            "category": "Fest",
+            "category_key": "festival",
+            "category_label": "Feste & Stadtleben",
+            "category_confidence": 0.0,
+            "category_reason": "",
+        })
+
+        self.assertEqual(event.category_key, "festival")
+        self.assertEqual(event.category_reason, "source:canonical:festival")
+
+    def test_validation_preserves_canonical_category_when_backfilling_reason(self):
+        event = validate_event({
+            "title": "Sekt and the City - Frisch geföhnt und flach gelegt",
+            "source": "Haus der Springmaus",
+            "date": "2026-06-12",
+            "score": 1.0,
+            "city": "Bonn",
+            "category": "Event",
+            "category_key": "stage",
+            "category_label": "Theater & Bühne",
+            "category_confidence": 0.0,
+            "category_reason": "",
+        })
+
+        self.assertEqual(event.category_key, "stage")
+        self.assertEqual(event.category_reason, "source:canonical:stage")
+
     def test_validation_infers_free_access_for_direct_dict_sources(self):
         event = validate_event({
             "title": "Hofflohmarkt Rondorf",
