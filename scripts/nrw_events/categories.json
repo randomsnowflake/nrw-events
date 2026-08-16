@@ -115,6 +115,13 @@
       "key": "sports",
       "keywords": [
         {
+          "value": "basketball",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
+        {
           "value": "karate",
           "match_mode": "word",
           "scope": "title",
@@ -161,6 +168,13 @@
     {
       "key": "festival",
       "keywords": [
+        {
+          "value": "hafentag",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "forced override"
+        },
         {
           "value": "fassanstich",
           "match_mode": "word",
