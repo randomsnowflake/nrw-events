@@ -47,6 +47,7 @@ _CITYWIDE_VENUE_ALIAS_FAMILIES = {
         frozenset({
             "theaterplatz",
             "bad godesberg",
+            "bad godesberg innenstadt",
             "bad godesberger innenstadt",
             "innenstadt bad godesberg",
         }),

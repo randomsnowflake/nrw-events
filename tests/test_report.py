@@ -74,9 +74,17 @@ class ReportTests(unittest.TestCase):
                 "link": "https://bad-godesberg.info/veranstaltungen_st/street-food-festival",
             },
             {
+                **base, "start_at": "2026-08-28T15:00+02:00",
+                "end_at": "2026-08-28T15:00+02:00", "time": "15:00",
+                "venue": "Bad Godesberg", "source": "Street Food Bonn",
+                "source_id": "street-food-bonn",
+                "link": "https://www.street-food-bonn.de/",
+            },
+            {
                 **base, "date": "2026-08-29", "start_date": "2026-08-29", "end_date": "2026-08-29",
                 "start_at": "2026-08-29T12:00+02:00", "end_at": "2026-08-29T20:00+02:00",
-                "venue": "Bad Godesberger Innenstadt", "source": "Bonn.de Events",
+                "venue": "Bad Godesberg Innenstadt", "venue_address": "Theaterplatz, 53177 Bonn",
+                "source": "Bonn.de Events",
                 "link": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Street-Food-Festival.php",
             },
         ])
