@@ -116,14 +116,25 @@ def _venue(text: str, city: str) -> str:
     return city
 
 
-def _description(paragraphs: list[str]) -> str:
+def _description(paragraphs: list[str], start: datetime) -> str:
     selected = paragraphs[:1]
     selected.extend(
         paragraph
         for paragraph in paragraphs[1:]
         if re.search(r"\b(?:Öffnungszeiten|Zum Schutz)\b", paragraph, re.IGNORECASE)
     )
-    return common.concise_description(" ".join(selected))
+    description = " ".join(selected)
+    # The organizer sometimes updates the actual date range without replacing
+    # the prose year immediately before it. The parsed range is the event-scoped
+    # fact; reconcile only this narrow sentence instead of rewriting other years.
+    start_date_pattern = start.strftime("%d.%m.%Y").replace(".", r"\.")
+    description = re.sub(
+        rf"\bIm Jahr \d{{3,4}}(?=\s+findet\s+die\s+Kirmes\b[^.!?<>\n]{{0,160}}\bvom\s+{start_date_pattern}\b)",
+        f"Im Jahr {start.year}",
+        description,
+        flags=re.IGNORECASE,
+    )
+    return common.concise_description(description)
 
 
 def events_from_html(html: str, *, strict: bool = False) -> list:
@@ -151,7 +162,7 @@ def events_from_html(html: str, *, strict: bool = False) -> list:
             end,
             _venue(prose, city),
             city,
-            _description(paragraphs),
+            _description(paragraphs, start),
             _URL,
             _SOURCE,
             "kirmes volksfest stadtteilfest fahrgeschäfte",
