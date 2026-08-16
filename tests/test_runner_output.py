@@ -489,6 +489,55 @@ class SourceHealthTests(unittest.TestCase):
 
 
 class CrossRunRetentionTests(unittest.TestCase):
+    def test_suppressed_retained_umbrella_is_not_counted_as_published(self):
+        series_title = "Direct Festival Programme"
+        with make_runner_env() as env:
+            previous = {
+                "generated_at": "2026-06-07T05:00:00",
+                "source_results": {
+                    "Bonn.de Events": {
+                        "raw_event_count": 1,
+                        "event_source_ids": ["bonn-de-events"],
+                    },
+                },
+                "events": [{
+                    "title": series_title,
+                    "source": "Bonn.de Events",
+                    "source_id": "bonn-de-events",
+                    "date": "2026-06-09",
+                    "venue": "Test venue",
+                    "venue_id": "test-venue",
+                    "score": 1.0,
+                    "city": "Bonn",
+                }],
+            }
+            env.previous_path.write_text(json.dumps(previous), encoding="utf-8")
+            primary = {
+                "title": "Concrete programme item",
+                "source": "Direct Festival",
+                "source_id": "direct-festival",
+                "series_title": series_title,
+                "date": "2026-06-09",
+                "venue": "Test venue",
+                "venue_id": "test-venue",
+                "score": 1.0,
+                "city": "Bonn",
+            }
+
+            result = runner.run_import(
+                env.context("retained-umbrella", series_ledger_json=""),
+                {
+                    "Bonn.de Events": lambda: SourceFetchResult.parser_empty(),
+                    "Direct Festival": lambda: [primary],
+                },
+            )
+
+        self.assertEqual([event.title for event in result.events], ["Concrete programme item"])
+        self.assertEqual(result.retention["retained_event_count"], 0)
+        self.assertEqual(result.retention["fresh_event_count"], 1)
+        self.assertEqual(result.retention["retained_sources"][0]["source_id"], "bonn-de-events")
+        self.assertEqual(result.retention["retained_sources"][0]["retained_event_count"], 0)
+
     def test_failed_discovery_source_does_not_retain_legacy_public_snapshot(self):
         with make_runner_env() as env:
             previous = {
