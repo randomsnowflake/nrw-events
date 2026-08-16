@@ -483,7 +483,9 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ("Sonntagsspaziergang", "outdoor"),
             ("Taisho e.V. - Karate", "sports"),
             ("2. Birresdorfer Sibbeschröm-Turnier", "sports"),
+            ("Basketball Double-Header Länderspieltag", "sports"),
             ("Fassanstich", "festival"),
+            ("Hafentag im Deutzer Hafen", "festival"),
             ("3. Kleidertauschbörse in Berkum", "market"),
         ]
 
