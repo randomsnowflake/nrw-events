@@ -285,11 +285,12 @@ def _citywide_venue_alias_family(event: dict, title_family: str) -> int | None:
 
 
 def _concrete_numeric_units(value: str) -> set[str]:
+    value = re.sub(r"[\u2010-\u2015\u2212]", "-", value.casefold())
     return {
         re.sub(r"\s+", "", match)
         for match in re.findall(
             r"(?<!\d)\d{1,4}(?:(?:\s*[a-z])|(?:\s*[/-]\s*\d{1,4}\s*[a-z]?))?(?!\d)",
-            value.casefold(),
+            value,
         )
     }
 
@@ -389,11 +390,6 @@ def _locations_compatible(left: dict, right: dict) -> bool:
 def _venue_comparison_text(event: dict) -> str:
     """Normalize a venue while ignoring a redundant leading city label."""
     venue = comparison_text(event.get("venue", ""))
-    address = comparison_text(event.get("venue_address", ""))
-    if address and venue and venue not in address:
-        venue = f"{venue} {address}"
-    elif address:
-        venue = address
     if len(comparison_text(venue, separator="")) < 2:
         return ""
     city = _normalized_city(event.get("city", ""))

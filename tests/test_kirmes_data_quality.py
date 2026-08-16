@@ -145,6 +145,32 @@ class KirmesDataQualityTests(unittest.TestCase):
         self.assertFalse(report.events_are_duplicates(left, right))
         self.assertEqual(len(report.deduplicate([left, right])), 2)
 
+    def test_equivalent_address_range_dash_variants_do_not_conflict(self):
+        left = event(title="Kirmes Bonn 2026", venue="Festplatz")
+        left["venue_address"] = "Alfterer Straße 35–37, 53121 Bonn"
+        right = event(
+            title="Kirmes in Bonn",
+            venue="Festplatz",
+            source="Other publisher",
+        )
+        right["venue_address"] = "Alfterer Straße 35-37, 53121 Bonn"
+
+        self.assertTrue(report.events_are_duplicates(left, right))
+        self.assertEqual(len(report.deduplicate([left, right])), 1)
+
+    def test_reviewed_venue_aliases_ignore_address_enrichment(self):
+        left = event(title="Kirmes Bonn 2026", venue="Möhneplatz")
+        left["venue_address"] = "Friedrich-Breuer-Straße 65, 53225 Bonn"
+        right = event(
+            title="Kirmes in Bonn",
+            venue="Beueler Rathaus",
+            source="Other publisher",
+        )
+        right["venue_address"] = "Friedrich-Breuer-Straße 65, 53225 Bonn"
+
+        self.assertTrue(report.events_are_duplicates(left, right))
+        self.assertEqual(len(report.deduplicate([left, right])), 1)
+
     def test_same_source_does_not_override_conflicting_address_units(self):
         for venue, left_number, right_number in (
             ("Festplatz", "10a", "10b"),
