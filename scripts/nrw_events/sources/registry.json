@@ -324,6 +324,27 @@
       "callable": "nrw_events.sources.melan:fetch"
     },
     {
+      "id": "rossel-wilberhofen-dorfflohmarkt",
+      "display_name": "Bürgerverein Rossel-Wilberhofen",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.rossel_wilberhofen:fetch"
+    },
+    {
+      "id": "schmitt-veranstaltungen",
+      "display_name": "Schmitt Veranstaltungen",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.schmitt_markets:fetch"
+    },
+    {
+      "id": "rieder-solingen-rewe",
+      "display_name": "Rieder Märkte",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.rieder_markets:fetch"
+    },
+    {
       "id": "rheinbach-flohmarkt",
       "display_name": "Rheinbach Flohmarkt",
       "region": "bonn-region",
