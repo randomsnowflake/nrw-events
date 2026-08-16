@@ -1842,6 +1842,20 @@
           "comment": "classifier"
         },
         {
+          "value": "yoga",
+          "match_mode": "compound_word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "triathlon",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
           "value": "fitness",
           "match_mode": "word",
           "scope": "all",
@@ -1974,6 +1988,13 @@
           "comment": "classifier"
         },
         {
+          "value": "bilderbuchkino",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
           "value": "film",
           "match_mode": "compound_word",
           "scope": "all",
@@ -2081,6 +2102,20 @@
           "value": "live-konzert",
           "match_mode": "word",
           "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "orgelkunst",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "orgelfestival",
+          "match_mode": "word",
+          "scope": "title",
           "weight": 1.0,
           "comment": "classifier"
         },
@@ -2422,6 +2457,13 @@
           "value": "kleinkunst",
           "match_mode": "word",
           "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
+          "value": "kleinkunstpreis",
+          "match_mode": "word",
+          "scope": "title",
           "weight": 1.0,
           "comment": "classifier"
         },
