@@ -385,6 +385,11 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if not should_reconsider:
         event.setdefault("category_confidence", current_confidence)
         event.setdefault("category_reason", "")
+    if not current_reason and not event.get("category_reason"):
+        # Some direct-dict adapters already supply a canonical category but
+        # predate the evidence metadata. Preserve that explicit source choice
+        # and keep the hot path free of an unnecessary reclassification.
+        event["category_reason"] = f"source:canonical:{event['category_key']}"
     if event["category_key"] not in category_taxonomy.CATEGORY_BY_KEY:
         raise EventValidationError("category_key_invalid")
     try:
