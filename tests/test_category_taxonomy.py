@@ -476,6 +476,23 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertEqual(result["key"], "concert")
         self.assertNotEqual(result.get("reason"), "forced:sports")
 
+    def test_clear_event_formats_do_not_fall_back_to_other(self):
+        cases = [
+            ("Cryptoparty", "activities"),
+            ("Wissens-Olympiade", "activities"),
+            ("Sonntagsspaziergang", "outdoor"),
+            ("Taisho e.V. - Karate", "sports"),
+            ("2. Birresdorfer Sibbeschröm-Turnier", "sports"),
+            ("Fassanstich", "festival"),
+            ("3. Kleidertauschbörse in Berkum", "market"),
+        ]
+
+        for title, expected in cases:
+            with self.subTest(title=title):
+                result = categorize_event("", title, "")
+                self.assertEqual(result["key"], expected)
+                self.assertTrue(result.get("reason", "").startswith("forced:"))
+
     def test_plain_keywords_do_not_match_inside_unrelated_words(self):
         cases = [
             ("Sonstige Veranstaltung", "Ablauf der Mitgliederversammlung", "", "other"),

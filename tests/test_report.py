@@ -70,7 +70,7 @@ class ReportTests(unittest.TestCase):
                 "link": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
             },
             {
-                **base, "venue": "Bad Godesberger Innenstadt", "source": "Bad Godesberg Stadtmarketing",
+                **base, "venue": "Bad Godesberg", "source": "Bad Godesberg Stadtmarketing",
                 "link": "https://bad-godesberg.info/veranstaltungen_st/street-food-festival",
             },
             {

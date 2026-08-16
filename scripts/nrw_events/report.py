@@ -46,6 +46,7 @@ _CITYWIDE_VENUE_ALIAS_FAMILIES = {
     "street-food-festival": (
         frozenset({
             "theaterplatz",
+            "bad godesberg",
             "bad godesberger innenstadt",
             "innenstadt bad godesberg",
         }),

@@ -1658,9 +1658,28 @@ def infer_admission(
     price_text = clean_html(price or "").lower().strip()
 
     visitor_charge = bool(_VISITOR_ADMISSION_AMOUNT_PATTERN.search(text))
+    price_has_amount = bool(re.search(
+        r"(?<!\d)\d+(?:[.,]\d{1,2})?\s*(?:€|eur\b|euro\b)",
+        price_text,
+        re.IGNORECASE,
+    ))
+    price_states_whole_event_is_free = (
+        bool(_FREE_DESCRIPTION_BLOCK_PATTERN.search(price_text))
+        or any(
+            re.search(pattern, price_text, re.IGNORECASE)
+            for pattern in _FREE_ADMISSION_PATTERNS
+        )
+    )
     if admission_basis == "implicit" and visitor_charge:
         return "", ""
     if _FREE_PRICE_PATTERN.fullmatch(price_text):
+        return "kostenlos", admission_basis or "explicit"
+    # Structured municipal calendars frequently expose a complete sentence in
+    # their price field (for example, "Die Teilnahme ist kostenlos.").  Treat
+    # that as explicit whole-event evidence only when the same field contains
+    # no monetary amount; conditional free tiers and paid add-ons must remain
+    # paid.
+    if price_states_whole_event_is_free and not price_has_amount:
         return "kostenlos", admission_basis or "explicit"
     if price_text:
         return "", "explicit"

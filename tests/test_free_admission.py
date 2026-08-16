@@ -29,6 +29,10 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Klimatreff", "", "Eintritt: frei€"),
             ("Ausstellung", "", "Eintritt: frei 0 €"),
             ("Lesung", "", "Eintritt frei €"),
+            ("Bibliotheksangebot", "", "Die Teilnahme ist kostenlos."),
+            ("Altstadtfest", "", "Eintritt frei !"),
+            ("Kulturnacht", "", "Kostenfrei!"),
+            ("Botanischer Rundgang", "", "Die Führung ist kostenlos. Spenden sind willkommen."),
             ("Vesper", "Der Eintirtt ist frei - Spenden sind herzlich erbeten.", ""),
             ("Sommerfestival", "Der Eintritt ist natürlich wieder frei.", ""),
             ("Pedelec-Training", "Das kostenlose Pedelec-Training vermittelt eine sichere Fahrweise.", ""),
@@ -71,6 +75,14 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Vereinsabend", "Kostenfrei. Nur für Mitglieder.", ""),
             # "frei" as the start of a longer word must not read as free.
             ("Markt", "", "Eintritt: freitags 10 €"),
+            ("Museumsführung", "", "Eintritt 3 Euro, Führung kostenlos"),
+            ("Tanzparty", "", "Tanzparty: 5 €; Mitglieder kostenlos"),
+            ("Familienmuseum", "", "5 Euro (Kinder bis 12 Jahre kostenfrei)"),
+            (
+                "Parkführung",
+                "",
+                "Der Eintritt in den Park ist frei. Kosten für die Führung: Erwachsene 8 Euro",
+            ),
         ]
 
         for title, description, price in cases:
