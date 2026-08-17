@@ -329,7 +329,8 @@ def range_dates(text: str):
 
 
 def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
-                      *, source_id: str, empty_is_healthy: bool = False,
+                      *, source_id: str,
+                      empty_is_healthy: bool | Callable[[str], bool] = False,
                       fetcher=None,
                       page_urls: Iterable[str] | Callable[[str, int], str] | None = None,
                       stop_when: Callable[[str, int], bool] | None = None,
@@ -348,10 +349,15 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
             html = (fetcher or common.fetch_url)(endpoint, timeout=timeout)
             with common.capture_parser_metrics() as metrics:
                 events = parser(html)
+            expected_empty = (
+                empty_is_healthy(html)
+                if callable(empty_is_healthy)
+                else empty_is_healthy
+            )
             parser_empty = (
                 not events
                 and metrics["out_of_window_count"] == 0
-                and not empty_is_healthy
+                and not expected_empty
             )
             common._record_endpoint(
                 endpoint,

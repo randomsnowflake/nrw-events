@@ -72,6 +72,38 @@ class RegionalCommonHealthTests(unittest.TestCase):
         self.assertEqual(enriched, [event])
         fetch_detail.assert_not_called()
 
+    def test_expected_empty_predicate_only_suppresses_matching_pages(self):
+        marker = "No events are currently available."
+
+        for html, expected_parser_empty in (
+            (f"<div>{marker}</div>", False),
+            ("<html>changed layout</html>", True),
+        ):
+            with self.subTest(html=html), \
+                 patch.object(common, "fetch_url", return_value=html), \
+                 patch.object(common, "_record_endpoint") as record_endpoint, \
+                 patch.object(common, "log_source_error") as log_source_error:
+                events = regional_common.fetch_html_events(
+                    "Seasonal calendar",
+                    "https://example.test/events",
+                    lambda _html: [],
+                    source_id="seasonal-calendar",
+                    empty_is_healthy=lambda body: marker in body,
+                )
+
+            self.assertEqual(events, [])
+            self.assertEqual(
+                record_endpoint.call_args.kwargs["parser_empty"],
+                expected_parser_empty,
+            )
+            if expected_parser_empty:
+                self.assertIsInstance(
+                    log_source_error.call_args.args[1],
+                    regional_common.ParserEmptyError,
+                )
+            else:
+                log_source_error.assert_not_called()
+
     def test_no_parser_candidates_still_reports_layout_drift(self):
         with patch.object(common, "fetch_url", return_value="<html>changed layout</html>"), \
              patch.object(common, "_record_endpoint") as record_endpoint, \

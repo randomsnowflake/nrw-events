@@ -11,6 +11,7 @@ _LOHMAR_CALENDAR_URL = urllib.parse.urljoin(
     _LOHMAR_BASE_URL,
     "erlebnisfaktoren-natur-und-sport-freizeit-und-tourismus/veranstaltungen/",
 )
+_ALFTER_EMPTY_NOTICE = "Derzeit sind keine Einträge (unter dieser Rubrik) verfügbar."
 
 
 def fetch() -> list:
@@ -72,7 +73,18 @@ def _fetch_alfter() -> list:
             anchor_pattern=r'<h3>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>\s*</h3>',
         )
 
-    return rc.fetch_html_events("Alfter", url, parse, source_id="alfter-events")
+    return rc.fetch_html_events(
+        "Alfter",
+        url,
+        parse,
+        source_id="alfter-events",
+        empty_is_healthy=_alfter_calendar_is_expected_empty,
+    )
+
+
+def _alfter_calendar_is_expected_empty(html: str) -> bool:
+    """Recognize Alfter's explicit, structurally valid empty-calendar notice."""
+    return _ALFTER_EMPTY_NOTICE in rc.clean(html)
 
 
 def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
