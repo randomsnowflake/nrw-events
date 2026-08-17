@@ -2039,7 +2039,6 @@ def enrich_events(
     configured = settings or settings_from_env()
     deadline = time.monotonic() + configured.batch_timeout_seconds
     maximum_calls_per_event = max(2 * configured.max_attempts, 1)
-    processed = 0
     capped = 0
     capped_without_summary = 0
     expired = 0
@@ -2047,7 +2046,7 @@ def enrich_events(
     cache_budget_skipped = 0
     cache_budget_skipped_without_summary = 0
     enriched = list(events)
-    pending: list[tuple[int, RawEvent]] = []
+    candidates: list[tuple[int, RawEvent]] = []
     for index, value in enumerate(events):
         if not isinstance(value, dict) or not is_target_event(value):
             continue
@@ -2059,14 +2058,31 @@ def enrich_events(
         if not in_window:
             enriched[index] = strip_restricted_copy(target)
             continue
-        if configured.max_events and processed >= configured.max_events:
+        candidates.append((index, target))
+
+    def candidate_priority(item: tuple[int, RawEvent]) -> tuple[bool, int, float, str]:
+        _index, target = item
+        today = common.TODAY.date()
+        try:
+            start = datetime.fromisoformat(str(target.get("start_date") or target.get("date") or "")[:10]).date()
+            end = datetime.fromisoformat(str(target.get("end_date") or target.get("start_date") or target.get("date") or "")[:10]).date()
+            distance = 0 if start <= today <= end else max((start - today).days, 0)
+        except ValueError:
+            distance = 9999
+        demand_score = float(target.get("priority_bonus") or 0) + float(target.get("score") or 0)
+        stable_key = f"{target.get('source_id', '')}\n{target.get('title', '')}\n{target.get('start_date', '')}"
+        return bool(str(target.get("ai_summary") or "").strip()), distance, -demand_score, stable_key
+
+    candidates.sort(key=candidate_priority)
+    pending: list[tuple[int, RawEvent]] = []
+    for position, (index, target) in enumerate(candidates):
+        if configured.max_events and position >= configured.max_events:
             capped += 1
             cached = _reuse_cached_success(target, configured)
             enriched[index] = cached
             capped_without_summary += int(not str(cached.get("ai_summary", "")).strip())
             continue
         pending.append((index, target))
-        processed += 1
 
     def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, bool, bool, bool, bool]:
         index, target = item

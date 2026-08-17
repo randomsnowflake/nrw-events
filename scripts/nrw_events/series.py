@@ -22,6 +22,9 @@ LEDGER_RETENTION_DAYS = 400
 _SUNDOWNER_BAR_TITLES = re.compile(
     r"^sundowner bar(?: auf dem dach der bundeskunsthalle| terrassen edition)?$"
 )
+_KALDAUEN_ROCHUS_TITLES = re.compile(
+    r"^(?:rochus kirmes|rochuskirmes kaldauen|kaldauer rochus kirmes)$"
+)
 
 
 def _clamped_date(year: int, month: int, day: int) -> date:
@@ -43,6 +46,14 @@ def _series_title(event: Mapping[str, Any]) -> str:
     venue = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
     if venue == "bundeskunsthalle" and _SUNDOWNER_BAR_TITLES.fullmatch(_stem(title)):
         return "Sundowner Bar"
+    venue_name = comparison_text(str(event.get("venue") or ""))
+    city = comparison_text(str(event.get("city") or ""))
+    if (
+        city == "siegburg"
+        and "kaldau" in venue_name
+        and _KALDAUEN_ROCHUS_TITLES.fullmatch(_stem(title))
+    ):
+        return "Kaldauer Rochuskirmes"
     return title
 
 

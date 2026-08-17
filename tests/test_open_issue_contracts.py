@@ -413,6 +413,26 @@ class OpenIssueContractTests(unittest.TestCase):
         )
         self.assertNotIn("series_id", rows[-1])
 
+    def test_kaldauen_rochus_title_variants_share_one_place_scoped_series(self):
+        variants = [
+            raw_event("Rochus-Kirmes", "2026-08-14", city="Siegburg", venue="Kaldauer Zentrum", venue_id=""),
+            raw_event("Rochuskirmes Kaldauen", "2026-08-15", city="Siegburg", venue="Kaldauer Zentrum", venue_id=""),
+            raw_event("Kaldauer Rochus Kirmes", "2026-08-16", city="Siegburg", venue="Kaldauer Zentrum", venue_id=""),
+        ]
+        unrelated = raw_event(
+            "Rochus-Kirmes", "2026-08-16", city="Bonn", venue="Rochusplatz", venue_id="",
+        )
+
+        rows, _metadata, _updated = series.enrich_events(
+            [*variants, unrelated], {"schema_version": 1, "series": {}},
+            today=date(2026, 8, 13), generated_at="2026-08-13T12:00:00",
+        )
+
+        kaldauen = [row for row in rows if row["city"] == "Siegburg"]
+        self.assertEqual(1, len({row["series_id"] for row in kaldauen}))
+        self.assertEqual({"Kaldauer Rochuskirmes"}, {row["series_title"] for row in kaldauen})
+        self.assertNotIn("series_id", rows[-1])
+
     def test_primary_program_suppresses_only_covered_lower_authority_umbrellas(self):
         series_title = "Internationale Stummfilmtage – 42. Bonner Sommerkino"
         primary = [

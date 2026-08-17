@@ -96,6 +96,51 @@ class DetailEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(context["price"], "12 EUR")
 
+    def test_jsonld_supplies_missing_organizer_schedule_and_address(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Trecker Treff",
+          "startDate": "2026-08-17T10:00:00+02:00[Europe/Berlin]",
+          "endDate": "2026-08-17T12:00:00+02:00[Europe/Berlin]",
+          "description": "Alle Interessierten sind eingeladen. Eine Anmeldung entfällt.",
+          "offers": {"@type": "Offer", "price": 0, "priceCurrency": "EUR"},
+          "organizer": {"@type": "Organization", "name": "Bürgerverein Werthhoven 1972 e.V."},
+          "location": {
+            "@type": "Place", "name": "Dorfplatz Werthhoven",
+            "address": {"streetAddress": "Dreikönigenstr. 67", "postalCode": "53343", "addressLocality": "Wachtberg"}
+          }
+        }
+        </script>
+        """
+        source = self.event(
+            title="Trecker Treff", date="2026-08-17", start_date="2026-08-17",
+            end_date="2026-08-17", description="Ausführliche Beschreibung. " * 20,
+            description_html="<p>Ausführliche Beschreibung.</p>", venue="Dorfplatz Werthhoven",
+            all_day=True,
+        )
+
+        context = detail_enrichment.extract_detail_context(document, source)
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertEqual(context["organizer"], "Bürgerverein Werthhoven 1972 e.V.")
+        self.assertEqual(context["time"], "10:00–12:00")
+        self.assertEqual(enriched["organizer"], "Bürgerverein Werthhoven 1972 e.V.")
+        self.assertEqual(enriched["time"], "10:00–12:00")
+        self.assertFalse(enriched["all_day"])
+        self.assertEqual(enriched["price"], "kostenlos")
+        self.assertEqual(enriched["venue_address"], "Dreikönigenstr. 67 53343 Wachtberg")
+
+    def test_complete_prose_still_needs_detail_when_decision_facts_are_missing(self):
+        source = self.event(
+            description="Vollständige Beschreibung mit Programm und Hintergrund. " * 8,
+            description_html="<p>Vollständige Beschreibung mit Programm und Hintergrund.</p>",
+            organizer="", venue_address="", time="", all_day=True,
+        )
+
+        self.assertTrue(detail_enrichment._needs_detail(source))
+
     def test_richer_detail_replaces_teaser_and_explicit_price_is_reclassified(self):
         context = {
             "description": "Eine deutlich längere, vollständige Beschreibung mit allen wichtigen Hinweisen für den Besuch.",
@@ -180,6 +225,11 @@ class DetailEnrichmentTests(unittest.TestCase):
             description=prose,
             description_html=f"<p>{prose}</p>",
             venue="Historisches Archiv",
+            venue_address="Eifelwall 5, 50674 Köln",
+            organizer="Historisches Archiv",
+            price="12 Euro",
+            time="19:00",
+            all_day=False,
         )
 
         with patch.object(detail_enrichment.common, "fetch_detail_url") as fetch:

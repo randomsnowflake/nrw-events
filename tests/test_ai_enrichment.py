@@ -175,6 +175,29 @@ class AIEnrichmentTests(unittest.TestCase):
         result = ai_enrichment.enrich_event(source, settings=self.settings, client=FakeClient([]))
         self.assertEqual(source, result)
 
+    def test_pilot_cap_prioritizes_the_nearest_high_value_event(self):
+        far_day = (common.TODAY + timedelta(days=20)).strftime("%Y-%m-%d")
+        near_day = (common.TODAY + timedelta(days=1)).strftime("%Y-%m-%d")
+        far = event(title="Später Termin", date=far_day, start_date=far_day, end_date=far_day, score=0.5)
+        near = event(title="Morgen in Bonn", date=near_day, start_date=near_day, end_date=near_day, score=2.0)
+        calls = []
+
+        def enrich(value, **_kwargs):
+            calls.append(value["title"])
+            return {**value, "ai_summary": f"Zusammenfassung für {value['title']}"}
+
+        with mock.patch.object(ai_enrichment, "enrich_event", side_effect=enrich), mock.patch.object(
+            ai_enrichment, "_reuse_cached_success", side_effect=lambda value, _settings: value
+        ):
+            result = ai_enrichment.enrich_events(
+                [far, near], settings=replace(self.settings, max_events=1),
+            )
+
+        self.assertEqual(["Morgen in Bonn"], calls)
+        self.assertEqual(["Später Termin", "Morgen in Bonn"], [item["title"] for item in result])
+        self.assertFalse(result[0].get("ai_summary"))
+        self.assertIn("ai_summary", result[1])
+
     def test_openrouter_settings_use_their_own_key_and_default_model(self):
         with mock.patch.dict(
             "os.environ",

@@ -339,6 +339,13 @@ class BonnMarketSourceTests(unittest.TestCase):
         self.assertEqual(geide._events_from_page(valid.replace("2026", "Termine"), url), [])
         self.assertEqual(geide._events_from_page(valid.replace("Bornheimer Str. 166", ""), url), [])
 
+    def test_geide_treats_valid_calendars_outside_the_window_as_healthy(self):
+        with patch.object(geide.rc, "fetch_html_events", return_value=[]) as fetch:
+            self.assertEqual(geide.fetch(), [])
+
+        self.assertTrue(fetch.call_args_list)
+        self.assertTrue(all(call.kwargs["empty_is_healthy"] for call in fetch.call_args_list))
+
     def test_geide_parses_bad_godesberg_hit_market(self):
         html = """
         <a href="files/pdf/2026/Termine-2026-Bonn-Bad-Godesberg.pdf">Download</a>

@@ -75,7 +75,17 @@ def _needs_detail(event: dict) -> bool:
     description = richtext.to_plain_text(str(
         event.get("description_html") or event.get("description") or ""
     )).strip()
-    return len(description) < 240 or _invalid_short_venue(str(event.get("venue") or ""))
+    missing_decision_facts = sum((
+        not str(event.get("organizer") or "").strip(),
+        not str(event.get("venue_address") or "").strip(),
+        not str(event.get("price") or "").strip() and not isinstance(event.get("admission"), dict),
+        bool(event.get("all_day", not event.get("time"))) and not str(event.get("time") or event.get("start_at") or "").strip(),
+    ))
+    return (
+        len(description) < 240
+        or _invalid_short_venue(str(event.get("venue") or ""))
+        or missing_decision_facts >= 2
+    )
 
 
 def _invalid_short_venue(value: str) -> bool:
@@ -867,6 +877,10 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
             _first(parser.item_values, "postalcode"),
             _first(parser.item_values, "addresslocality"),
         ))) or _visible_labeled_value(document, "Adresse", "Anschrift"),
+        "organizer": "",
+        "time": "",
+        "start_at": "",
+        "end_at": "",
     }
     for item in _jsonld_candidates(document or "", str(event.get("title") or ""))[:1]:
         structured_price = common._jsonld_admission_price(item)
@@ -888,6 +902,31 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
                         address_parts.append(part)
                 structured_address = " ".join(address_parts)
                 context["venue_address"] = structured_address or context["venue_address"]
+        organizer = item.get("organizer")
+        if isinstance(organizer, list):
+            organizer = next((value for value in organizer if isinstance(value, (dict, str))), "")
+        if isinstance(organizer, dict):
+            organizer = organizer.get("name") or ""
+        if isinstance(organizer, str):
+            context["organizer"] = common.clean_html(organizer)[:300]
+        start_at = str(item.get("startDate") or "").strip()
+        end_at = str(item.get("endDate") or "").strip()
+        event_date = str(event.get("start_date") or event.get("date") or "")[:10]
+        if start_at[:10] == event_date:
+            def structured_clock(value: str) -> str:
+                match = re.match(r"^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})", value)
+                return match.group(1) if match else ""
+
+            start_clock = structured_clock(start_at)
+            end_clock = structured_clock(end_at)
+            if start_clock:
+                context["time"] = (
+                    f"{start_clock}–{end_clock}"
+                    if end_clock and end_clock != start_clock else start_clock
+                )
+                context["start_at"] = re.sub(r"\[[^]]+\]$", "", start_at)
+                if end_at:
+                    context["end_at"] = re.sub(r"\[[^]]+\]$", "", end_at)
     if _master_data_only(event):
         context["description"] = ""
         context["description_html"] = ""
@@ -946,6 +985,21 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
                 )
             ):
                 enriched[field] = candidate
+    organizer = str(context.get("organizer") or "").strip()
+    if organizer and not str(enriched.get("organizer") or "").strip():
+        enriched["organizer"] = organizer
+    time_value = str(context.get("time") or "").strip()
+    if (
+        time_value
+        and not str(enriched.get("time") or enriched.get("start_at") or "").strip()
+        and not enriched.get("identity_time_locked")
+    ):
+        enriched["time"] = time_value
+        enriched["all_day"] = False
+        if context.get("start_at"):
+            enriched["start_at"] = context["start_at"]
+        if context.get("end_at"):
+            enriched["end_at"] = context["end_at"]
     return enriched
 
 

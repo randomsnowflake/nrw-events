@@ -175,6 +175,9 @@ def fetch() -> list:
             lambda html, page_url=url: _events_from_page(html, page_url, strict=True),
             timeout=20,
             source_id=_PAGES[url]["source_id"],
-            empty_is_healthy=False,
+            # The strict parser above already raises when the page contract
+            # changes. A structurally valid annual calendar can legitimately
+            # contain no dates inside the rolling import window.
+            empty_is_healthy=True,
         ))
     return rc.dedupe(events)
