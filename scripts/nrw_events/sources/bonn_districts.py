@@ -22,6 +22,7 @@ ROLEBER_ICAL = "https://bsvroleber.de/events/?ical=1"
 _ROLEBER_SCORE_FLOOR = 0.45
 HOLZLAR_URL = "https://bv-holzlar.de/veranstaltungen"
 BRUESER_BERG_URL = "https://brueser-berg-puls.base44.app/"
+_NBB_CALENDAR_URL = "https://www.nachbarschaftszentrum.info/termine/"
 _BRUESER_BERG_SOURCE = "Veranstaltungen Brüser Berg"
 _BRUESER_BERG_SOURCE_ID = "veranstaltungen-brueser-berg"
 _BRUESER_BERG_LOCAL_VENUES = (
@@ -135,6 +136,96 @@ def events_from_brueser_berg_json(raw: str) -> list:
     return regional_common.dedupe(events)
 
 
+def _nbb_calendar_occurrences(html: str) -> dict[tuple[str, str], dict]:
+    """Index NBB's public occurrence URLs without trusting its excerpt copy."""
+    occurrences = {}
+    for raw_json in re.findall(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html or "",
+        re.I | re.S,
+    ):
+        try:
+            # Decode JSON before HTML entities. Descriptions can legitimately
+            # contain ``&quot;``; unescaping the entire script would turn those
+            # entities into unescaped JSON delimiters.
+            payload = json.loads(raw_json.strip())
+        except (TypeError, json.JSONDecodeError):
+            continue
+        nodes = payload if isinstance(payload, list) else [payload]
+        for node in nodes:
+            if not isinstance(node, dict) or node.get("@type") != "Event":
+                continue
+            title = common.clean_html(str(node.get("name") or ""))
+            start_at = str(node.get("startDate") or "")
+            link = str(node.get("url") or "").strip()
+            if not (title and len(start_at) >= 10 and link.startswith("https://")):
+                continue
+            occurrences[(title.casefold(), start_at[:10])] = {
+                "link": link,
+                "end_at": str(node.get("endDate") or ""),
+            }
+    return occurrences
+
+
+def _nbb_detail_description(html: str) -> str:
+    parser = regional_common.ClassScopedTextParser({
+        "description": lambda _tag, attrs: (
+            "tribe-events-single-event-description" in (attrs.get("class") or "").split()
+        ),
+    })
+    parser.feed(html or "")
+    description = common.concise_description(parser.block_text("description"), max_chars=0)
+    return re.sub(r"!\s*\?", "!", description)
+
+
+def _enrich_brueser_berg_details(events: list) -> list:
+    candidates = [
+        event for event in events
+        if urllib.parse.urlsplit(event.get("link") or "").hostname
+        == "www.nachbarschaftszentrum.info"
+    ]
+    if not candidates:
+        return events
+    try:
+        calendar = common.fetch_detail_url(
+            _NBB_CALENDAR_URL,
+            cache_namespace="brueser-berg-nbb-calendar",
+            timeout=15,
+        )
+        occurrences = _nbb_calendar_occurrences(calendar)
+    except Exception as exc:
+        common.log_source_error(f"{_BRUESER_BERG_SOURCE} detail index", exc)
+        return events
+
+    for event in candidates:
+        occurrence = occurrences.get((event.get("title", "").casefold(), event.get("start_date", "")))
+        if not occurrence:
+            continue
+        detail_link = occurrence["link"]
+        try:
+            detail_html = common.fetch_detail_url(
+                detail_link,
+                cache_namespace="brueser-berg-nbb-detail",
+                timeout=15,
+            )
+            description = _nbb_detail_description(detail_html)
+        except Exception as exc:
+            common.log_source_error(f"{_BRUESER_BERG_SOURCE} detail", exc)
+            continue
+        if description:
+            event["description"] = description
+            event["description_source"] = common.description_source_for(description)
+            event["link"] = detail_link
+            event["link_kind"] = "detail"
+        end_at = common.parse_date(occurrence.get("end_at") or "")
+        if end_at:
+            event["end_date"] = end_at.strftime("%Y-%m-%d")
+            event["end_at"] = end_at.isoformat()
+            if event.get("time") and end_at.strftime("%H:%M") != "00:00":
+                event["time"] = f"{event['time'].split('–', 1)[0]}–{end_at:%H:%M}"
+    return events
+
+
 def fetch_brueser_berg() -> list:
     try:
         html = common.fetch_url(BRUESER_BERG_URL, timeout=20)
@@ -155,7 +246,7 @@ def fetch_brueser_berg() -> list:
             headers={"X-App-Id": app_id},
             expected_content_types=("application/json",),
         )
-        return events_from_brueser_berg_json(payload)
+        return _enrich_brueser_berg_details(events_from_brueser_berg_json(payload))
     except Exception as exc:
         common.log_source_error(_BRUESER_BERG_SOURCE, exc, source_id=_BRUESER_BERG_SOURCE_ID)
         return []

@@ -115,6 +115,21 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
         self.assertIn("findet", result[0]["description"])
         log_error.assert_called_once()
 
+    def test_truncated_feed_copy_is_replaced_by_complete_detail_text(self):
+        events = [{
+            "title": "Siegburger Stadtfest",
+            "link": "https://events.siegburg.de/Veranstaltungen/Siegburger-Stadtfest-2.html",
+            "description": "Dich erwarten drei Bühnen […]",
+        }]
+
+        with patch.object(siegburg.common, "event_in_window", return_value=True), \
+                patch.object(siegburg.common, "fetch_ical", return_value=events), \
+                patch.object(siegburg.common, "fetch_detail_url", return_value=DETAIL_HTML):
+            [enriched] = siegburg.fetch()
+
+        self.assertNotIn("[…]", enriched["description"])
+        self.assertIn("Ausstellung vom 1. Juli", enriched["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

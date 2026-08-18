@@ -481,14 +481,14 @@ def fetch_events() -> list:
     calendar_events = _fetch_calendar_listing_events(source)
     events = _merge_fallback_events(free_events, calendar_events)
     if len(calendar_events) >= 20:
-        return events
+        return _drop_redundant_dated_title_variants(events)
 
     # Keep the public HTML as the authoritative source, but preserve coverage if
     # Bonn.de returns a partial listing. JSON is intentionally last: it has been
     # malformed and incomplete while the normal calendar pages were correct.
     events = _merge_fallback_events(events, _fetch_rss_events(source))
     events = _merge_fallback_events(events, fetch_events_json(source))
-    return events
+    return _drop_redundant_dated_title_variants(events)
 
 
 def fetch_events_json(source: str = "Bonn.de Events") -> list:
@@ -941,6 +941,38 @@ def _merge_fallback_events(primary: list, fallback: list) -> list:
         merged.append(event)
         seen.add(key)
     return merged
+
+
+_DATED_RANGE_TITLE = re.compile(
+    r"^\s*\d{1,2}\.\d{1,2}\.20\d{2}\s*[-–]\s*"
+    r"\d{1,2}\.\d{1,2}\.20\d{2}\s+(.+?)"
+    r"(?:\s*[-–]\s*täglich\s+ab\s+Mittagszeit)?\s*$",
+    re.I,
+)
+
+
+def _drop_redundant_dated_title_variants(events: list) -> list:
+    """Prefer Bonn's clean event record over its duplicate date-prefixed card."""
+    clean_identities = {
+        (
+            event.get("title", "").strip().casefold(),
+            event.get("city", "").strip().casefold(),
+            event.get("date", ""),
+        )
+        for event in events
+        if not _DATED_RANGE_TITLE.match(event.get("title", ""))
+    }
+    kept = []
+    for event in events:
+        match = _DATED_RANGE_TITLE.match(event.get("title", ""))
+        if match and (
+            match.group(1).strip().casefold(),
+            event.get("city", "").strip().casefold(),
+            event.get("date", ""),
+        ) in clean_identities:
+            continue
+        kept.append(event)
+    return kept
 
 
 def _press_event_title(text: str) -> str:

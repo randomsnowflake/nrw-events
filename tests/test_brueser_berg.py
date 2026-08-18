@@ -104,6 +104,39 @@ class BrueserBergSourceTests(unittest.TestCase):
         self.assertIsInstance(error, bonn_districts.regional_common.ParserEmptyError)
         self.assertIn("application id", str(error))
 
+    def test_nbb_occurrence_uses_full_detail_copy_and_specific_url(self):
+        event = {
+            "title": "Digitale Nachhilfe",
+            "start_date": "2026-09-01",
+            "link": "https://www.nachbarschaftszentrum.info/termine/",
+            "description": "Gekürzter Teaser […]",
+            "time": "16:00",
+        }
+        calendar = """
+<script type="application/ld+json">[{"@type":"Event","name":"Digitale Nachhilfe",
+"url":"https://www.nachbarschaftszentrum.info/event/digitale-nachhilfe/2026-09-01/",
+"startDate":"2026-09-01T16:00:00+02:00","endDate":"2026-09-01T18:00:00+02:00"}]</script>
+"""
+        detail = """
+<div class="tribe-events-single-event-description tribe-events-content">
+  <p>Hier werden Sie bei der Nutzung Ihres Smartphones unterstützt.</p>
+  <p>Fragen zu WhatsApp, Bildern, Wegbeschreibungen und E-Mails sind willkommen.</p>
+</div>
+"""
+        with patch.object(
+            common, "fetch_detail_url", side_effect=[calendar, detail]
+        ) as fetch_detail:
+            [enriched] = bonn_districts._enrich_brueser_berg_details([event])
+
+        self.assertNotIn("[…]", enriched["description"])
+        self.assertIn("WhatsApp", enriched["description"])
+        self.assertEqual(
+            enriched["link"],
+            "https://www.nachbarschaftszentrum.info/event/digitale-nachhilfe/2026-09-01/",
+        )
+        self.assertEqual(enriched["time"], "16:00–18:00")
+        self.assertEqual(fetch_detail.call_count, 2)
+
     def test_parser_rejects_changed_or_empty_payloads(self):
         for payload in ('{"events": []}', '[]'):
             with self.subTest(payload=payload):

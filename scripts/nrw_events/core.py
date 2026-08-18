@@ -2551,7 +2551,8 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                admission: AdmissionDefault | None = None,
                default_category_key: str = "",
                category_locked: bool = False,
-               empty_calendar_is_valid: bool = False) -> list[RawEvent]:
+               empty_calendar_is_valid: bool = False,
+               description_max_chars: int | None = None) -> list[RawEvent]:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds).
 
     ``fetcher`` optionally replaces the plain HTTP read with a ``(url, **kwargs) ->
@@ -2623,12 +2624,15 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
             city = city_resolver(location) if city_resolver else default_city
             if not city:
                 continue
+            full_description = _ical_unescape(
+                props.get("DESCRIPTION", ""), preserve_breaks=True
+            )
             ev = make_event(
                 _ical_unescape(props["SUMMARY"]),
                 occurrence_start, occurrence_end,
                 location,
                 city,
-                _ical_unescape(props.get("DESCRIPTION", ""), preserve_breaks=True),
+                full_description,
                 _ical_best_link(props, url),
                 source, cat, trust,
                 all_day=all_day,
@@ -2638,6 +2642,11 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                 category_locked=category_locked,
             )
             if ev:
+                if description_max_chars is not None:
+                    ev["description"] = concise_description(
+                        full_description, max_chars=description_max_chars
+                    )
+                    ev["description_html"] = richtext.from_plain_text(ev["description"])
                 events.append(ev)
     valid_empty_calendar = bool(
         empty_calendar_is_valid

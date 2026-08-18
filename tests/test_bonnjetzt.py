@@ -35,6 +35,19 @@ class BonnJetztTests(unittest.TestCase):
     def test_eventbrite_is_not_registered(self):
         self.assertNotIn("Eventbrite Party", SOURCES)
 
+    def test_kunstrasen_cards_are_left_to_the_first_party_importer(self):
+        html = """
+<article itemtype="https://schema.org/Event">
+  <a href="/event/moby-live-26" itemprop="url"><h2 class="title p-name">Moby live '26</h2></a>
+  <time datetime="2026-08-18T19:00:00" itemprop="startDate">18. August, 19:00</time>
+  <time itemprop="endDate" content="2026-08-18T23:00:00"></time>
+  <span itemprop="name">KUNST!RASEN Bonn</span><div itemprop="address">Bonn</div>
+  <span class="v-chip__content">Konzert</span>
+</article>
+"""
+        with patch("nrw_events.common.fetch_url", return_value=html):
+            self.assertEqual(bonnjetzt.fetch(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -37,6 +37,10 @@ def fetch() -> list:
 
             venue = common.clean_html(venue_match.group(1)) if venue_match else ""
             address = common.clean_html(addr_match.group(1)) if addr_match else ""
+            # KUNST!RASEN has a dedicated first-party adapter. Do not publish
+            # Bonn.jetzt's secondary cards for the same concerts.
+            if "kunstrasen" in re.sub(r"[^a-z0-9]+", "", venue.casefold()):
+                continue
             city = common.guess_city_from_text(address or venue or title) or 'bonn'
 
             tag_text = " ".join(common.clean_html(tag) for tag in tags)
