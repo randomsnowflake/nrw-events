@@ -34,6 +34,17 @@ _BRUESER_BERG_LOCAL_VENUES = (
     "telekom dome",
 )
 _JMJ_HOST = "jmj-online.de"
+_BEUEL_PRIMARY_URL_REPLACEMENTS = {
+    (
+        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+        "hauptkalender/Nikolausmarkt-in-Beuel.php",
+        "2026-11-27",
+        "2026-11-29",
+    ): (
+        "https://www.bonn.de/pressemitteilungen/dezember/"
+        "abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
+    ),
+}
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -383,7 +394,14 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
     """Keep discovery records only when their linked first-party page is readable."""
     confirmed = []
     for event in events:
-        link = event.get("link", "")
+        link = str(event.get("link") or "")
+        replacement_key = (
+            link.rstrip("/"),
+            event.get("start_date", ""),
+            event.get("end_date", ""),
+        )
+        link = _BEUEL_PRIMARY_URL_REPLACEMENTS.get(replacement_key, link)
+        event["link"] = link
         hostname = (urllib.parse.urlsplit(link).hostname or "").casefold()
         source = hostname.removeprefix("www.")
         if not source or source in {"beuel.net", "www.beuel.net"}:
@@ -399,13 +417,13 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
             continue
         event["source"] = source
         event["source_id"] = "beuel-net"
+        event["source_role"] = "primary"
+        event["discovered_via"] = ["beuel-net"]
         description = _primary_description(event, str(primary_html), source)
         if description:
             event["description"] = description
             event["description_html"] = ""
             event["description_source"] = "scraped"
-            event["source_role"] = "primary"
-            event["discovered_via"] = ["beuel-net"]
             confirmed.append(event)
         else:
             confirmed.append(common.keep_only_event_master_data(event))
