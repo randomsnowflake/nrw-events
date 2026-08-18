@@ -130,6 +130,8 @@ class BrueserBergSourceTests(unittest.TestCase):
 
         self.assertNotIn("[…]", enriched["description"])
         self.assertIn("WhatsApp", enriched["description"])
+        self.assertNotIn("Gekürzter Teaser", enriched["description_html"])
+        self.assertIn("WhatsApp", enriched["description_html"])
         self.assertEqual(
             enriched["link"],
             "https://www.nachbarschaftszentrum.info/event/digitale-nachhilfe/2026-09-01/",

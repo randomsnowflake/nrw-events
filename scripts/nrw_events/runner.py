@@ -58,6 +58,12 @@ EXIT_FAILED = 2
 SNAPSHOT_GENERATIONS_KEPT = 3
 _DISCOVERY_ONLY_SOURCE_IDS = frozenset({"radio-bonn-rhein-sieg"})
 _RADIO_RUNNER_SOURCE = "Radio Bonn/Rhein-Sieg"
+_LEGACY_DATED_RANGE_TITLE = re.compile(
+    r"^\s*\d{1,2}\.\d{1,2}\.20\d{2}\s*[-–]\s*"
+    r"\d{1,2}\.\d{1,2}\.20\d{2}\s+(.+?)"
+    r"(?:\s*[-–]\s*täglich\s+ab\s+Mittagszeit)?\s*$",
+    re.IGNORECASE,
+)
 
 _RESEARCH_LEAD_MASTER_FIELDS = (
     "title", "source", "source_id", "source_role", "discovered_via",
@@ -1267,12 +1273,27 @@ def _retained_events_without_fresh_duplicate(
     candidate_index: dict[tuple[str, ...], set[int]] = {}
     for index, event in enumerate(fresh_events):
         report._index_blocking_keys(event, index, candidate_index)
+
+    def is_legacy_dated_title_twin(fresh: CanonicalEvent, retained: CanonicalEvent) -> bool:
+        match = _LEGACY_DATED_RANGE_TITLE.match(str(retained.get("title") or ""))
+        return bool(
+            match
+            and _event_source_id(fresh) == _event_source_id(retained)
+            and str(fresh.get("start_date") or "")
+            == str(retained.get("start_date") or "")
+            and comparison_text(str(fresh.get("city") or ""))
+            == comparison_text(str(retained.get("city") or ""))
+            and comparison_text(str(fresh.get("title") or ""))
+            == comparison_text(match.group(1))
+        )
+
     return [
         candidate
         for candidate in retained_events
         if event_id(candidate) not in fresh_ids
         and not any(
             report.events_are_duplicates(fresh_events[index], candidate)
+            or is_legacy_dated_title_twin(fresh_events[index], candidate)
             for index in report._blocking_candidates(
                 candidate, candidate_index, blocking_frequencies
             )

@@ -100,6 +100,54 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual([event["title"] for event in result], ["Retained"])
         self.assertEqual(identity.call_count, len(fresh) + len(retained))
 
+    def test_fresh_bonn_event_suppresses_retained_dated_title_variant(self):
+        fresh = [raw_event(
+            title="Weinfest auf dem Bonner Münsterplatz",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            day="2026-08-21",
+            city="Bonn",
+        )]
+        retained = [raw_event(
+            title=(
+                "20.08.2026 - 23.08.2026 Weinfest auf dem Bonner Münsterplatz "
+                "- täglich ab Mittagszeit"
+            ),
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            day="2026-08-21",
+            city="Bonn",
+        )]
+
+        self.assertEqual(
+            runner._retained_events_without_fresh_duplicate(fresh, retained),
+            [],
+        )
+
+    def test_retained_dated_title_without_same_source_twin_is_kept(self):
+        fresh = [raw_event(
+            title="Weinfest auf dem Bonner Münsterplatz",
+            source="Independent Calendar",
+            source_id="independent-calendar",
+            day="2026-08-21",
+            city="Bonn",
+        )]
+        retained = [raw_event(
+            title=(
+                "20.08.2026 - 23.08.2026 Weinfest auf dem Bonner Münsterplatz "
+                "- täglich ab Mittagszeit"
+            ),
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            day="2026-08-21",
+            city="Bonn",
+        )]
+
+        self.assertEqual(
+            runner._retained_events_without_fresh_duplicate(fresh, retained),
+            retained,
+        )
+
     def test_highlight_rank_preserves_zero_distance(self):
         self.assertEqual(highlights._rank({"distance_km": 0})[1], 0)
         self.assertEqual(highlights._rank({"distance_km": None})[1], 999)

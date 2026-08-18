@@ -6,7 +6,7 @@ import urllib.parse
 from datetime import datetime
 from html.parser import HTMLParser
 
-from .. import common, normalization
+from .. import common, normalization, richtext
 from . import regional_common
 
 
@@ -214,6 +214,7 @@ def _enrich_brueser_berg_details(events: list) -> list:
             continue
         if description:
             event["description"] = description
+            event["description_html"] = richtext.from_plain_text(description)
             event["description_source"] = common.description_source_for(description)
             event["link"] = detail_link
             event["link_kind"] = "detail"
