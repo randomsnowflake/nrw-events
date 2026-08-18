@@ -16,6 +16,7 @@ from email.message import Message
 import fcntl
 from hashlib import sha256
 import json
+import math
 import multiprocessing
 import os
 from pathlib import Path
@@ -2060,6 +2061,13 @@ def enrich_events(
             continue
         candidates.append((index, target))
 
+    def ranking_value(value: Any) -> float:
+        try:
+            parsed = float(value or 0)
+        except (TypeError, ValueError):
+            return 0
+        return parsed if math.isfinite(parsed) else 0
+
     def candidate_priority(item: tuple[int, RawEvent]) -> tuple[bool, int, float, str]:
         _index, target = item
         today = common.TODAY.date()
@@ -2069,7 +2077,7 @@ def enrich_events(
             distance = 0 if start <= today <= end else max((start - today).days, 0)
         except ValueError:
             distance = 9999
-        demand_score = float(target.get("priority_bonus") or 0) + float(target.get("score") or 0)
+        demand_score = ranking_value(target.get("priority_bonus")) + ranking_value(target.get("score"))
         stable_key = f"{target.get('source_id', '')}\n{target.get('title', '')}\n{target.get('start_date', '')}"
         return bool(str(target.get("ai_summary") or "").strip()), distance, -demand_score, stable_key
 
