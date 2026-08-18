@@ -2064,7 +2064,7 @@ def enrich_events(
     def ranking_value(value: Any) -> float:
         try:
             parsed = float(value or 0)
-        except (TypeError, ValueError):
+        except (OverflowError, TypeError, ValueError):
             return 0
         return parsed if math.isfinite(parsed) else 0
 

@@ -208,6 +208,13 @@ class AIEnrichmentTests(unittest.TestCase):
             score="unknown",
             priority_bonus={},
         )
+        overflowing = event(
+            title="Overflowing ranking",
+            date=day,
+            start_date=day,
+            end_date=day,
+            score=10**1000,
+        )
         valid = event(
             title="Valid ranking",
             date=day,
@@ -225,12 +232,14 @@ class AIEnrichmentTests(unittest.TestCase):
             ai_enrichment, "_reuse_cached_success", side_effect=lambda value, _settings: value
         ):
             result = ai_enrichment.enrich_events(
-                [malformed, valid], settings=replace(self.settings, max_events=1),
+                [malformed, overflowing, valid],
+                settings=replace(self.settings, max_events=1),
             )
 
         self.assertEqual(["Valid ranking"], calls)
         self.assertFalse(result[0].get("ai_summary"))
-        self.assertIn("ai_summary", result[1])
+        self.assertFalse(result[1].get("ai_summary"))
+        self.assertIn("ai_summary", result[2])
 
     def test_openrouter_settings_use_their_own_key_and_default_model(self):
         with mock.patch.dict(
