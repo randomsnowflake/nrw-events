@@ -21,7 +21,7 @@ HARDTBERG_API = "https://www.hardtbergkultur.de/wp-json/wp/v2/posts"
 ROLEBER_ICAL = "https://bsvroleber.de/events/?ical=1"
 _ROLEBER_SCORE_FLOOR = 0.45
 HOLZLAR_URL = "https://bv-holzlar.de/veranstaltungen"
-BRUESER_BERG_URL = "https://veranstaltungen-am-b-xnoe.bolt.host/"
+BRUESER_BERG_URL = "https://brueser-berg-puls.base44.app/"
 _BRUESER_BERG_SOURCE = "Veranstaltungen Brüser Berg"
 _BRUESER_BERG_SOURCE_ID = "veranstaltungen-brueser-berg"
 _BRUESER_BERG_LOCAL_VENUES = (
@@ -65,7 +65,7 @@ def _ensure_descriptions(events: list) -> list:
 
 
 def _brueser_berg_link(row: dict) -> str:
-    for key in ("contribution_link", "pdf_url"):
+    for key in ("link", "contribution_link", "pdf_url"):
         candidate = str(row.get(key) or "").strip()
         parsed = urllib.parse.urlsplit(candidate)
         if parsed.scheme in {"http", "https"} and parsed.netloc:
@@ -89,8 +89,8 @@ def events_from_brueser_berg_json(raw: str) -> list:
     local_rows = sorted(
         (row for row in rows if isinstance(row, dict) and _is_brueser_berg_row(row)),
         key=lambda row: (
-            str(row.get("event_date") or ""),
-            str(row.get("event_time") or ""),
+            str(row.get("date") or row.get("event_date") or ""),
+            str(row.get("time") or row.get("event_time") or ""),
             str(row.get("title") or "").casefold(),
         ),
     )
@@ -100,12 +100,23 @@ def events_from_brueser_berg_json(raw: str) -> list:
     events = []
     for row in local_rows:
         title = common.clean_html(str(row.get("title") or ""))
-        date_text = str(row.get("event_date") or "").strip()
-        time_text = common.sanitize_time_text(str(row.get("event_time") or ""))
+        date_text = str(row.get("date") or row.get("event_date") or "").strip()
+        time_text = common.sanitize_time_text(
+            str(row.get("time") or row.get("event_time") or "")
+        )
         try:
             start = datetime.fromisoformat(f"{date_text}T{time_text or '00:00'}")
         except ValueError:
             continue
+        end = None
+        end_time_text = common.sanitize_time_text(str(row.get("end_time") or ""))
+        if end_time_text:
+            try:
+                candidate = datetime.fromisoformat(f"{date_text}T{end_time_text}")
+                if candidate > start:
+                    end = candidate
+            except ValueError:
+                pass
         venue = common.clean_html(str(row.get("location") or ""))
         description = common.concise_description(str(row.get("description") or ""))
         if not description:
@@ -113,7 +124,7 @@ def events_from_brueser_berg_json(raw: str) -> list:
                 title, date_value=start, time_text=time_text, venue=venue, city="Bonn-Brüser Berg",
             )
         event = common.make_event(
-            title, start, None, venue, "Bonn-Brüser Berg", description,
+            title, start, end, venue, "Bonn-Brüser Berg", description,
             _brueser_berg_link(row), _BRUESER_BERG_SOURCE,
             "stadtteil nachbarschaft kultur bildung beratung spiele workshop",
             0.8, time_text=time_text, all_day=not bool(time_text),
@@ -127,27 +138,21 @@ def events_from_brueser_berg_json(raw: str) -> list:
 def fetch_brueser_berg() -> list:
     try:
         html = common.fetch_url(BRUESER_BERG_URL, timeout=20)
-        script_match = re.search(
-            r'<script[^>]+src=["\']([^"\']*/assets/index-[^"\']+\.js)["\']',
-            html,
-            re.IGNORECASE,
+        app_match = re.search(
+            r'\bappId\s*=\s*["\']([a-f0-9]{24})["\']', html, re.IGNORECASE,
         )
-        if not script_match:
-            raise regional_common.ParserEmptyError("application bundle not found")
-        script_url = urllib.parse.urljoin(BRUESER_BERG_URL, script_match.group(1))
-        bundle = common.fetch_url(script_url, timeout=20)
-        config_match = re.search(
-            r'"(https://[a-z0-9]+\.supabase\.co)"[^\n]{0,1200}?"(eyJ[A-Za-z0-9._-]+)"',
-            bundle,
+        if not app_match:
+            raise regional_common.ParserEmptyError("Base44 application id not found")
+        app_id = app_match.group(1)
+        query = urllib.parse.urlencode({"sort": "date", "limit": 500})
+        api_url = urllib.parse.urljoin(
+            BRUESER_BERG_URL,
+            f"api/apps/{app_id}/entities/Event?{query}",
         )
-        if not config_match:
-            raise regional_common.ParserEmptyError("public events API configuration not found")
-        api_base, anon_key = config_match.groups()
-        query = urllib.parse.urlencode({"select": "*", "order": "event_date.asc,event_time.asc"})
         payload = common.fetch_url(
-            f"{api_base}/rest/v1/events?{query}",
+            api_url,
             timeout=20,
-            headers={"apikey": anon_key, "Authorization": f"Bearer {anon_key}"},
+            headers={"X-App-Id": app_id},
             expected_content_types=("application/json",),
         )
         return events_from_brueser_berg_json(payload)
