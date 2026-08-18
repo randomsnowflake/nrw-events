@@ -198,6 +198,49 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertFalse(result[0].get("ai_summary"))
         self.assertIn("ai_summary", result[1])
 
+    def test_pilot_cap_treats_malformed_ranking_values_as_zero(self):
+        day = (common.TODAY + timedelta(days=1)).strftime("%Y-%m-%d")
+        malformed = event(
+            title="Malformed ranking",
+            date=day,
+            start_date=day,
+            end_date=day,
+            score="unknown",
+            priority_bonus={},
+        )
+        overflowing = event(
+            title="Overflowing ranking",
+            date=day,
+            start_date=day,
+            end_date=day,
+            score=10**1000,
+        )
+        valid = event(
+            title="Valid ranking",
+            date=day,
+            start_date=day,
+            end_date=day,
+            score=2.0,
+        )
+        calls = []
+
+        def enrich(value, **_kwargs):
+            calls.append(value["title"])
+            return {**value, "ai_summary": f"Zusammenfassung für {value['title']}"}
+
+        with mock.patch.object(ai_enrichment, "enrich_event", side_effect=enrich), mock.patch.object(
+            ai_enrichment, "_reuse_cached_success", side_effect=lambda value, _settings: value
+        ):
+            result = ai_enrichment.enrich_events(
+                [malformed, overflowing, valid],
+                settings=replace(self.settings, max_events=1),
+            )
+
+        self.assertEqual(["Valid ranking"], calls)
+        self.assertFalse(result[0].get("ai_summary"))
+        self.assertFalse(result[1].get("ai_summary"))
+        self.assertIn("ai_summary", result[2])
+
     def test_openrouter_settings_use_their_own_key_and_default_model(self):
         with mock.patch.dict(
             "os.environ",
