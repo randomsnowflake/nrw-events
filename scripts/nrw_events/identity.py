@@ -117,14 +117,17 @@ def content_hash(event: Mapping[str, Any]) -> str:
 
 
 def event_id(event: Mapping[str, Any]) -> str:
-    """Return the stable, readable id for one event occurrence."""
+    """Return the stable, readable id for one event occurrence.
+
+    The occurrence date remains part of the digest so separate dates never
+    collide, but it is deliberately absent from the readable URL segment.
+    """
     preserved = str(event.get("preserved_event_id") or "").strip()
     if preserved:
         return preserved
     parts = identity_tuple(event)
     title_slug = comparison_text(str(event.get("title") or ""), separator="-")[:TITLE_SLUG_LIMIT].strip("-")
-    start_date = parts[1]
-    segments = [segment for segment in (title_slug, start_date, _digest(parts)) if segment]
+    segments = [segment for segment in (title_slug, _digest(parts)) if segment]
     return "-".join(segments)
 
 

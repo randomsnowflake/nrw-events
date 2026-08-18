@@ -106,7 +106,8 @@ class TourismusNrwFeaturedTests(unittest.TestCase):
         [published] = snapshot.metadata["early_announcements"]
         self.assertEqual(published["title"], "Pützchens Markt")
         self.assertIsInstance(published["ranking_features"], dict)
-        self.assertTrue(published["event_id"].startswith("puetzchens-markt-2026-09-11-"))
+        self.assertTrue(published["event_id"].startswith("puetzchens-markt-"))
+        self.assertNotIn("2026-09-11", published["event_id"])
 
     def test_event_moves_into_normal_window_without_a_second_copy(self):
         common.TODAY = datetime(2026, 8, 15)

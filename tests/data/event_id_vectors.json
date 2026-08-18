@@ -15,7 +15,7 @@
         "venue_id": "bundeskunsthalle",
         "city": "Bonn"
       },
-      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-2026-08-02-28fcc8bfaf"
+      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-28fcc8bfaf"
     },
     {
       "name": "gleiche-uhrzeit-ohne-endzeit",
@@ -31,7 +31,7 @@
         "venue_id": "bundeskunsthalle",
         "city": "Bonn"
       },
-      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-2026-08-02-28fcc8bfaf",
+      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-28fcc8bfaf",
       "note": "Identisch mit konzert-mit-uhrzeit, nur ohne Endzeit: nur die Startzeit darf in die Identität eingehen, sonst wandert die veröffentlichte URL, sobald eine Quelle eine Endzeit ergänzt oder wegfallen lässt."
     },
     {
@@ -48,7 +48,7 @@
         "venue_id": "bundeskunsthalle",
         "city": "Bonn"
       },
-      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-2026-08-09-322c304467"
+      "eventId": "ga-sommergarten-albie-donnelly-s-supercharge-322c304467"
     },
     {
       "name": "umlaute-und-eszett",
@@ -64,7 +64,7 @@
         "venue_id": "",
         "city": "Bonn-Pützchen"
       },
-      "eventId": "strassenfest-puetzchen-kuechenmaerchen-2026-09-12-9ae5e93aae"
+      "eventId": "strassenfest-puetzchen-kuechenmaerchen-9ae5e93aae"
     },
     {
       "name": "decomposed-unicode-in-public-id-fields",
@@ -80,7 +80,7 @@
         "venue_id": "",
         "city": "Ko\u0308ln"
       },
-      "eventId": "kuechenmaerchen-2026-09-13-7963a54eaa",
+      "eventId": "kuechenmaerchen-7963a54eaa",
       "note": "Title, unregistered venue and city use decomposed umlauts; NFC and NFD input must produce the same public URL."
     },
     {
@@ -97,7 +97,7 @@
         "venue_id": "",
         "city": "Bonn"
       },
-      "eventId": "flohmarkt-in-der-rheinaue-2026-08-15-373ab6b9f3"
+      "eventId": "flohmarkt-in-der-rheinaue-373ab6b9f3"
     },
     {
       "name": "nur-start-at-keine-uhrzeit",
@@ -113,7 +113,7 @@
         "venue_id": "kunstmuseum-bonn",
         "city": "Bonn"
       },
-      "eventId": "lesung-im-kunstmuseum-2026-08-20-8f7a8d22be"
+      "eventId": "lesung-im-kunstmuseum-8f7a8d22be"
     },
     {
       "name": "sehr-langer-titel",
@@ -129,7 +129,7 @@
         "venue_id": "pantheon-theater",
         "city": "Bonn"
       },
-      "eventId": "ein-ausserordentlich-langer-veranstaltungstitel-der-die-2026-10-01-0dbf74d8e4"
+      "eventId": "ein-ausserordentlich-langer-veranstaltungstitel-der-die-0dbf74d8e4"
     },
     {
       "name": "nur-date-ohne-start-date",
@@ -143,7 +143,7 @@
         "venue_id": "",
         "city": "Siegburg"
       },
-      "eventId": "markt-am-markt-2026-11-07-1bd8e4dcef"
+      "eventId": "markt-am-markt-1bd8e4dcef"
     },
     {
       "name": "leerer-titel-fallback",
@@ -159,7 +159,7 @@
         "venue_id": "",
         "city": "Köln"
       },
-      "eventId": "2026-12-24-77d3c24434"
+      "eventId": "77d3c24434"
     }
   ]
 }

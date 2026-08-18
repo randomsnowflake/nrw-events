@@ -38,12 +38,11 @@ def occurrence(**overrides):
 
 
 class EventIdStabilityTests(unittest.TestCase):
-    def test_id_is_readable_and_carries_title_and_date(self):
+    def test_id_is_readable_and_hides_the_calendar_date(self):
         identifier = event_id(occurrence())
-        self.assertTrue(
-            identifier.startswith("ga-sommergarten-albie-donnelly-s-supercharge-2026-08-02-"),
-            identifier,
-        )
+        self.assertTrue(identifier.startswith("ga-sommergarten-albie-donnelly-s-supercharge-"), identifier)
+        self.assertNotIn("2026-08-02", identifier)
+        self.assertRegex(identifier, r"-[a-f0-9]{10}$")
 
     def test_enrichment_does_not_change_the_id(self):
         base = event_id(occurrence())
@@ -134,7 +133,7 @@ class EventIdStabilityTests(unittest.TestCase):
 
         self.assertEqual(
             event_id(event),
-            "100-jahre-loeschgruppe-lantershofen-2026-08-01-8e18306c73",
+            "100-jahre-loeschgruppe-lantershofen-8e18306c73",
         )
 
 
