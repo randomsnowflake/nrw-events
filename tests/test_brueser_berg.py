@@ -12,11 +12,12 @@ PAYLOAD = json.dumps([
         "id": "local-1",
         "title": "Familienfest & Flohmarkt",
         "description": "Stadtteilfest mit Flohmarkt, Essen, Musik und Kinderprogramm.",
-        "event_date": "2026-09-05",
-        "event_time": "10:00:00",
+        "date": "2026-09-05",
+        "time": "10:00",
+        "end_time": "18:00",
         "location": "Brüser Berg Zentrum",
         "pdf_url": None,
-        "contribution_link": None,
+        "link": "https://brueser-berg.de/familienfest",
     },
     {
         "id": "local-2",
@@ -62,23 +63,25 @@ class BrueserBergSourceTests(unittest.TestCase):
         self.assertTrue(all(event["city"] == "Bonn-Brüser Berg" for event in events))
         self.assertEqual(events[0]["time"], "10:30")
         self.assertEqual(events[0]["link"], "https://files.example.test/figuren.pdf")
-        self.assertEqual(events[1]["link"], bonn_districts.BRUESER_BERG_URL)
+        self.assertEqual(events[1]["link"], "https://brueser-berg.de/familienfest")
+        self.assertEqual(events[1]["end_date"], "2026-09-05")
+        self.assertEqual(events[1]["end_at"], "2026-09-05T18:00+02:00")
         self.assertTrue(all(event["description"] for event in events))
         self.assertTrue(all(event["source_id"] == "veranstaltungen-brueser-berg" for event in events))
         self.assertTrue(all(event["score"] >= 0.4 for event in events))
 
-    def test_fetch_discovers_the_public_supabase_read_endpoint(self):
-        page = '<script type="module" src="/assets/index-AbCd1234.js"></script>'
-        bundle = 'const C="https://projectref.supabase.co",A="eyJpublic-anon-token",d=createClient(C,A);'
+    def test_fetch_discovers_the_public_base44_entity_endpoint(self):
+        page = '<script>const appId = "6a71c68354b14b3b2e8741d7";</script>'
         calls = []
 
         def fake_fetch(url, **kwargs):
             calls.append((url, kwargs))
             if url == bonn_districts.BRUESER_BERG_URL:
                 return page
-            if url.endswith("/assets/index-AbCd1234.js"):
-                return bundle
-            if url.startswith("https://projectref.supabase.co/rest/v1/events?"):
+            if url.startswith(
+                "https://brueser-berg-puls.base44.app/api/apps/"
+                "6a71c68354b14b3b2e8741d7/entities/Event?"
+            ):
                 return PAYLOAD
             raise AssertionError(url)
 
@@ -87,9 +90,19 @@ class BrueserBergSourceTests(unittest.TestCase):
 
         self.assertEqual(len(events), 2)
         api_url, api_kwargs = calls[-1]
-        self.assertIn("select=", api_url)
-        self.assertEqual(api_kwargs["headers"]["apikey"], "eyJpublic-anon-token")
+        self.assertIn("sort=date", api_url)
+        self.assertIn("limit=500", api_url)
+        self.assertEqual(api_kwargs["headers"]["X-App-Id"], "6a71c68354b14b3b2e8741d7")
         self.assertEqual(api_kwargs["expected_content_types"], ("application/json",))
+
+    def test_fetch_rejects_a_changed_base44_bootstrap_page(self):
+        with patch.object(common, "fetch_url", return_value="<html></html>"), \
+                patch.object(common, "log_source_error") as log_source_error:
+            self.assertEqual(bonn_districts.fetch_brueser_berg(), [])
+
+        error = log_source_error.call_args.args[1]
+        self.assertIsInstance(error, bonn_districts.regional_common.ParserEmptyError)
+        self.assertIn("application id", str(error))
 
     def test_parser_rejects_changed_or_empty_payloads(self):
         for payload in ('{"events": []}', '[]'):
