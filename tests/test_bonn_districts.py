@@ -3,8 +3,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common, validation
-from nrw_events.sources import SOURCES, bonn_districts
+from nrw_events import common, report, validation
+from nrw_events.sources import SOURCES, bonn, bonn_districts
 
 
 BEUEL_HTML = """
@@ -205,10 +205,41 @@ class BonnDistrictSourceTests(unittest.TestCase):
             "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
         ])
         self.assertEqual(event["link"], fetched[0])
-        self.assertEqual(event["source"], "bonn.de")
+        self.assertEqual(event["source"], "Bonn district festivals (Beuel.net discovery)")
         self.assertEqual(event["source_role"], "primary")
         self.assertEqual(event["discovered_via"], ["beuel-net"])
         log_source_error.assert_not_called()
+
+    def test_beuel_nikolausmarkt_does_not_override_official_press_metadata(self):
+        html = """
+        <div class="yel"><a href="/events/#27.11.2026"><span class="title">Nikolausmarkt 🎅</span><br>
+        <b>Fr. 27.11. – 29.11.</b> | <a href="/map/?q=St Josef">St Josef</a><br>
+        <a href="https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/Nikolausmarkt-in-Beuel.php">externer Link</a></a></div>
+        """
+        [discovered] = bonn_districts.events_from_beuel_html(html)
+        [promoted] = bonn_districts._confirm_beuel_primary_sources(
+            [discovered],
+            primary_fetcher=lambda _url: "<html><title>Bundesstadt Bonn</title></html>",
+        )
+        press_html = """
+        <ul><li>
+        Nikolausmarkt Beuel, Hermannstraße, 27. bis 29. November 2026,
+        Bundesstadt Bonn
+        </li></ul>
+        """
+        with (
+            patch.object(common, "TODAY", datetime(2026, 11, 1)),
+            patch.object(common, "END_DATE", datetime(2026, 12, 31)),
+            patch.object(common, "fetch_url", return_value=press_html),
+        ):
+            [official] = bonn.fetch_press_festivals()
+
+        [deduped] = report.deduplicate([promoted, official])
+
+        self.assertEqual(deduped["source"], "Bonn district festivals")
+        self.assertEqual(deduped["title"], "Nikolausmarkt Beuel")
+        self.assertEqual(deduped["venue"], "Hermannstraße")
+        self.assertEqual(deduped["discovered_via"], ["beuel-net"])
 
     def test_beuel_nikolausmarkt_replacement_is_limited_to_2026_occurrence(self):
         [discovered] = bonn_districts.events_from_beuel_html(BEUEL_HTML[:BEUEL_HTML.index("</div>") + 6])

@@ -45,6 +45,7 @@ _BEUEL_PRIMARY_URL_REPLACEMENTS = {
         "abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
     ),
 }
+_BEUEL_CIVIC_AGGREGATOR_URLS = frozenset(_BEUEL_PRIMARY_URL_REPLACEMENTS.values())
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -415,7 +416,11 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
                 f"Beuel.net primary ({source})", exc, source_id="beuel-net",
             )
             continue
-        event["source"] = source
+        event["source"] = (
+            "Bonn district festivals (Beuel.net discovery)"
+            if link in _BEUEL_CIVIC_AGGREGATOR_URLS
+            else source
+        )
         event["source_id"] = "beuel-net"
         event["source_role"] = "primary"
         event["discovered_via"] = ["beuel-net"]
