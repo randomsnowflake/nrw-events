@@ -60,6 +60,16 @@ def _kunstmuseum_detail_description(html: str) -> str:
         rc.clean(body.group(1) if body else ""), max_chars=360)
 
 
+def _kunstmuseum_detail_price(html: str) -> str:
+    """Read the visitor cost from the museum's labeled event facts."""
+    match = re.search(
+        r'<h[1-6][^>]*>\s*Kosten\s*</h[1-6]>\s*<p[^>]*>(.*?)</p>',
+        html or "",
+        re.S | re.I,
+    )
+    return rc.clean(match.group(1))[:160] if match else ""
+
+
 def _kunstmuseum_fallback_description(title: str, format_text: str, start) -> str:
     schedule = f" am {start:%d.%m.%Y}" if start else ""
     if start and start.strftime("%H:%M") != "00:00":
@@ -84,9 +94,12 @@ def _events_from_kunstmuseum_bonn(html: str, detail_fetcher=None) -> list:
         format_text = rc.clean(meta_m.group(1) if meta_m else "")
         fallback = _kunstmuseum_fallback_description(title, format_text, start)
         description = ""
+        price = ""
         if detail_fetcher and common.window_contains(start):
             try:
-                description = _kunstmuseum_detail_description(detail_fetcher(href))
+                detail_html = detail_fetcher(href)
+                description = _kunstmuseum_detail_description(detail_html)
+                price = _kunstmuseum_detail_price(detail_html)
             except Exception as exc:
                 common.log_source_error("Kunstmuseum Bonn detail", exc)
         ev = common.make_event(
@@ -102,6 +115,9 @@ def _events_from_kunstmuseum_bonn(html: str, detail_fetcher=None) -> list:
             0.92,
         )
         if ev:
+            if price:
+                ev["price"] = price
+                ev["admission_basis"] = "explicit"
             events.append(ev)
     return events
 

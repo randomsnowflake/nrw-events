@@ -1263,6 +1263,35 @@ class ReportTests(unittest.TestCase):
 
         self.assertEqual(len(report.deduplicate(events)), 1)
 
+    def test_deduplicate_keeps_different_timed_museum_events_separate(self):
+        base = {
+            "start_date": "2026-08-19", "end_date": "2026-08-19",
+            "date": "2026-08-19", "city": "Bonn-Gronau",
+            "venue": "Kunstmuseum Bonn", "venue_id": "kunstmuseum-bonn",
+            "category_key": "exhibition", "description": "", "price": "",
+            "score": 1.0,
+        }
+        events = [
+            {
+                **base,
+                "title": "Glow And Create: Schwarzlicht-malerei im Museum",
+                "source": "Kunstmuseum Bonn", "time": "17:00",
+                "start_at": "2026-08-19T17:00+02:00",
+                "end_at": "2026-08-19T17:00+02:00",
+                "link": "https://museum.test/glow-and-create",
+            },
+            {
+                **base,
+                "title": "#IFEELYOU - Dimensionen der Empathie",
+                "source": "Bonn.de Events", "time": "11:00",
+                "start_at": "2026-08-19T11:00+02:00",
+                "end_at": "2026-08-19T11:00+02:00",
+                "link": "https://bonn.test/ifeelyou",
+            },
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

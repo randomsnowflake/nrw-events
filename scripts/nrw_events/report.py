@@ -659,6 +659,13 @@ def _same_registered_venue_occurrence(left: dict, right: dict) -> bool:
     """Match cross-source records by canonical venue, date, and category."""
     if not left.get("source") or left.get("source") == right.get("source"):
         return False
+    # A museum or theatre can host several events in the same category on one
+    # day. Distinct explicit start times prove that these are separate
+    # occurrences, even when both records resolve to the same registered venue.
+    left_start = left.get("start_at")
+    right_start = right.get("start_at")
+    if left_start and right_start and left_start != right_start:
+        return False
     left_venue_id = left.get("venue_id")
     left_category = left.get("category_key")
     left_bounds = _date_bounds(left)

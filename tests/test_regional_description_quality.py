@@ -282,6 +282,37 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("expressionistischen Künstler:innen", events[0]["description"])
         self.assertNotEqual(events[0]["description"], "Workshop")
 
+    def test_kunstmuseum_reads_labeled_cost_from_detail_page(self):
+        patch_window(self, datetime(2026, 8, 18), datetime(2026, 8, 20))
+        listing_html = """
+<a href="https://www.kunstmuseum-bonn.de/de/besuch/kalender/glow-and-create/">
+  <figure><figcaption class="teaser-caption">
+    <p class="teaser-date">Mi. 19.08.2026, 17:00 Uhr</p>
+    <h4 class="teaser-title">GLOW AND CREATE: SCHWARZLICHT-MALEREI IM MUSEUM</h4>
+    <p class="teaser-meta">Workshop</p>
+  </figcaption></figure>
+</a>
+"""
+        detail_html = """
+<div class="post-body">
+  <p>Gestalte im Schwarzlicht mit Neonfarben dein eigenes Kunstwerk.</p>
+</div>
+<div class="post-info-content">
+  <h5>Angebot für</h5><p>Erwachsene</p>
+  <h5>Format</h5><p>Workshop</p>
+  <h5>Kosten</h5><p>22 Euro (inkl. einem Getränk)</p>
+  <h5>Dauer</h5><p>2 Stunden</p>
+</div>
+"""
+
+        [event] = requested_venues._events_from_kunstmuseum_bonn(
+            listing_html,
+            detail_fetcher=lambda _url: detail_html,
+        )
+
+        self.assertEqual(event["price"], "22 Euro (inkl. einem Getränk)")
+        self.assertEqual(event["admission_basis"], "explicit")
+
     def test_kunstmuseum_detail_failure_still_returns_useful_text(self):
         listing_html = """
 <a href="https://www.kunstmuseum-bonn.de/de/besuch/kalender/gem%c2%b7einsam-12/">
