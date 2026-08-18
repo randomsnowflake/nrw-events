@@ -8,7 +8,7 @@ class BonnDuplicateTitleTests(unittest.TestCase):
         clean = {
             "title": "Weinfest auf dem Bonner Münsterplatz",
             "city": "Bonn",
-            "date": "2026-08-21",
+            "start_date": "2026-08-21",
             "link": "https://www.bonn.de/clean",
         }
         duplicate = {
@@ -17,7 +17,7 @@ class BonnDuplicateTitleTests(unittest.TestCase):
                 "- täglich ab Mittagszeit"
             ),
             "city": "Bonn",
-            "date": "2026-08-21",
+            "start_date": "2026-08-21",
             "link": "https://www.bonn.de/dated",
         }
 

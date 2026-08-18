@@ -957,7 +957,7 @@ def _drop_redundant_dated_title_variants(events: list) -> list:
         (
             event.get("title", "").strip().casefold(),
             event.get("city", "").strip().casefold(),
-            event.get("date", ""),
+            event.get("start_date") or event.get("date", ""),
         )
         for event in events
         if not _DATED_RANGE_TITLE.match(event.get("title", ""))
@@ -968,7 +968,7 @@ def _drop_redundant_dated_title_variants(events: list) -> list:
         if match and (
             match.group(1).strip().casefold(),
             event.get("city", "").strip().casefold(),
-            event.get("date", ""),
+            event.get("start_date") or event.get("date", ""),
         ) in clean_identities:
             continue
         kept.append(event)

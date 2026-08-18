@@ -189,7 +189,7 @@ def _enrich_brueser_berg_details(events: list) -> list:
     try:
         calendar = common.fetch_detail_url(
             _NBB_CALENDAR_URL,
-            cache_namespace="brueser-berg-nbb-calendar",
+            cache_namespace="brueser-berg-nbb-calendar-v2",
             timeout=15,
         )
         occurrences = _nbb_calendar_occurrences(calendar)
@@ -205,7 +205,7 @@ def _enrich_brueser_berg_details(events: list) -> list:
         try:
             detail_html = common.fetch_detail_url(
                 detail_link,
-                cache_namespace="brueser-berg-nbb-detail",
+                cache_namespace="brueser-berg-nbb-detail-v2",
                 timeout=15,
             )
             description = _nbb_detail_description(detail_html)
