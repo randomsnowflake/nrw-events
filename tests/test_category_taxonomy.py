@@ -869,30 +869,33 @@ class CategoryTaxonomyTests(unittest.TestCase):
                     categorize_event(source_category, title, description)["key"], expected
                 )
 
-
     def test_biographical_youth_and_family_history_do_not_create_kids_events(self):
-        self.assertEqual(
-            categorize_event(
+        cases = [
+            (
                 "kabarett kleinkunst",
-                "Oliver Kalkofe – Ein Boomer blickt zurück",
-                "Er erzählt von seiner Jugend und den Medien seiner Zeit.",
-            )["key"],
-            "stage",
-        )
-        self.assertEqual(
-            categorize_event(
+                "Oliver Kalkofe - Nie war früher schöner als jetzt",
+                "Der Autor blickt auf seine eigene Jugend zurück.",
+                "stage",
+            ),
+            (
                 "gesundheit beratung",
                 "Herz-Check Bonn",
-                "Informationen zu Herzerkrankungen in der Familie und persönliche Checks.",
-            )["key"],
-            "activities",
-        )
+                "Empfohlen für Menschen ab 40 Jahren mit Herzerkrankungen in der Familie.",
+                "activities",
+            ),
+        ]
+
+        for source_category, title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    categorize_event(source_category, title, description)["key"], expected
+                )
 
     def test_compound_gallery_title_outweighs_incidental_concert_copy(self):
         result = categorize_event(
-            "kommunal lokal markt kultur",
+            "kommunal kultur",
             "Freiluftgalerie Rhöndorf",
-            "Kunstwerke im öffentlichen Raum; zur Eröffnung spielt ein Konzert.",
+            "Die Vernissage findet vor einem Konzert im Pavillon statt.",
         )
 
         self.assertEqual(result["key"], "exhibition")

@@ -40,53 +40,6 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
             self.assertTrue(call.kwargs["fallback_on_timeout"])
             self.assertEqual(call.kwargs["fallback_statuses"], (408, 429, 500, 502, 503, 504))
 
-    def test_ionas4_collapses_consecutive_generated_all_day_occurrences(self):
-        items = [
-            {
-                "id": f"21682:{index}",
-                "start": f"2026-07-{day:02d}T00:00:00",
-                "end": f"2026-07-{day + 1:02d}T00:00:00",
-                "allDay": True,
-                "title": "Freiluftgalerie Rhöndorf",
-                "website": "https://freiluftgalerierhoendorf.de/",
-                "category": {"name": "Kultur"},
-                "tags": [],
-                "location": {"name": "Rhöndorf"},
-            }
-            for index, day in enumerate((14, 15, 16))
-        ]
-
-        events = regional_ionas4._events_from_items(
-            items, "Bad Honnef", "https://example.test/calendar", 0.98
-        )
-
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["start_date"], "2026-07-14")
-        self.assertEqual(events[0]["end_date"], "2026-07-16")
-        self.assertEqual(events[0]["category_key"], "exhibition")
-
-    def test_ionas4_keeps_nonconsecutive_occurrences_separate(self):
-        items = [
-            {
-                "id": f"42:{index}",
-                "start": f"2026-07-{day:02d}T00:00:00",
-                "end": f"2026-07-{day + 1:02d}T00:00:00",
-                "allDay": True,
-                "title": "Offener Spieletreff",
-                "website": "https://example.test/weekly",
-                "category": {"name": "Treffen"},
-                "tags": [],
-                "location": {"name": "Rathaus"},
-            }
-            for index, day in enumerate((14, 21, 25))
-        ]
-
-        events = regional_ionas4._events_from_items(
-            items, "Bad Honnef", "https://example.test/calendar", 0.98
-        )
-
-        self.assertEqual(len(events), 3)
-
     def test_ionas4_uses_detail_description_location_and_direct_link(self):
         items = [{
             "id": "9697:0",
@@ -182,6 +135,68 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["end_date"], "2026-07-12")
         self.assertEqual(requested, [])
+
+    def test_ionas4_collapses_consecutive_all_day_occurrences_into_one_run(self):
+        items = [
+            {
+                "id": f"21682:{index}",
+                "start": f"2026-08-{28 + index:02d}T00:00",
+                "end": f"2026-08-{29 + index:02d}T00:00",
+                "allDay": True,
+                "title": "Freiluftgalerie Rhöndorf",
+                "website": "https://freiluftgalerierhoendorf.de/",
+                "category": None,
+                "tags": [],
+                "location": {"name": "Ziepchensplatz, Bad Honnef-Rhöndorf"},
+            }
+            for index in range(3)
+        ]
+
+        events = regional_ionas4._events_from_items(
+            items,
+            "Bad Honnef",
+            "https://meinbadhonnef.de/kalender/veranstaltungen/",
+            0.98,
+            detail_fetcher=None,
+            source_id="ionas4-bad-honnef",
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["start_date"], "2026-08-28")
+        self.assertEqual(events[0]["end_date"], "2026-08-30")
+        self.assertTrue(events[0]["all_day"])
+        self.assertEqual(events[0]["category_key"], "exhibition")
+
+    def test_ionas4_keeps_nonconsecutive_all_day_occurrences_separate(self):
+        items = [
+            {
+                "id": f"500:{index}",
+                "start": start,
+                "end": end,
+                "allDay": True,
+                "title": "Aktionstag",
+                "website": "https://example.test/aktionstag",
+                "category": {"name": "Fest"},
+                "tags": [],
+                "location": {"name": "Marktplatz"},
+            }
+            for index, (start, end) in enumerate((
+                ("2026-08-20T00:00", "2026-08-21T00:00"),
+                ("2026-08-27T00:00", "2026-08-28T00:00"),
+                ("2026-09-03T00:00", "2026-09-04T00:00"),
+            ))
+        ]
+
+        events = regional_ionas4._events_from_items(
+            items,
+            "Bad Honnef",
+            "https://meinbadhonnef.de/kalender/veranstaltungen/",
+            0.98,
+            detail_fetcher=None,
+            source_id="ionas4-bad-honnef",
+        )
+
+        self.assertEqual(len(events), 3)
 
     def test_ionas4_replaces_a_description_that_only_repeats_the_title(self):
         items = [{

@@ -7,43 +7,6 @@ from nrw_events.identity import event_id
 
 
 class ReportTests(unittest.TestCase):
-    def test_deduplicate_ignores_treffpunkt_prefix_and_redundant_locality(self):
-        base = {
-            "title": "Viele Wege führen nach Bödingen",
-            "date": "2026-08-23",
-            "start_date": "2026-08-23",
-            "end_date": "2026-08-23",
-            "start_at": "2026-08-23T00:00+02:00",
-            "end_at": "2026-08-23T00:00+02:00",
-            "city": "Hennef",
-            "category_key": "outdoor",
-            "description": "Geführte Wanderung.",
-            "link": "https://example.test/event",
-            "score": 1.0,
-        }
-        deduped = report.deduplicate([
-            {
-                **base,
-                "venue": "Treffpunkt: Wanderparkplatz Auf dem Driesch",
-                "source": "Hennef",
-                "time": "",
-                "price": "5 Euro",
-            },
-            {
-                **base,
-                "venue": "Wanderparkplatz Auf dem Driesch, Hennef-Bödingen",
-                "source": "Naturregion Sieg",
-                "time": "10:00–13:00",
-                "start_at": "2026-08-23T10:00+02:00",
-                "end_at": "2026-08-23T13:00+02:00",
-                "price": "",
-            },
-        ])
-
-        self.assertEqual(len(deduped), 1)
-        self.assertEqual(deduped[0]["time"], "10:00–13:00")
-        self.assertEqual(deduped[0]["price"], "5 Euro")
-
     def test_malformed_one_character_venue_does_not_split_a_cross_source_occurrence(self):
         base = {
             "title": "Digital Independence Day", "date": "2026-08-02",
@@ -518,6 +481,36 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["source"], "Katharinenhof")
         self.assertEqual(deduped[0]["price"], "3 €")
         self.assertEqual(deduped[0]["link"], "https://beikircher.de/events/flohmarkt/")
+
+    def test_duplicate_venue_ignores_treffpunkt_prefix_and_redundant_locality(self):
+        base = {
+            "title": "Viele Wege führen nach Bödingen",
+            "start_date": "2026-08-22", "end_date": "2026-08-22",
+            "date": "2026-08-22", "city": "Hennef", "category_key": "outdoor",
+            "description": "", "time": "", "start_at": "", "end_at": "",
+        }
+        events = [
+            {
+                **base,
+                "venue": 'Treffpunkt: Wanderparkplatz "Auf dem Driesch"',
+                "source": "Hennef", "score": 0.95, "price": "5 Euro",
+                "link": "https://www.hennef.de/veranstaltungen/viele-wege-fuehren-nach-boedingen/",
+            },
+            {
+                **base,
+                "venue": 'Wanderparkplatz "Auf dem Driesch", Hennef-Bödingen',
+                "source": "Naturregion Sieg", "score": 0.9,
+                "time": "10:00–13:00", "price": "",
+                "link": "https://naturregion-sieg.de/event/viele-wege-fuehren-nach-boedingen",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Hennef")
+        self.assertEqual(deduped[0]["time"], "10:00–13:00")
+        self.assertEqual(deduped[0]["price"], "5 Euro")
 
     def test_antique_market_dedup_does_not_suppress_unmatched_dates(self):
         def market(date, source, score, link):

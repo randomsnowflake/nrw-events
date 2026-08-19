@@ -328,7 +328,7 @@ _EXPLICIT_CHILD_AUDIENCE_PATTERN = re.compile(
     r"\b(?:für|fuer|mit|geeignet für|geeignet fuer)\s+(?:eltern\s+mit\s+)?"
     r"(?:kinder|familien|jugendliche)\b|"
     r"\b(?:kinder|familien|jugend)(?:programm|angebot|veranstaltung)\b|"
-    r"\bab\s+\d{1,2}\s+jahren?\b"
+    r"\bab\s+(?:[1-9]|1[0-7])\s+jahren?\b"
 )
 
 

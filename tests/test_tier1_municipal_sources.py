@@ -307,14 +307,21 @@ class SitekitPaginationTests(unittest.TestCase):
         self.assertEqual(events[0]["link"], "https://example.test/events/reordered")
 
     def test_sitekit_midnight_placeholder_is_not_published_as_a_real_time(self):
-        html = self._teaser("Ganztägige Ausstellung", "01.08.2026 00:00 Uhr")
-
-        events = regional_sitekit._events_from_teasers(
-            html, "https://example.test/events", "Teststadt", 0.9, "sitekit-test"
+        html = (
+            '<article class="SP-Teaser">'
+            '<a class="SP-Teaser__inner" href="/events/camp">'
+            '<h4 class="SP-Teaser__headline">Outdoor-Erlebnistage</h4>'
+            '<span class="SP-Scheduling__date">19.08.2026 00:00</span>'
+            '<div class="SP-Teaser__abstract">Feriencamp für Kinder.</div>'
+            '</a></article>'
         )
 
-        self.assertEqual(events[0]["time"], "")
-        self.assertTrue(events[0]["all_day"])
+        [event] = regional_sitekit._events_from_teasers(
+            html, "https://example.test/events", "Brühl", 0.9, "sitekit-bruehl"
+        )
+
+        self.assertEqual(event["time"], "")
+        self.assertTrue(event["all_day"])
 
     def test_sitekit_enriches_ambiguous_teasers_from_visible_detail_copy(self):
         listing = (
