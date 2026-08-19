@@ -7,6 +7,43 @@ from nrw_events.identity import event_id
 
 
 class ReportTests(unittest.TestCase):
+    def test_deduplicate_ignores_treffpunkt_prefix_and_redundant_locality(self):
+        base = {
+            "title": "Viele Wege führen nach Bödingen",
+            "date": "2026-08-23",
+            "start_date": "2026-08-23",
+            "end_date": "2026-08-23",
+            "start_at": "2026-08-23T00:00+02:00",
+            "end_at": "2026-08-23T00:00+02:00",
+            "city": "Hennef",
+            "category_key": "outdoor",
+            "description": "Geführte Wanderung.",
+            "link": "https://example.test/event",
+            "score": 1.0,
+        }
+        deduped = report.deduplicate([
+            {
+                **base,
+                "venue": "Treffpunkt: Wanderparkplatz Auf dem Driesch",
+                "source": "Hennef",
+                "time": "",
+                "price": "5 Euro",
+            },
+            {
+                **base,
+                "venue": "Wanderparkplatz Auf dem Driesch, Hennef-Bödingen",
+                "source": "Naturregion Sieg",
+                "time": "10:00–13:00",
+                "start_at": "2026-08-23T10:00+02:00",
+                "end_at": "2026-08-23T13:00+02:00",
+                "price": "",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["time"], "10:00–13:00")
+        self.assertEqual(deduped[0]["price"], "5 Euro")
+
     def test_malformed_one_character_venue_does_not_split_a_cross_source_occurrence(self):
         base = {
             "title": "Digital Independence Day", "date": "2026-08-02",

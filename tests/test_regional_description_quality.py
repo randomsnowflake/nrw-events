@@ -40,6 +40,53 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
             self.assertTrue(call.kwargs["fallback_on_timeout"])
             self.assertEqual(call.kwargs["fallback_statuses"], (408, 429, 500, 502, 503, 504))
 
+    def test_ionas4_collapses_consecutive_generated_all_day_occurrences(self):
+        items = [
+            {
+                "id": f"21682:{index}",
+                "start": f"2026-07-{day:02d}T00:00:00",
+                "end": f"2026-07-{day + 1:02d}T00:00:00",
+                "allDay": True,
+                "title": "Freiluftgalerie Rhöndorf",
+                "website": "https://freiluftgalerierhoendorf.de/",
+                "category": {"name": "Kultur"},
+                "tags": [],
+                "location": {"name": "Rhöndorf"},
+            }
+            for index, day in enumerate((14, 15, 16))
+        ]
+
+        events = regional_ionas4._events_from_items(
+            items, "Bad Honnef", "https://example.test/calendar", 0.98
+        )
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["start_date"], "2026-07-14")
+        self.assertEqual(events[0]["end_date"], "2026-07-16")
+        self.assertEqual(events[0]["category_key"], "exhibition")
+
+    def test_ionas4_keeps_nonconsecutive_occurrences_separate(self):
+        items = [
+            {
+                "id": f"42:{index}",
+                "start": f"2026-07-{day:02d}T00:00:00",
+                "end": f"2026-07-{day + 1:02d}T00:00:00",
+                "allDay": True,
+                "title": "Offener Spieletreff",
+                "website": "https://example.test/weekly",
+                "category": {"name": "Treffen"},
+                "tags": [],
+                "location": {"name": "Rathaus"},
+            }
+            for index, day in enumerate((14, 21, 25))
+        ]
+
+        events = regional_ionas4._events_from_items(
+            items, "Bad Honnef", "https://example.test/calendar", 0.98
+        )
+
+        self.assertEqual(len(events), 3)
+
     def test_ionas4_uses_detail_description_location_and_direct_link(self):
         items = [{
             "id": "9697:0",

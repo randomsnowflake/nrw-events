@@ -355,5 +355,41 @@ class JsonLdScheduleTests(unittest.TestCase):
                 self.assertEqual(canonical.admission_basis, expected_basis)
 
 
+    def test_visible_paid_admission_overrides_zero_price_plugin_default(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Geführte Wanderung",
+            "startDate": "2026-08-23T10:00:00+02:00",
+            "description": "Die Teilnahme kostet 5 Euro. Anmeldung erforderlich.",
+            "offers": {"@type": "Offer", "price": 0, "priceCurrency": "EUR"},
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        event = common.events_from_jsonld(
+            html, "Test source", "Hennef", "führung", 1.0, "https://example.test/event"
+        )[0]
+
+        self.assertEqual(event["price"], "5 Euro")
+        self.assertEqual(event["admission_basis"], "explicit")
+
+    def test_zero_price_remains_free_without_contradictory_admission_copy(self):
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Freier Termin",
+            "startDate": "2026-08-23T10:00:00+02:00",
+            "description": "Offener Termin für alle Interessierten.",
+            "offers": {"@type": "Offer", "price": 0, "priceCurrency": "EUR"},
+        }
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        event = common.events_from_jsonld(
+            html, "Test source", "Bonn", "treffen", 1.0, "https://example.test/event"
+        )[0]
+
+        self.assertEqual(event["price"], "kostenlos")
+
+
 if __name__ == "__main__":
     unittest.main()

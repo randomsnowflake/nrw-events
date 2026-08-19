@@ -712,7 +712,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
             start = common.parse_date(date_text)
             time_text = common.clean_html(time_raw)
             time_match = re.search(r"(\d{1,2}):(\d{2})", time_text)
-            if time_match:
+            if time_match and (int(time_match.group(1)), int(time_match.group(2))) != (0, 0):
                 start = start.replace(hour=int(time_match.group(1)), minute=int(time_match.group(2)))
                 time_text = f"{int(time_match.group(1)):02d}:{time_match.group(2)}"
             else:

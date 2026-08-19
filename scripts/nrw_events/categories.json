@@ -2725,7 +2725,7 @@
         },
         {
           "value": "galerie",
-          "match_mode": "word",
+          "match_mode": "compound_word",
           "scope": "all",
           "weight": 1.0,
           "comment": "classifier"

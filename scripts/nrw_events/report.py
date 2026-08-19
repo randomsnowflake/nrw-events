@@ -458,6 +458,7 @@ def _locations_compatible(left: dict, right: dict) -> bool:
 def _venue_comparison_text(event: dict) -> str:
     """Normalize a venue while ignoring a redundant leading city label."""
     venue = comparison_text(event.get("venue", ""))
+    venue = re.sub(r"^treffpunkt\s+", "", venue)
     if len(comparison_text(venue, separator="")) < 2:
         return ""
     city = _normalized_city(event.get("city", ""))

@@ -88,6 +88,18 @@ class BonnCategoryMappingTests(unittest.TestCase):
 
         self.assertEqual([event["title"] for event in events], ["Reihenfolgefestes Konzert"])
 
+    def test_listing_midnight_placeholder_is_not_published_as_a_real_time(self):
+        html = self._listing("Ausstellungen", "Ganztägige Ausstellung").replace(
+            '<span class="SP-Scheduling__date">28.07.2026</span>',
+            '<span class="SP-Scheduling__date">28.07.2026</span>'
+            '<span class="SP-Scheduling__time">00:00 Uhr</span>',
+        )
+
+        event = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")[0]
+
+        self.assertEqual(event["time"], "")
+        self.assertTrue(event["all_day"])
+
     def test_mapping_covers_only_topic_categories(self):
         expected = {
             "Fest/Festival": "festival",

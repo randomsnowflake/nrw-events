@@ -2137,6 +2137,25 @@ def _jsonld_admission_price(item: dict) -> Optional[str]:
     return offer_price
 
 
+_VISIBLE_PAID_ADMISSION_RE = re.compile(
+    r"\b(?:eintritt|teilnahme|ticket(?:s)?|kostenbeitrag|teilnahmebeitrag|teilnahmegeb(?:u|ü)hr)"
+    r"\s+(?:kostet|kosten|betr(?:a|ä)gt|betragen)\s+"
+    r"(?P<amount>\d+(?:[.,]\d{1,2})?)\s*(?P<currency>€|eur\b|euro\b)",
+    re.IGNORECASE,
+)
+
+
+def _visible_paid_admission_price(text: str) -> Optional[str]:
+    """Return an explicit visitor price from prose, without guessing fees."""
+    match = _VISIBLE_PAID_ADMISSION_RE.search(text or "")
+    if not match:
+        return None
+    currency = match.group("currency")
+    if currency.casefold() == "eur":
+        currency = "Euro"
+    return f'{match.group("amount")} {currency}'
+
+
 def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                        trust: float, default_link: str, source_id: str = "",
                        admission: AdmissionDefault | None = None,
@@ -2153,6 +2172,14 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
         desc = item.get("description", "")
         link = item.get("url") or default_link
         admission_price = _jsonld_admission_price(item)
+        # Calendar plugins often publish a default ``price: 0`` even when the
+        # visible event copy names a visitor fee. A narrowly phrased amount in
+        # that copy is stronger evidence than this structured placeholder.
+        if (
+            admission_price == "kostenlos"
+            and _jsonld_accessible_for_free(item.get("isAccessibleForFree")) is not True
+        ):
+            admission_price = _visible_paid_admission_price(desc) or admission_price
         organizer = _jsonld_entity_names(item.get("organizer"))
         availability = _jsonld_offer_availability(item.get("offers"))
 

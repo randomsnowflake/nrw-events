@@ -3,6 +3,7 @@
 import json
 import re
 import urllib.parse
+from collections import defaultdict
 from datetime import timedelta
 
 from .. import common, http
@@ -153,10 +154,69 @@ def _description_with_context(event: dict) -> str:
     return description
 
 
+def _all_day_series_key(item: dict):
+    """Return a conservative key for FullCalendar-generated daily occurrences."""
+    item_id = str(item.get("id") or "")
+    match = re.fullmatch(r"(.+):\d+", item_id)
+    raw_all_day = item.get("allDay")
+    all_day = (
+        raw_all_day if isinstance(raw_all_day, bool)
+        else str(raw_all_day).strip().casefold() == "true"
+    )
+    start = common.parse_iso_date(item.get("start", ""))
+    end = common.parse_iso_date(item.get("end", ""))
+    if not (match and all_day and start and end and end - start == timedelta(days=1)):
+        return None
+    identity = json.dumps(
+        {
+            "base_id": match.group(1),
+            "title": item.get("title") or "",
+            "website": item.get("website") or "",
+            "location": item.get("location") or {},
+            "category": item.get("category") or {},
+            "tags": item.get("tags") or [],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return identity, start, end
+
+
+def _collapse_consecutive_all_day_items(items: list) -> list:
+    """Collapse three or more generated daily rows into one inclusive date run."""
+    grouped: dict[str, list[tuple[object, object, dict]]] = defaultdict(list)
+    untouched: list[dict] = []
+    for item in items:
+        series = _all_day_series_key(item)
+        if not series:
+            untouched.append(item)
+            continue
+        identity, start, end = series
+        grouped[identity].append((start, end, item))
+
+    collapsed = list(untouched)
+    for occurrences in grouped.values():
+        occurrences.sort(key=lambda value: value[0])
+        runs: list[list[tuple[object, object, dict]]] = []
+        for occurrence in occurrences:
+            if runs and occurrence[0] == runs[-1][-1][1]:
+                runs[-1].append(occurrence)
+            else:
+                runs.append([occurrence])
+        for run in runs:
+            if len(run) < 3:
+                collapsed.extend(occurrence[2] for occurrence in run)
+                continue
+            merged = dict(run[0][2])
+            merged["end"] = run[-1][2].get("end")
+            collapsed.append(merged)
+    return collapsed
+
+
 def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
                        detail_fetcher=None, source_id: str = "") -> list:
     events = []
-    for item in items:
+    for item in _collapse_consecutive_all_day_items(items):
         start = common.parse_iso_date(item.get("start", ""))
         end = common.parse_iso_date(item.get("end", "")) or start
         raw_all_day = item.get("allDay")

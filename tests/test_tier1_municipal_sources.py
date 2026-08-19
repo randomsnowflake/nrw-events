@@ -306,6 +306,16 @@ class SitekitPaginationTests(unittest.TestCase):
         self.assertEqual([event["title"] for event in events], ["Reihenfolgefestes Stadtfest"])
         self.assertEqual(events[0]["link"], "https://example.test/events/reordered")
 
+    def test_sitekit_midnight_placeholder_is_not_published_as_a_real_time(self):
+        html = self._teaser("Ganztägige Ausstellung", "01.08.2026 00:00 Uhr")
+
+        events = regional_sitekit._events_from_teasers(
+            html, "https://example.test/events", "Teststadt", 0.9, "sitekit-test"
+        )
+
+        self.assertEqual(events[0]["time"], "")
+        self.assertTrue(events[0]["all_day"])
+
     def test_sitekit_enriches_ambiguous_teasers_from_visible_detail_copy(self):
         listing = (
             '<article class="SP-Teaser">'

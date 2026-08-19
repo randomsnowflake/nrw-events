@@ -870,5 +870,33 @@ class CategoryTaxonomyTests(unittest.TestCase):
                 )
 
 
+    def test_biographical_youth_and_family_history_do_not_create_kids_events(self):
+        self.assertEqual(
+            categorize_event(
+                "kabarett kleinkunst",
+                "Oliver Kalkofe – Ein Boomer blickt zurück",
+                "Er erzählt von seiner Jugend und den Medien seiner Zeit.",
+            )["key"],
+            "stage",
+        )
+        self.assertEqual(
+            categorize_event(
+                "gesundheit beratung",
+                "Herz-Check Bonn",
+                "Informationen zu Herzerkrankungen in der Familie und persönliche Checks.",
+            )["key"],
+            "activities",
+        )
+
+    def test_compound_gallery_title_outweighs_incidental_concert_copy(self):
+        result = categorize_event(
+            "kommunal lokal markt kultur",
+            "Freiluftgalerie Rhöndorf",
+            "Kunstwerke im öffentlichen Raum; zur Eröffnung spielt ein Konzert.",
+        )
+
+        self.assertEqual(result["key"], "exhibition")
+
+
 if __name__ == "__main__":
     unittest.main()

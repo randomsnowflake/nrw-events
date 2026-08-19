@@ -324,6 +324,28 @@ def _match_count(text: str, patterns: tuple[str, ...]) -> int:
     return sum(1 for pattern in patterns if re.search(pattern, text))
 
 
+_EXPLICIT_CHILD_AUDIENCE_PATTERN = re.compile(
+    r"\b(?:für|fuer|mit|geeignet für|geeignet fuer)\s+(?:eltern\s+mit\s+)?"
+    r"(?:kinder|familien|jugendliche)\b|"
+    r"\b(?:kinder|familien|jugend)(?:programm|angebot|veranstaltung)\b|"
+    r"\bab\s+\d{1,2}\s+jahren?\b"
+)
+
+
+def _kids_description_keywords(
+    keywords: list[str | Keyword], description_text: str
+) -> list[str | Keyword]:
+    """Discard ambiguous biography/family-history words without audience proof."""
+    if _EXPLICIT_CHILD_AUDIENCE_PATTERN.search(description_text):
+        return keywords
+    ambiguous = {"familie", "jugend"}
+    return [
+        keyword
+        for keyword in keywords
+        if (keyword if isinstance(keyword, str) else keyword.value) not in ambiguous
+    ]
+
+
 def _contextual_event_format(
     title_text: str,
     description_text: str,
@@ -337,6 +359,8 @@ def _contextual_event_format(
     """
 
     content = f"{title_text} {description_text}"
+    if re.search(r"\b(?:gesundheits|herz)[ -]?check\b|\bscreening\b", title_text):
+        return ("activities", "format:public-health-check", 0.95)
     child_program = _contains_any(
         content,
         (
@@ -717,6 +741,10 @@ def categorize_event(
     for rule in RULES:
         title_keywords = _matched_keywords(title_comparison, rule.keywords, is_title=True)
         description_keywords = _matched_keywords(description_comparison, rule.keywords, is_title=False)
+        if rule.key == "kids":
+            description_keywords = _kids_description_keywords(
+                description_keywords, description_comparison
+            )
         hint_keywords = _matched_keywords(hint_comparison, rule.keywords, is_title=False)
         if not _has_enough_evidence(title_keywords + description_keywords + hint_keywords):
             continue

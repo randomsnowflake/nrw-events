@@ -231,7 +231,12 @@ def _events_from_teasers(html: str, base: str, city: str, trust: float,
         if not (date and title):
             continue
         text = rc.clean(block)
-        start = rc.with_time(rc.parse_dt(date.group(1)), text)
+        time_text = rc.time_text(text)
+        # SiteKit uses midnight when editors leave the time empty. Publishing
+        # it as a real start time misleads visitors; retain the date as all-day.
+        if time_text == "00:00":
+            time_text = ""
+        start = rc.with_time(rc.parse_dt(date.group(1)), time_text)
         description = rc.clean(desc.group(1) if desc else "")
         ev = common.make_event(
             rc.clean(title.group(1)),
@@ -244,7 +249,7 @@ def _events_from_teasers(html: str, base: str, city: str, trust: float,
             _SOURCE,
             "kommunal kultur markt ausstellung konzert führung",
             trust,
-            rc.time_text(text),
+            time_text,
             source_id=source_id,
         )
         if ev:
