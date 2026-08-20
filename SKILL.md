@@ -140,6 +140,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
 | bonn-region | Krewelshof Kindersachen-Flohmarkt | `krewelshof-kindersachen-flohmarkt` | `python` |
 | bonn-region | KUNST!RASEN Bonn | `kunstrasen-bonn` | `python` |
+| bonn-region | Kunstmuseum Bonn | `kunstmuseum-bonn` | `python` |
 | bonn-region | Köln Open Data | `k-ln-open-data` | `python` |
 | bonn-region | Königswinter | `k-nigswinter` | `python` |
 | bonn-region | Lampert Märkte | `lampert-m-rkte` | `python` |
@@ -273,6 +274,7 @@ scripts/nrw_events/
     koeln.py
     koenigswinter.py
     krewelshof.py
+    kunstmuseum_bonn.py
     kunstrasen_bonn.py
     lampert.py
     lupe_events.py

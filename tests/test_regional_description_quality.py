@@ -11,6 +11,7 @@ from nrw_events.sources import (
     regional_html,
     regional_ionas4,
     regional_tourism,
+    kunstmuseum_bonn,
     requested_venues,
     ruhrguide,
 )
@@ -335,7 +336,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 </div>
 """
 
-        events = requested_venues._events_from_kunstmuseum_bonn(
+        events = kunstmuseum_bonn.events_from_html(
             listing_html,
             detail_fetcher=lambda _url: detail_html,
         )
@@ -367,7 +368,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 </div>
 """
 
-        [event] = requested_venues._events_from_kunstmuseum_bonn(
+        [event] = kunstmuseum_bonn.events_from_html(
             listing_html,
             detail_fetcher=lambda _url: detail_html,
         )
@@ -386,7 +387,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 </a>
 """
 
-        events = requested_venues._events_from_kunstmuseum_bonn(
+        events = kunstmuseum_bonn.events_from_html(
             listing_html,
             detail_fetcher=lambda _url: (_ for _ in ()).throw(TimeoutError("detail timeout")),
         )

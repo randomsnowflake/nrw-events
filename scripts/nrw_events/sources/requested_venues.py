@@ -10,15 +10,6 @@ from . import regional_common as rc
 def fetch() -> list:
     events = []
     events.extend(rc.fetch_html_events(
-        "Kunstmuseum Bonn",
-        "https://www.kunstmuseum-bonn.de/de/besuch/kalender/",
-        lambda html: _events_from_kunstmuseum_bonn(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="kunstmuseum-bonn", timeout=20),
-        ),
-     source_id="kunstmuseum-bonn"))
-    events.extend(rc.fetch_html_events(
         "Sankt Augustin",
         "https://www.sankt-augustin.de/veranstaltungen/",
         _events_from_sankt_augustin,
@@ -48,78 +39,6 @@ def fetch() -> list:
         _events_from_rathausmusik,
      source_id="rathausmusik"))
     return rc.dedupe(events)
-
-
-def _kunstmuseum_detail_description(html: str) -> str:
-    body = re.search(
-        r'<div[^>]*class="[^"]*\bpost-body\b[^"]*"[^>]*>(.*?)</div>',
-        html or "",
-        re.S | re.I,
-    )
-    return common.concise_description(
-        rc.clean(body.group(1) if body else ""), max_chars=360)
-
-
-def _kunstmuseum_detail_price(html: str) -> str:
-    """Read the visitor cost from the museum's labeled event facts."""
-    match = re.search(
-        r'<h[1-6][^>]*>\s*Kosten\s*</h[1-6]>\s*<p[^>]*>(.*?)</p>',
-        html or "",
-        re.S | re.I,
-    )
-    return rc.clean(match.group(1))[:160] if match else ""
-
-
-def _kunstmuseum_fallback_description(title: str, format_text: str, start) -> str:
-    schedule = f" am {start:%d.%m.%Y}" if start else ""
-    if start and start.strftime("%H:%M") != "00:00":
-        schedule += f" um {start:%H:%M} Uhr"
-    format_label = format_text or "Veranstaltung"
-    return f"„{title}“ ist ein Angebot im Format „{format_label}“ und findet{schedule} im Kunstmuseum Bonn statt."
-
-
-def _events_from_kunstmuseum_bonn(html: str, detail_fetcher=None) -> list:
-    events = []
-    for block in re.findall(r'<a href="(?P<href>[^"]+/de/besuch/kalender/[^"]+/)">(.*?)</a>',
-                            html, re.S | re.I):
-        href, body = block
-        date_m = re.search(r'class="teaser-date">\s*(.*?)\s*</p>', body, re.S | re.I)
-        title_m = re.search(r'class="teaser-title">\s*(.*?)\s*</h4>', body, re.S | re.I)
-        meta_m = re.search(r'class="teaser-meta">\s*(.*?)\s*</p>', body, re.S | re.I)
-        if not (date_m and title_m):
-            continue
-        date_text = rc.clean(date_m.group(1))
-        start = rc.with_time(common.parse_date(date_text), date_text)
-        title = rc.clean(title_m.group(1))
-        format_text = rc.clean(meta_m.group(1) if meta_m else "")
-        fallback = _kunstmuseum_fallback_description(title, format_text, start)
-        description = ""
-        price = ""
-        if detail_fetcher and common.window_contains(start):
-            try:
-                detail_html = detail_fetcher(href)
-                description = _kunstmuseum_detail_description(detail_html)
-                price = _kunstmuseum_detail_price(detail_html)
-            except Exception as exc:
-                common.log_source_error("Kunstmuseum Bonn detail", exc)
-        ev = common.make_event(
-            title,
-            start,
-            start,
-            "Kunstmuseum Bonn",
-            "Bonn",
-            description or fallback,
-            href,
-            "Kunstmuseum Bonn",
-            "museum kunst ausstellung führung workshop performance lesung konzert",
-            0.92,
-        )
-        if ev:
-            if price:
-                ev["price"] = price
-                ev["admission_basis"] = "explicit"
-            events.append(ev)
-    return events
 
 
 def _events_from_sankt_augustin(html: str) -> list:

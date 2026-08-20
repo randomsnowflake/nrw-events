@@ -7,6 +7,7 @@ from nrw_events.sources import (
     SOURCES,
     deutsches_museum_bonn,
     haus_der_geschichte,
+    kunstmuseum_bonn,
     museum_koenig,
 )
 from tests.helpers import patch_window
@@ -231,6 +232,40 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertIn("Museum Koenig Bonn", SOURCES)
         self.assertIn("Deutsches Museum Bonn", SOURCES)
         self.assertIn("Haus der Geschichte Begleitungen", SOURCES)
+        self.assertIs(SOURCES["Kunstmuseum Bonn"], kunstmuseum_bonn.fetch)
+
+    def test_kunstmuseum_record_deduplicates_bonn_calendar_copy(self):
+        listing = """
+        <a href="https://www.kunstmuseum-bonn.de/de/besuch/kalender/atelier-am-sonntag-144/">
+          <figure><figcaption class="teaser-caption">
+            <p class="teaser-date">So. 23.08.2026, 11:15 Uhr</p>
+            <h4 class="teaser-title">Atelier am Sonntag</h4>
+            <p class="teaser-meta">Workshop</p>
+          </figcaption></figure>
+        </a>
+        """
+        [direct] = kunstmuseum_bonn.events_from_html(listing)
+        municipal = common.make_event(
+            "Atelier am Sonntag",
+            datetime(2026, 8, 23, 11, 15),
+            None,
+            "Kunstmuseum Bonn",
+            "Bonn",
+            "Workshop im Kunstmuseum Bonn.",
+            "https://www.bonn.de/veranstaltungskalender/atelier-am-sonntag.php",
+            "Bonn.de Events",
+            "Workshop",
+            0.95,
+            "11:15",
+            all_day=False,
+        )
+
+        events = report.deduplicate([municipal, direct])
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["source"], "Kunstmuseum Bonn")
+        self.assertEqual(events[0]["source_id"], "kunstmuseum-bonn")
+        self.assertTrue(events[0]["link"].startswith("https://www.kunstmuseum-bonn.de/"))
 
     def test_primary_museum_record_deduplicates_bonn_calendar_copy(self):
         direct = common.make_event(

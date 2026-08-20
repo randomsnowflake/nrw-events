@@ -6,7 +6,7 @@ from nrw_events import common
 from nrw_events.sources import SOURCES
 from nrw_events.sources import (
     bonn, bonn_venues, bonnjetzt, bundeskunsthalle, haus_der_geschichte, koeln,
-    regional_feeds, regional_ionas4, regional_tourism, requested_venues,
+    kunstmuseum_bonn, regional_feeds, regional_ionas4, regional_tourism, requested_venues,
 )
 from tests.helpers import patch_window
 
@@ -1325,7 +1325,7 @@ END:VCALENDAR
         </a>
         """
 
-        events = requested_venues._events_from_kunstmuseum_bonn(html)
+        events = kunstmuseum_bonn.events_from_html(html)
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Eröffnung – Human AI Art Award 2026")

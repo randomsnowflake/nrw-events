@@ -189,6 +189,13 @@
       "callable": "nrw_events.sources.deutsches_museum_bonn:fetch"
     },
     {
+      "id": "kunstmuseum-bonn",
+      "display_name": "Kunstmuseum Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.kunstmuseum_bonn:fetch"
+    },
+    {
       "id": "kleines-theater-bad-godesberg",
       "display_name": "Kleines Theater Bad Godesberg",
       "region": "bonn-region",
@@ -575,8 +582,8 @@
       "adapter": "python",
       "callable": "nrw_events.sources.requested_venues:fetch",
       "component_ids": [
-        "kunstmuseum-bonn", "sankt-augustin-events", "pantheon-bonn",
-        "haus-der-springmaus", "brueckenforum-bonn", "rathausmusik"
+        "sankt-augustin-events", "pantheon-bonn", "haus-der-springmaus",
+        "brueckenforum-bonn", "rathausmusik"
       ]
     },
     {
