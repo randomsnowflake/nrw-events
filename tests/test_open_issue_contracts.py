@@ -481,6 +481,149 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual({"Kaldauer Rochuskirmes"}, {row["series_title"] for row in kaldauen})
         self.assertNotIn("series_id", rows[-1])
 
+    def test_bonn_friedensplatz_antikmarkt_variants_share_one_verified_series(self):
+        variants = [
+            raw_event(
+                "Antik-, Kunst- & Designmarkt Bonn", "2026-04-12",
+                venue="Friedensplatz", venue_id="friedensplatz-bonn",
+                source="Rhein Antik", source_id="rhein-antik",
+            ),
+            raw_event(
+                "Antik Markt Bonn Friedensplatz", "2026-06-21",
+                venue="Antik Markt Bonn", venue_id="",
+                source="Bonn.de Events", source_id="bonn-de-events",
+            ),
+            raw_event(
+                "Antikmarkt Bonn", "2026-08-16",
+                venue="Friedensplatz", venue_id="",
+                source="Cölln Konzept", source_id="c-lln-konzept",
+            ),
+        ]
+        unrelated = raw_event(
+            "Antikmarkt Bonn", "2026-08-23",
+            venue="Rheinaue", venue_id="rheinaue-bonn",
+        )
+
+        rows, metadata, _updated = series.enrich_events(
+            [*variants, unrelated], {"schema_version": 1, "series": {}},
+            today=date(2026, 4, 1), generated_at="2026-04-01T12:00:00",
+        )
+
+        friedensplatz = rows[:3]
+        self.assertEqual(1, len({row["series_id"] for row in friedensplatz}))
+        self.assertEqual(
+            {"Antikmarkt Bonn am Friedensplatz"},
+            {row["series_title"] for row in friedensplatz},
+        )
+        self.assertEqual(
+            ["2026-04-12", "2026-06-21", "2026-08-16"],
+            next(
+                item["occurrence_dates"]
+                for item in metadata
+                if item["title"] == "Antikmarkt Bonn am Friedensplatz"
+            ),
+        )
+        self.assertNotIn("series_id", rows[-1])
+
+    def test_bonn_friedensplatz_antikmarkt_ledger_variants_migrate_together(self):
+        ledger = {"schema_version": 1, "series": {}}
+        for index, (title, venue, venue_id, day) in enumerate((
+            ("Antik-, Kunst- & Designmarkt Bonn", "Friedensplatz", "", "2026-04-12"),
+            ("Antik Markt Bonn Friedensplatz", "Antik Markt Bonn", "", "2026-06-21"),
+            ("Antikmarkt Bonn", "Friedensplatz", "friedensplatz-bonn", "2026-08-16"),
+        )):
+            ledger["series"][f"legacy-{index}"] = {
+                "series_id": f"legacy-{index}", "title": title, "venue": venue,
+                "canonical_venue_id": venue_id, "city": "Bonn", "category_key": "market",
+                "first_seen": f"{day}T00:00:00", "last_seen": f"{day}T00:00:00",
+                "occurrences": {str(index): day}, "announced_dates": [],
+            }
+
+        _rows, metadata, updated = series.enrich_events(
+            [], ledger, today=date(2026, 8, 17), generated_at="2026-08-17T12:00:00",
+        )
+
+        self.assertEqual(1, len(updated["series"]))
+        self.assertEqual("Antikmarkt Bonn am Friedensplatz", metadata[0]["title"])
+        self.assertEqual(
+            ["2026-04-12", "2026-06-21", "2026-08-16"],
+            metadata[0]["occurrence_dates"],
+        )
+
+    def test_beuel_rathausplatz_flohmarkt_variants_share_one_verified_series(self):
+        variants = [
+            raw_event(
+                "Außer Haus: Floh- und Trödelmarkt auf dem Rathausplatz",
+                "2026-08-30", city="Bonn", venue="Brückenforum Bonn", venue_id="",
+                source="Brückenforum Bonn", source_id="brueckenforum-bonn",
+            ),
+            raw_event(
+                "Floh- und Trödelmarkt Beueler Rathausplatz",
+                "2026-09-27", city="Bonn-Beuel",
+                venue="Beueler Rathausplatz (Möhneplatz)", venue_id="",
+                source="Beuel hat's", source_id="beuel-net",
+            ),
+            raw_event(
+                "Floh- und Trödelmarkt Beueler Rathausplatz",
+                "2026-10-25", city="Bonn", venue="Beueler Rathausplatz",
+                venue_id="beueler-rathausplatz",
+            ),
+        ]
+        unrelated = raw_event(
+            "Floh- und Trödelmarkt Beueler Rathausplatz", "2026-11-01",
+            city="Köln", venue="Rathausplatz", venue_id="",
+        )
+
+        rows, metadata, _updated = series.enrich_events(
+            [*variants, unrelated], {"schema_version": 1, "series": {}},
+            today=date(2026, 8, 20), generated_at="2026-08-20T12:00:00",
+        )
+
+        beuel = rows[:3]
+        self.assertEqual(1, len({row["series_id"] for row in beuel}))
+        self.assertEqual(
+            {"Floh- und Trödelmarkt Beueler Rathausplatz"},
+            {row["series_title"] for row in beuel},
+        )
+        self.assertEqual(
+            ["2026-08-30", "2026-09-27", "2026-10-25"],
+            next(
+                item["occurrence_dates"]
+                for item in metadata
+                if item["title"] == "Floh- und Trödelmarkt Beueler Rathausplatz"
+            ),
+        )
+        self.assertNotIn("series_id", rows[-1])
+
+    def test_beuel_rathausplatz_flohmarkt_ledger_variants_migrate_together(self):
+        ledger = {"schema_version": 1, "series": {}}
+        for index, (title, venue, venue_id, city, day) in enumerate((
+            (
+                "Außer Haus: Floh- und Trödelmarkt auf dem Rathausplatz",
+                "Brückenforum Bonn", "brueckenforum-bonn", "Bonn", "2026-08-30",
+            ),
+            (
+                "Floh- und Trödelmarkt Beueler Rathausplatz",
+                "Beueler Rathausplatz (Möhneplatz)", "", "Bonn-Beuel", "2026-09-27",
+            ),
+        )):
+            ledger["series"][f"legacy-beuel-{index}"] = {
+                "series_id": f"legacy-beuel-{index}", "title": title, "venue": venue,
+                "canonical_venue_id": venue_id, "city": city, "category_key": "market",
+                "first_seen": f"{day}T00:00:00", "last_seen": f"{day}T00:00:00",
+                "occurrences": {str(index): day}, "announced_dates": [],
+            }
+
+        _rows, metadata, updated = series.enrich_events(
+            [], ledger, today=date(2026, 8, 20), generated_at="2026-08-20T12:00:00",
+        )
+
+        self.assertEqual(1, len(updated["series"]))
+        self.assertEqual("Floh- und Trödelmarkt Beueler Rathausplatz", metadata[0]["title"])
+        self.assertEqual(
+            ["2026-08-30", "2026-09-27"], metadata[0]["occurrence_dates"],
+        )
+
     def test_primary_program_suppresses_only_covered_lower_authority_umbrellas(self):
         series_title = "Internationale Stummfilmtage – 42. Bonner Sommerkino"
         primary = [

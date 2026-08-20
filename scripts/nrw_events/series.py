@@ -25,6 +25,28 @@ _SUNDOWNER_BAR_TITLES = re.compile(
 _KALDAUEN_ROCHUS_TITLES = re.compile(
     r"^(?:rochus kirmes|rochuskirmes kaldauen|kaldauer rochus kirmes)$"
 )
+_BONN_FRIEDENSPLATZ_ANTIKMARKT_TITLES = {
+    "antik kunst designmarkt bonn",
+    "antik markt bonn friedensplatz",
+    "antikmarkt bonn",
+    "antikmarkt bonn am friedensplatz",
+}
+_BONN_FRIEDENSPLATZ_ANTIKMARKT_VENUES = {
+    "antik markt bonn",
+    "antikmarkt bonn",
+    "friedensplatz",
+}
+_BEUEL_RATHAUSPLATZ_FLOHMARKT_TITLES = {
+    "ausser haus floh und troedelmarkt auf dem rathausplatz",
+    "floh und troedelmarkt beueler rathausplatz",
+}
+_BEUEL_RATHAUSPLATZ_FLOHMARKT_VENUES = {
+    "beueler rathausplatz",
+    "beueler rathausplatz moehneplatz",
+    # The Brückenforum source labels its own building as the venue although
+    # its event copy explicitly places this market on the Rathausplatz.
+    "brueckenforum bonn",
+}
 
 
 def _clamped_date(year: int, month: int, day: int) -> date:
@@ -38,6 +60,32 @@ def _stem(title: str) -> str:
     text = re.sub(r"\b(?:teil|folge|part|episode)\s+(?:\d+|[ivxlcdm]+)\b", "", text)
     text = re.sub(r"\b\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?\b", "", text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def _is_bonn_friedensplatz_antikmarkt(event: Mapping[str, Any]) -> bool:
+    """Recognise the verified organizer/civic title and venue aliases."""
+    city = comparison_text(str(event.get("city") or ""))
+    if city != "bonn":
+        return False
+    title = _stem(str(event.get("series_title") or event.get("title") or ""))
+    if title not in _BONN_FRIEDENSPLATZ_ANTIKMARKT_TITLES:
+        return False
+    venue_id = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
+    venue = comparison_text(str(event.get("venue") or ""))
+    return venue_id == "friedensplatz-bonn" or venue in _BONN_FRIEDENSPLATZ_ANTIKMARKT_VENUES
+
+
+def _is_beuel_rathausplatz_flohmarkt(event: Mapping[str, Any]) -> bool:
+    """Recognise the verified civic and organiser variants for one market."""
+    city = comparison_text(str(event.get("city") or ""))
+    if city not in {"bonn", "bonn beuel"}:
+        return False
+    title = _stem(str(event.get("series_title") or event.get("title") or ""))
+    if title not in _BEUEL_RATHAUSPLATZ_FLOHMARKT_TITLES:
+        return False
+    venue_id = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
+    venue = comparison_text(str(event.get("venue") or ""))
+    return venue_id == "beueler-rathausplatz" or venue in _BEUEL_RATHAUSPLATZ_FLOHMARKT_VENUES
 
 
 def _series_title(event: Mapping[str, Any]) -> str:
@@ -54,11 +102,20 @@ def _series_title(event: Mapping[str, Any]) -> str:
         and _KALDAUEN_ROCHUS_TITLES.fullmatch(_stem(title))
     ):
         return "Kaldauer Rochuskirmes"
+    if _is_bonn_friedensplatz_antikmarkt(event):
+        return "Antikmarkt Bonn am Friedensplatz"
+    if _is_beuel_rathausplatz_flohmarkt(event):
+        return "Floh- und Trödelmarkt Beueler Rathausplatz"
     return title
 
 
 def _series_key(event: Mapping[str, Any]) -> tuple[str, str] | None:
-    venue = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
+    if _is_bonn_friedensplatz_antikmarkt(event):
+        venue = "friedensplatz-bonn"
+    elif _is_beuel_rathausplatz_flohmarkt(event):
+        venue = "beueler-rathausplatz"
+    else:
+        venue = str(event.get("venue_id") or event.get("canonical_venue_id") or "").strip()
     if not venue:
         venue_name = comparison_text(str(event.get("venue") or ""))
         city = comparison_text(str(event.get("city") or ""))
