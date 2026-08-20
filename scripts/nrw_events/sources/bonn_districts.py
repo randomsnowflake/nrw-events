@@ -47,6 +47,13 @@ _BEUEL_PRIMARY_URL_REPLACEMENTS = {
     ),
 }
 _BEUEL_CIVIC_AGGREGATOR_URLS = frozenset(_BEUEL_PRIMARY_URL_REPLACEMENTS.values())
+_BEUEL_MIRECOURTPLATZ_PROGRAMME_URL = (
+    "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/"
+)
+_BEUEL_MIRECOURTPLATZ_PROGRAMME_DATES = frozenset({
+    "2026-07-29", "2026-08-05", "2026-08-12",
+    "2026-08-19", "2026-08-26", "2026-09-02",
+})
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -488,6 +495,18 @@ def _primary_description(event: dict, html: str, source: str) -> str:
     return _jmj_kirmes_description(html)
 
 
+def _reviewed_beuel_primary_link(event: dict, link: str) -> str:
+    normalized_link = link.rstrip("/")
+    if (
+        normalized_link == "https://dein-phonzimmer.de"
+        and event.get("title") == "Mitsingkonzert Französisch und Kölsch"
+        and event.get("venue") == "Mirecourtplatz"
+        and event.get("start_date") in _BEUEL_MIRECOURTPLATZ_PROGRAMME_DATES
+    ):
+        return _BEUEL_MIRECOURTPLATZ_PROGRAMME_URL
+    return link
+
+
 def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
     """Keep discovery records only when their linked first-party page is readable."""
     confirmed = []
@@ -499,6 +518,7 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
             event.get("end_date", ""),
         )
         link = _BEUEL_PRIMARY_URL_REPLACEMENTS.get(replacement_key, link)
+        link = _reviewed_beuel_primary_link(event, link)
         event["link"] = link
         hostname = (urllib.parse.urlsplit(link).hostname or "").casefold()
         source = hostname.removeprefix("www.")

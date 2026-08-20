@@ -274,6 +274,9 @@ def _dedup_blocking_keys(event: dict) -> set[tuple[str, ...]]:
     word_shape = (words[0], second, last) if words else ()
     keys: set[tuple[str, ...]] = set()
     for day in _occurrence_date_keys(event):
+        reviewed_family = _reviewed_occurrence_alias_family(event)
+        if reviewed_family:
+            keys.add(("reviewed-occurrence", day, reviewed_family))
         if prefix:
             keys.add(("title-prefix", day, city, prefix))
             keys.add(("title-prefix-any-city", day, prefix))
@@ -331,6 +334,49 @@ def _normalized_city(value: str) -> str:
     if city.startswith("koeln "):
         return "koeln"
     return city
+
+
+def _reviewed_occurrence_alias_family(event: dict) -> str:
+    """Return a source-backed identity for a reviewed civic calendar mismatch."""
+    if _normalized_city(event.get("city", "")) != "bonn":
+        return ""
+    source = " ".join(str(event.get("source") or "").casefold().split())
+    title = normalize_title(event.get("title", ""))
+    venue = _venue_comparison_text(event)
+    if (
+        source == "bonn district festivals"
+        and title == "weinfest"
+        and venue == "muensterplatz"
+    ):
+        return "bonn-muensterplatz-weinfest"
+    if (
+        source == "bonn.de events"
+        and title == "weinfestaufdembonnermuensterplatz"
+        and venue in {"muensterplatz", "winzergemeinschaft bonn"}
+    ):
+        return "bonn-muensterplatz-weinfest"
+    if (
+        source == "bonn.de events"
+        and title == "mirecourtplatzkonzert"
+        and venue == "mirecourtplatz bonn beuel"
+    ):
+        return "bonn-mirecourtplatz-mitsingkonzert"
+    if (
+        source == "dein-phonzimmer.de"
+        and title == "mitsingkonzertfranzoesischundkoelsch"
+        and venue == "mirecourtplatz"
+    ):
+        return "bonn-mirecourtplatz-mitsingkonzert"
+    return ""
+
+
+def _reviewed_occurrence_alias_matches(left: dict, right: dict) -> bool:
+    left_start = str(left.get("start_at") or "")
+    right_start = str(right.get("start_at") or "")
+    if left_start and right_start and left_start != right_start:
+        return False
+    left_family = _reviewed_occurrence_alias_family(left)
+    return bool(left_family and left_family == _reviewed_occurrence_alias_family(right))
 
 
 def _citywide_title_family(title: str) -> str:
@@ -396,6 +442,8 @@ def _locations_compatible(left: dict, right: dict) -> bool:
             and left_venue_numbers.isdisjoint(right_venue_numbers)
         ):
             return False
+        if _reviewed_occurrence_alias_matches(left, right):
+            return True
         if left.get("source") and left.get("source") == right.get("source"):
             return True
         left_title = normalize_title(left.get("title", ""))
@@ -510,8 +558,11 @@ def _same_occurrence(left: dict, right: dict) -> bool:
                 left_single_day = left_bounds[0] == left_bounds[1]
                 right_single_day = right_bounds[0] == right_bounds[1]
                 syndicated_daily_occurrence = (
-                    normalize_title(left.get("title", ""))
-                    == normalize_title(right.get("title", ""))
+                    (
+                        normalize_title(left.get("title", ""))
+                        == normalize_title(right.get("title", ""))
+                        or _reviewed_occurrence_alias_matches(left, right)
+                    )
                     and min(
                         source_authority(left.get("source", "")),
                         source_authority(right.get("source", "")),
@@ -541,6 +592,8 @@ def _titles_match(left: dict, right: dict) -> bool:
     left_title = normalize_title(left.get("title", ""))
     right_title = normalize_title(right.get("title", ""))
     if left_title == right_title:
+        return True
+    if _reviewed_occurrence_alias_matches(left, right):
         return True
     # Fair calendars inconsistently add a locative "in" and the edition year.
     # The funfair taxonomy plus the independent date/place guards make this a
@@ -967,21 +1020,33 @@ def deduplicate(
     link_identity_counts = _link_identity_counts(events)
 
     def merge_preferred(current, candidate):
-        current_rank = (
-            source_authority(current.get("source", "")),
-            current["score"],
-            _duration_days(current),
+        reviewed_owner_pair = (
+            _reviewed_occurrence_alias_matches(current, candidate)
+            and {current.get("source"), candidate.get("source")}
+            == {"Bonn district festivals", "Bonn.de Events"}
         )
-        candidate_rank = (
-            source_authority(candidate.get("source", "")),
-            candidate["score"],
-            _duration_days(candidate),
-        )
-        winner, duplicate = (
-            (candidate, current)
-            if candidate_rank > current_rank
-            else (current, candidate)
-        )
+        if reviewed_owner_pair:
+            winner, duplicate = (
+                (current, candidate)
+                if current.get("source") == "Bonn.de Events"
+                else (candidate, current)
+            )
+        else:
+            current_rank = (
+                source_authority(current.get("source", "")),
+                current["score"],
+                _duration_days(current),
+            )
+            candidate_rank = (
+                source_authority(candidate.get("source", "")),
+                candidate["score"],
+                _duration_days(candidate),
+            )
+            winner, duplicate = (
+                (candidate, current)
+                if candidate_rank > current_rank
+                else (current, candidate)
+            )
         protect_authoritative_schedule = (
             _venue_qualified_aggregator_title_matches(winner, duplicate)
             and source_authority(winner.get("source", ""))

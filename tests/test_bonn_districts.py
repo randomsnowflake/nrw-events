@@ -210,6 +210,26 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(event["discovered_via"], ["beuel-net"])
         log_source_error.assert_not_called()
 
+    def test_beuel_replaces_mirecourtplatz_homepage_with_primary_programme(self):
+        event = {
+            "title": "Mitsingkonzert Französisch und Kölsch",
+            "start_date": "2026-08-26", "end_date": "2026-08-26",
+            "venue": "Mirecourtplatz", "city": "Bonn-Beuel",
+            "link": "https://dein-phonzimmer.de/",
+        }
+        fetched = []
+
+        [confirmed] = bonn_districts._confirm_beuel_primary_sources(
+            [event],
+            primary_fetcher=lambda url: fetched.append(url) or "<html>Primärprogramm</html>",
+        )
+
+        self.assertEqual(fetched, [
+            "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/",
+        ])
+        self.assertEqual(confirmed["link"], fetched[0])
+        self.assertEqual(confirmed["source"], "dein-phonzimmer.de")
+
     def test_beuel_nikolausmarkt_does_not_override_official_press_metadata(self):
         html = """
         <div class="yel"><a href="/events/#27.11.2026"><span class="title">Nikolausmarkt 🎅</span><br>

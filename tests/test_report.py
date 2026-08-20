@@ -7,6 +7,187 @@ from nrw_events.identity import event_id
 
 
 class ReportTests(unittest.TestCase):
+    def test_bonn_muensterplatz_weinfest_prefers_detail_calendar_over_press_umbrella(self):
+        base = {
+            "date": "2026-08-20", "start_date": "2026-08-20",
+            "city": "Bonn", "description": "", "price": "",
+            "category_key": "festival", "score": 1.0,
+        }
+        deduped = report.deduplicate([
+            {
+                **base, "title": "Weinfest", "end_date": "2026-08-23",
+                "venue": "Münsterplatz", "source": "Bonn district festivals",
+                "source_id": "bonn-district-festivals", "time": "",
+                "start_at": "", "end_at": "",
+                "link": "https://www.bonn.de/pressemitteilungen/dezember/veranstaltungsjahr.php",
+            },
+            {
+                **base, "title": "Weinfest auf dem Bonner Münsterplatz",
+                "end_date": "2026-08-20", "venue": "Winzergemeinschaft Bonn",
+                "source": "Bonn.de Events", "source_id": "bonn-de-events",
+                "time": "14:00", "start_at": "2026-08-20T14:00+02:00",
+                "end_at": "2026-08-20T14:00+02:00",
+                "link": "https://www.bonn.de/veranstaltungskalender/weinfest.php",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Bonn.de Events")
+        self.assertEqual(deduped[0]["title"], "Weinfest auf dem Bonner Münsterplatz")
+        self.assertIn(
+            event_id({
+                **base, "title": "Weinfest", "end_date": "2026-08-23",
+                "venue": "Münsterplatz", "source": "Bonn district festivals",
+                "source_id": "bonn-district-festivals", "time": "",
+                "start_at": "", "end_at": "",
+                "link": "https://www.bonn.de/pressemitteilungen/dezember/veranstaltungsjahr.php",
+            }),
+            deduped[0]["previous_event_ids"],
+        )
+
+    def test_generic_weinfest_at_another_venue_stays_distinct(self):
+        base = {
+            "date": "2026-08-20", "start_date": "2026-08-20",
+            "end_date": "2026-08-20", "city": "Bonn", "description": "",
+            "price": "", "time": "", "start_at": "", "end_at": "",
+            "category_key": "festival", "score": 1.0,
+        }
+
+        deduped = report.deduplicate([
+            {
+                **base, "title": "Weinfest", "venue": "Rheinaue",
+                "source": "Bonn district festivals", "source_id": "bonn-district-festivals",
+                "link": "https://www.bonn.de/pressemitteilungen/weinfest-rheinaue.php",
+            },
+            {
+                **base, "title": "Weinfest auf dem Bonner Münsterplatz",
+                "venue": "Winzergemeinschaft Bonn", "source": "Bonn.de Events",
+                "source_id": "bonn-de-events",
+                "link": "https://www.bonn.de/veranstaltungskalender/weinfest.php",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 2)
+
+    def test_repair_cafe_primary_source_owns_registered_venue_occurrence(self):
+        base = {
+            "date": "2026-08-20", "start_date": "2026-08-20",
+            "end_date": "2026-08-20", "city": "Bonn",
+            "venue_id": "repair-cafe-mva-bonn", "category_key": "workshop",
+            "description": "", "price": "", "score": 1.0,
+            "start_at": "2026-08-20T18:30+02:00",
+        }
+        deduped = report.deduplicate([
+            {
+                **base, "title": "Repair-Café: Radschrauben und andere Basteleien",
+                "venue": "Repair Café MVA Bonn", "source": "Bonn.de Events",
+                "source_id": "bonn-de-events", "time": "18:30",
+                "end_at": "2026-08-20T18:30+02:00",
+                "link": "https://www.bonn.de/veranstaltungskalender/repair-cafe.php",
+            },
+            {
+                **base, "title": "Repair Café MVA Bonn - Fahrrad, Geräte, Nähen",
+                "venue": "Repair Café MVA Bonn", "source": "Repair Cafés Bonn",
+                "source_id": "repair-cafes-bonn", "time": "18:30–20:30",
+                "end_at": "2026-08-20T20:30+02:00",
+                "link": "https://www.repaircafesbonn.de/mc-events/repair-cafe-mva-bonn/",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Repair Cafés Bonn")
+        self.assertEqual(
+            deduped[0]["link"],
+            "https://www.repaircafesbonn.de/mc-events/repair-cafe-mva-bonn/",
+        )
+
+    def test_repair_cafe_same_venue_different_explicit_time_stays_distinct(self):
+        base = {
+            "date": "2026-08-20", "start_date": "2026-08-20",
+            "end_date": "2026-08-20", "city": "Bonn",
+            "venue": "Repair Café MVA Bonn", "venue_id": "repair-cafe-mva-bonn",
+            "category_key": "workshop", "description": "", "price": "",
+            "score": 1.0, "source": "Repair Cafés Bonn",
+        }
+
+        deduped = report.deduplicate([
+            {
+                **base, "title": "Repair Café Frühtermin", "time": "15:00",
+                "start_at": "2026-08-20T15:00+02:00", "end_at": "2026-08-20T17:00+02:00",
+                "link": "https://www.repaircafesbonn.de/frueh",
+            },
+            {
+                **base, "title": "Repair Café Abendtermin", "time": "18:30",
+                "source": "Bonn.de Events",
+                "start_at": "2026-08-20T18:30+02:00", "end_at": "2026-08-20T20:30+02:00",
+                "link": "https://www.repaircafesbonn.de/abend",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 2)
+
+    def test_mirecourtplatz_mitsingkonzert_prefers_direct_programme(self):
+        base = {
+            "date": "2026-08-26", "start_date": "2026-08-26",
+            "end_date": "2026-08-26", "time": "18:30",
+            "start_at": "2026-08-26T18:30+02:00",
+            "end_at": "2026-08-26T20:00+02:00", "city": "Bonn-Beuel",
+            "category_key": "concert", "description": "", "price": "",
+        }
+        deduped = report.deduplicate([
+            {
+                **base, "title": "Mirecourtplatz-Konzert",
+                "venue": "Mirecourtplatz Bonn-Beuel", "source": "Bonn.de Events",
+                "source_id": "bonn-de-events", "score": 1.27,
+                "link": "https://www.bonn.de/veranstaltungskalender/mirecourtplatz.php",
+            },
+            {
+                **base, "title": "Mitsingkonzert Französisch und Kölsch",
+                "venue": "Mirecourtplatz", "source": "dein-phonzimmer.de",
+                "source_id": "beuel-net", "score": 1.4,
+                "link": "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "dein-phonzimmer.de")
+        self.assertEqual(deduped[0]["title"], "Mitsingkonzert Französisch und Kölsch")
+        self.assertEqual(
+            deduped[0]["link"],
+            "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/",
+        )
+
+    def test_mirecourtplatz_alias_rejects_conflicting_evidence(self):
+        civic = {
+            "title": "Mirecourtplatz-Konzert", "date": "2026-08-26",
+            "start_date": "2026-08-26", "end_date": "2026-08-26",
+            "time": "18:30", "start_at": "2026-08-26T18:30+02:00",
+            "end_at": "2026-08-26T20:00+02:00", "city": "Bonn-Beuel",
+            "venue": "Mirecourtplatz Bonn-Beuel", "category_key": "concert",
+            "source": "Bonn.de Events", "source_id": "bonn-de-events",
+            "description": "", "price": "", "score": 1.27,
+            "link": "https://www.bonn.de/veranstaltungskalender/mirecourtplatz.php",
+        }
+        direct = {
+            **civic, "title": "Mitsingkonzert Französisch und Kölsch",
+            "venue": "Mirecourtplatz", "source": "dein-phonzimmer.de",
+            "source_id": "beuel-net", "score": 1.4,
+            "link": "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/",
+        }
+        conflicts = (
+            {**direct, "title": "Klavierkonzert am Mirecourtplatz"},
+            {**direct, "venue": "Rheinaue"},
+            {
+                **direct, "time": "20:00",
+                "start_at": "2026-08-26T20:00+02:00",
+                "end_at": "2026-08-26T21:30+02:00",
+            },
+        )
+
+        for conflicting in conflicts:
+            with self.subTest(title=conflicting["title"], venue=conflicting["venue"], time=conflicting["time"]):
+                self.assertEqual(len(report.deduplicate([civic, conflicting])), 2)
+
     def test_malformed_one_character_venue_does_not_split_a_cross_source_occurrence(self):
         base = {
             "title": "Digital Independence Day", "date": "2026-08-02",

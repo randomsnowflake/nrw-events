@@ -35,6 +35,12 @@ def event(**overrides):
 
 
 class VenueRegistryTests(unittest.TestCase):
+    def test_mva_calendar_label_resolves_to_repair_cafe(self):
+        venue = resolve_venue("MVA - Müllverwertungsanlage", "Bonn")
+
+        self.assertEqual(venue.venue, "Repair Café MVA Bonn")
+        self.assertEqual(venue.venue_id, "repair-cafe-mva-bonn")
+
     def test_verified_asbach_trailhead_parking_resolves_outside_known_city_table(self):
         venue = resolve_venue("Parkplatz Bennau an der L 272", "Asbach")
 
