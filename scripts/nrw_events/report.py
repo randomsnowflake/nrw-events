@@ -336,6 +336,18 @@ def _normalized_city(value: str) -> str:
     return city
 
 
+def _same_explicit_start(left: str, right: str) -> bool:
+    """Compare equivalent ISO timestamps independent of seconds formatting."""
+    if left == right:
+        return True
+    try:
+        return datetime.fromisoformat(left.replace("Z", "+00:00")) == datetime.fromisoformat(
+            right.replace("Z", "+00:00")
+        )
+    except ValueError:
+        return False
+
+
 def _reviewed_occurrence_alias_family(event: dict) -> str:
     """Return a source-backed identity for a reviewed civic calendar mismatch."""
     if _normalized_city(event.get("city", "")) != "bonn":
@@ -373,7 +385,7 @@ def _reviewed_occurrence_alias_family(event: dict) -> str:
 def _reviewed_occurrence_alias_matches(left: dict, right: dict) -> bool:
     left_start = str(left.get("start_at") or "")
     right_start = str(right.get("start_at") or "")
-    if left_start and right_start and left_start != right_start:
+    if left_start and right_start and not _same_explicit_start(left_start, right_start):
         return False
     left_family = _reviewed_occurrence_alias_family(left)
     return bool(left_family and left_family == _reviewed_occurrence_alias_family(right))
@@ -535,7 +547,7 @@ def _same_occurrence(left: dict, right: dict) -> bool:
         left.get("source") == right.get("source")
         and left.get("start_at")
         and right.get("start_at")
-        and left["start_at"] != right["start_at"]
+        and not _same_explicit_start(left["start_at"], right["start_at"])
     ):
         return False
     left_bounds = _date_bounds(left)
@@ -646,7 +658,7 @@ def _aggregator_title_variant_matches(left: dict, right: dict) -> bool:
     source_ids = {left.get("source_id", ""), right.get("source_id", "")}
     left_start = left.get("start_at")
     right_start = right.get("start_at")
-    if left_start and right_start and left_start != right_start:
+    if left_start and right_start and not _same_explicit_start(left_start, right_start):
         return False
     if "kunstrasen-bonn" not in source_ids and (not left_start or not right_start):
         return False
@@ -718,7 +730,7 @@ def _same_registered_venue_occurrence(left: dict, right: dict) -> bool:
     # occurrences, even when both records resolve to the same registered venue.
     left_start = left.get("start_at")
     right_start = right.get("start_at")
-    if left_start and right_start and left_start != right_start:
+    if left_start and right_start and not _same_explicit_start(left_start, right_start):
         return False
     left_venue_id = left.get("venue_id")
     left_category = left.get("category_key")
@@ -994,7 +1006,7 @@ def events_are_duplicates(left, right) -> bool:
         and (
             not left.get("start_at")
             or not right.get("start_at")
-            or left.get("start_at") == right.get("start_at")
+            or _same_explicit_start(left.get("start_at"), right.get("start_at"))
         )
     )
     return (

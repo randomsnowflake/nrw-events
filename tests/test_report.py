@@ -89,6 +89,7 @@ class ReportTests(unittest.TestCase):
                 **base, "title": "Repair Café MVA Bonn - Fahrrad, Geräte, Nähen",
                 "venue": "Repair Café MVA Bonn", "source": "Repair Cafés Bonn",
                 "source_id": "repair-cafes-bonn", "time": "18:30–20:30",
+                "start_at": "2026-08-20T18:30:00+02:00",
                 "end_at": "2026-08-20T20:30+02:00",
                 "link": "https://www.repaircafesbonn.de/mc-events/repair-cafe-mva-bonn/",
             },
