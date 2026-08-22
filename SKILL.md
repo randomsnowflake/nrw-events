@@ -127,6 +127,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Harmonie Bonn | `harmonie-bonn` | `python` |
 | bonn-region | Haus der Geschichte | `haus-der-geschichte` | `python` |
 | bonn-region | Haus der Geschichte Begleitungen | `haus-der-geschichte-begleitungen` | `python` |
+| bonn-region | Heimatmuseum Beuel | `hgv-beuel` | `python` |
 | bonn-region | Hennef | `hennef` | `json_ld` |
 | bonn-region | HofFloh Bonn | `hoffloh-bonn` | `python` |
 | bonn-region | Hofflohmärkte Köln | `hofflohm-rkte-k-ln` | `python` |
@@ -263,6 +264,7 @@ scripts/nrw_events/
     grote_hiller.py
     harmonie.py
     haus_der_geschichte.py
+    hgv_beuel.py
     hoffloh_bonn.py
     hofflohmaerkte.py
     in_guten_kreisen.py

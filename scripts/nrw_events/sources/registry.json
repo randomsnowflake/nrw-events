@@ -196,6 +196,13 @@
       "callable": "nrw_events.sources.kunstmuseum_bonn:fetch"
     },
     {
+      "id": "hgv-beuel",
+      "display_name": "Heimatmuseum Beuel",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.hgv_beuel:fetch"
+    },
+    {
       "id": "kleines-theater-bad-godesberg",
       "display_name": "Kleines Theater Bad Godesberg",
       "region": "bonn-region",

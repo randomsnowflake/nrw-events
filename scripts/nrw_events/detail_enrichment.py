@@ -72,6 +72,8 @@ def _candidate_url(url: str) -> bool:
 
 def _needs_detail(event: dict) -> bool:
     """Limit the expensive second pass to genuinely incomplete teasers."""
+    if event.get("_detail_page_enriched") is True:
+        return False
     description = richtext.to_plain_text(str(
         event.get("description_html") or event.get("description") or ""
     )).strip()
