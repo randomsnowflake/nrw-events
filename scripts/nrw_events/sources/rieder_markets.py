@@ -15,6 +15,16 @@ _PAGE_SEPARATOR = "<!-- NRW-EVENTS-LOCATION -->"
 _TITLE_SUFFIX = "Solingen-Aufderhöhe, REWE Ihr Kaufpark"
 
 
+def _schedule_confirms_no_target(terms_html: str) -> bool:
+    has_dated_cards = bool(re.search(
+        r'<h2[^>]*woocommerce-loop-product__title[^>]*>\s*\d{2}\.\d{2}\.20\d{2}\b',
+        terms_html or "",
+        re.I | re.S,
+    ))
+    target_still_present = bool(re.search(r"Solingen-Aufderhöhe", terms_html or "", re.I))
+    return has_dated_cards and not target_still_present
+
+
 def _events_from_pages(terms_html: str, location_html: str, *, strict: bool = False) -> list:
     location = common.clean_html(location_html or "")
     address_ok = bool(re.search(r"Friedenstraße\s*96,?\s*42699\s+Solingen", location, re.I))
@@ -36,6 +46,8 @@ def _events_from_pages(terms_html: str, location_html: str, *, strict: bool = Fa
         re.I | re.S,
     )
     if not cards:
+        if _schedule_confirms_no_target(terms_html):
+            return []
         if strict:
             raise rc.ParserEmptyError("Rieder Solingen dated cards changed")
         return []
@@ -84,6 +96,11 @@ def _fetch_combined(_url: str, timeout: int = 25) -> str:
     return f"{terms_html}{_PAGE_SEPARATOR}{location_html}"
 
 
+def _combined_page_confirms_no_target(html: str) -> bool:
+    terms_html, separator, _location_html = (html or "").partition(_PAGE_SEPARATOR)
+    return bool(separator) and _schedule_confirms_no_target(terms_html)
+
+
 def fetch() -> list:
     return rc.fetch_html_events(
         _SOURCE,
@@ -92,4 +109,5 @@ def fetch() -> list:
         timeout=25,
         source_id=_SOURCE_ID,
         fetcher=_fetch_combined,
+        empty_is_healthy=_combined_page_confirms_no_target,
     )

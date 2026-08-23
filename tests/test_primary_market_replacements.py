@@ -107,6 +107,22 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         with self.assertRaisesRegex(regional_common.ParserEmptyError, "visitor start"):
             schmitt_markets._events_from_page(html, strict=True)
 
+    def test_schmitt_uses_exact_neuwied_location_confirmation(self):
+        calendar = """
+        <h2>Unsere Markttermine - Für weitere Infos einfach Termin anklicken!</h2>
+        <div>06.09.2026</div><div><a href="/event-neuwied">
+        56564 Neuwied, REWE-Center, Am Schlosspark 87</a></div>
+        """
+        location = """
+        <p>Verkauf in Neuwied ab 11.00 Uhr.</p>
+        <p>Nächster Flohmarkt 56564 Neuwied, REWE-Center: 06.09.2026</p>
+        """
+
+        [event] = schmitt_markets._events_from_pages(calendar, location, strict=True)
+
+        self.assertEqual(event["date"], "2026-09-06")
+        self.assertEqual(event["time"], "11:00")
+
     def test_rieder_combines_dated_card_with_official_location_facts(self):
         terms = """
         <a href="https://www.rieder-maerkte.de/produkt/solingen-16-08-2026/">
@@ -134,6 +150,30 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         """
         location = "<p>Friedenstraße 96, 42699 Solingen</p>"
         with self.assertRaisesRegex(regional_common.ParserEmptyError, "address or hours"):
+            rieder_markets._events_from_pages(terms, location, strict=True)
+
+    def test_rieder_accepts_authoritative_schedule_without_target_dates(self):
+        terms = """
+        <a href="/produkt/monheim-06-09-2026/">
+        <h2 class="woocommerce-loop-product__title">06.09.2026 Monheim, HELLWEG</h2></a>
+        """
+        location = """
+        <p>Friedenstraße 96, 42699 Solingen</p>
+        <p>Die offiziellen Verkaufszeiten sind an Sonn‐ &amp; Feiertagen von 11 bis 18 Uhr.</p>
+        """
+
+        self.assertEqual(rieder_markets._events_from_pages(terms, location, strict=True), [])
+
+    def test_rieder_still_rejects_changed_target_card_markup(self):
+        terms = """
+        <article>06.09.2026 Solingen-Aufderhöhe, REWE Ihr Kaufpark</article>
+        """
+        location = """
+        <p>Friedenstraße 96, 42699 Solingen</p>
+        <p>Die offiziellen Verkaufszeiten sind an Sonn‐ &amp; Feiertagen von 11 bis 18 Uhr.</p>
+        """
+
+        with self.assertRaisesRegex(regional_common.ParserEmptyError, "dated cards changed"):
             rieder_markets._events_from_pages(terms, location, strict=True)
 
     @staticmethod
