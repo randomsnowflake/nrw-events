@@ -82,6 +82,46 @@ class BonnPressFestivalTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertIn("/november/", events[0]["link"])
 
+    def test_poppelsdorfer_strassenfest_uses_reviewed_primary_detail_page(self):
+        self.addCleanup(patch.stopall)
+        patch.object(common, "END_DATE", datetime(2026, 9, 19)).start()
+        html = """
+        <ul><li>
+          Poppelsdorfer Straßenfest, Clemens-August-Straße,
+          19. September 2026, Ortsbund Poppelsdorf
+        </li></ul>
+        """
+
+        with patch.object(common, "fetch_url", return_value=html):
+            [event] = bonn.fetch_press_festivals()
+
+        self.assertEqual(event["source"], "Bonn.de Events")
+        self.assertEqual(event["source_id"], "bonn-de-events")
+        self.assertEqual(event["link_kind"], "detail")
+        self.assertEqual(event["discovered_via"], ["bonn-district-festivals"])
+        self.assertEqual(
+            event["link"],
+            "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+            "hauptkalender/extern/Poppelsdorfer-Strassenfest-.php",
+        )
+
+    def test_poppelsdorfer_primary_resolution_is_limited_to_2026_occurrence(self):
+        self.addCleanup(patch.stopall)
+        patch.object(common, "TODAY", datetime(2027, 9, 1)).start()
+        patch.object(common, "END_DATE", datetime(2027, 9, 30)).start()
+        html = """
+        <ul><li>
+          Poppelsdorfer Straßenfest, Clemens-August-Straße,
+          18. September 2027, Ortsbund Poppelsdorf
+        </li></ul>
+        """
+
+        with patch.object(common, "fetch_url", return_value=html):
+            [event] = bonn.fetch_press_festivals()
+
+        self.assertEqual(event["source"], "Bonn district festivals")
+        self.assertNotIn("Poppelsdorfer-Strassenfest-", event["link"])
+
 
 if __name__ == "__main__":
     unittest.main()

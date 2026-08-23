@@ -602,6 +602,21 @@ _PRESS_MONTH_PATHS = (
     "juli", "juni", "mai", "april", "maerz", "februar",
 )
 
+# The annual press release is a useful discovery fallback, but a reviewed
+# occurrence may have a dedicated page that Bonn's calendar search omits. Keep
+# these resolutions occurrence-specific: a recurring festival must not inherit
+# a stale detail URL in a later year.
+_PRESS_PRIMARY_DETAIL_URLS = {
+    (
+        "Poppelsdorfer Straßenfest",
+        "2026-09-19",
+        "2026-09-19",
+    ): (
+        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+        "hauptkalender/extern/Poppelsdorfer-Strassenfest-.php"
+    ),
+}
+
 
 def _press_urls(year: int) -> tuple[str, ...]:
     slug = f"abwechslungsreiches-veranstaltungsjahr-{year}-in-bonn.php"
@@ -1133,6 +1148,19 @@ def fetch_press_festivals() -> list:
                     default_category_key="festival",
                 )
                 if ev:
+                    primary_url = _PRESS_PRIMARY_DETAIL_URLS.get((
+                        title,
+                        start.strftime("%Y-%m-%d"),
+                        end.strftime("%Y-%m-%d"),
+                    ))
+                    if primary_url:
+                        ev.update({
+                            "link": primary_url,
+                            "link_kind": "detail",
+                            "source": "Bonn.de Events",
+                            "source_id": "bonn-de-events",
+                            "discovered_via": ["bonn-district-festivals"],
+                        })
                     events.append(ev)
     deduped = []
     seen = set()
