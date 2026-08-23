@@ -71,6 +71,81 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
             retry_attempts=1,
         )
 
+    def test_sitekit_detail_budget_covers_later_municipal_calendars(self):
+        patch_window(self, datetime(2026, 8, 14), datetime(2026, 8, 31))
+
+        def event(city, source_id):
+            return common.make_event(
+                f"Sommerfest {city}",
+                datetime(2026, 8, 21, 18),
+                None,
+                city,
+                city,
+                "",
+                f"https://example.test/{source_id}",
+                "SiteKit regional",
+                "fest",
+                0.9,
+                "18:00",
+                source_id=source_id,
+            )
+
+        detail = """
+        <script type="application/ld+json">
+        {"@context":"https://schema.org","@type":"Event",
+         "location":{"@type":"Place","name":"Bürgerhaus"}}
+        </script>
+        """
+        calendars = [
+            ("Brühl", "sitekit-bruehl", "https://example.test/bruehl", 0.9),
+            ("Wesseling", "sitekit-wesseling", "https://example.test/wesseling", 0.9),
+        ]
+        with mock.patch.object(
+            regional_sitekit, "_CALENDARS", calendars,
+        ), mock.patch.object(
+            regional_sitekit,
+            "_fetch_calendar",
+            side_effect=[
+                [event("Brühl", "sitekit-bruehl")],
+                [event("Wesseling", "sitekit-wesseling")],
+            ],
+        ), mock.patch.object(
+            common, "fetch_detail_url", return_value=detail,
+        ) as detail_fetch, mock.patch.object(
+            regional_sitekit.rc.time,
+            "monotonic",
+            side_effect=[100, 100, 146],
+        ):
+            events = regional_sitekit.fetch()
+
+        self.assertEqual(detail_fetch.call_count, 2)
+        self.assertEqual([item["venue"] for item in events], ["Bürgerhaus", "Bürgerhaus"])
+
+    def test_sitekit_respects_an_explicit_global_zero_detail_budget(self):
+        patch_window(self, datetime(2026, 8, 14), datetime(2026, 8, 31))
+        listing = (
+            '<article class="SP-Teaser">'
+            '<a class="SP-Teaser__inner" href="/events/bingo">'
+            '<h4 class="SP-Teaser__headline">Bingo!</h4>'
+            '<span class="SP-Scheduling__date">21.08.2026</span>'
+            '</a></article>'
+        )
+
+        with mock.patch.dict(
+            "os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "0"},
+        ), mock.patch.object(
+            regional_sitekit,
+            "_CALENDARS",
+            [("Wesseling", "sitekit-wesseling", "https://example.test/events", 0.9)],
+        ), mock.patch.object(
+            common, "fetch_url", return_value=listing,
+        ), mock.patch.object(
+            common, "fetch_detail_url", return_value="",
+        ) as detail_fetch:
+            regional_sitekit.fetch()
+
+        detail_fetch.assert_not_called()
+
     def test_sitekit_pagination_metadata_and_url_are_supported(self):
         html = (
             '<div class="SP-Pagination" '

@@ -204,9 +204,14 @@ def enrich_descriptions(
     detail_fetcher=None,
     needs_enrichment=None,
     merge_context=None,
+    batch_timeout: float | None = None,
 ) -> list:
     """Memoize shared detail fetches and fill missing event descriptions."""
-    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
+    configured_batch_timeout = os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS")
+    if batch_timeout is None:
+        batch_timeout = float(configured_batch_timeout or "45")
+    elif configured_batch_timeout is not None:
+        batch_timeout = min(batch_timeout, float(configured_batch_timeout))
     deadline = time.monotonic() + max(batch_timeout, 0.0)
     html_by_link = {}
     failed_links = set()

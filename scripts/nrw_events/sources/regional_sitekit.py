@@ -108,6 +108,10 @@ def fetch() -> list:
             retry_attempts=1,
         ),
         merge_context=_merge_detail_context,
+        # Six municipal calendars currently contribute roughly 140 in-window
+        # detail pages. The shared 45-second default consistently stops inside
+        # Brühl and starves every later municipality of structured venues.
+        batch_timeout=120,
     )
     for event in events:
         if event.get("category_key") != "other":
