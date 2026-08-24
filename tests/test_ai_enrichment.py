@@ -1126,6 +1126,59 @@ class AIEnrichmentTests(unittest.TestCase):
             cleaned["admission"],
         )
 
+    def test_conditional_museum_admission_is_not_free_on_an_ordinary_day(self):
+        source = event(
+            title="Aki Inomata: Mit-werden",
+            start_date="2026-08-25",
+            end_date="2026-08-25",
+            price="",
+            description=(
+                "Freier Eintritt für alle an jedem ersten Sonntag im Monat. "
+                "Kinder und Jugendliche bis einschließlich 18 Jahre haben immer freien Eintritt."
+            ),
+        )
+        payload = ai_enrichment._input_payload(source, source["description"])
+        extracted = {
+            **FACTS,
+            "admission": {
+                "is_free": True,
+                "amount": 0,
+                "currency": "EUR",
+                "note": "Eintritt frei",
+                "donation_suggested": False,
+            },
+        }
+
+        cleaned = ai_enrichment._sanitize_extracted_facts(extracted, payload)
+
+        self.assertIsNone(cleaned["admission"]["is_free"])
+        self.assertIsNone(cleaned["admission"]["amount"])
+        self.assertIsNone(cleaned["admission"]["note"])
+
+    def test_first_sunday_museum_occurrence_can_keep_conditional_free_admission(self):
+        source = event(
+            title="Aki Inomata: Mit-werden",
+            start_date="2026-09-06",
+            end_date="2026-09-06",
+            price="",
+            description="Freier Eintritt für alle an jedem ersten Sonntag im Monat.",
+        )
+        payload = ai_enrichment._input_payload(source, source["description"])
+        extracted = {
+            **FACTS,
+            "admission": {
+                "is_free": True,
+                "amount": 0,
+                "currency": "EUR",
+                "note": "Freier Eintritt am ersten Sonntag im Monat",
+                "donation_suggested": False,
+            },
+        }
+
+        cleaned = ai_enrichment._sanitize_extracted_facts(extracted, payload)
+
+        self.assertIs(cleaned["admission"]["is_free"], True)
+
     def test_source_supported_registration_is_promoted_from_neutral_facts(self):
         source = event(
             description=(

@@ -100,6 +100,36 @@ class BonnCategoryMappingTests(unittest.TestCase):
         self.assertEqual(event["time"], "")
         self.assertTrue(event["all_day"])
 
+    def test_conditional_museum_free_tag_does_not_mark_daily_occurrence_free(self):
+        municipal_url = (
+            "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+            "hauptkalender/extern/test.php"
+        )
+        primary_url = "https://www.kunstmuseum-bonn.de/de/ausstellungen/aki-inomata/"
+        context = {
+            "venue": "Kunstmuseum Bonn",
+            "city": "Bonn",
+            "description": (
+                "Freier Eintritt für alle an jedem ersten Sonntag im Monat. "
+                "Kinder und Jugendliche bis einschließlich 18 Jahre haben immer freien Eintritt."
+            ),
+            "description_html": "",
+            "primary_url": primary_url,
+        }
+        with patch.object(bonn, "_fetch_detail_context", return_value=context):
+            [event] = bonn._calendar_listing_events_from_html(
+                self._listing(
+                    "Ausstellungen, Kostenlos",
+                    "Aki Inomata: Mit-werden",
+                    "Aki Inomata: Mit-werden",
+                ),
+                "Bonn.de Events",
+            )
+
+        self.assertEqual(event["price"], "")
+        self.assertEqual(event["link"], primary_url)
+        self.assertEqual(event["source_links"], [municipal_url, primary_url])
+
     def test_mapping_covers_only_topic_categories(self):
         expected = {
             "Fest/Festival": "festival",

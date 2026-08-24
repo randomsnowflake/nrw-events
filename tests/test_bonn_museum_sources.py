@@ -5,6 +5,7 @@ from unittest.mock import patch
 from nrw_events import common, report
 from nrw_events.sources import (
     SOURCES,
+    bonn,
     deutsches_museum_bonn,
     haus_der_geschichte,
     kunstmuseum_bonn,
@@ -266,6 +267,23 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["source"], "Kunstmuseum Bonn")
         self.assertEqual(events[0]["source_id"], "kunstmuseum-bonn")
         self.assertTrue(events[0]["link"].startswith("https://www.kunstmuseum-bonn.de/"))
+
+    def test_bonn_copy_promotes_kunstmuseum_exhibition_primary_source(self):
+        municipal_url = (
+            "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+            "hauptkalender/kunstmuseum/kunstmuseum-i-feel-you.php"
+        )
+        primary_url = "https://www.kunstmuseum-bonn.de/de/ausstellungen/ifeelyou/"
+        context = bonn._parse_detail_context(
+            f'<a href="{primary_url}" target="_blank">Kunstmuseum Bonn</a>'
+        )
+        event = {"link": municipal_url, "source_links": []}
+
+        promoted = bonn._apply_detail_source_link(event, context)
+
+        self.assertEqual(promoted["link"], primary_url)
+        self.assertEqual(promoted["link_kind"], "detail")
+        self.assertEqual(promoted["source_links"], [municipal_url, primary_url])
 
     def test_primary_museum_record_deduplicates_bonn_calendar_copy(self):
         direct = common.make_event(

@@ -1432,7 +1432,12 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
     note = str(admission.get("note") or "").strip()
     if note and not allowed_fact(note, sponsors=False):
         note = ""
-    conditional_free = bool(re.search(r"\bersten\s+sonntag\b", note, re.IGNORECASE))
+    conditional_free = common.has_conditional_free_admission(source_material)
+    first_sunday_offer = bool(re.search(
+        r"\b(?:an\s+)?(?:jedem\s+)?ersten\s+sonntag\b",
+        source_material,
+        re.IGNORECASE,
+    ))
     selected_is_first_sunday = False
     try:
         selected_date = datetime.fromisoformat(str(payload.get("start_date") or "")).date()
@@ -1440,7 +1445,8 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
     except ValueError:
         pass
     explicit_free = bool(_VISITOR_FREE_PATTERN.search(evidence_text))
-    if conditional_free and not selected_is_first_sunday:
+    selected_conditional_offer_applies = first_sunday_offer and selected_is_first_sunday
+    if conditional_free and not selected_conditional_offer_applies:
         note = ""
         explicit_free = bool(_VISITOR_FREE_PATTERN.search(structured_price))
     amount = admission.get("amount")
@@ -1453,6 +1459,8 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
         is_free = None
     if is_free is False and amount is None:
         is_free = None
+    if amount == 0 and not explicit_free:
+        amount = None
     if amount == 0 and is_free is False:
         amount = None
         is_free = None

@@ -1609,6 +1609,21 @@ _LIMITED_FREE_TRIAL_PATTERN = re.compile(
     r"\b(?:kostenlos|kostenfrei)(?:e[rsn]?|em|en|es)?\s+probe(?:stunde|training|termin)\b",
     re.IGNORECASE,
 )
+_CONDITIONAL_FREE_ADMISSION_PATTERN = re.compile(
+    r"\b(?:freier|kostenloser|kostenfreier)\s+eintritt\b[^.!?]{0,100}"
+    r"(?:\bam\s+eröffnungsabend\b|\ban\s+(?:jedem\s+)?(?:ersten\s+)?sonntag\b|"
+    r"\bnur\b|\bfür\s+(?!alle\b)(?:kinder|jugendliche|personen|menschen|mitglieder)\b)"
+    r"|\b(?:kinder|jugendliche|personen|menschen|mitglieder)\b[^.!?]{0,100}"
+    r"\b(?:freien\s+eintritt|eintritt\s+(?:ist\s+)?frei|kostenlos(?:en?\s+eintritt)?)\b"
+    r"|\b(?:am\s+eröffnungsabend|an\s+(?:jedem\s+)?(?:ersten\s+)?sonntag)\b"
+    r"[^.!?]{0,100}\b(?:eintritt\b[^.!?]{0,30}\bfrei|freier\s+eintritt)\b",
+    re.IGNORECASE,
+)
+
+
+def has_conditional_free_admission(value: str) -> bool:
+    """Return whether free access is limited to a date or visitor group."""
+    return bool(_CONDITIONAL_FREE_ADMISSION_PATTERN.search(clean_html(value or "")))
 
 # These event types normally have no visitor admission even when the source only
 # publishes ancillary charges or leaves the price field empty. Keep the list
@@ -1657,6 +1672,27 @@ def infer_admission(
     text = re.sub(r"\b(kostenfrei|kostenlos)(?=ab\s+\d)", r"\1 ", text)
     text = re.sub(r"\s+", " ", text)
     price_text = clean_html(price or "").lower().strip()
+
+    # A broad calendar tag such as "Kostenlos" can coexist with prose that
+    # limits free access to an opening night, a monthly museum day, children or
+    # members.  The conditional prose is the stronger fact; do not publish the
+    # occurrence as free for every visitor.  A separate, unqualified sentence
+    # ("Der Eintritt ist frei.") still wins because it is explicit whole-event
+    # evidence rather than the same qualified offer.
+    description_text = clean_html(description or "")
+    conditional_free = has_conditional_free_admission(description_text)
+    unconditional_description = _CONDITIONAL_FREE_ADMISSION_PATTERN.sub(
+        " ", description_text,
+    )
+    unconditional_free = (
+        bool(_FREE_DESCRIPTION_BLOCK_PATTERN.search(clean_html_blocks(unconditional_description)))
+        or any(
+            re.search(pattern, unconditional_description, re.IGNORECASE)
+            for pattern in _FREE_ADMISSION_PATTERNS
+        )
+    )
+    if conditional_free and not unconditional_free:
+        return "", ""
 
     visitor_charge = bool(_VISITOR_ADMISSION_AMOUNT_PATTERN.search(text))
     price_has_amount = bool(re.search(
