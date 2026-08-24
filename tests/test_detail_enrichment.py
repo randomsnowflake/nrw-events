@@ -158,6 +158,61 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched["admission_basis"], "explicit")
         self.assertEqual(enriched["venue_address"], "Eifelwall 5 50674 Köln")
 
+    def test_exact_jsonld_copy_replaces_a_longer_generated_fallback(self):
+        source = self.event(
+            title="Festival der Menschlichkeit Musik, Tanz, Kunst, Kinderspektakel",
+            date="2026-08-28", start_date="2026-08-28", end_date="2026-08-28",
+            description=(
+                "„Festival der Menschlichkeit Musik, Tanz, Kunst, Kinderspektakel“ findet "
+                "am 28.08.2026 statt. Veranstaltungsort: Elmores Biergarten & Lounge "
+                "am Wasserfall, Windeck. Quelle: Veranstaltungskalender Naturregion Sieg."
+            ),
+            description_source="generated",
+        )
+        document = """
+        <script type="application/ld+json">
+        [{
+          "@type": ["FoodEvent", "MusicEvent", "WebPage"],
+          "name": "Festival der Menschlichkeit Musik, Tanz, Kunst, Kinderspektakel",
+          "description": "Benefiz und Kulturveranstaltung im Zeichen für Toleranz, Demokratie und gegen Ausgrenzung.<br>Weitere Infos auf der Homepage von Elmores.",
+          "startDate": "2026-08-28T09:15:00+02:00",
+          "endDate": "2026-08-28T23:45:00+02:00"
+        }]
+        </script>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, source)
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertIn("Benefiz und Kulturveranstaltung", enriched["description"])
+        self.assertNotIn("Veranstaltungskalender Naturregion Sieg", enriched["description"])
+        self.assertEqual(enriched["description_source"], "scraped")
+        self.assertIn("<br>", enriched["description_html"])
+
+    def test_wrong_date_jsonld_does_not_replace_a_generated_fallback(self):
+        source = self.event(
+            title="Festival der Menschlichkeit",
+            date="2026-08-28", start_date="2026-08-28", end_date="2026-08-28",
+            description="Belastbarer generierter Platzhalter mit Datum, Ort und Quelle.",
+            description_source="generated",
+        )
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Festival der Menschlichkeit",
+          "description": "Kurzer Text für einen anderen Veranstaltungstag.",
+          "startDate": "2026-08-29T09:00:00+02:00"
+        }
+        </script>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, source)
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertEqual(enriched["description"], source["description"])
+        self.assertEqual(enriched["description_source"], "generated")
+
     def test_richer_detail_reopens_an_unlocked_teaser_classification(self):
         source = self.event(
             title="Klassik am Rinderstall",

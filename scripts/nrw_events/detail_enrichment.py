@@ -210,6 +210,30 @@ def _jsonld_candidates(document: str, title: str) -> list[dict]:
     return sorted((item for item in candidates if isinstance(item, dict)), key=similarity, reverse=True)
 
 
+def _exact_jsonld_description(document: str, event: dict) -> tuple[str, str]:
+    """Return copy only when structured title and occurrence date match exactly."""
+    title_key = re.sub(
+        r"[^a-z0-9]+", "", common.clean_html(str(event.get("title") or "")).casefold(),
+    )
+    event_date = str(event.get("start_date") or event.get("date") or "")[:10]
+    if not title_key or not event_date:
+        return "", ""
+    for item in common.jsonld_event_items(document or ""):
+        item_title_key = re.sub(
+            r"[^a-z0-9]+", "", common.clean_html(str(item.get("name") or "")).casefold(),
+        )
+        if item_title_key != title_key or str(item.get("startDate") or "")[:10] != event_date:
+            continue
+        raw_description = item.get("description")
+        if not isinstance(raw_description, str) or not raw_description.strip():
+            continue
+        description_html = richtext.sanitize_rich_text(raw_description)
+        description = richtext.to_plain_text(description_html)
+        if description:
+            return description, description_html
+    return "", ""
+
+
 def _best_description(document: str, parser: _SemanticHTML, title: str) -> tuple[str, str]:
     choices: list[tuple[int, int, str]] = []
     for capture in parser.captures:
@@ -864,10 +888,13 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
     description, description_html = _best_description(
         document or "", parser, str(event.get("title") or ""),
     )
+    exact_description, exact_description_html = _exact_jsonld_description(document, event)
     tribe_price = _tribe_price(document)
     context = {
         "description": description,
         "description_html": description_html,
+        "exact_description": exact_description,
+        "exact_description_html": exact_description_html,
         "price": _first(parser.item_values, "price") or _visible_labeled_value(
             document, "Preis", "Preise", "Kosten", "Eintritt",
         ) or _template_price(document),
@@ -944,14 +971,25 @@ def _richer(candidate: str, current: str) -> bool:
 def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
     """Merge only facts that improve the source record."""
     enriched = dict(event)
-    if _richer(context.get("description", ""), str(event.get("description") or "")):
+    exact_description = context.get("exact_description", "")
+    replaces_generated = bool(
+        exact_description and event.get("description_source") == "generated"
+    )
+    if replaces_generated or _richer(
+        context.get("description", ""), str(event.get("description") or ""),
+    ):
         # Plain text is duplicated into planner/search payloads; keep a long,
         # sentence-safe searchable excerpt there while description_html retains
         # the complete sanitized event document for the detail page.
-        enriched["description"] = common.concise_description(
-            context["description"], max_chars=8000,
+        replacement = exact_description if replaces_generated else context["description"]
+        replacement_html = (
+            context.get("exact_description_html", "")
+            if replaces_generated else context.get("description_html", "")
         )
-        enriched["description_html"] = context.get("description_html", "")
+        enriched["description"] = common.concise_description(
+            replacement, max_chars=8000,
+        )
+        enriched["description_html"] = replacement_html
         enriched["description_source"] = "scraped"
         # Listing teasers may have been classified before this stronger detail
         # evidence existed. Reopen only inferred decisions; explicit adapter
