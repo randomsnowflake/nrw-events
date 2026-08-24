@@ -332,6 +332,19 @@ def _parse_detail_context(html: str) -> dict:
         "city": "",
     }
 
+    # Some municipal records are syndicated copies and name the organizer's
+    # first-party detail page explicitly.  Prefer that visitor-facing source
+    # while retaining Bonn.de in source_links as discovery provenance.  Keep
+    # this deliberately narrow to the Kunstmuseum exhibition route: generic
+    # external links on event pages also include maps, ticket shops and sponsors.
+    primary_match = re.search(
+        r'href="(https://www\.kunstmuseum-bonn\.de/de/ausstellungen/[^"?#]+/)"',
+        html or "",
+        re.I,
+    )
+    if primary_match:
+        context["primary_url"] = primary_match.group(1)
+
     seen = set()
     description_parts = []
     for text in _detail_paragraphs(html):
@@ -416,6 +429,20 @@ def _apply_detail_location(event: dict, context: dict) -> dict:
     ):
         if event.get(field) in (None, "") and context.get(field) not in (None, ""):
             event[field] = context[field]
+    return event
+
+
+def _apply_detail_source_link(event: dict, context: dict) -> dict:
+    """Promote a verified first-party exhibition URL without losing provenance."""
+    primary_url = str(context.get("primary_url") or "").strip()
+    municipal_url = str(event.get("link") or "").strip()
+    if not primary_url:
+        return event
+    event["link"] = primary_url
+    event["link_kind"] = "detail"
+    event["source_links"] = list(dict.fromkeys(filter(None, (
+        *(event.get("source_links") or []), municipal_url, primary_url,
+    ))))
     return event
 
 
@@ -574,6 +601,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             if location_address and not ev.get("venue_address"):
                 ev["venue_address"] = location_address
             ev = _apply_detail_location(ev, detail_context)
+            ev = _apply_detail_source_link(ev, detail_context)
             ev["description"] = common.concise_description(description, max_chars=0)
             ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
             ev = _apply_source_category_mapping(ev, tags)
@@ -745,6 +773,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 ev["identity_venue"] = ""
                 ev["identity_venue_locked"] = True
                 ev = _apply_detail_location(ev, detail_context)
+                ev = _apply_detail_source_link(ev, detail_context)
                 ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:
                     ev["description"] = common.concise_description(description, max_chars=0)

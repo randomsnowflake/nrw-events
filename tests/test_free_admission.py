@@ -82,6 +82,18 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Tanzparty", "", "Tanzparty: 5 €; Mitglieder kostenlos"),
             ("Familienmuseum", "", "5 Euro (Kinder bis 12 Jahre kostenfrei)"),
             (
+                "#IFEELYOU - Dimensionen der Empathie",
+                "Freier Eintritt am Eröffnungsabend sowie an jedem ersten Sonntag im Monat. "
+                "Kinder und Jugendliche bis einschließlich 18 Jahre haben immer freien Eintritt.",
+                "kostenlos",
+            ),
+            (
+                "Aki Inomata: Mit-werden",
+                "Freier Eintritt für alle an jedem ersten Sonntag im Monat. "
+                "Kinder und Jugendliche bis einschließlich 18 Jahre haben immer freien Eintritt.",
+                "kostenlos",
+            ),
+            (
                 "Parkführung",
                 "",
                 "Der Eintritt in den Park ist frei. Kosten für die Führung: Erwachsene 8 Euro",
@@ -91,6 +103,16 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
         for title, description, price in cases:
             with self.subTest(title=title, description=description, price=price):
                 self.assertEqual(infer_free_admission_price(title, description, price), "")
+
+    def test_unqualified_free_admission_still_wins_beside_a_child_discount(self):
+        self.assertEqual(
+            infer_free_admission_price(
+                "Familientag",
+                "Der Eintritt ist frei. Kinder und Jugendliche bis 18 Jahre haben freien Eintritt.",
+                "",
+            ),
+            "kostenlos",
+        )
 
     def test_infers_free_visitor_access_for_safe_public_event_types(self):
         cases = [
