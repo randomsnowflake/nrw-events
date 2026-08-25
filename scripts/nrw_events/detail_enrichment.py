@@ -21,6 +21,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from urllib.parse import urldefrag, urlsplit
 
 from . import common, richtext
@@ -210,19 +211,27 @@ def _jsonld_candidates(document: str, title: str) -> list[dict]:
     return sorted((item for item in candidates if isinstance(item, dict)), key=similarity, reverse=True)
 
 
+def _exact_title_key(value: object) -> str:
+    normalized = unicodedata.normalize(
+        "NFC", common.clean_html(str(value or "")),
+    ).lower()
+    # Casefolding and fuzzy transliteration collapse distinct letters such as
+    # ß/ss and í/i, which is unsafe when selecting authoritative event copy.
+    return "".join(character for character in normalized if character.isalnum())
+
+
 def _exact_jsonld_description(document: str, event: dict) -> tuple[str, str]:
     """Return copy only when structured title and occurrence date match exactly."""
-    title_key = re.sub(
-        r"[^a-z0-9]+", "", common.clean_html(str(event.get("title") or "")).casefold(),
-    )
+
+    expected_title_key = _exact_title_key(event.get("title"))
     event_date = str(event.get("start_date") or event.get("date") or "")[:10]
-    if not title_key or not event_date:
+    if not expected_title_key or not event_date:
         return "", ""
     for item in common.jsonld_event_items(document or ""):
-        item_title_key = re.sub(
-            r"[^a-z0-9]+", "", common.clean_html(str(item.get("name") or "")).casefold(),
-        )
-        if item_title_key != title_key or str(item.get("startDate") or "")[:10] != event_date:
+        if (
+            _exact_title_key(item.get("name")) != expected_title_key
+            or str(item.get("startDate") or "")[:10] != event_date
+        ):
             continue
         raw_description = item.get("description")
         if not isinstance(raw_description, str) or not raw_description.strip():
