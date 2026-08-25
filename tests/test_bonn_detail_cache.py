@@ -141,6 +141,49 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["venue_address"], "Noeggerathstraße 34, 53111 Bonn")
         self.assertEqual(context["city"], "Bonn")
 
+    def test_detail_context_extracts_explicit_free_admission_from_information_table(self):
+        html = """
+<section class="SP-Text">
+  <h2>Informationen</h2>
+  <div data-sp-table class="SP-Paragraph">
+    <table><tbody><tr><th scope="row">Einlass</th><td>Teilnahme ist kostenfrei</td></tr></tbody></table>
+  </div>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["admission_basis"], "explicit")
+
+    def test_listing_uses_explicit_free_admission_from_detail_page(self):
+        html = """
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/Rheinaue-parkrun.php">
+    <span class="SP-Kicker__text">Sport</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">18.07.2026</span><span class="SP-Scheduling__time">09:00 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">Rheinaue parkrun</h1>
+    <div class="SP-Teaser__abstract">Zusammen 5 km Laufen und Walken</div>
+  </a>
+</article>
+"""
+        context = {
+            "description": "Jeden Samstagmorgen findet in der Rheinaue der parkrun statt.",
+            "description_html": "",
+            "venue": "Halfpipe Rheinaue",
+            "venue_address": "Martin-Luther-King-Straße 40, 53175 Bonn",
+            "city": "Bonn",
+            "price": "kostenlos",
+            "admission_basis": "explicit",
+        }
+
+        with patch.object(bonn, "_fetch_detail_context", return_value=context):
+            events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["price"], "kostenlos")
+        self.assertEqual(events[0]["admission_basis"], "explicit")
+
     def test_default_detail_description_preserves_all_paragraphs_and_lists(self):
         html = """
 <div class="SP-ArticleHeader__intro SP-Intro"><p>Nachhaltigkeits-Hub Region Bonn</p></div>
