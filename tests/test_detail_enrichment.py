@@ -214,6 +214,41 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched["description"], source["description"])
         self.assertEqual(enriched["description_source"], "generated")
 
+    def test_accented_title_does_not_collide_with_folded_title(self):
+        source = self.event(
+            title="Sí",
+            date="2026-08-28", start_date="2026-08-28", end_date="2026-08-28",
+            description="Belastbarer generierter Platzhalter.",
+            description_source="generated",
+        )
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Si",
+          "description": "Text der Veranstaltung ohne Akzent.",
+          "startDate": "2026-08-28T18:00:00+02:00"
+        }
+        </script>
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Sí",
+          "description": "Text der exakt passenden Veranstaltung.",
+          "startDate": "2026-08-28T20:00:00+02:00"
+        }
+        </script>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, source)
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertEqual(
+            context["exact_description"], "Text der exakt passenden Veranstaltung.",
+        )
+        self.assertEqual(enriched["description"], context["exact_description"])
+        self.assertEqual(enriched["description_source"], "scraped")
+
     def test_wrong_date_jsonld_does_not_replace_a_generated_fallback(self):
         source = self.event(
             title="Festival der Menschlichkeit",
