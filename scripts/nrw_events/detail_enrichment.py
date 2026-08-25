@@ -23,7 +23,7 @@ import re
 import time
 from urllib.parse import urldefrag, urlsplit
 
-from . import common, richtext
+from . import common, normalization, richtext
 
 
 _NON_DOCUMENT_SUFFIXES = (
@@ -212,15 +212,15 @@ def _jsonld_candidates(document: str, title: str) -> list[dict]:
 
 def _exact_jsonld_description(document: str, event: dict) -> tuple[str, str]:
     """Return copy only when structured title and occurrence date match exactly."""
-    title_key = re.sub(
-        r"[^a-z0-9]+", "", common.clean_html(str(event.get("title") or "")).casefold(),
+    title_key = normalization.comparison_text(
+        common.clean_html(str(event.get("title") or "")), separator="",
     )
     event_date = str(event.get("start_date") or event.get("date") or "")[:10]
     if not title_key or not event_date:
         return "", ""
     for item in common.jsonld_event_items(document or ""):
-        item_title_key = re.sub(
-            r"[^a-z0-9]+", "", common.clean_html(str(item.get("name") or "")).casefold(),
+        item_title_key = normalization.comparison_text(
+            common.clean_html(str(item.get("name") or "")), separator="",
         )
         if item_title_key != title_key or str(item.get("startDate") or "")[:10] != event_date:
             continue
