@@ -438,7 +438,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS` | `1.0` | Basis für exponentielles Retry-Backoff mit Jitter. |
 | `NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS` | `45.0` | Gemeinsames Zeitbudget für Request, Wiederholungen und Backoff; Socket-Timeouts werden an die Restzeit angepasst. |
 | `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS` | `60.0` | Obergrenze für einzelne Retry-Wartezeiten. |
-| `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `0` | Optionale Antwortgrößen-Grenze pro HTTP-Request; `0` liest die vollständige Antwort und verwirft keine Quelle nur wegen ihrer Größe. |
+| `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `10000000` | Antwortgrößen-Grenze pro HTTP-Request; `0` liest die vollständige Antwort. Der Standard lässt den aktuellen Bonn-Export vollständig durch, begrenzt aber weiterhin fehlerhafte oder unerwartet große Quellen. |
 | `NRW_EVENTS_SOURCE_WORKERS` | `4` | Maximale parallele Quellen. Requests an denselben Host werden serialisiert; verschiedene Hosts laufen parallel. |
 | `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `600.0` | Zeitbudget für die Netzwerkphase einer Quelle; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
 | `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS` | `180.0` | Zusätzliche Worker-Zeit für Validierung und Verarbeitung bereits geholter großer Quellergebnisse. |

@@ -37,7 +37,7 @@ class RuntimeConfig:
     http_retry_base_seconds: float = 1.0
     http_request_budget_seconds: float = 45.0
     bonn_de_delay_seconds: float = 0.5
-    http_max_response_bytes: int = 0
+    http_max_response_bytes: int = 10_000_000
     http_retry_max_delay_seconds: float = 60.0
     source_workers: int = 12
     source_timeout_seconds: float = 180.0
@@ -144,7 +144,7 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         # window. Live probing confirmed that two requests per second stay
         # healthy while cutting that fixed queue from roughly 100s to 25s.
         bonn_de_delay_seconds=_float("NRW_EVENTS_BONN_DE_DELAY_SECONDS", 0.5, 0.0, 60.0),
-        http_max_response_bytes=_int("NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES", 0, 0, 50_000_000),
+        http_max_response_bytes=_int("NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES", 10_000_000, 0, 50_000_000),
         http_retry_max_delay_seconds=_float("NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS", 60.0, 0.0, 300.0),
         # Sources are independent and mostly live on different hosts. Match the
         # documented runtime default so slow endpoints overlap instead of

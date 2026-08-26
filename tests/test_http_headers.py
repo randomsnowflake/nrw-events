@@ -52,7 +52,7 @@ class HttpHeaderTests(unittest.TestCase):
         response = Mock()
         response.read.return_value = b"x" * 5_000_001
         old_limit = common._HTTP_MAX_RESPONSE_BYTES
-        common._HTTP_MAX_RESPONSE_BYTES = 0
+        common._HTTP_MAX_RESPONSE_BYTES = 10_000_000
         try:
             with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
                 text = common.fetch_url("https://example.org/events")
@@ -60,7 +60,7 @@ class HttpHeaderTests(unittest.TestCase):
             common._HTTP_MAX_RESPONSE_BYTES = old_limit
 
         self.assertEqual(len(text), 5_000_001)
-        response.read.assert_called_once_with()
+        response.read.assert_called_once_with(10_000_001)
 
     def test_large_bonn_json_response_keeps_valid_event(self):
         payload = json.dumps([{
@@ -82,7 +82,7 @@ class HttpHeaderTests(unittest.TestCase):
         headers["Content-Type"] = "application/json; charset=UTF-8"
         response.headers = headers
         old_limit = common._HTTP_MAX_RESPONSE_BYTES
-        common._HTTP_MAX_RESPONSE_BYTES = 0
+        common._HTTP_MAX_RESPONSE_BYTES = 10_000_000
         try:
             with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
                     patch.object(bonn, "_venue_points", return_value={}):
