@@ -521,23 +521,31 @@ def _apply_free_category_override(ev: dict, tags: set) -> dict:
 
 
 def fetch_events() -> list:
-    """Official Bonn calendar → dated, activity-only events from HTML first."""
+    """Official Bonn calendar → union of every available Bonn event feed.
+
+    The server-rendered listings remain the coverage baseline because Bonn's
+    JSON and RSS endpoints can be incomplete.  They are enrichment sources,
+    though, not emergency-only fallbacks: structured records regularly carry
+    end times and other facts that the listing cards omit.  Detail-page fetches
+    still use the shared persistent TTL cache.
+    """
     source = "Bonn.de Events"
     free_events = _fetch_free_calendar_events(source)
     calendar_events = _fetch_calendar_listing_events(source)
     events = _merge_fallback_events(free_events, calendar_events)
-    if len(calendar_events) >= 20:
-        return _drop_redundant_dated_title_variants(events)
-
-    # Keep the public HTML as the authoritative source, but preserve coverage if
-    # Bonn.de returns a partial listing. JSON is intentionally last: it has been
-    # malformed and incomplete while the normal calendar pages were correct.
     events = _merge_fallback_events(events, _fetch_rss_events(source))
-    events = _merge_fallback_events(events, fetch_events_json(source))
+    events = _merge_fallback_events(
+        events,
+        fetch_events_json(source, include_fallbacks=False),
+    )
     return _drop_redundant_dated_title_variants(events)
 
 
-def fetch_events_json(source: str = "Bonn.de Events") -> list:
+def fetch_events_json(
+    source: str = "Bonn.de Events",
+    *,
+    include_fallbacks: bool = True,
+) -> list:
     """Legacy JSON fallback → dated, activity-only, venue-pinned events."""
     try:
         items = _loads_event_items(common.fetch_url(
@@ -548,9 +556,10 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             sec_fetch_dest="empty",
         ))
     except Exception as e:
-        fallback = _fetch_rss_events(source)
-        if fallback:
-            return fallback
+        if include_fallbacks:
+            fallback = _fetch_rss_events(source)
+            if fallback:
+                return fallback
         common.log_source_error(source, e)
         return []
     if not isinstance(items, list):
@@ -583,6 +592,10 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
 
         link = (item.get("link") or "").strip()
         description = (item.get("description") or "").strip()
+        # Detail copy is display enrichment.  Keep the source record's original
+        # classifier input so wording on a recurring meeting page cannot make a
+        # valid structured occurrence disappear before it enriches the listing.
+        classification_description = description
         venue = (item.get("locationName") or "").strip()
         identity_venue = venue
         detail_context = {}
@@ -609,7 +622,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
 
         category_tags = allow or free_allow
         ev = common.make_event(
-            title, start_dt, end_dt, venue, city, description, link,
+            title, start_dt, end_dt, venue, city, classification_description, link,
             source, ", ".join(sorted(category_tags)), time_text=time_text,
             coords=points.get(venue.lower()))
         if ev:
@@ -635,7 +648,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
                     ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
             events.append(ev)
     _warn_unknown_source_categories(source, unknown_categories)
-    if len(events) < 20:
+    if include_fallbacks and len(events) < 20:
         events = _merge_fallback_events(events, _fetch_rss_events(source))
         events = _merge_fallback_events(events, _fetch_free_calendar_events(source))
         events = _merge_fallback_events(events, _fetch_calendar_listing_events(source))
@@ -996,18 +1009,59 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
         return []
 
 
+_MERGE_IDENTITY_FIELDS = {
+    "event_id", "identity_venue", "identity_venue_locked", "title", "link",
+    "date", "start_date", "source", "source_id", "source_role", "score",
+    "distance_km", "category", "category_key", "category_label",
+    "category_confidence", "category_reason",
+}
+
+
+def _has_fact(value) -> bool:
+    return value not in (None, "", [], {})
+
+
+def _merge_event_facts(primary: dict, fallback: dict) -> dict:
+    """Fill listing gaps without letting a secondary record change identity."""
+    merged = dict(primary)
+    for field, value in fallback.items():
+        if field in _MERGE_IDENTITY_FIELDS or not _has_fact(value):
+            continue
+        if not _has_fact(merged.get(field)):
+            merged[field] = value
+
+    for field in ("source_links", "previous_event_ids", "discovered_via"):
+        merged[field] = list(dict.fromkeys(filter(None, (
+            *(primary.get(field) or []),
+            *(fallback.get(field) or []),
+        ))))
+
+    primary_time = str(primary.get("time") or "")
+    fallback_time = str(fallback.get("time") or "")
+    fallback_range = re.fullmatch(r"(\d{2}:\d{2})–(\d{2}:\d{2})", fallback_time)
+    if fallback_range and primary_time in ("", fallback_range.group(1)):
+        merged["time"] = fallback_time
+        for field in ("end_date", "start_at", "end_at", "all_day", "ongoing"):
+            if field in fallback:
+                merged[field] = fallback[field]
+
+    return merged
+
+
 def _merge_fallback_events(primary: list, fallback: list) -> list:
-    seen = {
-        (event.get("link") or "", event.get("title") or "", event.get("date") or "")
-        for event in primary
+    positions = {
+        (event.get("link") or "", event.get("title") or "", event.get("date") or ""): index
+        for index, event in enumerate(primary)
     }
     merged = list(primary)
     for event in fallback:
         key = (event.get("link") or "", event.get("title") or "", event.get("date") or "")
-        if key in seen:
+        if key in positions:
+            index = positions[key]
+            merged[index] = _merge_event_facts(merged[index], event)
             continue
         merged.append(event)
-        seen.add(key)
+        positions[key] = len(merged) - 1
     return merged
 
 

@@ -104,7 +104,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[2]["category_key"], "outdoor")
         self.assertTrue(all(event["score"] >= 0.4 for event in events))
 
-    def test_bonn_events_use_calendar_listing_before_json(self):
+    def test_bonn_events_merge_complete_json_facts_into_calendar_listing(self):
         listing_payload = """
 <nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>
 <article class="SP-Teaser">
@@ -122,10 +122,10 @@ class SourceParserTests(unittest.TestCase):
   </a>
 </article>
 <article class="SP-Teaser">
-  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Chor-und-Orchester-des-Collegium-musicum-.php">
-    <span class="SP-Kicker__text">Musik/Konzert</span>
-    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span><span class="SP-Scheduling__time"> 20:30 Uhr</span></span></div>
-    <h1 class="SP-Teaser__headline">Chor und Orchester des Collegium musicum</h1>
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Seniorentreff-Gesund-und-Fit-im-Alter-.php">
+    <span class="SP-Kicker__text">Treffen/Austausch</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">12.06.2026</span><span class="SP-Scheduling__time"> 14:00 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">Seniorentreff &quot;Gesund und Fit im Alter&quot;</h1>
   </a>
 </article>
 """ + "".join(
@@ -141,11 +141,31 @@ class SourceParserTests(unittest.TestCase):
             for index in range(17)
         )
 
+        json_payload = __import__("json").dumps([{
+            "title": "Seniorentreff \"Gesund und Fit im Alter\"",
+            "description": "",
+            "category": ["Treffen/Austausch", "Kostenlos"],
+            "startDate": "2026-06-12 14:00:00",
+            "endDate": "2026-06-12 17:00:00",
+            "locationName": "Fachstelle Alter und Pflege",
+            "locationAddress": "Flemingstraße 2, 53123 Bonn",
+            "link": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Seniorentreff-Gesund-und-Fit-im-Alter-.php",
+            "hasStartTime": True,
+            "hasEndTime": True,
+        }])
+        rss_payload = '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>'
+        fetched_urls = []
+
         def fake_fetch(url, *args, **kwargs):
+            fetched_urls.append(url)
             if "events-json" in url:
-                raise AssertionError("Bonn.de Events must prefer the HTML calendar listing over JSON")
+                return json_payload
+            if "sp%3Aout=rss" in url:
+                return rss_payload
             if "veranstaltungskalender.php" in url:
                 return listing_payload
+            if "Seniorentreff-Gesund-und-Fit-im-Alter" in url:
+                return '<div data-sp-table class="SP-Paragraph"><p>Gedächtnistraining, seniorengerechte Bewegung und Anregungen für Ernährung, Kultur und Zeitgeschehen, Gesellschaftsspiele und Kaffeezeit.</p></div>'
             if "/veranstaltungskalender/veranstaltungen/" in url:
                 return '<div class="SP-ArticleHeader__intro">Konzert in Bonn.</div>'
             raise AssertionError(f"unexpected URL {url}")
@@ -157,12 +177,14 @@ class SourceParserTests(unittest.TestCase):
         titles = [event["title"] for event in events]
         self.assertIn("Sundowner Bar auf dem Dach der Bundeskunsthalle", titles)
         self.assertIn("Taste Of Woodstock - Musik im Park", titles)
-        self.assertIn("Chor und Orchester des Collegium musicum", titles)
+        self.assertIn('Seniorentreff "Gesund und Fit im Alter"', titles)
         self.assertTrue(all(event["source"] == "Bonn.de Events" for event in events))
-        self.assertEqual(
-            next(event for event in events if event["title"] == "Chor und Orchester des Collegium musicum")["time"],
-            "20:30",
-        )
+        senior_meeting = next(event for event in events if event["title"] == 'Seniorentreff "Gesund und Fit im Alter"')
+        self.assertEqual(senior_meeting["time"], "14:00–17:00")
+        self.assertEqual(senior_meeting["start_at"], "2026-06-12T14:00+02:00")
+        self.assertEqual(senior_meeting["end_at"], "2026-06-12T17:00+02:00")
+        self.assertTrue(any("events-json" in url for url in fetched_urls))
+        self.assertTrue(any("sp%3Aout=rss" in url for url in fetched_urls))
 
     def test_bonn_events_falls_back_when_only_free_listing_has_coverage(self):
         free_listing_payload = """
