@@ -1,4 +1,5 @@
 import json
+import threading
 import time
 import unittest
 import urllib.error
@@ -6,12 +7,69 @@ from email.message import Message
 from io import BytesIO
 from unittest.mock import Mock, patch
 
-from nrw_events import common
+from nrw_events import common, core
 from nrw_events.health import SourceResult
 from nrw_events.sources import bonn
 
 
 class HttpHeaderTests(unittest.TestCase):
+    def test_response_body_read_stops_at_wall_clock_deadline(self):
+        class DripResponse:
+            def __init__(self):
+                self.calls = 0
+
+            def read1(self, _size):
+                self.calls += 1
+                return b"x"
+
+        response = DripResponse()
+        with patch.object(core.time, "perf_counter", side_effect=[0.0, 1.1]):
+            with self.assertRaisesRegex(TimeoutError, "while reading response body"):
+                core._read_response_body(response, 10_000_000, deadline=1.0)
+
+        self.assertEqual(response.calls, 1)
+
+    def test_incremental_response_body_read_keeps_size_limit(self):
+        class ChunkedResponse:
+            def __init__(self):
+                self.data = BytesIO(b"x" * 11)
+
+            def read1(self, size):
+                return self.data.read(size)
+
+        with self.assertRaisesRegex(core.ResponseTooLargeError, "exceeds 10 bytes"):
+            core._read_response_body(
+                ChunkedResponse(), 10, deadline=time.perf_counter() + 10,
+            )
+
+    def test_response_body_read_honors_source_cancellation(self):
+        cancel_event = threading.Event()
+
+        class CancelledResponse:
+            def __init__(self):
+                self.calls = 0
+
+            def read1(self, _size):
+                self.calls += 1
+                cancel_event.set()
+                return b"x"
+
+        previous = getattr(core._SOURCE_CONTEXT, "cancel_event", None)
+        core._SOURCE_CONTEXT.cancel_event = cancel_event
+        response = CancelledResponse()
+        try:
+            with self.assertRaisesRegex(TimeoutError, "source wall-clock budget exhausted"):
+                core._read_response_body(
+                    response, 10_000_000, deadline=time.perf_counter() + 10,
+                )
+        finally:
+            if previous is None:
+                del core._SOURCE_CONTEXT.cancel_event
+            else:
+                core._SOURCE_CONTEXT.cancel_event = previous
+
+        self.assertEqual(response.calls, 1)
+
     def test_fetch_json_enforces_api_headers_and_content_type(self):
         with patch.object(common, "fetch_url", return_value='{"items": [1]}') as fetch:
             payload = common.fetch_json("https://api.example.test/events", timeout=20)
