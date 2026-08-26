@@ -152,7 +152,7 @@ _HTTP_RETRY_ATTEMPTS = 5
 _HTTP_RETRY_BASE_SECONDS = 1.0
 _HTTP_REQUEST_BUDGET_SECONDS = 45.0
 _HTTP_RETRY_MAX_DELAY_SECONDS = 60.0
-_HTTP_MAX_RESPONSE_BYTES = 5_000_000
+_HTTP_MAX_RESPONSE_BYTES = 10_000_000
 _BRIGHT_DATA_API_URL = "https://api.brightdata.com/request"
 _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
     # Bonn.de's MyraCDN/backend intermittently returns 503 when official Bonn
@@ -241,6 +241,16 @@ def log_source_disabled(source: str, reason: str) -> None:
 
 class ResponseTooLargeError(ValueError):
     pass
+
+
+def _read_response_body(response: Any, max_bytes: int) -> bytes:
+    """Read a complete response unless an explicit positive limit is configured."""
+    if max_bytes <= 0:
+        return response.read()
+    body = response.read(max_bytes + 1)
+    if len(body) > max_bytes:
+        raise ResponseTooLargeError(f"response exceeds {max_bytes} bytes")
+    return body
 
 
 class UnexpectedContentTypeError(ValueError):
@@ -437,11 +447,7 @@ def fetch_url(
                         content_type = ""
                     if expected_content_types and content_type and not any(content_type.startswith(item) for item in expected_content_types):
                         raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
-                    body = resp.read(settings.http_max_response_bytes + 1)
-                    if len(body) > settings.http_max_response_bytes:
-                        raise ResponseTooLargeError(
-                            f"response exceeds {settings.http_max_response_bytes} bytes"
-                        )
+                    body = _read_response_body(resp, settings.http_max_response_bytes)
                     charset = (
                         headers_obj.get_content_charset()
                         if headers_obj is not None and hasattr(headers_obj, "get_content_charset")
@@ -479,12 +485,11 @@ def fetch_url(
                     raise UnexpectedContentTypeError(
                         f"expected {expected_content_types}, got {content_type}"
                     ) from exc
-                body = exc.read(settings.http_max_response_bytes + 1)
-                if len(body) > settings.http_max_response_bytes:
+                try:
+                    body = _read_response_body(exc, settings.http_max_response_bytes)
+                except Exception:
                     _close_http_error(exc)
-                    raise ResponseTooLargeError(
-                        f"response exceeds {settings.http_max_response_bytes} bytes"
-                    )
+                    raise
                 charset = (
                     headers_obj.get_content_charset()
                     if headers_obj is not None and hasattr(headers_obj, "get_content_charset")
@@ -582,9 +587,7 @@ def fetch_url_with_brightdata(
                 request,
                 timeout=_remaining_timeout(deadline, max(timeout, 120)),
             )) as response:
-                raw = response.read(settings.http_max_response_bytes + 1)
-                if len(raw) > settings.http_max_response_bytes:
-                    raise ResponseTooLargeError(f"response exceeds {settings.http_max_response_bytes} bytes")
+                raw = _read_response_body(response, settings.http_max_response_bytes)
                 api_status = getattr(response, "status", 200)
     except Exception as exc:
         _raise_brightdata_failure(url, started, exc)
@@ -1032,9 +1035,7 @@ def post_json(url: str, payload: dict[str, Any], timeout: int = 45,
             started = time.perf_counter()
             with _host_request_slot(url, deadline):
                 with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = resp.read(settings.http_max_response_bytes + 1)
-                    if len(body) > settings.http_max_response_bytes:
-                        raise ResponseTooLargeError(f"response exceeds {settings.http_max_response_bytes} bytes")
+                    body = _read_response_body(resp, settings.http_max_response_bytes)
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
@@ -1069,9 +1070,7 @@ def post_form(url: str, fields: Any, timeout: int = 45,
             started = time.perf_counter()
             with _host_request_slot(url, deadline):
                 with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = resp.read(settings.http_max_response_bytes + 1)
-                    if len(body) > settings.http_max_response_bytes:
-                        raise ResponseTooLargeError(f"response exceeds {settings.http_max_response_bytes} bytes")
+                    body = _read_response_body(resp, settings.http_max_response_bytes)
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
