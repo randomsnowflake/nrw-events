@@ -13,6 +13,21 @@ from nrw_events.health import SourceResult, SourceStatus
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_http_response_size_limit_is_disabled_by_default(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(config.runtime_config().http_max_response_bytes, 0)
+
+    def test_http_response_size_limit_can_be_enabled_explicitly(self):
+        with mock.patch.dict(
+            os.environ,
+            {"NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES": "10000000"},
+            clear=True,
+        ):
+            self.assertEqual(
+                config.runtime_config().http_max_response_bytes,
+                10_000_000,
+            )
+
     def test_default_bonn_throttle_keeps_long_calendar_crawls_bounded(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(config.runtime_config().bonn_de_delay_seconds, 0.5)

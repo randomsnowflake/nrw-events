@@ -399,7 +399,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_HTTP_RETRY_ATTEMPTS=5` — transient HTTP/network retry limit.
 - `NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS=45.0` — total request, retry, and backoff budget.
 - `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS=1.0` — exponential backoff base with jitter.
-- `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` / `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=5000000` — cap retry waits and response sizes.
+- `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` — cap retry waits. `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=0` reads complete responses by default; set a positive byte count only to opt into a response-size cap.
 - `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT=10` — annotate a source that drops from a recent meaningful count to zero.
 - `NRW_EVENTS_SOURCE_WORKERS=4` / `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS=600` — source parallelism and network-phase budget.
 - `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS=180` — extra worker time to process an already fetched large source result.

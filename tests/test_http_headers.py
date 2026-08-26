@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 from nrw_events import common
 from nrw_events.health import SourceResult
+from nrw_events.sources import bonn
 
 
 class HttpHeaderTests(unittest.TestCase):
@@ -46,6 +47,52 @@ class HttpHeaderTests(unittest.TestCase):
                     common.fetch_url("https://example.org/events")
         finally:
             common._HTTP_MAX_RESPONSE_BYTES = old_limit
+
+    def test_fetch_url_accepts_responses_larger_than_legacy_default(self):
+        response = Mock()
+        response.read.return_value = b"x" * 5_000_001
+        old_limit = common._HTTP_MAX_RESPONSE_BYTES
+        common._HTTP_MAX_RESPONSE_BYTES = 0
+        try:
+            with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
+                text = common.fetch_url("https://example.org/events")
+        finally:
+            common._HTTP_MAX_RESPONSE_BYTES = old_limit
+
+        self.assertEqual(len(text), 5_000_001)
+        response.read.assert_called_once_with()
+
+    def test_large_bonn_json_response_keeps_valid_event(self):
+        payload = json.dumps([{
+            "title": "Großer Bonner Veranstaltungsexport",
+            "description": "Vollständiger Datensatz" + (" " * 5_000_000),
+            "category": ["Musik/Konzert"],
+            "startDate": "2099-08-28 19:00:00",
+            "endDate": "2099-08-28 21:00:00",
+            "locationName": "Testhalle Bonn",
+            "locationAddress": "Teststraße 1, 53111 Bonn",
+            "link": "https://www.bonn.de/test-event",
+            "hasStartTime": True,
+            "hasEndTime": True,
+        }]).encode("utf-8")
+        self.assertGreater(len(payload), 5_000_000)
+        response = Mock()
+        response.read.return_value = payload
+        headers = Message()
+        headers["Content-Type"] = "application/json; charset=UTF-8"
+        response.headers = headers
+        old_limit = common._HTTP_MAX_RESPONSE_BYTES
+        common._HTTP_MAX_RESPONSE_BYTES = 0
+        try:
+            with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+                    patch.object(bonn, "_venue_points", return_value={}):
+                events = bonn.fetch_events_json(include_fallbacks=False)
+        finally:
+            common._HTTP_MAX_RESPONSE_BYTES = old_limit
+
+        self.assertEqual([event["title"] for event in events], [
+            "Großer Bonner Veranstaltungsexport",
+        ])
 
     def test_fetch_url_validates_expected_content_type(self):
         response = Mock()
