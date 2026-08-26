@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from datetime import datetime
@@ -179,6 +180,40 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
 
         with patch.object(bonn, "_fetch_detail_context", return_value=context):
             events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["price"], "kostenlos")
+        self.assertEqual(events[0]["admission_basis"], "explicit")
+
+    def test_json_fallback_uses_explicit_free_admission_from_detail_page(self):
+        item = {
+            "title": "Sommerkonzert in der Rheinaue",
+            "description": "",
+            "category": ["Musik/Konzert"],
+            "startDate": "2026-07-18 09:00:00",
+            "endDate": "2026-07-18 10:00:00",
+            "locationName": "Halfpipe Rheinaue",
+            "locationAddress": "Martin-Luther-King-Straße 40, 53175 Bonn",
+            "link": "https://www.bonn.de/Rheinaue-parkrun.php",
+            "hasStartTime": True,
+            "hasEndTime": True,
+        }
+        context = {
+            "description": "Jeden Samstagmorgen findet in der Rheinaue der parkrun statt.",
+            "description_html": "",
+            "price": "kostenlos",
+            "admission_basis": "explicit",
+        }
+
+        with (
+            patch.object(common, "fetch_url", return_value=json.dumps([item])),
+            patch.object(bonn, "_venue_points", return_value={}),
+            patch.object(bonn, "_fetch_detail_context", return_value=context),
+            patch.object(bonn, "_fetch_rss_events", return_value=[]),
+            patch.object(bonn, "_fetch_free_calendar_events", return_value=[]),
+            patch.object(bonn, "_fetch_calendar_listing_events", return_value=[]),
+        ):
+            events = bonn.fetch_events_json()
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["price"], "kostenlos")

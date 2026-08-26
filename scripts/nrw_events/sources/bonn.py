@@ -592,6 +592,7 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
             description = description or detail_context.get("description", "")
             venue = venue or detail_context.get("venue", "")
             location_address = location_address or detail_context.get("venue_address", "")
+            price = detail_context.get("price") or price
         parts = [p.strip() for p in location_address.split(",") if p.strip()]
         town = re.sub(r"^\d{4,5}\s*", "", parts[-1]).strip() if parts else detail_context.get("city", "")
         city = common.refine_city_from_text(
@@ -628,6 +629,8 @@ def fetch_events_json(source: str = "Bonn.de Events") -> list:
                 ev = _apply_free_category_override(ev, tags)
             if price:
                 ev["price"] = price
+                if detail_context.get("admission_basis"):
+                    ev["admission_basis"] = detail_context["admission_basis"]
                 if free_allow:
                     ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
             events.append(ev)
