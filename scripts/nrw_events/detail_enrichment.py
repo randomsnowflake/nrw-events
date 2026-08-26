@@ -941,6 +941,8 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
         if structured_price is not None and not tribe_price:
             context["price"] = structured_price
         location = item.get("location")
+        if isinstance(location, list):
+            location = next((value for value in location if isinstance(value, dict)), None)
         if isinstance(location, dict):
             context["venue"] = common.clean_html(str(location.get("name") or "")) or context["venue"]
             address = location.get("address")

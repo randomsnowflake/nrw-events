@@ -21,7 +21,7 @@ import re
 from datetime import datetime, timedelta
 from html import unescape
 
-from .. import category_taxonomy, common, richtext
+from .. import category_taxonomy, common, detail_enrichment, richtext
 from . import regional_common as rc
 
 # Full official event calendar as structured JSON. This endpoint has repeatedly
@@ -1002,10 +1002,44 @@ def events_from_sport_teasers(html: str) -> list:
     return events
 
 
+def _enrich_sport_details(events: list[dict], detail_fetcher) -> list[dict]:
+    """Recover official Bonn.de Place data omitted from sport teaser cards."""
+    enriched = []
+    for event in events:
+        event_date = common.parse_iso_date(str(event.get("start_date") or ""))
+        if (
+            event.get("venue")
+            or not event.get("link")
+            or not common.window_contains(event_date)
+        ):
+            enriched.append(event)
+            continue
+        locked = dict(event)
+        locked["identity_venue"] = ""
+        locked["identity_venue_locked"] = True
+        try:
+            document = detail_fetcher(str(event["link"]))
+            context = detail_enrichment.extract_detail_context(document, locked)
+            locked = detail_enrichment.apply_detail_context(locked, context)
+        except Exception as exc:
+            common.log_source_error("Bonn.de Sports detail", exc)
+        enriched.append(locked)
+    return enriched
+
+
 def fetch_sports() -> list:
     source = "Bonn.de Sports"
     try:
-        return events_from_sport_teasers(common.fetch_url(_SPORTS_URL, timeout=20))
+        events = events_from_sport_teasers(common.fetch_url(_SPORTS_URL, timeout=20))
+        return _enrich_sport_details(
+            events,
+            lambda url: common.fetch_detail_url(
+                url,
+                cache_namespace="bonn-sports-detail",
+                timeout=15,
+                retry_attempts=1,
+            ),
+        )
     except Exception as e:
         common.log_source_error(source, e)
         return []

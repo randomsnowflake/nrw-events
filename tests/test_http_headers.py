@@ -3,6 +3,7 @@ import time
 import unittest
 import urllib.error
 from email.message import Message
+from io import BytesIO
 from unittest.mock import Mock, patch
 
 from nrw_events import common
@@ -172,6 +173,30 @@ class HttpHeaderTests(unittest.TestCase):
 
         self.assertEqual(urlopen.call_count, 1)
         sleep.assert_not_called()
+
+    def test_fetch_url_can_accept_a_document_body_from_an_expected_410(self):
+        headers = Message()
+        headers["Content-Type"] = "text/html; charset=utf-8"
+        gone = urllib.error.HTTPError(
+            "https://example.org/past-event",
+            410,
+            "Gone",
+            headers,
+            BytesIO("<p>Treffpunkt: Winzerhof Körtgen</p>".encode()),
+        )
+        self.addCleanup(gone.close)
+
+        with patch(
+            "nrw_events.common.urllib.request.urlopen",
+            side_effect=gone,
+        ):
+            body = common.fetch_url(
+                "https://example.org/past-event",
+                retry_attempts=1,
+                accepted_http_statuses=(410,),
+            )
+
+        self.assertIn("Winzerhof Körtgen", body)
 
     def test_brightdata_fallback_recovers_exhausted_rate_limit(self):
         rate_limited = urllib.error.HTTPError(

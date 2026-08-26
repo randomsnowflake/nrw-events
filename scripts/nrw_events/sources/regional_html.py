@@ -283,6 +283,23 @@ def _eitorf_venue(place: str, text: str) -> str:
     return rc.clean(meeting_point.group(1)) if meeting_point else place
 
 
+def _broeltal_named_address(text: str) -> dict[str, str]:
+    """Extract a complete venue/address line from Bröltal event body copy."""
+    match = re.search(
+        r"(?:^|\n)\s*(?:Kostenfrei!\s*)?"
+        r"([^,\n]{3,100}),\s*([^,\n]*\d[^,\n]*),\s*"
+        r"(\d{5}\s+Ruppichteroth)\b",
+        text or "",
+        re.I,
+    )
+    if not match:
+        return {}
+    return {
+        "venue": rc.clean(match.group(1)),
+        "venue_address": f"{rc.clean(match.group(2))}, {rc.clean(match.group(3))}",
+    }
+
+
 def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
     events = []
     blocks = re.findall(r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>',
@@ -308,9 +325,13 @@ def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
             rc.time_text(text),
         )
         if ev:
+            ev["identity_venue"] = ""
+            ev["identity_venue_locked"] = True
             ev = _enrich_regional_detail(
                 ev, detail_fetcher, "Bröltal / Ruppichteroth detail",
             )
+            if not ev.get("venue"):
+                ev.update(_broeltal_named_address(str(ev.get("description") or "")))
             events.append(ev)
     return events
 

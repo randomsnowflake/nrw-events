@@ -751,12 +751,16 @@ def fetch_hardtberg() -> list:
         return []
 
 
-def _roleber_detail_description(html: str) -> str:
+def _roleber_detail_context(html: str) -> dict[str, str]:
     parser = regional_common.ClassScopedTextParser({
         "description": lambda _tag, attrs: "tribe-events-single-event-description" in (attrs.get("class") or "").split(),
     })
     parser.feed(html or "")
-    return common.concise_description(parser.text("description"))
+    description = common.concise_description(parser.text("description"))
+    return {
+        "description": description,
+        **regional_common.explicit_place_context(description, "Bonn-Roleber"),
+    }
 
 
 def _enrich_roleber_descriptions(events: list) -> list:
@@ -768,11 +772,16 @@ def _enrich_roleber_descriptions(events: list) -> list:
             city=event.get("city", "Bonn-Roleber"),
         )
 
+    for event in events:
+        if not event.get("venue"):
+            event["identity_venue"] = ""
+            event["identity_venue_locked"] = True
+
     events = regional_common.enrich_descriptions(
         events,
         source="BSV Roleber",
         cache_namespace="bsv-roleber",
-        extract_context=lambda html, _event: _roleber_detail_description(html),
+        extract_context=lambda html, _event: _roleber_detail_context(html),
         fallback=fallback,
         needs_enrichment=lambda event: len(event.get("description") or "") < 120,
     )

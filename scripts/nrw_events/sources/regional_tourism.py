@@ -22,6 +22,13 @@ def fetch() -> list:
             "Ahrweiler",
             "ahrtal wein wanderung führung kultur ausstellung",
             0.86,
+            detail_fetcher=lambda detail_url: common.fetch_detail_url(
+                detail_url,
+                cache_namespace="ahrtal-shapehub-detail",
+                timeout=20,
+                retry_attempts=1,
+                accepted_http_statuses=(410,),
+            ),
         ),
      source_id="ahrtal-tourismus"))
     events.extend(_fetch_linz())
@@ -38,8 +45,45 @@ def fetch() -> list:
     return rc.dedupe(events)
 
 
+def _shapehub_detail_context(html: str, city: str) -> dict[str, str]:
+    description = re.search(
+        r'<div[^>]+class="[^"]*\bshapehub-detail-description\b[^"]*"[^>]*>'
+        r'(.*?)</div>',
+        html or "",
+        re.S | re.I,
+    )
+    text = rc.clean_blocks(description.group(1) if description else "")
+    context = {"description": text}
+    venue_marker = re.search(r"<strong>\s*Veranstaltungsort\s*</strong>", html or "", re.I)
+    if venue_marker:
+        venue_section = (html or "")[venue_marker.end():]
+        venue_section = re.split(
+            r"<strong>\s*Organisator\s*</strong>", venue_section, maxsplit=1, flags=re.I,
+        )[0]
+        parser = rc.ClassScopedTextParser({
+            "venue": lambda _tag, attrs: (
+                "shapehub-address-line" in (attrs.get("class") or "").split()
+            ),
+        })
+        parser.feed(venue_section)
+        lines = [
+            rc.clean(line)
+            for line in parser.block_text("venue").splitlines()
+            if rc.clean(line)
+        ]
+        if lines:
+            context["venue"] = lines[0]
+            if len(lines) > 1:
+                context["venue_address"] = ", ".join(lines[1:])
+
+    for key, value in rc.explicit_place_context(text, city).items():
+        context.setdefault(key, value)
+    return context
+
+
 def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
-                          default_city: str, category: str, trust: float) -> list:
+                          default_city: str, category: str, trust: float,
+                          detail_fetcher=None) -> list:
     events = []
     card_re = re.compile(r'<a href="(?P<href>[^"]+)" class="shapehub-card-link">(?P<body>.*?)</a>',
                          re.S | re.I)
@@ -56,6 +100,16 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
         city = rc.clean(location.group(1)) if location else rc.city_from_text(text, default_city)
         start = rc.parse_dt(date.group(1))
         detail_url = rc.abs_url(base, m.group("href"))
+        context = {}
+        if detail_fetcher and common.window_contains(start):
+            try:
+                context = _shapehub_detail_context(detail_fetcher(detail_url), city)
+            except Exception as exc:
+                common.log_source_error(f"{source} detail", exc)
+        place = {
+            **rc.explicit_place_context(text, city),
+            **{key: value for key, value in context.items() if key != "description"},
+        }
         # Shapehub removes detail pages at the start of their event date (HTTP
         # 410) while leaving the cards in the calendar. Keep today's cards
         # useful via the listing; future cards can link straight to details.
@@ -64,9 +118,9 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
             rc.clean(title.group(1)),
             rc.with_time(start, text),
             None,
+            place.get("venue", city),
             city,
-            city,
-            text[:500],
+            context.get("description") or text[:500],
             event_url,
             source,
             category,
@@ -74,6 +128,11 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
             rc.time_text(text),
         )
         if ev:
+            if place.get("venue"):
+                ev["identity_venue"] = ""
+                ev["identity_venue_locked"] = True
+            if place.get("venue_address"):
+                ev["venue_address"] = place["venue_address"]
             events.append(ev)
     return events
 

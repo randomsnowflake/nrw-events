@@ -99,6 +99,21 @@ class ClassScopedTextParser(HTMLParser):
 
 _MONTH = MONTH_ALL
 
+_EXPLICIT_PLACE_PATTERN = re.compile(
+    r"\b(?:Treffpunkt|Veranstaltungsort)\s*:\s*(.+?)"
+    r"(?=(?:\s+(?:Anmeldung|Beginn|Dauer|Einlass|Hinweis|Leitung|Preis|Termin)\s*:)|\n\n|$)",
+    re.I | re.S,
+)
+_VAGUE_PLACE_PATTERN = re.compile(
+    r"^(?:nach\s+(?:Vereinbarung|Absprache)|wird\s+(?:noch\s+)?bekannt\s*gegeben|"
+    r"folgt|siehe\s+(?:Website|Webseite)|verschiedene\s+(?:Orte|Treffpunkte))\.?$",
+    re.I,
+)
+_ADDRESS_EVIDENCE_PATTERN = re.compile(
+    r"(?:\b\d{5}\b|\d|\b(?:allee|gasse|platz|ring|straße|strasse|str\.|weg)\b)",
+    re.I,
+)
+
 
 def abs_url(base: str, href: str) -> str:
     return urllib.parse.urljoin(base, unescape(href or "").strip())
@@ -111,6 +126,37 @@ def clean(text: str) -> str:
 def clean_blocks(text: str) -> str:
     """``clean`` for prose: keeps the paragraph breaks the source authored."""
     return common.clean_html_blocks(text or "")
+
+
+def explicit_place_context(text: str, city: str) -> dict[str, str]:
+    """Recover an explicitly labelled venue without guessing from general prose."""
+    match = _EXPLICIT_PLACE_PATTERN.search(text or "")
+    if not match:
+        return {}
+    value = clean(match.group(1)).strip(" .;,")
+    if (
+        not value
+        or _VAGUE_PLACE_PATTERN.fullmatch(value)
+        or re.search(r"\b(?:Quelle|Themen)\s*:", value, re.I)
+    ):
+        return {}
+
+    parts = [part.strip(" .;") for part in value.split(",") if part.strip(" .;")]
+    if not parts:
+        return {}
+    venue = parts[0]
+    if re.fullmatch(r"\d{5}(?:\s+.+)?", venue) or re.search(r"\bSt\.?$", venue):
+        return {}
+    normalized_venue = " ".join(venue.casefold().split())
+    normalized_city = " ".join(clean(city).casefold().split())
+    if normalized_venue == normalized_city:
+        return {}
+
+    context = {"venue": venue}
+    address = ", ".join(parts[1:])
+    if address and _ADDRESS_EVIDENCE_PATTERN.search(address):
+        context["venue_address"] = address
+    return context
 
 
 def first_group(pattern: str, text: str, *, flags: int = re.S | re.I) -> str:

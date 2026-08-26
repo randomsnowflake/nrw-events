@@ -54,6 +54,30 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "Kostenfrei")
         self.assertEqual(context["venue_address"], "Eifelwall 5 50674 Köln")
 
+    def test_extracts_first_place_from_jsonld_location_list(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Workshop: Architekturfotografie",
+          "location": [{
+            "@type": "Place",
+            "name": "TV Rheindorf",
+            "address": {
+              "streetAddress": "Kopenhagener Str. 17",
+              "postalCode": "53117",
+              "addressLocality": "Bonn"
+            }
+          }]
+        }
+        </script>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, self.event())
+
+        self.assertEqual(context["venue"], "TV Rheindorf")
+        self.assertEqual(context["venue_address"], "Kopenhagener Str. 17 53117 Bonn")
+
     def test_visible_tribe_cost_overrides_incorrect_jsonld_currency(self):
         document = """
         <script type="application/ld+json">

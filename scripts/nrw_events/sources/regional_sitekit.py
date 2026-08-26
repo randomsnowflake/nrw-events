@@ -90,11 +90,20 @@ def fetch() -> list:
     for calendar in _CALENDARS:
         events.extend(_fetch_calendar(*calendar))
     events = rc.dedupe(events)
+    for event in events:
+        # A venue recovered for an empty teaser is display enrichment. Lock
+        # that original blank so useful location facts never move an already
+        # published event URL. Existing teaser venues keep normal identity.
+        if not event.get("venue"):
+            event["identity_venue"] = ""
+            event["identity_venue_locked"] = True
     events = rc.enrich_descriptions(
         events,
         source=_SOURCE,
         cache_namespace="regional-sitekit-detail",
-        extract_context=lambda html, _event: _detail_context(html),
+        extract_context=lambda html, event: _detail_context(
+            html, event.get("city", ""), event.get("title", ""),
+        ),
         fallback=lambda event: event.get("description", ""),
         needs_enrichment=lambda event: (
             event.get("description_source") == "generated"
@@ -192,7 +201,37 @@ def _detail_rich_text(html: str) -> str:
     return richtext.sanitize_rich_text("".join(fragments))
 
 
-def _detail_context(html: str) -> dict[str, str]:
+def _visible_venue_context(html: str) -> dict[str, str]:
+    """Read SiteKit's visible venue section when its JSON-LD Place is empty."""
+    parser = rc.ClassScopedTextParser({
+        "venue": lambda _tag, attrs: (
+            (attrs.get("aria-labelledby") or "").casefold() == "veranstaltungsort"
+        ),
+    })
+    parser.feed(html or "")
+    lines = [
+        rc.clean(line)
+        for line in parser.block_text("venue").splitlines()
+        if rc.clean(line)
+    ]
+    if lines and lines[0].casefold() == "veranstaltungsort":
+        lines.pop(0)
+    if "Kontakt" in lines:
+        lines = lines[:lines.index("Kontakt")]
+    if not lines:
+        return {}
+
+    if len(lines) == 1:
+        parts = [part.strip() for part in lines[0].split(",") if part.strip()]
+        if len(parts) >= 3:
+            return {"venue": parts[0], "venue_address": ", ".join(parts[1:])}
+        return {"venue": lines[0]}
+    return {"venue": lines[0], "venue_address": ", ".join(lines[1:])}
+
+
+def _detail_context(
+    html: str, city_name: str = "", event_title: str = "",
+) -> dict[str, str]:
     """Return the SiteKit detail copy and its schema.org place fields."""
     context = {
         "description": _detail_description(html),
@@ -202,25 +241,40 @@ def _detail_context(html: str) -> dict[str, str]:
     location = items[0].get("location") if items else None
     if isinstance(location, list):
         location = location[0] if location else None
-    if not isinstance(location, dict):
-        return context
+    if isinstance(location, dict):
+        venue = rc.clean(str(location.get("name") or ""))
+        address = location.get("address")
+        address_parts = []
+        if isinstance(address, dict):
+            street = rc.clean(str(address.get("streetAddress") or ""))
+            postcode = rc.clean(str(address.get("postalCode") or ""))
+            city = rc.clean(str(address.get("addressLocality") or ""))
+            locality = " ".join(part for part in (postcode, city) if part)
+            address_parts = [part for part in (street, locality) if part]
+        elif isinstance(address, str):
+            address_parts = [rc.clean(address)]
 
-    venue = rc.clean(str(location.get("name") or ""))
-    address = location.get("address")
-    address_parts = []
-    if isinstance(address, dict):
-        street = rc.clean(str(address.get("streetAddress") or ""))
-        postcode = rc.clean(str(address.get("postalCode") or ""))
-        city = rc.clean(str(address.get("addressLocality") or ""))
-        locality = " ".join(part for part in (postcode, city) if part)
-        address_parts = [part for part in (street, locality) if part]
-    elif isinstance(address, str):
-        address_parts = [rc.clean(address)]
+        if venue:
+            context["venue"] = venue
+        if address_parts:
+            context["venue_address"] = ", ".join(address_parts)
 
-    if venue:
-        context["venue"] = venue
-    if address_parts:
-        context["venue_address"] = ", ".join(address_parts)
+    for key, value in _visible_venue_context(html).items():
+        context.setdefault(key, value)
+
+    # This municipal calendar uses the named attraction as the title prefix
+    # while omitting its Place object. Keep the inference deliberately narrow.
+    if not context.get("venue"):
+        named_attraction = re.match(r"^(Kletterwald\s+[^:]+):", event_title, re.I)
+        if named_attraction:
+            context["venue"] = rc.clean(named_attraction.group(1))
+
+    # Some SiteKit calendars publish an empty JSON-LD location while their
+    # visible body names a precise, labelled meeting point. Structured data
+    # remains authoritative; prose only fills fields it left blank.
+    prose_place = rc.explicit_place_context(context["description"], city_name)
+    for key, value in prose_place.items():
+        context.setdefault(key, value)
     return context
 
 

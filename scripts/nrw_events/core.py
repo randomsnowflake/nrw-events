@@ -398,6 +398,7 @@ def fetch_url(
     sec_fetch_dest: str = "document",
     expected_content_types: Optional[tuple] = None,
     retry_attempts: Optional[int] = None,
+    accepted_http_statuses: tuple[int, ...] = (),
 ) -> str:
     """GET a URL and return decoded text. Raises on network/HTTP error.
 
@@ -464,6 +465,41 @@ def fetch_url(
                     for char in decoded
                 )
         except Exception as exc:
+            if isinstance(exc, urllib.error.HTTPError) and exc.code in accepted_http_statuses:
+                headers_obj = exc.headers
+                content_type = (
+                    headers_obj.get_content_type()
+                    if headers_obj is not None and hasattr(headers_obj, "get_content_type")
+                    else ""
+                )
+                if expected_content_types and content_type and not any(
+                    content_type.startswith(item) for item in expected_content_types
+                ):
+                    _close_http_error(exc)
+                    raise UnexpectedContentTypeError(
+                        f"expected {expected_content_types}, got {content_type}"
+                    ) from exc
+                body = exc.read(settings.http_max_response_bytes + 1)
+                if len(body) > settings.http_max_response_bytes:
+                    _close_http_error(exc)
+                    raise ResponseTooLargeError(
+                        f"response exceeds {settings.http_max_response_bytes} bytes"
+                    )
+                charset = (
+                    headers_obj.get_content_charset()
+                    if headers_obj is not None and hasattr(headers_obj, "get_content_charset")
+                    else None
+                )
+                _record_endpoint(
+                    url,
+                    status=exc.code,
+                    content_type=content_type,
+                    bytes=len(body),
+                    duration_ms=round((time.perf_counter() - started) * 1000),
+                    accepted_error_status=True,
+                )
+                _close_http_error(exc)
+                return body.decode(charset or "utf-8", errors="replace")
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
             delay = _retry_delay(exc, attempt) if retry else 0
