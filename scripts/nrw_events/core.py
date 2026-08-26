@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from hashlib import sha256
+import inspect
 import logging
 import os
 import random
@@ -243,14 +244,69 @@ class ResponseTooLargeError(ValueError):
     pass
 
 
-def _read_response_body(response: Any, max_bytes: int) -> bytes:
-    """Read a complete response unless an explicit positive limit is configured."""
-    if max_bytes <= 0:
-        return response.read()
-    body = response.read(max_bytes + 1)
-    if len(body) > max_bytes:
-        raise ResponseTooLargeError(f"response exceeds {max_bytes} bytes")
-    return body
+_HTTP_READ_CHUNK_BYTES = 64 * 1024
+
+
+def _set_response_socket_timeout(response: Any, timeout: float) -> None:
+    """Best-effort update of urllib's underlying socket timeout."""
+    for chain in (
+        ("fp", "raw", "_sock"),
+        ("fp", "fp", "raw", "_sock"),
+        ("fp", "_sock"),
+        ("_sock",),
+    ):
+        candidate = response
+        for attribute in chain:
+            candidate = getattr(candidate, attribute, None)
+            if candidate is None:
+                break
+        setter = getattr(candidate, "settimeout", None)
+        if callable(setter):
+            setter(max(timeout, 0.001))
+            return
+
+
+def _response_read_timeout(deadline: float) -> float:
+    cancel_event = getattr(_SOURCE_CONTEXT, "cancel_event", None)
+    if cancel_event is not None and cancel_event.is_set():
+        raise TimeoutError("source wall-clock budget exhausted while reading response body")
+    remaining = deadline - time.perf_counter()
+    if remaining <= 0:
+        raise TimeoutError("request or source time budget exhausted while reading response body")
+    return remaining
+
+
+def _read_response_body(response: Any, max_bytes: int, *, deadline: float) -> bytes:
+    """Read a response incrementally while enforcing size and wall-clock limits."""
+    read1 = getattr(response, "read1", None)
+    if not (inspect.ismethod(read1) or inspect.isbuiltin(read1)):
+        # Non-HTTP test/file objects do not necessarily expose ``read1``. Keep
+        # their one-shot semantics; real urllib HTTP responses use the bounded
+        # incremental path below.
+        _set_response_socket_timeout(response, _response_read_timeout(deadline))
+        body = response.read() if max_bytes <= 0 else response.read(max_bytes + 1)
+        if len(body) > max_bytes > 0:
+            raise ResponseTooLargeError(f"response exceeds {max_bytes} bytes")
+        _response_read_timeout(deadline)
+        return body
+
+    body = bytearray()
+    while True:
+        remaining_timeout = _response_read_timeout(deadline)
+        _set_response_socket_timeout(response, remaining_timeout)
+        read_size = _HTTP_READ_CHUNK_BYTES
+        if max_bytes > 0:
+            read_size = min(read_size, max_bytes + 1 - len(body))
+        chunk = read1(read_size)
+        if not chunk:
+            break
+        if not isinstance(chunk, (bytes, bytearray)):
+            raise TypeError("HTTP response body reader returned non-bytes data")
+        body.extend(chunk)
+        if len(body) > max_bytes > 0:
+            raise ResponseTooLargeError(f"response exceeds {max_bytes} bytes")
+    _response_read_timeout(deadline)
+    return bytes(body)
 
 
 class UnexpectedContentTypeError(ValueError):
@@ -447,7 +503,9 @@ def fetch_url(
                         content_type = ""
                     if expected_content_types and content_type and not any(content_type.startswith(item) for item in expected_content_types):
                         raise UnexpectedContentTypeError(f"expected {expected_content_types}, got {content_type}")
-                    body = _read_response_body(resp, settings.http_max_response_bytes)
+                    body = _read_response_body(
+                        resp, settings.http_max_response_bytes, deadline=deadline,
+                    )
                     charset = (
                         headers_obj.get_content_charset()
                         if headers_obj is not None and hasattr(headers_obj, "get_content_charset")
@@ -486,7 +544,9 @@ def fetch_url(
                         f"expected {expected_content_types}, got {content_type}"
                     ) from exc
                 try:
-                    body = _read_response_body(exc, settings.http_max_response_bytes)
+                    body = _read_response_body(
+                        exc, settings.http_max_response_bytes, deadline=deadline,
+                    )
                 except Exception:
                     _close_http_error(exc)
                     raise
@@ -587,7 +647,9 @@ def fetch_url_with_brightdata(
                 request,
                 timeout=_remaining_timeout(deadline, max(timeout, 120)),
             )) as response:
-                raw = _read_response_body(response, settings.http_max_response_bytes)
+                raw = _read_response_body(
+                    response, settings.http_max_response_bytes, deadline=deadline,
+                )
                 api_status = getattr(response, "status", 200)
     except Exception as exc:
         _raise_brightdata_failure(url, started, exc)
@@ -1035,7 +1097,9 @@ def post_json(url: str, payload: dict[str, Any], timeout: int = 45,
             started = time.perf_counter()
             with _host_request_slot(url, deadline):
                 with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = _read_response_body(resp, settings.http_max_response_bytes)
+                    body = _read_response_body(
+                        resp, settings.http_max_response_bytes, deadline=deadline,
+                    )
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
@@ -1070,7 +1134,9 @@ def post_form(url: str, fields: Any, timeout: int = 45,
             started = time.perf_counter()
             with _host_request_slot(url, deadline):
                 with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
-                    body = _read_response_body(resp, settings.http_max_response_bytes)
+                    body = _read_response_body(
+                        resp, settings.http_max_response_bytes, deadline=deadline,
+                    )
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
