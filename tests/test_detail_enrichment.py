@@ -214,6 +214,31 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched["description"], source["description"])
         self.assertEqual(enriched["description_source"], "generated")
 
+    def test_combining_title_marks_do_not_match_an_unmarked_jsonld_event(self):
+        source = self.event(
+            title="İstanbul",
+            date="2026-08-28", start_date="2026-08-28", end_date="2026-08-28",
+            description="Belastbarer generierter Platzhalter für die ausgewählte Veranstaltung.",
+            description_source="generated",
+        )
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Istanbul",
+          "description": "Text einer anderen Veranstaltung.",
+          "startDate": "2026-08-28T19:00:00+02:00"
+        }
+        </script>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, source)
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertEqual(context["exact_description"], "")
+        self.assertEqual(enriched["description"], source["description"])
+        self.assertEqual(enriched["description_source"], "generated")
+
     def test_accented_title_does_not_collide_with_folded_title(self):
         source = self.event(
             title="Sí",

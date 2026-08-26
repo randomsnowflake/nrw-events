@@ -215,9 +215,22 @@ def _exact_title_key(value: object) -> str:
     normalized = unicodedata.normalize(
         "NFC", common.clean_html(str(value or "")),
     ).lower()
+    normalized = unicodedata.normalize("NFC", normalized)
     # Casefolding and fuzzy transliteration collapse distinct letters such as
     # ß/ss and í/i, which is unsafe when selecting authoritative event copy.
-    return "".join(character for character in normalized if character.isalnum())
+    # Lowercasing can expand a letter into a base plus a combining mark, as for
+    # İ. Keep attached marks so distinct Unicode titles cannot collide.
+    key: list[str] = []
+    accepts_mark = False
+    for character in normalized:
+        if character.isalnum():
+            key.append(character)
+            accepts_mark = True
+        elif accepts_mark and unicodedata.category(character).startswith("M"):
+            key.append(character)
+        else:
+            accepts_mark = False
+    return "".join(key)
 
 
 def _exact_jsonld_description(document: str, event: dict) -> tuple[str, str]:
