@@ -18,7 +18,7 @@ Fetchers, all reading bonn.de:
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from html import unescape
 
 from .. import category_taxonomy, common, richtext
@@ -346,7 +346,30 @@ def _parse_detail_context(html: str) -> dict:
         "venue_latitude": None,
         "venue_longitude": None,
         "city": "",
+        "start_time": "",
+        "end_time": "",
     }
+
+    schedule_match = re.search(
+        r'<section[^>]+class="[^"]*EventInformation__date[^"]*"[^>]*>(.*?)</section>',
+        html or "",
+        re.I | re.S,
+    )
+    if schedule_match:
+        clocks = re.findall(
+            r'<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]+?)\s*</span>',
+            schedule_match.group(1),
+            re.I | re.S,
+        )
+        normalized_clocks = [
+            match.group(0)
+            for value in clocks
+            if (match := re.search(r"\b\d{1,2}:\d{2}\b", common.clean_html(value)))
+        ]
+        if normalized_clocks:
+            context["start_time"] = normalized_clocks[0]
+        if len(normalized_clocks) > 1:
+            context["end_time"] = normalized_clocks[1]
 
     # Some municipal records are syndicated copies and name the organizer's
     # first-party detail page explicitly.  Prefer that visitor-facing source
@@ -386,6 +409,18 @@ def _parse_detail_context(html: str) -> dict:
         for node in nodes:
             if not isinstance(node, dict) or node.get("@type") != "Event":
                 continue
+            schedules = node.get("eventSchedule") or []
+            if isinstance(schedules, dict):
+                schedules = [schedules]
+            for schedule in schedules:
+                if not isinstance(schedule, dict):
+                    continue
+                if not context["start_time"]:
+                    context["start_time"] = str(schedule.get("startTime") or "").strip()
+                if not context["end_time"]:
+                    context["end_time"] = str(schedule.get("endTime") or "").strip()
+                if context["start_time"] and context["end_time"]:
+                    break
             locations = node.get("location") or []
             if isinstance(locations, dict):
                 locations = [locations]
@@ -418,6 +453,35 @@ def _parse_detail_context(html: str) -> dict:
             return context
 
     return context
+
+
+def _apply_detail_time(event: dict, context: dict) -> dict:
+    """Fill a listing occurrence's missing end time from its detail page."""
+    start_time = str(context.get("start_time") or "").strip()
+    end_time = str(context.get("end_time") or "").strip()
+    if not (re.fullmatch(r"\d{1,2}:\d{2}", start_time) and re.fullmatch(r"\d{1,2}:\d{2}", end_time)):
+        return event
+    start_time = ":".join((start_time.split(":", 1)[0].zfill(2), start_time.split(":", 1)[1]))
+    end_time = ":".join((end_time.split(":", 1)[0].zfill(2), end_time.split(":", 1)[1]))
+    listed_start = str(event.get("time") or "").split("–", 1)[0]
+    if listed_start not in ("", start_time):
+        return event
+    occurrence = common.parse_iso_date(str(event.get("start_date") or event.get("date") or ""))
+    if not occurrence:
+        return event
+    start_hour, start_minute = map(int, start_time.split(":"))
+    end_hour, end_minute = map(int, end_time.split(":"))
+    start = occurrence.replace(hour=start_hour, minute=start_minute, tzinfo=common.LOCAL_TIMEZONE)
+    end = occurrence.replace(hour=end_hour, minute=end_minute, tzinfo=common.LOCAL_TIMEZONE)
+    if end <= start:
+        end += timedelta(days=1)
+    event["time"] = f"{start_time}–{end_time}"
+    event["start_at"] = start.isoformat(timespec="minutes")
+    event["end_at"] = end.isoformat(timespec="minutes")
+    event["end_date"] = end.strftime("%Y-%m-%d")
+    event["all_day"] = False
+    event["ongoing"] = False
+    return event
 
 
 def _fetch_detail_context(link: str) -> dict:
@@ -807,6 +871,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
             if ev:
                 ev["identity_venue"] = ""
                 ev["identity_venue_locked"] = True
+                ev = _apply_detail_time(ev, detail_context)
                 ev = _apply_detail_location(ev, detail_context)
                 ev = _apply_detail_source_link(ev, detail_context)
                 ev = _apply_source_category_mapping(ev, tags)

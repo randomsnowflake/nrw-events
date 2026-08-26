@@ -142,6 +142,50 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["venue_address"], "Noeggerathstraße 34, 53111 Bonn")
         self.assertEqual(context["city"], "Bonn")
 
+    def test_detail_context_extracts_visible_start_and_end_times(self):
+        html = """
+<section class="EventInformation__date">
+  <div class="SP-Scheduling">
+    <span class="SP-Scheduling__begin">
+      <span class="SP-Scheduling__date">Donnerstag, 27. August 2026</span>
+      <span class="SP-Scheduling__time">14:00 Uhr</span>
+      <span class="SP-Scheduling__dash">–</span>
+      <span class="SP-Scheduling__time">17:00 Uhr</span>
+    </span>
+  </div>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["start_time"], "14:00")
+        self.assertEqual(context["end_time"], "17:00")
+
+    def test_listing_uses_detail_end_time_for_each_occurrence(self):
+        html = """
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/seelenklaenge.php">
+    <span class="SP-Kicker__text">Treffen/Austausch</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">18.07.2026</span><span class="SP-Scheduling__time">14:00 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">Seniorentreff</h1>
+  </a>
+</article>
+"""
+        context = {
+            "description": "Gedächtnistraining und Bewegung.",
+            "venue": "Fachstelle Alter und Pflege",
+            "city": "Bonn",
+            "start_time": "14:00",
+            "end_time": "17:00",
+        }
+
+        with patch.object(bonn, "_fetch_detail_context", return_value=context):
+            events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertEqual(events[0]["time"], "14:00–17:00")
+        self.assertEqual(events[0]["start_at"], "2026-07-18T14:00+02:00")
+        self.assertEqual(events[0]["end_at"], "2026-07-18T17:00+02:00")
+
     def test_detail_context_extracts_explicit_free_admission_from_information_table(self):
         html = """
 <section class="SP-Text">
@@ -372,6 +416,8 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
                     "venue_latitude": None,
                     "venue_longitude": None,
                     "city": "",
+                    "start_time": "",
+                    "end_time": "",
                 },
             )
 
