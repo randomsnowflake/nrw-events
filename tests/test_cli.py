@@ -140,6 +140,33 @@ class CliTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "max-chars"):
             runner._parse_cli(["nrw-events", "--max-chars", "199"])
 
+    def test_source_filter_is_repeatable_and_validated(self):
+        _, query, _ = runner._parse_cli([
+            "nrw-events", "7", "--source", "bonn-de-events", "--source", "uni-bonn,bonn-de-events",
+        ])
+
+        self.assertEqual(query.source_ids, ("bonn-de-events", "uni-bonn"))
+        with self.assertRaisesRegex(ValueError, "unknown source"):
+            runner._parse_cli(["nrw-events", "7", "--source", "does-not-exist"])
+
+    def test_targeted_sources_fetch_selected_and_schedule_skip_all_others(self):
+        selected = mock.Mock(return_value=[])
+        other = mock.Mock(return_value=[])
+        with mock.patch.object(runner, "SOURCES", {
+            "Bonn.de Events": selected,
+            "Universität Bonn": other,
+        }), mock.patch.object(runner, "SOURCE_IDS", {
+            "Bonn.de Events": "bonn-de-events",
+            "Universität Bonn": "uni-bonn",
+        }):
+            sources = runner._targeted_sources(("bonn-de-events",))
+
+        self.assertIs(sources["Bonn.de Events"], selected)
+        skipped = sources["Universität Bonn"]()
+        self.assertEqual(skipped.status, "scheduled_skip")
+        self.assertIn("previous snapshot", skipped.disabled_reason)
+        other.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1117,6 +1117,7 @@ class _ArgumentParser(argparse.ArgumentParser):
 @dataclass(frozen=True, slots=True)
 class CliQuery:
     verb: str = ""
+    source_ids: tuple[str, ...] = ()
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -1132,6 +1133,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--kategorie", metavar="KEYS", help="comma-separated category keys or German names")
     parser.add_argument("--max-per-section", type=int, metavar="N", help="maximum events per report section")
     parser.add_argument("--max-chars", type=int, metavar="N", help="maximum Markdown report length")
+    parser.add_argument(
+        "--source",
+        action="append",
+        metavar="SOURCE_ID",
+        help="refresh only this source id; repeat for multiple sources and retain all others from the previous snapshot",
+    )
     return parser
 
 
@@ -1209,7 +1216,36 @@ def _parse_cli(argv: list[str], now: datetime | None = None) -> tuple[Optional[i
         if args.max_chars < 200:
             raise ValueError("--max-chars must be at least 200")
         overrides["report_max_chars"] = args.max_chars
-    return explicit_days, CliQuery(verb), overrides
+    requested_source_ids: list[str] = []
+    known_source_ids = set(SOURCE_IDS.values())
+    for value in args.source or []:
+        for raw_source_id in value.split(","):
+            source_id = normalize_source_id(raw_source_id)
+            if source_id not in known_source_ids:
+                raise ValueError(
+                    f"unknown source {raw_source_id.strip()!r}; use one of: "
+                    + ", ".join(sorted(known_source_ids))
+                )
+            if source_id not in requested_source_ids:
+                requested_source_ids.append(source_id)
+    return explicit_days, CliQuery(verb, tuple(requested_source_ids)), overrides
+
+
+def _targeted_sources(source_ids: tuple[str, ...]) -> Mapping[str, Callable[[], object]]:
+    """Fetch selected sources while retaining every unselected source globally."""
+    if not source_ids:
+        return SOURCES
+    selected = set(source_ids)
+
+    def retained_source(source_id: str) -> Callable[[], object]:
+        return lambda: SourceFetchResult.scheduled_skip(
+            f"targeted refresh preserved {source_id} from the previous snapshot"
+        )
+
+    return {
+        name: fetcher if SOURCE_IDS[name] in selected else retained_source(SOURCE_IDS[name])
+        for name, fetcher in SOURCES.items()
+    }
 
 
 def _event_overlaps(event: CanonicalEvent, start: datetime, end: datetime) -> bool:
@@ -1864,7 +1900,7 @@ def cli(argv: list[str]) -> int:
     logger = configure_logging(run_id, settings.log_level, settings.log_file, settings.json_log_file)
     context = RunContext(import_settings, EventWindow.from_days(import_settings.days_ahead), run_id, logger)
     try:
-        import_result = run_import(context, SOURCES)
+        import_result = run_import(context, _targeted_sources(query.source_ids))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return EXIT_FAILED
