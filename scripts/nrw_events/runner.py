@@ -479,9 +479,10 @@ def _previous_snapshot(path: str) -> dict:
                 events_path = metadata_path.parent / events_path
             try:
                 events = json.loads(events_path.read_text(encoding="utf-8"))
-                payload["events"] = events if isinstance(events, list) else []
+                if isinstance(events, list):
+                    payload["events"] = events
             except (OSError, ValueError, TypeError):
-                return {}
+                pass
         return payload
     except (OSError, ValueError, AttributeError):
         return {}

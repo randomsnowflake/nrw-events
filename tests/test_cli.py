@@ -204,6 +204,37 @@ class CliTests(unittest.TestCase):
                     ("bonn-de-events",),
                 )
 
+    def test_targeted_refresh_rejects_a_non_array_external_event_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            metadata_path = os.path.join(tmpdir, "meta.json")
+            events_path = os.path.join(tmpdir, "events.json")
+            with open(metadata_path, "w", encoding="utf-8") as handle:
+                json.dump({"events_path": events_path}, handle)
+            with open(events_path, "w", encoding="utf-8") as handle:
+                json.dump({"events": []}, handle)
+            settings = config.RuntimeConfig(meta_json_out=metadata_path)
+
+            with self.assertRaisesRegex(ValueError, "readable previous snapshot"):
+                runner._validate_targeted_refresh_snapshot(
+                    settings,
+                    ("bonn-de-events",),
+                )
+
+    def test_unreadable_external_event_file_preserves_source_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            metadata_path = os.path.join(tmpdir, "meta.json")
+            source_results = {"Bonn.de Events": {"accepted_event_count": 10}}
+            with open(metadata_path, "w", encoding="utf-8") as handle:
+                json.dump({
+                    "events_path": "missing-events.json",
+                    "source_results": source_results,
+                }, handle)
+
+            previous = runner._previous_snapshot(metadata_path)
+
+            self.assertNotIn("events", previous)
+            self.assertEqual(previous["source_results"], source_results)
+
 
 if __name__ == "__main__":
     unittest.main()
