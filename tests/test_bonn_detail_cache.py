@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from nrw_events import common
+from nrw_events import common, validation
 from nrw_events.sources import bonn
 from tests.helpers import patch_window
 
@@ -200,6 +200,75 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(context["price"], "kostenlos")
         self.assertEqual(context["admission_basis"], "explicit")
+
+    def test_detail_context_extracts_paid_admission_section(self):
+        html = """
+<section class="SP-Text">
+  <h2 class="SP-Headline--paragraph" id="eintritt">Eintritt</h2>
+  <div data-sp-table class="SP-Paragraph">
+    <p>PK1: Dienstag und Mittwoch ab 54 €, Donnerstag bis Sonntag ab 59 €</p>
+    <p>PK2: Dienstag und Mittwoch ab 44 €, Donnerstag bis Sonntag ab 49 €</p>
+  </div>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenpflichtig")
+        self.assertEqual(context["admission_basis"], "explicit")
+
+    def test_detail_admission_does_not_cross_section_boundaries(self):
+        html = """
+<section class="SP-Text"><p>Workshop-Material: 25 €</p></section>
+<section class="SP-Text">
+  <h2 id="eintritt">Eintritt</h2>
+  <p>Der Eintritt ist frei.</p>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["admission_basis"], "explicit")
+
+    def test_detail_context_treats_zero_euro_admission_as_free(self):
+        html = """
+<section class="SP-Text">
+  <h2 id="eintritt">Eintritt</h2>
+  <p>Eintritt: 0 €</p>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["admission_basis"], "explicit")
+
+    def test_ticketed_gop_venue_overrides_stale_free_category(self):
+        html = """
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/GOP-show.php">
+    <span class="SP-Kicker__text">Kabarett/Comedy | Kostenlos | Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">18.07.2026</span><span class="SP-Scheduling__time">19:30 Uhr</span></span></div>
+    <h1 class="SP-Teaser__headline">GOP Varieté-Theater Bonn: Jubiläumsshow</h1>
+  </a>
+</article>
+"""
+        context = {
+            "description": "Artistik und Comedy.",
+            "description_html": "",
+            "venue": "GOP-Varieté-Theater Bonn",
+            "venue_address": "Karl-Carstens-Straße 1, 53113 Bonn",
+            "city": "Bonn",
+        }
+
+        with patch.object(bonn, "_fetch_detail_context", return_value=context):
+            events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+
+        self.assertEqual(events[0]["price"], "kostenpflichtig")
+        self.assertEqual(events[0]["admission_basis"], "explicit")
+        canonical = validation.validate_event(events[0])
+        self.assertFalse(canonical.admission["isFree"])
 
     def test_listing_uses_explicit_free_admission_from_detail_page(self):
         html = """
