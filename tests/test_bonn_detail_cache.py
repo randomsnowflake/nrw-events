@@ -217,6 +217,33 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "kostenpflichtig")
         self.assertEqual(context["admission_basis"], "explicit")
 
+    def test_detail_admission_does_not_cross_section_boundaries(self):
+        html = """
+<section class="SP-Text"><p>Workshop-Material: 25 €</p></section>
+<section class="SP-Text">
+  <h2 id="eintritt">Eintritt</h2>
+  <p>Der Eintritt ist frei.</p>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["admission_basis"], "explicit")
+
+    def test_detail_context_treats_zero_euro_admission_as_free(self):
+        html = """
+<section class="SP-Text">
+  <h2 id="eintritt">Eintritt</h2>
+  <p>Eintritt: 0 €</p>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["admission_basis"], "explicit")
+
     def test_ticketed_gop_venue_overrides_stale_free_category(self):
         html = """
 <article class="SP-Teaser">

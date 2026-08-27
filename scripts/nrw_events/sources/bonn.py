@@ -340,17 +340,26 @@ def _detail_admission(html: str) -> str:
         if price := common.infer_free_admission_price(label, value):
             return price
 
-    admission_section = re.search(
-        r"<section\b[^>]*>.*?\bid=[\"']eintritt[\"'].*?</section>",
-        html or "",
-        re.IGNORECASE | re.DOTALL,
-    )
-    if admission_section and re.search(
-        r"(?<!\d)\d+(?:[.,]\d{1,2})?\s*(?:€|eur\b|euro\b)",
-        common.clean_html(admission_section.group(0)),
-        re.IGNORECASE,
-    ):
-        return "kostenpflichtig"
+    admission_section = next((
+        section for section in re.findall(
+            r"<section\b[^>]*>.*?</section>",
+            html or "",
+            re.IGNORECASE | re.DOTALL,
+        )
+        if re.search(r"\bid=[\"']eintritt[\"']", section, re.IGNORECASE)
+    ), "")
+    if admission_section:
+        section_text = common.clean_html(admission_section)
+        if price := common.infer_free_admission_price("Eintritt", section_text):
+            return price
+        amounts = re.findall(
+            r"(?<!\d)(\d+(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b)",
+            section_text,
+            re.IGNORECASE,
+        )
+        if amounts:
+            values = [float(amount.replace(",", ".")) for amount in amounts]
+            return "kostenpflichtig" if any(value > 0 for value in values) else "kostenlos"
     return ""
 
 
