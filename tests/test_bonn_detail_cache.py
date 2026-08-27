@@ -244,6 +244,22 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "kostenlos")
         self.assertEqual(context["admission_basis"], "explicit")
 
+    def test_free_admission_outranks_optional_paid_tour(self):
+        html = """
+<section class="SP-Text">
+  <h2 id="eintritt">Eintritt</h2>
+  <div class="SP-Paragraph">
+    <p>Eintritt frei</p>
+    <p>Führung (16 Uhr): 3 Euro; Tickets im Museumsshop</p>
+  </div>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenlos")
+        self.assertEqual(context["admission_basis"], "explicit")
+
     def test_ticketed_gop_venue_overrides_stale_free_category(self):
         html = """
 <article class="SP-Teaser">

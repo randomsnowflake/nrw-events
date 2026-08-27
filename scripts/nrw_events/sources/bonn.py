@@ -349,6 +349,14 @@ def _detail_admission(html: str) -> str:
         if re.search(r"\bid=[\"']eintritt[\"']", section, re.IGNORECASE)
     ), "")
     if admission_section:
+        for raw_paragraph in re.findall(
+            r"<p\b[^>]*>(.*?)</p>",
+            admission_section,
+            re.IGNORECASE | re.DOTALL,
+        ):
+            paragraph = common.clean_html(raw_paragraph)
+            if price := common.infer_free_admission_price("Eintritt", paragraph):
+                return price
         section_text = common.clean_html(admission_section)
         if price := common.infer_free_admission_price("Eintritt", section_text):
             return price
