@@ -481,7 +481,7 @@ def _previous_snapshot(path: str) -> dict:
                 events = json.loads(events_path.read_text(encoding="utf-8"))
                 payload["events"] = events if isinstance(events, list) else []
             except (OSError, ValueError, TypeError):
-                payload["events"] = []
+                return {}
         return payload
     except (OSError, ValueError, AttributeError):
         return {}
@@ -1248,6 +1248,22 @@ def _targeted_sources(source_ids: tuple[str, ...]) -> Mapping[str, Callable[[], 
     }
 
 
+def _validate_targeted_refresh_snapshot(
+    settings: config.RuntimeConfig,
+    source_ids: tuple[str, ...],
+) -> None:
+    """Refuse a partial refresh when there is no snapshot to retain."""
+    if not source_ids:
+        return
+    previous_path = settings.previous_meta_json or settings.meta_json_out
+    previous = _previous_snapshot(previous_path)
+    if not isinstance(previous.get("events"), list):
+        raise ValueError(
+            "--source requires a readable previous snapshot with events at "
+            f"{Path(previous_path).expanduser()}"
+        )
+
+
 def _event_overlaps(event: CanonicalEvent, start: datetime, end: datetime) -> bool:
     event_start = common.parse_iso_date(event.start_date)
     event_end = common.parse_iso_date(event.end_date) or event_start
@@ -1892,6 +1908,7 @@ def cli(argv: list[str]) -> int:
         settings = replace(settings, categories=_category_keys(",".join(settings.categories)))
         if not settings.json_stdout:
             _validate_output_paths(settings)
+        _validate_targeted_refresh_snapshot(import_settings, query.source_ids)
     except ValueError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return EXIT_FAILED
