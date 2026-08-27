@@ -40,6 +40,27 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
     "bonn.de events", "bonn.de sports", "bonn district festivals",
 )
 _CIVIC_AGGREGATOR_SOURCE_EXACT = frozenset({"ahrtal"})
+_BONN_FALLBACK_SOURCE_IDS = frozenset({"bonn-de-events", "bonn-de-sports"})
+_REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
+    ("bonn-de-events", "repaircafeholzunddrechselarbeiten"):
+        "repair-cafe-mva-woodworking",
+    ("repair-cafes-bonn", "holzarbeitenunddrechselnimrepaircafemvabonn"):
+        "repair-cafe-mva-woodworking",
+    ("bonn-de-events", "repaircaferadschraubenundanderebasteleien"):
+        "repair-cafe-mva-general",
+    ("repair-cafes-bonn", "repaircafemvabonnfahrradgeraetenaehen"):
+        "repair-cafe-mva-general",
+    ("bonn-de-events", "akkordeonkonzertvonbonnakko"):
+        "hardtberg-bonnakko-concert",
+    (
+        "hardtberg-kultur",
+        "gastkonzertensemblebonnakkomagischeklaengeauftastenundknoepfen",
+    ): "hardtberg-bonnakko-concert",
+    ("bonn-de-events", "lukasrietzschelsanditz"):
+        "haus-der-geschichte-sanditz",
+    ("haus-der-geschichte", "buchvorstellungsanditzlukasrietzschel"):
+        "haus-der-geschichte-sanditz",
+}
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 _REUSED_OVERVIEW_LINK_THRESHOLD = 5
 _CITYWIDE_VENUE_ALIAS_FAMILIES = {
@@ -353,8 +374,14 @@ def _reviewed_occurrence_alias_family(event: dict) -> str:
     if _normalized_city(event.get("city", "")) != "bonn":
         return ""
     source = " ".join(str(event.get("source") or "").casefold().split())
+    source_id = str(event.get("source_id") or "").strip()
     title = normalize_title(event.get("title", ""))
     venue = _venue_comparison_text(event)
+    source_title_alias = _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES.get(
+        (source_id, title), ""
+    )
+    if source_title_alias:
+        return source_title_alias
     if (
         source == "bonn district festivals"
         and title == "weinfest"
@@ -941,19 +968,36 @@ def _merge_duplicate_metadata(
 
     duplicate_has_charge = _has_separate_admission_charge(duplicate)
     winner_has_charge = _has_separate_admission_charge(winner)
-    if duplicate_has_charge and not winner_has_charge:
-        updates.update(_adopted_description(duplicate))
-    elif (
-        len(duplicate.get("description", "").strip()) > len(winner.get("description", "").strip())
-        and not (winner_has_charge and not duplicate_has_charge)
-    ):
-        updates.update(_adopted_description(duplicate))
+    duplicate_is_bonn_fallback = (
+        duplicate.get("source_id") in _BONN_FALLBACK_SOURCE_IDS
+        and winner.get("source_id") not in _BONN_FALLBACK_SOURCE_IDS
+    )
+    if not duplicate_is_bonn_fallback:
+        if duplicate_has_charge and not winner_has_charge:
+            updates.update(_adopted_description(duplicate))
+        elif (
+            len(duplicate.get("description", "").strip())
+            > len(winner.get("description", "").strip())
+            and not (winner_has_charge and not duplicate_has_charge)
+        ):
+            updates.update(_adopted_description(duplicate))
 
     # AI copy is generated independently of the source record that wins
     # canonical identity. A higher-authority duplicate must not discard a
     # validated summary that another copy of the same occurrence already has.
     # Keep this fill-only: never overwrite the winner's own accepted summary.
-    if not winner.get("ai_summary") and duplicate.get("ai_summary"):
+    winner_has_extracted_content = (
+        winner.get("description_source") == "scraped"
+        and bool(
+            str(winner.get("description") or "").strip()
+            or str(winner.get("description_html") or "").strip()
+        )
+    )
+    if (
+        not winner.get("ai_summary")
+        and duplicate.get("ai_summary")
+        and not (duplicate_is_bonn_fallback and winner_has_extracted_content)
+    ):
         updates["ai_summary"] = duplicate["ai_summary"]
 
     # Classification is derived data, but a broad aggregator label must not

@@ -148,6 +148,90 @@ class OpenIssueContractTests(unittest.TestCase):
             retained,
         )
 
+    def test_targeted_bonn_refresh_keeps_retained_primary_record(self):
+        municipal = raw_event(
+            title="Atelier am Sonntag",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            description="Nicht veröffentlichbarer Bonn-Kalendertext.",
+            description_source="generated",
+            ai_summary="Bonn-Zusammenfassung",
+            link="https://www.bonn.de/veranstaltungskalender/atelier-am-sonntag.php",
+        )
+        primary = raw_event(
+            title="Atelier am Sonntag",
+            source="Kunstmuseum Bonn",
+            source_id="kunstmuseum-bonn",
+            description="Primärtext des Kunstmuseums.",
+            description_source="scraped",
+            ai_summary="",
+            link="https://www.kunstmuseum-bonn.de/atelier-am-sonntag/",
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_bonn_fallback(
+            [municipal], [primary]
+        )
+
+        self.assertEqual(remaining, [])
+        self.assertEqual(fresh[0]["source_id"], "kunstmuseum-bonn")
+        self.assertEqual(fresh[0]["link"], primary["link"])
+        self.assertEqual(fresh[0]["description"], "Primärtext des Kunstmuseums.")
+        self.assertEqual(fresh[0]["ai_summary"], "")
+        self.assertIn(municipal["link"], fresh[0]["source_links"])
+
+    def test_targeted_bonn_refresh_does_not_promote_weak_venue_match(self):
+        municipal = raw_event(
+            title="Ausstellung: Zu den Sternen!",
+            venue="Arp Museum Bahnhof Rolandseck",
+            venue_id="arp-museum-rolandseck",
+            category="Ausstellung",
+            category_key="exhibition",
+        )
+        primary = raw_event(
+            title="Öffentliche Führung durch das Arp Museum",
+            source="Arp Museum",
+            source_id="arp-museum",
+            venue="Arp Museum Bahnhof Rolandseck",
+            venue_id="arp-museum-rolandseck",
+            category="Ausstellung",
+            category_key="exhibition",
+            description="Primärtext einer anderen Veranstaltung.",
+            link="https://arpmuseum.org/veranstaltungen/fuehrung.html",
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_bonn_fallback(
+            [municipal], [primary]
+        )
+
+        self.assertEqual(fresh, [municipal])
+        self.assertEqual(remaining, [primary])
+
+    def test_targeted_bonn_refresh_uses_reviewed_primary_title_alias(self):
+        municipal = raw_event(
+            title="Repair-Café: Holz- und Drechselarbeiten",
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            venue="Repair Café MVA Bonn",
+            venue_id="bonn-repair-cafe-mva",
+        )
+        primary = raw_event(
+            title="Holzarbeiten und Drechseln im Repair Café MVA Bonn",
+            source="Repair Cafés Bonn",
+            source_id="repair-cafes-bonn",
+            venue="Repair Café MVA Bonn",
+            venue_id="bonn-repair-cafe-mva",
+            description="Primärtext des Repair Cafés.",
+            description_source="scraped",
+        )
+
+        fresh, remaining = runner._prefer_retained_primary_over_bonn_fallback(
+            [municipal], [primary]
+        )
+
+        self.assertEqual(remaining, [])
+        self.assertEqual(fresh[0]["source_id"], "repair-cafes-bonn")
+        self.assertEqual(fresh[0]["description"], "Primärtext des Repair Cafés.")
+
     def test_highlight_rank_preserves_zero_distance(self):
         self.assertEqual(highlights._rank({"distance_km": 0})[1], 0)
         self.assertEqual(highlights._rank({"distance_km": None})[1], 999)

@@ -321,6 +321,46 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["source"], "Museum Koenig Bonn")
         self.assertTrue(events[0]["link"].startswith("https://bonn.leibniz-lib.de/"))
 
+    def test_bonn_fallback_never_replaces_primary_source_content(self):
+        direct = common.make_event(
+            "Öffentliche Familienführung",
+            datetime(2026, 8, 2, 14),
+            None,
+            "Museum Koenig Bonn",
+            "Bonn",
+            "Kurzer Primärtext des Museums.",
+            "https://bonn.leibniz-lib.de/de/veranstaltungen/familienfuehrung.html",
+            "Museum Koenig Bonn",
+            "Führung Museum",
+            1.0,
+            "14:00",
+            all_day=False,
+        )
+        municipal = common.make_event(
+            "Öffentliche Familienführung",
+            datetime(2026, 8, 2, 14),
+            None,
+            "Museum Koenig Bonn",
+            "Bonn",
+            "Sehr viel längerer Bonn-Kalendertext, der nicht übernommen werden darf.",
+            "https://www.bonn.de/veranstaltungskalender/familienfuehrung.php",
+            "Bonn.de Events",
+            "Führung",
+            0.95,
+            "14:00",
+            all_day=False,
+        )
+        direct["source_id"] = "museum-koenig-bonn"
+        municipal["source_id"] = "bonn-de-events"
+        municipal["ai_summary"] = "Aus Bonn-Material erzeugte Zusammenfassung."
+
+        [event] = report.deduplicate([municipal, direct])
+
+        self.assertEqual(event["source_id"], "museum-koenig-bonn")
+        self.assertEqual(event["description"], "Kurzer Primärtext des Museums.")
+        self.assertEqual(event["description_source"], "scraped")
+        self.assertEqual(event.get("ai_summary", ""), "")
+
     def test_dedup_does_not_turn_free_tour_plus_paid_entry_into_free_admission(self):
         direct = common.make_event(
             "Öffentliche Familienführung",

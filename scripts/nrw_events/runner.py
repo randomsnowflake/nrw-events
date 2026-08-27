@@ -57,6 +57,7 @@ EXIT_DEGRADED = EXIT_SUCCESS
 EXIT_FAILED = 2
 SNAPSHOT_GENERATIONS_KEPT = 3
 _DISCOVERY_ONLY_SOURCE_IDS = frozenset({"radio-bonn-rhein-sieg"})
+_BONN_FALLBACK_SOURCE_IDS = frozenset({"bonn-de-events", "bonn-de-sports"})
 _RADIO_RUNNER_SOURCE = "Radio Bonn/Rhein-Sieg"
 _LEGACY_DATED_RANGE_TITLE = re.compile(
     r"^\s*\d{1,2}\.\d{1,2}\.20\d{2}\s*[-–]\s*"
@@ -1447,6 +1448,80 @@ def _prefer_retained_primary_over_radio_fallback(
     return fresh, remaining_retained
 
 
+def _prefer_retained_primary_over_bonn_fallback(
+    fresh_events: list[CanonicalEvent],
+    retained_events: list[CanonicalEvent],
+) -> tuple[list[CanonicalEvent], list[CanonicalEvent]]:
+    """Keep an unrefreshed primary record ahead of a fresh Bonn fallback.
+
+    Targeted refreshes deduplicate selected sources separately from retained
+    sources. The final cross-snapshot filter used to let every fresh record win
+    wholesale, which made a Bonn.de calendar copy replace a richer first-party
+    record even though the normal same-run deduplicator ranks Bonn lower.
+
+    Only one-to-one, strongly identified pairs are promoted. Broad venue/date
+    duplicate matches remain on the existing path because a museum can publish
+    several different events in one category on the same day.
+    """
+    fresh = list(fresh_events)
+    retained = list(retained_events)
+    blocking_frequencies = Counter(
+        key for event in retained for key in report._dedup_blocking_keys(event)
+    )
+    candidate_index: dict[tuple[str, ...], set[int]] = {}
+    for index, event in enumerate(retained):
+        report._index_blocking_keys(event, index, candidate_index)
+
+    matches_by_fresh: dict[int, list[int]] = {}
+    fresh_indexes_by_retained: dict[int, list[int]] = {}
+    for fresh_index, fallback in enumerate(fresh):
+        if _event_source_id(fallback) not in _BONN_FALLBACK_SOURCE_IDS:
+            continue
+        matches = []
+        for retained_index in report._blocking_candidates(
+            fallback, candidate_index, blocking_frequencies
+        ):
+            primary = retained[retained_index]
+            same_strong_identity = (
+                event_id(fallback) == event_id(primary)
+                or report._titles_match(fallback, primary)
+                or bool(
+                    fallback.get("series_id")
+                    and fallback.get("series_id") == primary.get("series_id")
+                )
+            )
+            if (
+                report.source_authority(primary.get("source", ""))
+                > report.source_authority(fallback.get("source", ""))
+                and same_strong_identity
+                and report.events_are_duplicates(fallback, primary)
+            ):
+                matches.append(retained_index)
+                fresh_indexes_by_retained.setdefault(retained_index, []).append(
+                    fresh_index
+                )
+        if matches:
+            matches_by_fresh[fresh_index] = matches
+
+    consumed_retained: set[int] = set()
+    for fresh_index, retained_indexes in matches_by_fresh.items():
+        if len(retained_indexes) != 1:
+            continue
+        retained_index = retained_indexes[0]
+        if len(fresh_indexes_by_retained[retained_index]) != 1:
+            continue
+        fresh[fresh_index] = report._merge_duplicate_metadata(
+            retained[retained_index],
+            fresh[fresh_index],
+        )
+        consumed_retained.add(retained_index)
+
+    return fresh, [
+        event for index, event in enumerate(retained)
+        if index not in consumed_retained
+    ]
+
+
 def _enforce_restricted_publication_boundary(events: list) -> list:
     """Reapply the no-source-copy contract after cross-source deduplication."""
     protected = []
@@ -1698,6 +1773,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     retained_deduped = report.deduplicate(retained, cancellations=all_cancellations)
     fresh_deduped, retained_deduped = _prefer_retained_primary_over_radio_fallback(
         fresh_deduped, retained_deduped, promoted_fallback_event_ids,
+    )
+    fresh_deduped, retained_deduped = _prefer_retained_primary_over_bonn_fallback(
+        fresh_deduped, retained_deduped,
     )
     retained_only = _retained_events_without_fresh_duplicate(
         fresh_deduped, retained_deduped
