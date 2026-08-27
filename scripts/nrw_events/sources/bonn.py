@@ -320,8 +320,14 @@ def _paragraph_aware_detail_description(parts: list[str]) -> str:
     return description
 
 
-def _detail_free_admission(html: str) -> str:
-    """Read explicit visitor admission from Bonn's information table."""
+_ALWAYS_TICKETED_VENUE_PATTERN = re.compile(
+    r"\bgop[-\s]*variet[ée](?:[-\s]*theater)?[-\s]*bonn\b",
+    re.IGNORECASE,
+)
+
+
+def _detail_admission(html: str) -> str:
+    """Read explicit visitor admission from Bonn's detail page."""
     for raw_label, raw_value in re.findall(
         r"<tr\b[^>]*>\s*<th\b[^>]*>(.*?)</th>\s*<td\b[^>]*>(.*?)</td>\s*</tr>",
         html or "",
@@ -333,7 +339,29 @@ def _detail_free_admission(html: str) -> str:
         value = common.clean_html(raw_value)
         if price := common.infer_free_admission_price(label, value):
             return price
+
+    admission_section = re.search(
+        r"<section\b[^>]*>.*?\bid=[\"']eintritt[\"'].*?</section>",
+        html or "",
+        re.IGNORECASE | re.DOTALL,
+    )
+    if admission_section and re.search(
+        r"(?<!\d)\d+(?:[.,]\d{1,2})?\s*(?:€|eur\b|euro\b)",
+        common.clean_html(admission_section.group(0)),
+        re.IGNORECASE,
+    ):
+        return "kostenpflichtig"
     return ""
+
+
+def _event_admission(price: str, venue: str, detail_context: dict) -> tuple[str, str]:
+    """Resolve stale Bonn category tags against stronger event/venue evidence."""
+    if _ALWAYS_TICKETED_VENUE_PATTERN.search(common.clean_html(venue or "")):
+        return "kostenpflichtig", "explicit"
+    detail_price = detail_context.get("price", "")
+    if detail_price:
+        return detail_price, detail_context.get("admission_basis", "")
+    return price, ""
 
 
 def _parse_detail_context(html: str) -> dict:
@@ -393,7 +421,7 @@ def _parse_detail_context(html: str) -> dict:
             description_parts.append(text)
     context["description"] = _paragraph_aware_detail_description(description_parts)
     context["description_html"] = _detail_rich_text(html)
-    if price := _detail_free_admission(html):
+    if price := _detail_admission(html):
         context["price"] = price
         context["admission_basis"] = "explicit"
 
@@ -675,6 +703,7 @@ def fetch_events_json(
         city = common.refine_city_from_text(
             town or "Bonn", " ".join((title, venue, description))
         )
+        price, resolved_admission_basis = _event_admission(price, venue, detail_context)
 
         # Only the time string and the venue-coordinate pin are Bonn-specific;
         # make_event owns the window/radius/date/dict/junk machinery.
@@ -706,8 +735,8 @@ def fetch_events_json(
                 ev = _apply_free_category_override(ev, tags)
             if price:
                 ev["price"] = price
-                if detail_context.get("admission_basis"):
-                    ev["admission_basis"] = detail_context["admission_basis"]
+                if resolved_admission_basis:
+                    ev["admission_basis"] = resolved_admission_basis
                 if free_allow:
                     ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
             events.append(ev)
@@ -878,14 +907,17 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
                 if description != classification_description:
                     ev["description"] = common.concise_description(description, max_chars=0)
                 ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
-                price = detail_context.get("price") or common.infer_free_admission_price(
+                fallback_price = common.infer_free_admission_price(
                     raw_title, description,
                     "kostenlos" if free_only or "Kostenlos" in tags else "",
                 )
+                price, resolved_admission_basis = _event_admission(
+                    fallback_price, venue, detail_context,
+                )
                 if price:
                     ev["price"] = price
-                    if detail_context.get("admission_basis"):
-                        ev["admission_basis"] = detail_context["admission_basis"]
+                    if resolved_admission_basis:
+                        ev["admission_basis"] = resolved_admission_basis
                 if free_allow and not allow:
                     ev = _apply_free_category_override(ev, tags)
                     if price:
