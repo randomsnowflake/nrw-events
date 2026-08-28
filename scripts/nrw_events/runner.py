@@ -1451,7 +1451,11 @@ def _prefer_retained_primary_over_radio_fallback(
 def _prefer_retained_primary_over_bonn_fallback(
     fresh_events: list[CanonicalEvent],
     retained_events: list[CanonicalEvent],
-) -> tuple[list[CanonicalEvent], list[CanonicalEvent]]:
+) -> tuple[
+    list[CanonicalEvent],
+    list[CanonicalEvent],
+    list[CanonicalEvent],
+]:
     """Keep an unrefreshed primary record ahead of a fresh Bonn fallback.
 
     Targeted refreshes deduplicate selected sources separately from retained
@@ -1504,22 +1508,29 @@ def _prefer_retained_primary_over_bonn_fallback(
             matches_by_fresh[fresh_index] = matches
 
     consumed_retained: set[int] = set()
+    promoted_retained: list[CanonicalEvent] = []
     for fresh_index, retained_indexes in matches_by_fresh.items():
         if len(retained_indexes) != 1:
             continue
         retained_index = retained_indexes[0]
         if len(fresh_indexes_by_retained[retained_index]) != 1:
             continue
-        fresh[fresh_index] = report._merge_duplicate_metadata(
+        promoted = report._merge_duplicate_metadata(
             retained[retained_index],
             fresh[fresh_index],
         )
+        fresh[fresh_index] = promoted
+        promoted_retained.append(promoted)
         consumed_retained.add(retained_index)
 
-    return fresh, [
-        event for index, event in enumerate(retained)
-        if index not in consumed_retained
-    ]
+    return (
+        fresh,
+        [
+            event for index, event in enumerate(retained)
+            if index not in consumed_retained
+        ],
+        promoted_retained,
+    )
 
 
 def _enforce_restricted_publication_boundary(events: list) -> list:
@@ -1774,7 +1785,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     fresh_deduped, retained_deduped = _prefer_retained_primary_over_radio_fallback(
         fresh_deduped, retained_deduped, promoted_fallback_event_ids,
     )
-    fresh_deduped, retained_deduped = _prefer_retained_primary_over_bonn_fallback(
+    (
+        fresh_deduped,
+        retained_deduped,
+        promoted_bonn_primaries,
+    ) = _prefer_retained_primary_over_bonn_fallback(
         fresh_deduped, retained_deduped,
     )
     retained_only = _retained_events_without_fresh_duplicate(
@@ -1835,7 +1850,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     ]
 
     actual_by_source: dict[str, int] = {}
-    for event in retained_only:
+    for event in [*retained_only, *promoted_bonn_primaries]:
         if event_id(event) not in published_event_ids:
             continue
         actual_by_source[event.source_id] = actual_by_source.get(event.source_id, 0) + 1
