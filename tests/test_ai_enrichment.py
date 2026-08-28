@@ -198,6 +198,48 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertFalse(result[0].get("ai_summary"))
         self.assertIn("ai_summary", result[1])
 
+    def test_pilot_cap_prioritizes_events_without_an_accepted_cached_summary(self):
+        far_day = (common.TODAY + timedelta(days=2)).strftime("%Y-%m-%d")
+        near_day = (common.TODAY + timedelta(days=1)).strftime("%Y-%m-%d")
+        missing = event(
+            title="Unbeschriebener später Termin",
+            date=far_day,
+            start_date=far_day,
+            end_date=far_day,
+        )
+        cached = event(
+            title="Bereits beschriebener Termin",
+            date=near_day,
+            start_date=near_day,
+            end_date=near_day,
+        )
+        calls = []
+        source_material = []
+
+        def enrich(value, **_kwargs):
+            calls.append(value["title"])
+            source_material.append(value["description"])
+            return {**value, "ai_summary": f"Zusammenfassung für {value['title']}"}
+
+        def reuse(value, _settings):
+            value["description"] = "Generated cache fallback."
+            if value["title"] == cached["title"]:
+                return {**value, "ai_summary": "Bereits akzeptierter Cache-Text"}
+            return value
+
+        with mock.patch.object(ai_enrichment, "enrich_event", side_effect=enrich), mock.patch.object(
+            ai_enrichment, "_reuse_cached_success", side_effect=reuse,
+        ):
+            result = ai_enrichment.enrich_events(
+                [cached, missing], settings=replace(self.settings, max_events=1),
+            )
+
+        self.assertEqual([missing["title"]], calls)
+        self.assertTrue(source_material[0])
+        self.assertEqual(missing["description"], source_material[0])
+        self.assertEqual("Bereits akzeptierter Cache-Text", result[0]["ai_summary"])
+        self.assertIn("Zusammenfassung", result[1]["ai_summary"])
+
     def test_pilot_cap_treats_malformed_ranking_values_as_zero(self):
         day = (common.TODAY + timedelta(days=1)).strftime("%Y-%m-%d")
         malformed = event(
@@ -628,6 +670,37 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("Altes Rathaus", result["venue"])
         self.assertEqual("", result["description"])
 
+    def test_cross_identity_fallback_reuses_start_time_when_source_adds_end_time(self):
+        first = ai_enrichment.enrich_event(
+            event(venue="", time="19:30"),
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        with closing(sqlite3.connect(self.settings.cache_db)) as connection:
+            connection.row_factory = sqlite3.Row
+            row = connection.execute("SELECT * FROM ai_event_enrichment").fetchone()
+            columns = row.keys()
+            values = dict(row)
+            values["event_key"] = f"legacy-event-{row['event_key'][-10:]}"
+            connection.execute(
+                f"INSERT INTO ai_event_enrichment ({', '.join(columns)}) "
+                f"VALUES ({', '.join('?' for _ in columns)})",
+                [values[column] for column in columns],
+            )
+            connection.commit()
+        changed = event(venue="Altes Rathaus", time="19:30–21:00")
+
+        result = ai_enrichment.enrich_event(
+            changed,
+            settings=replace(self.settings, enabled=False, api_key=""),
+            client=FakeClient([]),
+            now=self.now + timedelta(days=1),
+        )
+
+        self.assertEqual(first["ai_summary"], result["ai_summary"])
+        self.assertEqual("19:30–21:00", result["time"])
+
     def test_cross_identity_fallback_rejects_a_different_same_day_time(self):
         ai_enrichment.enrich_event(
             event(venue="", time="19:30"),
@@ -635,7 +708,7 @@ class AIEnrichmentTests(unittest.TestCase):
             client=FakeClient([FACTS, SUMMARY]),
             now=self.now,
         )
-        different_occurrence = event(venue="Altes Rathaus", time="21:00")
+        different_occurrence = event(venue="Altes Rathaus", time="21:00–22:30")
 
         result = ai_enrichment.enrich_event(
             different_occurrence,

@@ -1690,6 +1690,16 @@ def _apply_result(event: RawEvent, result: Mapping[str, Any]) -> RawEvent:
     return strip_restricted_copy(enriched)
 
 
+def _occurrence_start_time(value: object) -> str:
+    """Return the explicit start time while ignoring a newly learned end time."""
+    raw = str(value or "")
+    match = re.match(
+        r"^\s*(\d{2}:\d{2})(?:\s*[–-]\s*\d{2}:\d{2})?\s*$",
+        raw,
+    )
+    return match.group(1) if match else category_taxonomy.comparison_text(raw)
+
+
 def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any]) -> bool:
     """Conservatively match an accepted cache row after mutable identity fields changed."""
     def text(value: object) -> str:
@@ -1705,7 +1715,8 @@ def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any
         or not event_start
         or event_start != facts_start
         or event_end != facts_end
-        or text(event.get("time")) != text(facts.get("time"))
+        or _occurrence_start_time(event.get("time"))
+        != _occurrence_start_time(facts.get("time"))
     ):
         return False
     for field in ("city", "venue"):
@@ -1714,6 +1725,13 @@ def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any
         if current and cached and current != cached:
             return False
     return True
+
+
+def _historical_event_key_identity(value: object) -> str:
+    """Collapse legacy/current key formats that retain the same identity digest."""
+    key = str(value or "")
+    digest = re.search(r"(?:^|-)([0-9a-f]{10})$", key)
+    return digest.group(1) if digest else key
 
 
 def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
@@ -1783,12 +1801,10 @@ def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
             continue
         if not isinstance(result, dict) or not _clean_nullable(result.get("ai_summary"), 4000):
             continue
-        if (
-            isinstance(facts, dict)
-            and _cached_occurrence_matches(event, facts)
-            and row["event_key"] not in cross_key_matches
-        ):
-            cross_key_matches[row["event_key"]] = result
+        if isinstance(facts, dict) and _cached_occurrence_matches(event, facts):
+            key_identity = _historical_event_key_identity(row["event_key"])
+            if key_identity not in cross_key_matches:
+                cross_key_matches[key_identity] = result
     if len(cross_key_matches) == 1:
         return _apply_result(safe_event, next(iter(cross_key_matches.values())))
     return safe_event
@@ -2076,8 +2092,13 @@ def enrich_events(
             return 0
         return parsed if math.isfinite(parsed) else 0
 
+    cached_fallbacks = {
+        index: _reuse_cached_success(cast(RawEvent, dict(target)), configured)
+        for index, target in candidates
+    }
+
     def candidate_priority(item: tuple[int, RawEvent]) -> tuple[bool, int, float, str]:
-        _index, target = item
+        index, target = item
         today = common.TODAY.date()
         try:
             start = datetime.fromisoformat(str(target.get("start_date") or target.get("date") or "")[:10]).date()
@@ -2087,14 +2108,17 @@ def enrich_events(
             distance = 9999
         demand_score = ranking_value(target.get("priority_bonus")) + ranking_value(target.get("score"))
         stable_key = f"{target.get('source_id', '')}\n{target.get('title', '')}\n{target.get('start_date', '')}"
-        return bool(str(target.get("ai_summary") or "").strip()), distance, -demand_score, stable_key
+        has_cached_summary = bool(
+            str(cached_fallbacks[index].get("ai_summary") or "").strip()
+        )
+        return has_cached_summary, distance, -demand_score, stable_key
 
     candidates.sort(key=candidate_priority)
     pending: list[tuple[int, RawEvent]] = []
     for position, (index, target) in enumerate(candidates):
         if configured.max_events and position >= configured.max_events:
             capped += 1
-            cached = _reuse_cached_success(target, configured)
+            cached = cached_fallbacks[index]
             enriched[index] = cached
             capped_without_summary += int(not str(cached.get("ai_summary", "")).strip())
             continue
