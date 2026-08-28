@@ -1177,6 +1177,60 @@ class CrossRunRetentionTests(unittest.TestCase):
         self.assertEqual(result.events[0].venue, "Fresh venue")
         self.assertEqual(result.retention["retained_event_count"], 1)
 
+    def test_targeted_bonn_refresh_counts_promoted_primary_as_retained(self):
+        with make_runner_env() as env:
+            primary = {
+                "title": "Atelier am Sonntag",
+                "source": "Kunstmuseum Bonn",
+                "source_id": "kunstmuseum-bonn",
+                "date": "2026-06-09",
+                "city": "Bonn",
+                "venue": "Kunstmuseum Bonn",
+                "description": "Primärtext des Kunstmuseums.",
+                "description_source": "scraped",
+                "link": "https://www.kunstmuseum-bonn.de/atelier/",
+                "score": 1.0,
+            }
+            env.previous_path.write_text(json.dumps({
+                "generated_at": "2026-06-07T08:00:00+00:00",
+                "events": [primary],
+                "source_results": {
+                    "Kunstmuseum Bonn": {
+                        "event_source_ids": ["kunstmuseum-bonn"],
+                        "accepted_event_count": 1,
+                    },
+                },
+            }), encoding="utf-8")
+            municipal = {
+                **primary,
+                "source": "Bonn.de Events",
+                "source_id": "bonn-de-events",
+                "description": "Bonn-Kalendertext.",
+                "description_source": "generated",
+                "link": "https://www.bonn.de/atelier.php",
+            }
+
+            with mock.patch.object(
+                runner.detail_enrichment,
+                "enrich_events",
+                side_effect=lambda events, **_kwargs: events,
+            ):
+                result = runner.run_import(env.context("targeted-bonn-retention"), {
+                    "Kunstmuseum Bonn": lambda: SourceFetchResult.scheduled_skip(
+                        "targeted refresh preserved kunstmuseum-bonn from the previous snapshot"
+                    ),
+                    "Bonn.de Events": lambda: [municipal],
+                })
+
+        [event] = result.events
+        self.assertEqual(event.source_id, "kunstmuseum-bonn")
+        self.assertEqual(result.retention["fresh_event_count"], 0)
+        self.assertEqual(result.retention["retained_event_count"], 1)
+        self.assertEqual(
+            result.retention["retained_sources"][0]["retained_event_count"],
+            1,
+        )
+
     def test_fresh_duplicate_wins_wholesale_over_retained_record(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             previous_path = os.path.join(temp_dir, "previous.json")

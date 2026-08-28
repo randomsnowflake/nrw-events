@@ -168,11 +168,12 @@ class OpenIssueContractTests(unittest.TestCase):
             link="https://www.kunstmuseum-bonn.de/atelier-am-sonntag/",
         )
 
-        fresh, remaining = runner._prefer_retained_primary_over_bonn_fallback(
+        fresh, remaining, promoted = runner._prefer_retained_primary_over_bonn_fallback(
             [municipal], [primary]
         )
 
         self.assertEqual(remaining, [])
+        self.assertEqual(promoted, fresh)
         self.assertEqual(fresh[0]["source_id"], "kunstmuseum-bonn")
         self.assertEqual(fresh[0]["link"], primary["link"])
         self.assertEqual(fresh[0]["description"], "Primärtext des Kunstmuseums.")
@@ -199,12 +200,13 @@ class OpenIssueContractTests(unittest.TestCase):
             link="https://arpmuseum.org/veranstaltungen/fuehrung.html",
         )
 
-        fresh, remaining = runner._prefer_retained_primary_over_bonn_fallback(
+        fresh, remaining, promoted = runner._prefer_retained_primary_over_bonn_fallback(
             [municipal], [primary]
         )
 
         self.assertEqual(fresh, [municipal])
         self.assertEqual(remaining, [primary])
+        self.assertEqual(promoted, [])
 
     def test_targeted_bonn_refresh_uses_reviewed_primary_title_alias(self):
         municipal = raw_event(
@@ -224,11 +226,12 @@ class OpenIssueContractTests(unittest.TestCase):
             description_source="scraped",
         )
 
-        fresh, remaining = runner._prefer_retained_primary_over_bonn_fallback(
+        fresh, remaining, promoted = runner._prefer_retained_primary_over_bonn_fallback(
             [municipal], [primary]
         )
 
         self.assertEqual(remaining, [])
+        self.assertEqual(promoted, fresh)
         self.assertEqual(fresh[0]["source_id"], "repair-cafes-bonn")
         self.assertEqual(fresh[0]["description"], "Primärtext des Repair Cafés.")
 
