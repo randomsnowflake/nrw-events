@@ -222,6 +222,7 @@ class AIEnrichmentTests(unittest.TestCase):
             return {**value, "ai_summary": f"Zusammenfassung für {value['title']}"}
 
         def reuse(value, _settings):
+            value["description"] = "Generated cache fallback."
             if value["title"] == cached["title"]:
                 return {**value, "ai_summary": "Bereits akzeptierter Cache-Text"}
             return value
