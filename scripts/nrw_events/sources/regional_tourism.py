@@ -54,6 +54,18 @@ def _shapehub_detail_context(html: str, city: str) -> dict[str, str]:
     )
     text = rc.clean_blocks(description.group(1) if description else "")
     context = {"description": text}
+    category_parser = rc.ClassScopedTextParser({
+        # Shapehub's accordion values also contain broad audience facets such
+        # as "Nur Wanderer". The headers carry the focused event themes
+        # (for example "Genuss" or "Ausstellungen") without that noise.
+        "category": lambda _tag, attrs: (
+            "shapehub-accordion-header" in (attrs.get("class") or "").split()
+        ),
+    })
+    category_parser.feed(html or "")
+    category = rc.clean_blocks(category_parser.block_text("category"))
+    if category:
+        context["category"] = category
     venue_marker = re.search(r"<strong>\s*Veranstaltungsort\s*</strong>", html or "", re.I)
     if venue_marker:
         venue_section = (html or "")[venue_marker.end():]
@@ -123,7 +135,7 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
             context.get("description") or text[:500],
             event_url,
             source,
-            category,
+            context.get("category") or category,
             trust,
             rc.time_text(text),
         )

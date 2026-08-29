@@ -822,6 +822,100 @@ END:VCALENDAR
             "https://www.ahrtal.com/de/events/stale-detail/eventtermin.html",
         )
 
+    def test_ahrtal_shapehub_uses_explicit_detail_topics_for_food(self):
+        html = """
+<a href="/de/events/seafood-bbq/eventtermin.html" class="shapehub-card-link">
+  <div class="shapehub-date-badge">20.06.2026</div>
+  <div class="shapehub-card-title">Seafood BBQ</div>
+  <li class="shapehub-location-line"><span>Bad Neuenahr-Ahrweiler</span></li>
+</a>
+"""
+        detail = """
+<nav>Wein &amp; Kulinarik</nav>
+<div class="shapehub-detail-description">
+  Genieße Seafood-Spezialitäten mit einer Weinbegleitung.
+</div>
+<div class="shapehub-accordion-item">
+  <div class="shapehub-accordion-header">Genuss</div>
+  <div class="shapehub-accordion-content"><ul><li>Kulinarik</li></ul></div>
+</div>
+<div class="shapehub-accordion-item">
+  <div class="shapehub-accordion-header">Weinerlebnis</div>
+  <div class="shapehub-accordion-content"><ul><li>Wein-Events</li></ul></div>
+</div>
+"""
+
+        [event] = regional_tourism._events_from_shapehub(
+            html,
+            "Ahrtal",
+            "https://www.ahrtal.com",
+            "https://www.ahrtal.com/de/events",
+            "Ahrweiler",
+            "ahrtal wein wanderung führung kultur ausstellung",
+            0.86,
+            detail_fetcher=lambda _url: detail,
+        )
+
+        self.assertEqual(event["category_key"], "food")
+        self.assertEqual(event["category_label"], "Food & Genuss")
+        self.assertIn("source_category=genuss", event["category_reason"])
+
+    def test_ahrtal_shapehub_ignores_unscoped_navigation_topics(self):
+        html = """
+<a href="/de/events/resilienzforum/eventtermin.html" class="shapehub-card-link">
+  <div class="shapehub-date-badge">20.06.2026</div>
+  <div class="shapehub-card-title">Resilienzforum</div>
+  <span>Ahrweiler</span>
+</a>
+"""
+        detail = """
+<nav>Wein &amp; Kulinarik</nav>
+<div class="shapehub-detail-description">Offener Austausch.</div>
+<div class="shapehub-accordion-header-extra">Genuss</div>
+"""
+
+        [event] = regional_tourism._events_from_shapehub(
+            html,
+            "Ahrtal",
+            "https://www.ahrtal.com",
+            "https://www.ahrtal.com/de/events",
+            "Ahrweiler",
+            "ahrtal wein wanderung führung kultur ausstellung",
+            0.86,
+            detail_fetcher=lambda _url: detail,
+        )
+
+        self.assertEqual(event["category_key"], "other")
+
+    def test_ahrtal_explicit_food_topic_does_not_override_concert_title(self):
+        html = """
+<a href="/de/events/weingut-konzert/eventtermin.html" class="shapehub-card-link">
+  <div class="shapehub-date-badge">20.06.2026</div>
+  <div class="shapehub-card-title">Konzert im Weingut</div>
+  <span>Ahrweiler</span>
+</a>
+"""
+        detail = """
+<div class="shapehub-detail-description">Live-Musik mit Band.</div>
+<div class="shapehub-accordion-item">
+  <div class="shapehub-accordion-header">Genuss</div>
+  <div class="shapehub-accordion-content"><ul><li>Kulinarik</li></ul></div>
+</div>
+"""
+
+        [event] = regional_tourism._events_from_shapehub(
+            html,
+            "Ahrtal",
+            "https://www.ahrtal.com",
+            "https://www.ahrtal.com/de/events",
+            "Ahrweiler",
+            "ahrtal wein wanderung führung kultur ausstellung",
+            0.86,
+            detail_fetcher=lambda _url: detail,
+        )
+
+        self.assertEqual(event["category_key"], "concert")
+
     def test_ahrtal_shapehub_prefers_card_location_over_region_in_title(self):
         html = """
 <a href="/de/events/resilient/eventtermin.html" class="shapehub-card-link">
