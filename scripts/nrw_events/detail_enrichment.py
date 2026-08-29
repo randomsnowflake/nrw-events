@@ -256,6 +256,35 @@ def _exact_jsonld_description(document: str, event: dict) -> tuple[str, str]:
     return "", ""
 
 
+_PROSE_TIME_RANGE = re.compile(
+    r"\b(?:von\s+)?([01]?\d|2[0-3]):([0-5]\d)\s*(?:uhr\s*)?"
+    r"(?:bis|[-–])\s*([01]?\d|2[0-3]):([0-5]\d)\s*(?:uhr)?\b",
+    re.IGNORECASE,
+)
+
+
+def _single_prose_time_range(value: str) -> tuple[str, str] | None:
+    """Read one unambiguous visible clock range from first-party event copy."""
+    ranges = {
+        (f"{int(match.group(1)):02d}:{match.group(2)}", f"{int(match.group(3)):02d}:{match.group(4)}")
+        for match in _PROSE_TIME_RANGE.finditer(common.clean_html(value or ""))
+    }
+    return next(iter(ranges)) if len(ranges) == 1 else None
+
+
+def _timestamp_with_clock(value: str, date_value: str, clock: str) -> str:
+    """Replace a structured clock while retaining seconds and timezone data."""
+    if value:
+        replaced = re.sub(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}",
+            f"{date_value}T{clock}",
+            value,
+        )
+        if replaced != value:
+            return replaced
+    return f"{date_value}T{clock}" if date_value else ""
+
+
 def _best_description(document: str, parser: _SemanticHTML, title: str) -> tuple[str, str]:
     choices: list[tuple[int, int, str]] = []
     for capture in parser.captures:
@@ -980,6 +1009,24 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
                 context["start_at"] = re.sub(r"\[[^]]+\]$", "", start_at)
                 if end_at:
                     context["end_at"] = re.sub(r"\[[^]]+\]$", "", end_at)
+    # Exact event copy may correct stale plugin-generated JSON-LD. Without an
+    # exact structured match, visible prose may fill a missing schedule but
+    # must not override one that the page already structured explicitly.
+    schedule_copy = context["exact_description"] or (
+        context["description"] if not context["time"] else ""
+    )
+    prose_schedule = _single_prose_time_range(schedule_copy)
+    if prose_schedule:
+        start_clock, end_clock = prose_schedule
+        context["time"] = f"{start_clock}–{end_clock}"
+        event_date = str(event.get("start_date") or event.get("date") or "")[:10]
+        end_date = str(event.get("end_date") or event_date)[:10]
+        context["start_at"] = _timestamp_with_clock(
+            context["start_at"], event_date, start_clock,
+        )
+        context["end_at"] = _timestamp_with_clock(
+            context["start_at"] or context["end_at"], end_date, end_clock,
+        )
     if _master_data_only(event):
         context["description"] = ""
         context["description_html"] = ""

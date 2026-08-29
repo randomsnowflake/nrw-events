@@ -1752,6 +1752,18 @@ _VISITOR_ADMISSION_AMOUNT_PATTERN = re.compile(
     r"\b\d+[,.]?\d*\s*(?:€|eur|euro)(?!\w)",
     re.IGNORECASE,
 )
+_SELLER_FEE_PATTERN = re.compile(
+    r"\b(?:standgebühr|standgebuehr|standpreis|standfläche\s+kostet|"
+    r"standflaeche\s+kostet|lfdm|laufend(?:e|er|en)?\s+(?:front)?meter|"
+    r"reinigungskaution|verkäufergebühr|verkaeufergebuehr|händlergebühr|"
+    r"haendlergebuehr)\b",
+    re.IGNORECASE,
+)
+
+
+def has_seller_fee(value: str) -> bool:
+    """Return whether copy names a vendor charge rather than visitor admission."""
+    return bool(_SELLER_FEE_PATTERN.search(clean_html(value or "")))
 
 def infer_admission(
     title: str,
@@ -1796,6 +1808,7 @@ def infer_admission(
         return "", ""
 
     visitor_charge = bool(_VISITOR_ADMISSION_AMOUNT_PATTERN.search(text))
+    seller_fee = has_seller_fee(text)
     price_has_amount = bool(re.search(
         r"(?<!\d)\d+(?:[.,]\d{1,2})?\s*(?:€|eur\b|euro\b)",
         price_text,
@@ -1808,7 +1821,7 @@ def infer_admission(
             for pattern in _FREE_ADMISSION_PATTERNS
         )
     )
-    if admission_basis == "implicit" and visitor_charge:
+    if admission_basis == "implicit" and (visitor_charge or seller_fee):
         return "", ""
     if _FREE_PRICE_PATTERN.fullmatch(price_text):
         return "kostenlos", admission_basis or "explicit"
@@ -1841,6 +1854,7 @@ def infer_admission(
         and not price_text
         and not _IMPLICIT_FREE_EXCLUSION_PATTERN.search(text)
         and not visitor_charge
+        and not seller_fee
     ):
         return "kostenlos", "implicit"
     if admission == AdmissionDefault.FREE_BY_NATURE and not visitor_charge:

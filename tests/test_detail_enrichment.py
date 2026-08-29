@@ -156,6 +156,35 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched["price"], "kostenlos")
         self.assertEqual(enriched["venue_address"], "Dreikönigenstr. 67 53343 Wachtberg")
 
+    def test_visible_first_party_time_range_overrides_conflicting_jsonld_schedule(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Familien Flohmarkt auf der Rigal'schen Wiese",
+          "startDate": "2026-08-23T10:00:00+02:00",
+          "endDate": "2026-08-23T17:00:00+02:00",
+          "description": "Beim Familien-Flohmarkt findet der Markt von 11:00 bis 17:00 Uhr statt."
+        }
+        </script>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Familien Flohmarkt auf der Rigal'schen Wiese",
+                date="2026-08-23",
+                start_date="2026-08-23",
+                end_date="2026-08-23",
+                description="Kurzer Teaser.",
+                description_html="<p>Kurzer Teaser.</p>",
+            ),
+        )
+
+        self.assertEqual(context["time"], "11:00–17:00")
+        self.assertEqual(context["start_at"], "2026-08-23T11:00:00+02:00")
+        self.assertEqual(context["end_at"], "2026-08-23T17:00:00+02:00")
+
     def test_complete_prose_still_needs_detail_when_decision_facts_are_missing(self):
         source = self.event(
             description="Vollständige Beschreibung mit Programm und Hintergrund. " * 8,

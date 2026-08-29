@@ -16,6 +16,10 @@ def market(
     description="",
     score=1.0,
     venue_id="",
+    time="",
+    start_at="",
+    end_at="",
+    source_id="",
 ):
     return canonicalize_event({
         "title": title,
@@ -32,6 +36,10 @@ def market(
         "category_key": "market",
         "category_label": "Märkte & Flohmärkte",
         "score": score,
+        "time": time,
+        "start_at": start_at,
+        "end_at": end_at,
+        "source_id": source_id,
     })
 
 
@@ -215,6 +223,78 @@ class MarketDuplicateRegressionTests(unittest.TestCase):
         for name, events in cases.items():
             with self.subTest(name=name):
                 self.assertEqual(len(report.deduplicate(events)), 1)
+
+    def test_rigalsche_wiese_live_pair_keeps_first_party_facts_and_alias(self):
+        primary = market(
+            "Familien Flohmarkt auf der Rigal´schen Wiese",
+            "Bad Godesberg Stadtmarketing",
+            "2026-08-23",
+            "Rigal'sche Wiese",
+            "Bonn-Bad Godesberg",
+            "https://bad-godesberg.info/veranstaltungen_st/familien-flohmarkt-auf-der-rigalschen-wiese",
+            description=(
+                "Beim Familien-Flohmarkt auf der Rigal’schen Wiese findet der Markt "
+                "von 11:00 bis 17:00 Uhr statt. Der laufende Meter Standfläche kostet 10 €."
+            ),
+            score=1.1,
+            time="11:00–17:00",
+            start_at="2026-08-23T11:00+02:00",
+            end_at="2026-08-23T17:00+02:00",
+            source_id="bad-godesberg-stadtmarketing",
+        )
+        civic = market(
+            "Familien Ferien Flohmarkt",
+            "Bonn.de Events",
+            "2026-08-23",
+            "Rigal´sche Wiese",
+            "Bonn",
+            "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Familien-Ferien-Flohmarkt.php",
+            description="Familien-Ferien-Flohmarkt auf und rund um die Rigal´sche Wiese.",
+            score=1.03,
+            time="10:00–17:00",
+            start_at="2026-08-23T10:00+02:00",
+            end_at="2026-08-23T17:00+02:00",
+            source_id="bonn-de-events",
+        )
+
+        deduped = report.deduplicate([civic, primary])
+
+        self.assertEqual(len(deduped), 1)
+        canonical = deduped[0]
+        self.assertEqual(canonical["source"], "Bad Godesberg Stadtmarketing")
+        self.assertEqual(canonical["time"], "11:00–17:00")
+        self.assertEqual(canonical["start_at"], "2026-08-23T11:00+02:00")
+        self.assertEqual(canonical["end_at"], "2026-08-23T17:00+02:00")
+        self.assertEqual(canonical["link"], primary["link"])
+        self.assertEqual(canonical["price"], "")
+        self.assertIsNone(canonical["admission"]["isFree"])
+        self.assertIn(report.event_id(civic), canonical["previous_event_ids"])
+
+    def test_same_venue_same_day_distinct_flea_markets_with_conflicting_times_survive(self):
+        events = [
+            market(
+                "Familien Flohmarkt",
+                "Veranstalter A",
+                "2026-08-23",
+                "Rigal'sche Wiese",
+                "Bonn-Bad Godesberg",
+                "https://example.test/familien-flohmarkt",
+                time="11:00–13:00",
+                start_at="2026-08-23T11:00+02:00",
+            ),
+            market(
+                "Abendflohmarkt",
+                "Veranstalter B",
+                "2026-08-23",
+                "Rigal´sche Wiese",
+                "Bonn",
+                "https://example.test/abendflohmarkt",
+                time="18:00–21:00",
+                start_at="2026-08-23T18:00+02:00",
+            ),
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
 
     def test_distinct_same_day_market_families_at_one_venue_survive(self):
         events = [

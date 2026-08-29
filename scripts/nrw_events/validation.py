@@ -23,11 +23,6 @@ class EventValidationError(ValueError):
     """A source record could not be safely published."""
 
 
-_MARKTCOM_SELLER_FEE = re.compile(
-    r"\b(?:standgebühr|standpreis|lfdm|laufend(?:er|en)?\s+(?:front)?meter|reinigungskaution|"
-    r"verkäufergebühr|händlergebühr)\b",
-    re.IGNORECASE,
-)
 _VISITOR_ADMISSION = re.compile(
     r"\b(?:besucher(?:eintritt|preis)|eintritt(?:spreis)?|ticket(?:preis)?)\b",
     re.IGNORECASE,
@@ -138,12 +133,11 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
-    # marktcom descriptions mix seller logistics with visitor information.
+    # Source price fields sometimes mix seller logistics with visitor facts.
     # A stall fee is explicit, but it is not an admission price and must never
-    # drive the visitor-facing price badge — including in retained snapshots.
+    # drive the visitor-facing price badge — regardless of which adapter found it.
     if (
-        event["source_id"] == "marktcom"
-        and _MARKTCOM_SELLER_FEE.search(event["price"])
+        common.has_seller_fee(event["price"])
         and not _VISITOR_ADMISSION.search(event["price"])
     ):
         event["price"] = ""

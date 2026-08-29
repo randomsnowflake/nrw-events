@@ -116,7 +116,6 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
 
     def test_infers_free_visitor_access_for_safe_public_event_types(self):
         cases = [
-            ("Flohmarkt Kölner Altstadt", "Standpreis: 15 Euro pro laufendem Meter"),
             ("Hofflohmarkt Rondorf", "Hausanwohner verkaufen in ihren Höfen."),
             ("Antik- und Trödelmarkt Bad Godesberg", "Viele Verkaufsstände in der Innenstadt."),
             ("Poppelsdorfer Straßenfest", "Vereine und Gastronomie feiern im Viertel."),
@@ -128,6 +127,24 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
         for title, description in cases:
             with self.subTest(title=title):
                 self.assertEqual(infer_free_admission_price(title, description), "kostenlos")
+
+    def test_seller_fee_without_visitor_statement_keeps_admission_unknown(self):
+        self.assertEqual(
+            infer_free_admission_price(
+                "Familien Flohmarkt",
+                "Der laufende Meter Standfläche kostet 10 €. Eine Anmeldung für Verkäufer ist nicht erforderlich.",
+            ),
+            "",
+        )
+
+    def test_explicit_free_visitor_admission_wins_beside_a_seller_fee(self):
+        self.assertEqual(
+            infer_free_admission_price(
+                "Familien Flohmarkt",
+                "Der Eintritt für Besucher ist frei. Der laufende Meter Standfläche kostet 10 €.",
+            ),
+            "kostenlos",
+        )
 
     def test_does_not_infer_free_access_for_ticketed_or_ambiguous_markets(self):
         cases = [

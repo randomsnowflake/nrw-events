@@ -753,12 +753,16 @@ def _same_registered_venue_occurrence(left: dict, right: dict) -> bool:
     if not left.get("source") or left.get("source") == right.get("source"):
         return False
     # A museum or theatre can host several events in the same category on one
-    # day. Distinct explicit start times prove that these are separate
-    # occurrences, even when both records resolve to the same registered venue.
+    # day. Distinct explicit starts normally prove separate occurrences. Market
+    # sources are the exception only when their normalized names share specific
+    # evidence beyond the venue and broad market format.
     left_start = left.get("start_at")
     right_start = right.get("start_at")
-    if left_start and right_start and not _same_explicit_start(left_start, right_start):
-        return False
+    start_times_conflict = bool(
+        left_start
+        and right_start
+        and not _same_explicit_start(left_start, right_start)
+    )
     left_venue_id = left.get("venue_id")
     left_category = left.get("category_key")
     left_bounds = _date_bounds(left)
@@ -774,7 +778,7 @@ def _same_registered_venue_occurrence(left: dict, right: dict) -> bool:
     if not same_identity:
         return False
     if left_category != "market":
-        return left_bounds == right_bounds
+        return not start_times_conflict and left_bounds == right_bounds
     # A registered market area may host different market formats on one day.
     # Require the same narrow family before accepting exact or overlapping
     # source ranges (for example a city listing with only the first day).
@@ -785,6 +789,10 @@ def _same_registered_venue_occurrence(left: dict, right: dict) -> bool:
         and left_family == right_family
         and left_bounds[0] <= right_bounds[1]
         and right_bounds[0] <= left_bounds[1]
+        and (
+            not start_times_conflict
+            or _market_title_evidence_matches(left, right)
+        )
     )
 
 
@@ -800,6 +808,27 @@ def _market_title_family(title: str) -> str:
     if any(marker in words for marker in ("kunsthandwerkermarkt", "kunstmarkt")):
         return "craft"
     return ""
+
+
+_MARKET_TITLE_GENERIC_WORDS = frozenset({
+    "am", "an", "auf", "aus", "bei", "bonn", "das", "der", "die", "ein",
+    "eine", "ferien", "flohmarkt", "im", "in", "markt", "mit", "und", "vom",
+    "von", "zur", "zum", "troedelmarkt",
+})
+
+
+def _market_title_evidence_tokens(event: dict) -> set[str]:
+    """Keep the title words that identify one market beyond venue and format."""
+    title_words = set(comparison_text(event.get("title", "")).split())
+    venue_words = set(_venue_comparison_text(event).split())
+    return title_words - venue_words - _MARKET_TITLE_GENERIC_WORDS
+
+
+def _market_title_evidence_matches(left: dict, right: dict) -> bool:
+    """Require shared normalized naming evidence when source times disagree."""
+    left_tokens = _market_title_evidence_tokens(left)
+    right_tokens = _market_title_evidence_tokens(right)
+    return bool(left_tokens and right_tokens and left_tokens & right_tokens)
 
 
 def _has_separate_admission_charge(event) -> bool:
@@ -896,6 +925,12 @@ def _merge_duplicate_metadata(
         _has_separate_admission_charge(winner)
         or _has_separate_admission_charge(duplicate)
     )
+    seller_fee_evidence = common.has_seller_fee(
+        " ".join((
+            winner.get("description", ""), winner.get("price", ""),
+            duplicate.get("description", ""), duplicate.get("price", ""),
+        )),
+    )
     if separate_admission_charge:
         updates["price"] = ""
         updates["admission_basis"] = ""
@@ -919,6 +954,12 @@ def _merge_duplicate_metadata(
         duplicate_value_is_usable = bool(duplicate.get(field)) and (
             field != "venue" or bool(_venue_comparison_text(duplicate))
         )
+        if (
+            field == "price"
+            and seller_fee_evidence
+            and duplicate.get("admission_basis") in {"implicit", "inferred"}
+        ):
+            duplicate_value_is_usable = False
         if (winner_value_is_missing or winner_venue_is_implausible) and duplicate_value_is_usable:
             if field == "venue" and not winner.get("identity_venue_locked"):
                 updates["identity_venue"] = winner.get("venue", "")
