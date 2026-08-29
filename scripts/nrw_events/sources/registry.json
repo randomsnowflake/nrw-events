@@ -147,6 +147,13 @@
       "callable": "nrw_events.sources.bonn:fetch_sports"
     },
     {
+      "id": "adfc-bonn",
+      "display_name": "ADFC Bonn/Rhein-Sieg",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.adfc_bonn:fetch"
+    },
+    {
       "id": "uni-bonn",
       "display_name": "Universität Bonn",
       "region": "bonn-region",
