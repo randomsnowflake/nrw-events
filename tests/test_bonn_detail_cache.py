@@ -217,6 +217,22 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "kostenpflichtig")
         self.assertEqual(context["admission_basis"], "explicit")
 
+    def test_detail_context_does_not_promote_child_or_companion_exemptions(self):
+        html = """
+<section class="SP-Text">
+  <h2 class="SP-Headline--paragraph" id="eintritt">Eintritt</h2>
+  <div data-sp-table class="SP-Paragraph">
+    <p>Erwachsene 13 Euro, ermäßigt 7,50 Euro</p>
+    <p>Die Teilnahme von Kindern unter 12 Jahren ist kostenlos. Die Teilnahme der Begleitperson von Menschen mit Beeinträchtigungen ist kostenlos.</p>
+  </div>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["price"], "kostenpflichtig")
+        self.assertEqual(context["admission_basis"], "explicit")
+
     def test_detail_admission_does_not_cross_section_boundaries(self):
         html = """
 <section class="SP-Text"><p>Workshop-Material: 25 €</p></section>

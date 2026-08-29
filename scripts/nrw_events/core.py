@@ -1710,12 +1710,17 @@ _LIMITED_FREE_TRIAL_PATTERN = re.compile(
     r"\b(?:kostenlos|kostenfrei)(?:e[rsn]?|em|en|es)?\s+probe(?:stunde|training|termin)\b",
     re.IGNORECASE,
 )
+_CONDITIONAL_FREE_VISITOR_GROUP_PATTERN = (
+    r"(?:kind(?:er(?:n)?)?|jugendlich(?:e|en|er|es)|person(?:en)?|mensch(?:en)?|"
+    r"mitglied(?:er(?:n)?)?|begleitperson(?:en)?)"
+)
 _CONDITIONAL_FREE_ADMISSION_PATTERN = re.compile(
     r"\b(?:freier|kostenloser|kostenfreier)\s+eintritt\b[^.!?]{0,100}"
     r"(?:\bam\s+eröffnungsabend\b|\ban\s+(?:jedem\s+)?(?:ersten\s+)?sonntag\b|"
-    r"\bnur\b|\bfür\s+(?!alle\b)(?:kinder|jugendliche|personen|menschen|mitglieder)\b)"
-    r"|\b(?:kinder|jugendliche|personen|menschen|mitglieder)\b[^.!?]{0,100}"
-    r"\b(?:freien\s+eintritt|eintritt\s+(?:ist\s+)?frei|kostenlos(?:en?\s+eintritt)?)\b"
+    rf"\bnur\b|\bfür\s+(?!alle\b){_CONDITIONAL_FREE_VISITOR_GROUP_PATTERN}\b)"
+    rf"|\b{_CONDITIONAL_FREE_VISITOR_GROUP_PATTERN}\b[^.!?]{{0,100}}"
+    r"\b(?:freien\s+eintritt|eintritt\s+(?:ist\s+)?frei|"
+    r"kostenlos(?:e(?:n|r|m|s)?\s+eintritt)?)\b"
     r"|\b(?:am\s+eröffnungsabend|an\s+(?:jedem\s+)?(?:ersten\s+)?sonntag)\b"
     r"[^.!?]{0,100}\b(?:eintritt\b[^.!?]{0,30}\bfrei|freier\s+eintritt)\b",
     re.IGNORECASE,
