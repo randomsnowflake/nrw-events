@@ -130,7 +130,7 @@ class DataIntegrityTests(unittest.TestCase):
         self.assertEqual(event.category_key, "stage")
         self.assertEqual(event.category_reason, "source:canonical:stage")
 
-    def test_validation_infers_free_access_for_direct_dict_sources(self):
+    def test_validation_does_not_publish_inferred_free_access(self):
         event = validate_event({
             "title": "Hofflohmarkt Rondorf",
             "source": "Hofflohmärkte Köln",
@@ -139,7 +139,72 @@ class DataIntegrityTests(unittest.TestCase):
             "city": "Köln",
             "description": "Hausanwohner verkaufen in ihren Höfen.",
         })
-        self.assertEqual(event.price, "kostenlos")
+        self.assertEqual(event.price, "")
+        self.assertIsNone(event.admission["isFree"])
+        self.assertEqual(event.quality_warnings[0]["rule_id"], "publication.admission-not-explicit")
+
+    def test_validation_repairs_equal_structured_end_from_explicit_range(self):
+        event = validate_event({
+            "title": "14. Garagenflohmarkt Berzdorf",
+            "source": "Stadt Wesseling",
+            "date": "2026-08-30",
+            "score": 1.0,
+            "city": "Wesseling",
+            "time": "10:00–17:00",
+            "start_at": "2026-08-30T10:00:00+02:00",
+            "end_at": "2026-08-30T10:00:00+02:00",
+        })
+
+        self.assertEqual(event.start_at, "2026-08-30T10:00:00+02:00")
+        self.assertEqual(event.end_at, "2026-08-30T17:00:00+02:00")
+        self.assertEqual(event.quality_warnings[0]["resolution"], "repaired_from_time")
+
+    def test_validation_keeps_per_day_schedule_without_flattening(self):
+        event = validate_event({
+            "title": "Street Food Festival",
+            "source": "Bad Godesberg Stadtmarketing",
+            "date": "2026-08-28",
+            "end_date": "2026-08-30",
+            "score": 1.0,
+            "city": "Bonn-Bad Godesberg",
+            "time": "15:00–22:00",
+            "start_at": "2026-08-28T15:00:00+02:00",
+            "end_at": "2026-08-28T22:00:00+02:00",
+            "all_day": True,
+            "daily_schedule": [
+                {"date": "2026-08-28", "start_at": "2026-08-28T15:00:00+02:00", "end_at": "2026-08-28T22:00:00+02:00"},
+                {"date": "2026-08-29", "start_at": "2026-08-29T12:00:00+02:00", "end_at": "2026-08-29T22:00:00+02:00"},
+                {"date": "2026-08-30", "start_at": "2026-08-30T12:00:00+02:00", "end_at": "2026-08-30T20:00:00+02:00"},
+            ],
+        })
+
+        self.assertEqual(len(event.daily_schedule), 3)
+        self.assertEqual(event.time, "")
+        self.assertEqual(event.start_at, "")
+        self.assertEqual(event.end_at, "")
+        self.assertFalse(event.all_day)
+
+    def test_validation_extracts_street_food_daily_hours_from_primary_copy(self):
+        event = validate_event({
+            "title": "Street Food Festival",
+            "source": "Bad Godesberg Stadtmarketing",
+            "date": "2026-08-28",
+            "end_date": "2026-08-30",
+            "score": 1.0,
+            "city": "Bonn-Bad Godesberg",
+            "description": "Freitag von 15:00 – 22:00 Uhr, Samstag von 12:00 – 22:00 Uhr und Sonntag von 12:00 – 20:00 Uhr.",
+            "all_day": True,
+        })
+
+        self.assertEqual(
+            [(slot["date"], slot["start_at"][11:16], slot["end_at"][11:16]) for slot in event.daily_schedule],
+            [
+                ("2026-08-28", "15:00", "22:00"),
+                ("2026-08-29", "12:00", "22:00"),
+                ("2026-08-30", "12:00", "20:00"),
+            ],
+        )
+        self.assertFalse(event.all_day)
 
     def test_validation_preserves_explicit_paid_price_for_implicit_free_event_type(self):
         event = validate_event({

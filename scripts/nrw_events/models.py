@@ -82,6 +82,8 @@ class RawEvent(TypedDict, total=False):
     series_title: str
     run_id: str
     early_publication: bool
+    daily_schedule: list[dict[str, str]]
+    quality_warnings: list[dict[str, str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,6 +194,8 @@ class CanonicalEvent(Mapping[str, Any]):
     series_title: str = ""
     run_id: str = ""
     early_publication: bool = False
+    daily_schedule: list[dict[str, str]] = field(default_factory=list)
+    quality_warnings: list[dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

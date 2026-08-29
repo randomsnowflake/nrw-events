@@ -1924,6 +1924,18 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         sanitized_warning(warning)
         for warning in quality_gate_warnings(quality_metrics, source_result_payloads)
     ]
+    for event in events:
+        for warning in event.get("quality_warnings", []):
+            quality_warnings.append(sanitized_warning({
+                "source": event.get("source", ""),
+                "source_id": event.get("source_id", ""),
+                "event_id": event.get("event_id", ""),
+                "error_type": "PublicationInvariantWarning",
+                "error": warning.get("message", "publication invariant conflict"),
+                "rule_id": warning.get("rule_id", "publication.invariant-conflict"),
+                "field": warning.get("field", ""),
+                "resolution": warning.get("resolution", "unknown"),
+            }))
     source_warnings = [
         sanitized_warning(warning)
         for warning in (
@@ -1937,7 +1949,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
                       for offset in range((end - start).days + 1))
     generated_at = context.clock().isoformat(timespec="seconds")
     metadata = {
-        "snapshot_schema_version": 5,
+        "snapshot_schema_version": 6,
         "run_id": context.run_id, "run_status": import_result.run_status,
         "generated_at": generated_at,
         "window": {"start": start.strftime("%Y-%m-%d"), "end": end.strftime("%Y-%m-%d"),

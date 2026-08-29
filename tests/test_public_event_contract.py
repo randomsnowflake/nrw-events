@@ -33,6 +33,7 @@ PUBLIC_EVENT_FIELDS = frozenset({
     "first_seen_at", "content_hash",
     "source_links", "previous_event_ids",
     "series_id", "series_title", "run_id",
+    "daily_schedule", "quality_warnings",
 })
 
 #: The venue identities the website crosswalk maps onto its own canonical
@@ -158,6 +159,25 @@ class PublicEventContractTests(unittest.TestCase):
         forward = {event["title"]: event["event_id"] for event in snapshot_for(low, high).events}
         backward = {event["title"]: event["event_id"] for event in snapshot_for(high, low).events}
         self.assertEqual(forward, backward)
+
+    def test_publication_conflicts_reach_structured_snapshot_warnings(self):
+        snapshot = snapshot_for(raw_event(
+            time="10:00–17:00",
+            start_at="2026-06-09T10:00:00+02:00",
+            end_at="2026-06-09T10:00:00+02:00",
+        ))
+
+        self.assertEqual(snapshot.events[0]["end_at"], "2026-06-09T17:00:00+02:00")
+        self.assertIn({
+            "source": "Test",
+            "source_id": "test",
+            "event_id": snapshot.events[0]["event_id"],
+            "error_type": "PublicationInvariantWarning",
+            "error": "structured end was not after start; the explicit clock range was used",
+            "rule_id": "publication.end-not-after-start",
+            "field": "end_at",
+            "resolution": "repaired_from_time",
+        }, snapshot.metadata["quality_warnings"])
 
     def test_published_venue_ids_match_the_documented_crosswalk_contract(self):
         self.assertEqual(PUBLIC_VENUE_IDS, {record.id for record in VENUE_REGISTRY})

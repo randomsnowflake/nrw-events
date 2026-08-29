@@ -185,8 +185,9 @@ class RadioBonnLocationTests(unittest.TestCase):
             self.assertEqual(qualified_event["admission_basis"], "inferred")
             self.assertEqual(
                 canonicalize_event(qualified_event).admission["basis"],
-                "inferred",
+                "",
             )
+            self.assertIsNone(canonicalize_event(qualified_event).admission["isFree"])
 
     def test_repairs_obvious_rheinbach_domain_typo(self):
         self.assertEqual(

@@ -30,11 +30,12 @@ class AdmissionDefaultTests(unittest.TestCase):
         self.assertEqual(event["price"], "kostenlos")
         self.assertEqual(event["admission_basis"], "implicit")
         canonical = canonicalize_event(event)
-        self.assertEqual(canonical.price, "kostenlos")
-        self.assertEqual(canonical.admission_basis, "implicit")
-        self.assertEqual(canonical.to_dict()["admission_basis"], "implicit")
-        self.assertEqual(canonical.admission["isFree"], True)
-        self.assertEqual(canonical.admission["basis"], "implicit")
+        self.assertEqual(canonical.price, "")
+        self.assertEqual(canonical.admission_basis, "")
+        self.assertEqual(canonical.to_dict()["admission_basis"], "")
+        self.assertIsNone(canonical.admission["isFree"])
+        self.assertEqual(canonical.admission["basis"], "")
+        self.assertEqual(canonical.quality_warnings[0]["rule_id"], "publication.admission-not-explicit")
 
     def test_explicit_visitor_price_prevents_free_by_nature_default(self):
         event = common.make_event(
@@ -99,7 +100,7 @@ class AdmissionDefaultTests(unittest.TestCase):
             ),
             (
                 {"description": "Der Eintritt ist frei."},
-                {"isFree": True, "amount": None, "basis": "inferred",
+                {"isFree": True, "amount": None, "basis": "structured",
                  "donationSuggested": False},
             ),
         )
@@ -209,9 +210,9 @@ END:VCALENDAR"""
 
         merged = report.deduplicate([winner, duplicate])[0]
 
-        self.assertEqual(merged.price, "kostenlos")
-        self.assertEqual(merged.admission_basis, "implicit")
-        self.assertEqual(merged.admission["isFree"], True)
+        self.assertEqual(merged.price, "")
+        self.assertEqual(merged.admission_basis, "")
+        self.assertIsNone(merged.admission["isFree"])
 
 
 if __name__ == "__main__":

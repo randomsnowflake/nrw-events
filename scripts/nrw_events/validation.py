@@ -5,7 +5,10 @@ from __future__ import annotations
 import math
 import re
 import urllib.parse
+from dataclasses import MISSING
+from datetime import datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import ai_enrichment, category_taxonomy, common, event_types, richtext
 from .models import (
@@ -27,6 +30,148 @@ _VISITOR_ADMISSION = re.compile(
     r"\b(?:besucher(?:eintritt|preis)|eintritt(?:spreis)?|ticket(?:preis)?)\b",
     re.IGNORECASE,
 )
+_EXPLICIT_FREE_VISITOR = re.compile(
+    r"\b(?:(?:eintritt|teilnahme|besuch)\s+(?:ist\s+)?(?:frei|kostenlos|kostenfrei)|"
+    r"(?:freier|kostenloser|kostenfreier)\s+(?:eintritt|besuch))\b",
+    re.IGNORECASE,
+)
+_QUALIFIED_FREE_VISITOR = re.compile(
+    r"\b(?:eintritt|teilnahme|besuch)\s+(?:ist\s+)?(?:frei|kostenlos|kostenfrei)\s+(?:nur\s+)?(?:für|mit|am)\b",
+    re.IGNORECASE,
+)
+
+_CLOCK_RANGE = re.compile(r"^(\d{2}):(\d{2})–(\d{2}):(\d{2})$")
+_GERMAN_WEEKDAYS = {
+    "montag": 0, "dienstag": 1, "mittwoch": 2, "donnerstag": 3,
+    "freitag": 4, "samstag": 5, "sonntag": 6,
+}
+_DAILY_HOURS = re.compile(
+    r"(?P<days>(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)"
+    r"(?:\s*(?:und|&|/|\+)\s*(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))*)"
+    r"\s*(?:von\s*)?(?P<start>\d{1,2}(?::\d{2})?)\s*(?:uhr\s*)?"
+    r"(?:[-–]|–|bis)\s*(?P<end>\d{1,2}(?::\d{2})?)\s*uhr",
+    re.IGNORECASE,
+)
+
+
+def _publication_warning(
+    event: dict[str, Any], rule_id: str, field: str, resolution: str, message: str,
+) -> None:
+    warnings = event.setdefault("quality_warnings", [])
+    if not isinstance(warnings, list):
+        raise EventValidationError("quality_warnings_type")
+    warning = {
+        "rule_id": rule_id,
+        "field": field,
+        "resolution": resolution,
+        "message": message,
+    }
+    if warning not in warnings:
+        warnings.append(warning)
+
+
+def _iso_datetime(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def _clock_range_datetimes(
+    date_value: str, time_value: str, timezone_name: str,
+) -> tuple[datetime, datetime] | None:
+    match = _CLOCK_RANGE.fullmatch(time_value)
+    if not match:
+        return None
+    try:
+        zone = ZoneInfo(timezone_name)
+        day = common.parse_iso_date(date_value)
+    except ZoneInfoNotFoundError:
+        return None
+    if day is None:
+        return None
+    start_hour, start_minute, end_hour, end_minute = map(int, match.groups())
+    if start_hour > 23 or end_hour > 23 or start_minute > 59 or end_minute > 59:
+        return None
+    start = datetime.combine(day, time(start_hour, start_minute), zone)
+    end = datetime.combine(day, time(end_hour, end_minute), zone)
+    if end <= start:
+        end += timedelta(days=1)
+    return start, end
+
+
+def _canonical_daily_schedule(event: dict[str, Any]) -> None:
+    value = event.get("daily_schedule") or _daily_schedule_from_prose(event)
+    if not isinstance(value, list):
+        raise EventValidationError("daily_schedule_type")
+    slots: list[dict[str, str]] = []
+    for index, candidate in enumerate(value[:31]):
+        if not isinstance(candidate, dict):
+            _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} is not an object")
+            continue
+        date_value = str(candidate.get("date") or "").strip()
+        start_value = str(candidate.get("start_at") or "").strip()
+        end_value = str(candidate.get("end_at") or "").strip()
+        start = _iso_datetime(start_value)
+        end = _iso_datetime(end_value)
+        if (
+            not common.parse_iso_date(date_value)
+            or not start or not end or end <= start
+            or start.date().isoformat() != date_value
+            or not event["start_date"] <= date_value <= event["end_date"]
+        ):
+            _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} violates the event date/time invariant")
+            continue
+        slot = {"date": date_value, "start_at": start.isoformat(), "end_at": end.isoformat()}
+        existing = next((item for item in slots if item["date"] == date_value), None)
+        if existing and existing != slot:
+            slots.remove(existing)
+            _publication_warning(event, "publication.schedule-conflict", "daily_schedule", "unknown", f"conflicting schedule slots for {date_value} were omitted")
+            continue
+        if not existing:
+            slots.append(slot)
+    event["daily_schedule"] = sorted(slots, key=lambda slot: slot["start_at"])
+
+
+def _daily_schedule_from_prose(event: dict[str, Any]) -> list[dict[str, str]]:
+    start_day = common.parse_iso_date(str(event.get("start_date") or ""))
+    end_day = common.parse_iso_date(str(event.get("end_date") or ""))
+    if not start_day or not end_day or end_day <= start_day or (end_day - start_day).days > 31:
+        return []
+    try:
+        zone = ZoneInfo(str(event.get("timezone") or "Europe/Berlin"))
+    except ZoneInfoNotFoundError:
+        return []
+    text_value = " ".join(str(event.get(field) or "") for field in ("time_note", "description"))
+    slots: list[dict[str, str]] = []
+    for match in _DAILY_HOURS.finditer(text_value):
+        weekdays = {
+            _GERMAN_WEEKDAYS[name.casefold()]
+            for name in re.findall("|".join(_GERMAN_WEEKDAYS), match.group("days"), re.IGNORECASE)
+        }
+        start_text, end_text = match.group("start"), match.group("end")
+        start_hour, _, start_minute = start_text.partition(":")
+        end_hour, _, end_minute = end_text.partition(":")
+        start_parts = int(start_hour), int(start_minute or 0)
+        end_parts = int(end_hour), int(end_minute or 0)
+        if start_parts[0] > 23 or start_parts[1] > 59 or end_parts[0] > 24 or end_parts[1] > 59 or (end_parts[0] == 24 and end_parts[1]):
+            continue
+        day = start_day
+        while day <= end_day:
+            if day.weekday() in weekdays:
+                start = datetime.combine(day, time(*start_parts), zone)
+                if end_parts[0] == 24:
+                    end = datetime.combine(day + timedelta(days=1), time(0, end_parts[1]), zone)
+                else:
+                    end = datetime.combine(day, time(*end_parts), zone)
+                    if end <= start:
+                        end += timedelta(days=1)
+                slots.append({"date": day.strftime("%Y-%m-%d"), "start_at": start.isoformat(), "end_at": end.isoformat()})
+            day += timedelta(days=1)
+    return slots
 
 
 def _requires_master_data_only(event: dict[str, Any]) -> bool:
@@ -102,7 +247,7 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         if not start:
             raise EventValidationError("start_date_missing_or_invalid")
         start_date = start.strftime("%Y-%m-%d")
-        end_date = end.strftime("%Y-%m-%d") if end else start_date
+        end_date = end_date or (end.strftime("%Y-%m-%d") if end else start_date)
     if not common.parse_iso_date(start_date):
         raise EventValidationError("start_date_invalid")
     if end_date and not common.parse_iso_date(end_date):
@@ -116,6 +261,31 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         not event.get("start_at") and not event.get("time") and not event.get("time_note"),
     ))
     event["timezone"] = _text(event, "timezone", 64) or "Europe/Berlin"
+    _canonical_daily_schedule(event)
+
+    raw_start_at = str(event.get("start_at") or "").strip()
+    raw_end_at = str(event.get("end_at") or "").strip()
+    start_at = _iso_datetime(raw_start_at)
+    end_at = _iso_datetime(raw_end_at)
+    clock_range = _clock_range_datetimes(start_date, str(event.get("time") or ""), event["timezone"])
+    if start_at and end_at and end_at <= start_at:
+        if clock_range:
+            start_at, end_at = clock_range
+            _publication_warning(event, "publication.end-not-after-start", "end_at", "repaired_from_time", "structured end was not after start; the explicit clock range was used")
+        else:
+            end_at = None
+            _publication_warning(event, "publication.end-not-after-start", "end_at", "unknown", "structured end was not after start and was omitted")
+    elif clock_range and (not start_at or not end_at):
+        start_at, end_at = clock_range
+    event["start_at"] = raw_start_at if start_at and start_at == _iso_datetime(raw_start_at) else (start_at.isoformat() if start_at else "")
+    event["end_at"] = raw_end_at if end_at and end_at == _iso_datetime(raw_end_at) else (end_at.isoformat() if end_at else "")
+    if event["daily_schedule"]:
+        event["time"] = ""
+        event["start_at"] = ""
+        event["end_at"] = ""
+        event["all_day"] = False
+    elif event["time"] or event["start_at"]:
+        event["all_day"] = False
 
 
 def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
@@ -212,6 +382,18 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         event["price"],
         admission_basis=admission_basis,
     )
+    explicit_free_visitor = (
+        bool(_EXPLICIT_FREE_VISITOR.search(" ".join((event["description"], event["price"]))))
+        and not common.has_conditional_free_admission(event["description"])
+        and not _QUALIFIED_FREE_VISITOR.search(event["description"])
+    )
+    if inferred_admission_basis == "inferred" and explicit_free_visitor:
+        inferred_admission_basis = "explicit"
+    elif inferred_admission_basis in {"implicit", "inferred"}:
+        _publication_warning(event, "publication.admission-not-explicit", "admission", "unknown", "free admission lacked explicit visitor evidence and was omitted")
+        inferred_free_price = ""
+        inferred_admission_basis = ""
+        event["price"] = ""
     if inferred_free_price:
         event["price"] = inferred_free_price
     elif admission_basis == "implicit":
@@ -400,10 +582,15 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         common.keep_only_event_master_data(event)
     if ai_enrichment.is_target_event(event):
         ai_enrichment.strip_restricted_copy(event)
-    return CanonicalEvent(**{
-        field: event.get(field, definition.default)
-        for field, definition in CanonicalEvent.__dataclass_fields__.items()
-    })
+    canonical_fields: dict[str, Any] = {}
+    for field, definition in CanonicalEvent.__dataclass_fields__.items():
+        if field in event:
+            canonical_fields[field] = event[field]
+        elif definition.default_factory is not MISSING:
+            canonical_fields[field] = definition.default_factory()
+        else:
+            canonical_fields[field] = definition.default
+    return CanonicalEvent(**canonical_fields)
 
 
 def validate_event(raw_event: RawEvent | object) -> CanonicalEvent:

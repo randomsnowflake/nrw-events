@@ -424,13 +424,13 @@ class RunnerOutputTests(unittest.TestCase):
         snapshot = runner.build_snapshot(result, context)
         event = snapshot.events[0]
 
-        self.assertEqual(snapshot.metadata["snapshot_schema_version"], 5)
+        self.assertEqual(snapshot.metadata["snapshot_schema_version"], 6)
         self.assertEqual(event["date"], "2026-06-01")
         self.assertEqual(event["start_date"], "2026-06-01")
         self.assertEqual(event["end_date"], "2026-06-10")
         self.assertTrue(event["ongoing"])
         self.assertEqual(event["admission"]["isFree"], True)
-        self.assertEqual(event["admission"]["basis"], "inferred")
+        self.assertEqual(event["admission"]["basis"], "structured")
 
 
 class SourceHealthTests(unittest.TestCase):
