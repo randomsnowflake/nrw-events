@@ -73,7 +73,14 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Ausstellung", "Eintritt 10 Euro.\n\nfrei", ""),
             ("Workshop", "Kostenfrei!\n\nTeilnahmegebühr 5 Euro.", ""),
             ("Kinderkurs", "Kinder können kostenlos teilnehmen.", ""),
+            (
+                "Stadtführung",
+                "Begleitpersonen von Menschen mit Beeinträchtigungen nehmen kostenlos teil.",
+                "",
+            ),
             ("Vereinsabend", "Mitglieder können kostenlos mitmachen.", ""),
+            ("Jugendtreff", "Jugendlichen wird kostenloser Eintritt gewährt.", ""),
+            ("Vereinsabend", "Mitgliedern wird kostenloser Eintritt gewährt.", ""),
             ("Museum", "Kostenlos! Audioguide herunterladen.", ""),
             ("Vereinsabend", "Kostenfrei. Nur für Mitglieder.", ""),
             # "frei" as the start of a longer word must not read as free.
