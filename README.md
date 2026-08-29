@@ -253,6 +253,7 @@ scripts/nrw_events/
   sources/
     registry.json
     __init__.py
+    adfc_bonn.py
     afterjobparty.py
     b_future_festival.py
     beethovenfest_bonn.py
@@ -506,6 +507,7 @@ Redaktionsentscheidungen.
 <!-- BEGIN GENERATED SOURCES -->
 | Region | Quelle | ID | Adapter |
 |---|---|---|---|
+| bonn-region | ADFC Bonn/Rhein-Sieg | `adfc-bonn` | `python` |
 | bonn-region | AfterJobParty Bonn | `afterjobparty-bonn` | `python` |
 | bonn-region | Bad Godesberg Stadtmarketing | `bad-godesberg-stadtmarketing` | `python` |
 | bonn-region | Beethovenfest Bonn | `beethovenfest-bonn` | `python` |
