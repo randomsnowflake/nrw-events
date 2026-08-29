@@ -596,6 +596,18 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         "note": event["price"],
         "donationSuggested": donation_suggested,
     }
+    if event["admission"]["isFree"] is True and event["admission"]["basis"] not in {"structured", "editorial"}:
+        _publication_warning(event, "publication.admission-not-explicit", "admission", "unknown", "free admission lacked explicit visitor evidence and was omitted")
+        event["price"] = ""
+        event["admission_basis"] = ""
+        event["admission"] = {
+            "isFree": None,
+            "amount": None,
+            "currency": "EUR",
+            "basis": "",
+            "note": "",
+            "donationSuggested": False,
+        }
     if event["link"]:
         parsed = urllib.parse.urlsplit(event["link"])
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:

@@ -1088,7 +1088,12 @@ def _merge_duplicate_metadata(
                 updates[field] = duplicate[field]
 
     if isinstance(winner, CanonicalEvent):
-        return replace(winner, **updates)
+        # Field-wise enrichment can combine two individually valid records into
+        # an invalid clock/admission shape. Re-enter the canonical boundary so
+        # the published snapshot keeps the same invariants as source records.
+        from .validation import canonicalize_event
+
+        return canonicalize_event(replace(winner, **updates).to_dict())
     return {**winner, **updates}
 
 

@@ -214,6 +214,55 @@ END:VCALENDAR"""
         self.assertEqual(merged.admission_basis, "")
         self.assertIsNone(merged.admission["isFree"])
 
+    def test_zero_price_is_normalized_to_structured_admission(self):
+        canonical = canonicalize_event({
+            "title": "Garagenflohmarkt",
+            "source": "Official",
+            "date": "2026-09-13",
+            "score": 2.0,
+            "city": "Bonn",
+            "price": "0 €",
+        })
+
+        self.assertEqual(canonical.price, "kostenlos")
+        self.assertEqual(canonical.admission_basis, "explicit")
+        self.assertTrue(canonical.admission["isFree"])
+        self.assertEqual(canonical.admission["basis"], "structured")
+
+    def test_deduplication_revalidates_a_structured_daily_schedule(self):
+        winner = canonicalize_event({
+            "title": "Street Food Festival",
+            "source": "Official",
+            "date": "2026-08-28",
+            "start_date": "2026-08-28",
+            "end_date": "2026-08-30",
+            "score": 2.0,
+            "city": "Bonn",
+            "daily_schedule": [{
+                "date": "2026-08-28",
+                "start_at": "2026-08-28T15:00:00+02:00",
+                "end_at": "2026-08-28T22:00:00+02:00",
+            }],
+        })
+        duplicate = canonicalize_event({
+            "title": "Street Food Festival",
+            "source": "Directory",
+            "date": "2026-08-28",
+            "start_date": "2026-08-28",
+            "end_date": "2026-08-30",
+            "score": 1.0,
+            "city": "Bonn",
+            "time": "12:00",
+        })
+
+        merged = report.deduplicate([winner, duplicate])[0]
+
+        self.assertTrue(merged.daily_schedule)
+        self.assertEqual(merged.time, "")
+        self.assertEqual(merged.start_at, "")
+        self.assertEqual(merged.end_at, "")
+        self.assertFalse(merged.all_day)
+
 
 if __name__ == "__main__":
     unittest.main()
