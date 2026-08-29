@@ -24,7 +24,7 @@ PUBLIC_EVENT_FIELDS = frozenset({
     "venue", "venue_id", "venue_address", "venue_district", "venue_type",
     "venue_latitude", "venue_longitude",
     "city", "distance_km", "location_confidence", "location_source",
-    "price", "admission", "category", "category_key", "category_label",
+    "price", "admission", "exhibitor", "category", "category_key", "category_label",
     "source", "source_id", "score",
     "ranking_features", "priority_bonus",
     "event_types",

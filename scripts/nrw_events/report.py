@@ -856,6 +856,27 @@ def _adopted_description(source: dict) -> dict:
     }
 
 
+def _merged_exhibitor_information(winner: dict, duplicate: dict) -> dict | None:
+    """Preserve richer seller facts without letting them touch visitor fields."""
+    primary = winner.get("exhibitor") or {}
+    secondary = duplicate.get("exhibitor") or {}
+    if not primary and not secondary:
+        return None
+
+    merged = dict(primary)
+    for section in ("fee", "registration"):
+        preferred = dict(primary.get(section) or {})
+        fallback = secondary.get(section) or {}
+        for key, value in fallback.items():
+            if preferred.get(key) in {None, ""} and value not in {None, ""}:
+                preferred[key] = value
+        merged[section] = preferred
+    for key in ("setupTime", "accessHours"):
+        if merged.get(key) in {None, ""} and secondary.get(key) not in {None, ""}:
+            merged[key] = secondary[key]
+    return merged
+
+
 def _merge_duplicate_metadata(
     winner,
     duplicate,
@@ -885,6 +906,9 @@ def _merge_duplicate_metadata(
     ]))[:20]
     if source_links:
         updates["source_links"] = source_links
+    exhibitor = _merged_exhibitor_information(winner, duplicate)
+    if exhibitor and exhibitor != (winner.get("exhibitor") or {}):
+        updates["exhibitor"] = exhibitor
     duplicate_alias = (
         event_id(duplicate)
         if winner.get("source") != duplicate.get("source")

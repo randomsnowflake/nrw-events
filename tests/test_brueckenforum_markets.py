@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime
 
 from nrw_events.sources import requested_venues
+from nrw_events.validation import canonicalize_event
 from tests.helpers import patch_window
 
 
@@ -54,6 +55,8 @@ class BrueckenforumMarketTests(unittest.TestCase):
         <h1>Außer Haus: Floh- und Trödelmarkt auf dem Rathausplatz</h1>
         <div>Der Markt findet auf dem Beueler Rathausplatz statt.</div>
         <div>Eintritt für Besucher: Kostenlos<br>Zeitraum: Immer von 11-17 Uhr</div>
+        <p>Ausstellende können ihren Stand für 10€ pro laufendem Meter unter dem Ticket-Link buchen:</p>
+        <p><a href="https://example.test/stand-anmelden">Jetzt Ticket kaufen</a></p>
         """
 
         event = requested_venues._events_from_brueckenforum(
@@ -64,6 +67,14 @@ class BrueckenforumMarketTests(unittest.TestCase):
         self.assertEqual(event["venue"], "Beueler Rathausplatz (Möhneplatz)")
         self.assertEqual(event["time"], "11:00–17:00")
         self.assertEqual(event["price"], "kostenlos")
+        self.assertEqual(event["exhibitor"]["fee"]["amount"], 10.0)
+        self.assertEqual(event["exhibitor"]["fee"]["unit"], "running_metre")
+        self.assertTrue(event["exhibitor"]["registration"]["required"])
+        self.assertEqual(event["exhibitor"]["registration"]["url"], "https://example.test/stand-anmelden")
+        canonical = canonicalize_event(event)
+        self.assertTrue(canonical.admission["isFree"])
+        self.assertEqual(canonical.admission["amount"], None)
+        self.assertEqual(canonical.exhibitor["fee"]["amount"], 10.0)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,45 @@ _QUALIFIED_FREE_VISITOR = re.compile(
     re.IGNORECASE,
 )
 
+_EXHIBITOR_COPY = re.compile(
+    r"\b(?:ausstell(?:ende|er|ern)|verkäufer(?:innen)?|verkaeufer(?:innen)?|"
+    r"händler(?:innen)?|haendler(?:innen)?|stand(?:gebühr|gebuehr|fläche|flaeche|platz)|"
+    r"selbst\s+verkaufen|aufbau|abbau|ticket[- ]?link)\b",
+    re.IGNORECASE,
+)
+_RUNNING_METRE = re.compile(
+    r"\b(?:pro\s+)?laufend(?:e|er|en|em)?\s+(?:front)?meter\b|\blfd\.?\s*m(?:eter)?\b",
+    re.IGNORECASE,
+)
+_EXHIBITOR_FEE_AFTER = re.compile(
+    r"(?:stand(?:gebühr|gebuehr|fläche|flaeche|platz)[^.]{0,70}?|"
+    r"ausstell(?:ende|er|ern)[^.]{0,70}?)"
+    r"(?P<amount>\d+(?:[,.]\d{1,2})?)\s*(?:€|eur\b|euro\b)",
+    re.IGNORECASE,
+)
+_EXHIBITOR_FEE_BEFORE = re.compile(
+    r"(?P<amount>\d+(?:[,.]\d{1,2})?)\s*(?:€|eur\b|euro\b)"
+    r"[^.]{0,60}(?:laufend(?:e|er|en|em)?\s+(?:front)?meter|stand(?:fläche|flaeche|platz))",
+    re.IGNORECASE,
+)
+_EXHIBITOR_FREE = re.compile(
+    r"(?:stand(?:fläche|flaeche|platz)|ausstell(?:ende|er|ern)|verkäufer(?:innen)?|verkaeufer(?:innen)?)"
+    r"[^.]{0,60}\b(?:kostenlos|kostenfrei|frei)\b",
+    re.IGNORECASE,
+)
+_SETUP_TIME = re.compile(
+    r"\baufbau(?:\s+beginnt)?\s+(?:ab|um)\s+(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*uhr\b",
+    re.IGNORECASE,
+)
+_REGISTRATION_NOT_REQUIRED = re.compile(
+    r"\b(?:eine\s+)?anmeldung\s+ist\s+nicht\s+erforderlich\b|\bohne\s+anmeldung\b",
+    re.IGNORECASE,
+)
+_REGISTRATION_REQUIRED = re.compile(
+    r"\b(?:anmeldung|stand(?:platz|fläche|flaeche))\b[^.]{0,60}\b(?:erforderlich|buchen|reservieren)\b",
+    re.IGNORECASE,
+)
+
 _CLOCK_RANGE = re.compile(r"^(\d{2}):(\d{2})–(\d{2}):(\d{2})$")
 _GERMAN_WEEKDAYS = {
     "montag": 0, "dienstag": 1, "mittwoch": 2, "donnerstag": 3,
@@ -78,6 +117,129 @@ def _iso_datetime(value: object) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo is not None else None
+
+
+def _empty_exhibitor() -> dict[str, Any]:
+    return {
+        "fee": {
+            "isFree": None,
+            "amount": None,
+            "currency": "EUR",
+            "unit": "",
+            "basis": "",
+            "note": "",
+        },
+        "setupTime": "",
+        "accessHours": "",
+        "registration": {
+            "required": None,
+            "url": "",
+            "contact": "",
+            "note": "",
+        },
+    }
+
+
+def _clean_exhibitor_text(value: object, limit: int = 300) -> str:
+    text = common.clean_html(str(value or "")).strip()
+    if len(text) > limit:
+        raise EventValidationError("exhibitor_text_too_long")
+    return text
+
+
+def _canonical_exhibitor(event: dict[str, Any]) -> None:
+    """Keep seller logistics separate from visitor admission and opening time."""
+    raw = event.get("exhibitor") or {}
+    if not isinstance(raw, dict):
+        raise EventValidationError("exhibitor_type")
+    raw_fee = raw.get("fee") or {}
+    raw_registration = raw.get("registration") or {}
+    if not isinstance(raw_fee, dict):
+        raise EventValidationError("exhibitor_fee_type")
+    if not isinstance(raw_registration, dict):
+        raise EventValidationError("exhibitor_registration_type")
+
+    exhibitor = _empty_exhibitor()
+    fee = exhibitor["fee"]
+    registration = exhibitor["registration"]
+    text = common.clean_html(" ".join((event.get("description", ""), event.get("price", ""))))
+
+    amount_value = raw_fee.get("amount")
+    amount: float | None = None
+    if amount_value is not None:
+        try:
+            amount = float(amount_value)
+        except (TypeError, ValueError) as exc:
+            raise EventValidationError("exhibitor_fee_amount_invalid") from exc
+        if not math.isfinite(amount) or amount < 0:
+            raise EventValidationError("exhibitor_fee_amount_invalid")
+    fee_match = _EXHIBITOR_FEE_AFTER.search(text) or _EXHIBITOR_FEE_BEFORE.search(text)
+    if amount is None and fee_match:
+        amount = float(fee_match.group("amount").replace(",", "."))
+    explicit_free = raw_fee.get("isFree")
+    if explicit_free not in {None, True, False}:
+        raise EventValidationError("exhibitor_fee_free_invalid")
+    if explicit_free is None and _EXHIBITOR_FREE.search(text):
+        explicit_free = True
+        amount = 0.0
+    if amount is not None and explicit_free is None:
+        explicit_free = amount == 0
+    unit = _clean_exhibitor_text(raw_fee.get("unit"), 32)
+    if not unit and fee_match and _RUNNING_METRE.search(text):
+        unit = "running_metre"
+    if unit not in {"", "flat", "running_metre", "table", "day"}:
+        raise EventValidationError("exhibitor_fee_unit_invalid")
+    basis = _clean_exhibitor_text(raw_fee.get("basis"), 16)
+    if not basis and (amount is not None or explicit_free is not None):
+        basis = "structured"
+    if basis not in {"", "structured", "editorial"}:
+        raise EventValidationError("exhibitor_fee_basis_invalid")
+    fee.update({
+        "isFree": explicit_free,
+        "amount": amount,
+        "currency": "EUR",
+        "unit": unit,
+        "basis": basis,
+        "note": _clean_exhibitor_text(raw_fee.get("note")) or (common.concise_description(fee_match.group(0), max_chars=160) if fee_match else ""),
+    })
+
+    setup_time = _clean_exhibitor_text(raw.get("setupTime"), 100)
+    setup_match = _SETUP_TIME.search(text)
+    if not setup_time and setup_match:
+        setup_time = f"{int(setup_match.group('hour')):02d}:{setup_match.group('minute') or '00'}"
+    exhibitor["setupTime"] = setup_time
+    exhibitor["accessHours"] = _clean_exhibitor_text(raw.get("accessHours"), 100)
+
+    required = raw_registration.get("required")
+    if required not in {None, True, False}:
+        raise EventValidationError("exhibitor_registration_required_invalid")
+    if required is None and _REGISTRATION_NOT_REQUIRED.search(text):
+        required = False
+    elif required is None and _REGISTRATION_REQUIRED.search(text):
+        required = True
+    url = str(raw_registration.get("url") or "").strip()
+    if url:
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise EventValidationError("exhibitor_registration_url_invalid")
+    registration.update({
+        "required": required,
+        "url": url,
+        "contact": _clean_exhibitor_text(raw_registration.get("contact")),
+        "note": _clean_exhibitor_text(raw_registration.get("note")),
+    })
+    event["exhibitor"] = exhibitor
+
+
+def _visitor_description(value: str) -> str:
+    """Remove operational seller sentences after their facts were structured."""
+    paragraphs: list[str] = []
+    for paragraph in re.split(r"\n\s*\n", value):
+        sentences = re.split(r"(?<=[.!?])\s+", paragraph.strip())
+        kept = [sentence for sentence in sentences if not _EXHIBITOR_COPY.search(sentence)]
+        if kept:
+            paragraphs.append(" ".join(kept))
+    return "\n\n".join(paragraphs).strip()
 
 
 def _clock_range_datetimes(
@@ -303,6 +465,8 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    _canonical_exhibitor(event)
+    event["description"] = _visitor_description(event["description"])
     # Source price fields sometimes mix seller logistics with visitor facts.
     # A stall fee is explicit, but it is not an admission price and must never
     # drive the visitor-facing price badge — regardless of which adapter found it.

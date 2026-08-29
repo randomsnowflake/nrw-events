@@ -250,6 +250,35 @@ def _brueckenforum_detail_context(html: str) -> dict:
     price = "kostenlos" if visitor_free else (
         f"{price_match.group(1).replace(',', '.')} €" if price_match else ""
     )
+    exhibitor_fee_match = re.search(
+        r"Ausstell(?:ende|er)[^.]{0,120}?(\d+(?:[,.]\d+)?)\s*€"
+        r"[^.]{0,80}?laufend(?:e|er|en|em)?\s+(?:Front)?meter",
+        text,
+        re.I,
+    )
+    registration_link = re.search(
+        r"Ausstell(?:ende|er).*?</p>\s*<p[^>]*>\s*<a[^>]+href=[\"']([^\"']+)[\"']",
+        body,
+        re.S | re.I,
+    )
+    exhibitor = {
+        "fee": {
+            "isFree": False if exhibitor_fee_match else None,
+            "amount": float(exhibitor_fee_match.group(1).replace(",", ".")) if exhibitor_fee_match else None,
+            "currency": "EUR",
+            "unit": "running_metre" if exhibitor_fee_match else "",
+            "basis": "structured" if exhibitor_fee_match else "",
+            "note": f"{exhibitor_fee_match.group(1)} € pro laufendem Meter" if exhibitor_fee_match else "",
+        },
+        "setupTime": "",
+        "accessHours": "",
+        "registration": {
+            "required": True if registration_link else None,
+            "url": registration_link.group(1) if registration_link else "",
+            "contact": "",
+            "note": "Standplatz über den Ticket-Link buchen" if registration_link else "",
+        },
+    }
     is_rathaus_market = bool(re.search(
         r"(?:Floh|Trödelmarkt).*Rathausplatz|Beueler\s+Rathausplatz",
         text,
@@ -280,8 +309,10 @@ def _brueckenforum_detail_context(html: str) -> dict:
     return {
         "time": time_text,
         "price": price,
+        "admission_basis": "explicit" if visitor_free or price_match else "",
         "description": description,
         "is_rathaus_market": is_rathaus_market,
+        "exhibitor": exhibitor,
     }
 
 
@@ -337,6 +368,9 @@ def _events_from_brueckenforum(html: str, detail_fetcher=None) -> list:
         if ev:
             if detail.get("price"):
                 ev["price"] = detail["price"]
+                ev["admission_basis"] = detail.get("admission_basis", "")
+            if detail.get("exhibitor"):
+                ev["exhibitor"] = detail["exhibitor"]
             events.append(ev)
     return events
 
