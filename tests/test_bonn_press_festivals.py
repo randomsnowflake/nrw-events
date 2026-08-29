@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common
-from nrw_events.sources import bonn
+from nrw_events import common, report
+from nrw_events.sources import bonn, bonn_districts
 from tests.helpers import patch_window
 
 
@@ -121,6 +121,63 @@ class BonnPressFestivalTests(unittest.TestCase):
 
         self.assertEqual(event["source"], "Bonn district festivals")
         self.assertNotIn("Poppelsdorfer-Strassenfest-", event["link"])
+
+    def test_corrects_reviewed_beuel_festival_dates_and_keeps_published_alias(self):
+        self.addCleanup(patch.stopall)
+        patch.object(common, "END_DATE", datetime(2026, 9, 30)).start()
+        html = """
+        <ul><li>
+          Fest der Beueler Vereine – Promenadenfest,
+          Rheinufer Beuel, China-Schiff bis Bahnhöfchen,
+          29. und 30. August 2026, Interessengemeinschaft Beueler Vereine
+        </li></ul>
+        """
+
+        with patch.object(common, "fetch_url", return_value=html):
+            [event] = bonn.fetch_press_festivals()
+
+        self.assertEqual(event["start_date"], "2026-09-05")
+        self.assertEqual(event["end_date"], "2026-09-06")
+        self.assertEqual(event["source_id"], "beuel-net")
+        self.assertEqual(event["link_kind"], "detail")
+        self.assertIn("beuel.net/2026/06/18/", event["link"])
+        self.assertNotIn("29.", event["description"])
+        self.assertEqual(
+            event["previous_event_ids"],
+            ["fest-der-beueler-vereine-promenadenfest-2026-08-29-5fa6836fc1"],
+        )
+
+    def test_corrected_beuel_festival_collapses_with_primary_calendar_record(self):
+        self.addCleanup(patch.stopall)
+        patch.object(common, "END_DATE", datetime(2026, 9, 30)).start()
+        press_html = """
+        <ul><li>
+          Fest der Beueler Vereine – Promenadenfest,
+          Rheinufer Beuel, China-Schiff bis Bahnhöfchen,
+          29. und 30. August 2026, Interessengemeinschaft Beueler Vereine
+        </li></ul>
+        """
+        beuel_html = """
+        <div class="yel"><a href="/events/#05.09.2026">
+          <span class="title">🍻 Promenadenfest und Beuelfest</span><br>
+          <b>Sa. 05.09.2026 – So. 06.09.2026</b> |
+          <a href="/map/?q=Rheinufer">Rheinufer</a><br>
+          <a href="https://beuelhats.de/veranstaltungen">externer Link</a>
+        </a></div>
+        """
+        with patch.object(common, "fetch_url", return_value=press_html):
+            [corrected] = bonn.fetch_press_festivals()
+        [primary] = bonn_districts.events_from_beuel_html(beuel_html)
+        primary["source_id"] = "beuel-net"
+
+        [deduped] = report.deduplicate([corrected, primary])
+
+        self.assertEqual(deduped["start_date"], "2026-09-05")
+        self.assertEqual(deduped["end_date"], "2026-09-06")
+        self.assertIn(
+            "fest-der-beueler-vereine-promenadenfest-2026-08-29-5fa6836fc1",
+            deduped["previous_event_ids"],
+        )
 
 
 if __name__ == "__main__":

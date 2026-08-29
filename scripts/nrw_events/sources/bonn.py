@@ -790,6 +790,34 @@ _PRESS_PRIMARY_DETAIL_URLS = {
     ),
 }
 
+# The city's annual overview still advertises this occurrence for 29–30 August.
+# The organiser's current page moved the joint Beuelfest/Promenadenfest programme
+# to 5–6 September. Keep the correction occurrence-specific so a later edition
+# cannot inherit the 2026 dates or the published URL alias.
+_PRESS_REVIEWED_OCCURRENCE_CORRECTIONS = {
+    (
+        "Fest der Beueler Vereine – Promenadenfest",
+        "2026-08-29",
+        "2026-08-30",
+    ): {
+        "start_date": "2026-09-05",
+        "end_date": "2026-09-06",
+        "link": (
+            "https://beuel.net/2026/06/18/"
+            "beuelfest-und-promenadenfest-finden-2026-gemeinsam-statt-jetzt-mitmachen/"
+        ),
+        "description": (
+            "Beuelfest und Promenadenfest finden am Samstag, 5. September 2026, "
+            "und Sonntag, 6. September 2026, am Möhneplatz und am Rheinufer in "
+            "Bonn-Beuel gemeinsam statt."
+        ),
+        "city": "Bonn-Beuel",
+        "previous_event_ids": [
+            "fest-der-beueler-vereine-promenadenfest-2026-08-29-5fa6836fc1"
+        ],
+    },
+}
+
 
 def _press_urls(year: int) -> tuple[str, ...]:
     slug = f"abwechslungsreiches-veranstaltungsjahr-{year}-in-bonn.php"
@@ -1384,25 +1412,48 @@ def fetch_press_festivals() -> list:
             text = common.clean_html(li)
             if len(text) < 6:
                 continue
-            in_window = [
-                (start, end)
-                for start, end in _press_date_ranges(text, year)
-                if common.window_contains(start, end)
-            ]
-            if not in_window:
-                continue
             title = _press_event_title(text)
             if len(title) < 3:
                 continue
+            reviewed_ranges = []
+            for original_start, original_end in _press_date_ranges(text, year):
+                correction = _PRESS_REVIEWED_OCCURRENCE_CORRECTIONS.get((
+                    title,
+                    original_start.strftime("%Y-%m-%d"),
+                    original_end.strftime("%Y-%m-%d"),
+                ))
+                start = (
+                    datetime.fromisoformat(correction["start_date"])
+                    if correction else original_start
+                )
+                end = (
+                    datetime.fromisoformat(correction["end_date"])
+                    if correction else original_end
+                )
+                if common.window_contains(start, end):
+                    reviewed_ranges.append((start, end, correction))
+            if not reviewed_ranges:
+                continue
             venue = _press_event_venue(text, title)
             city = common.guess_city_from_text(text) or "Bonn"
-            for start, end in in_window:
+            for start, end, correction in reviewed_ranges:
                 ev = common.make_event(
-                    title, start, end, venue, city, text[:240], url, source,
+                    title, start, end, venue, city,
+                    correction["description"] if correction else text[:240],
+                    correction["link"] if correction else url,
+                    "Beuel.net" if correction else source,
                     "stadtteilfest market kirmes outdoor local", 1.0,
                     default_category_key="festival",
                 )
                 if ev:
+                    if correction:
+                        ev.update({
+                            "city": correction["city"],
+                            "link_kind": "detail",
+                            "source_id": "beuel-net",
+                            "discovered_via": ["bonn-district-festivals"],
+                            "previous_event_ids": correction["previous_event_ids"],
+                        })
                     primary_url = _PRESS_PRIMARY_DETAIL_URLS.get((
                         title,
                         start.strftime("%Y-%m-%d"),

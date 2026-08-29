@@ -42,6 +42,12 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
 _CIVIC_AGGREGATOR_SOURCE_EXACT = frozenset({"ahrtal"})
 _BONN_FALLBACK_SOURCE_IDS = frozenset({"bonn-de-events", "bonn-de-sports"})
 _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
+    ("beuel-net", "festderbeuelervereinepromenadenfest"):
+        "beuel-2026-beuelfest-promenadenfest",
+    ("beuel-net", "promenadenfestundbeuelfest"):
+        "beuel-2026-beuelfest-promenadenfest",
+    ("brueckenforum-bonn", "beuelfestundpromenadenfest"):
+        "beuel-2026-beuelfest-promenadenfest",
     ("bonn-de-events", "repaircafeholzunddrechselarbeiten"):
         "repair-cafe-mva-woodworking",
     ("repair-cafes-bonn", "holzarbeitenunddrechselnimrepaircafemvabonn"):
