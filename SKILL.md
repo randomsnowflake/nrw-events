@@ -151,6 +151,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | LuPe Events | `lupe-events` | `python` |
 | bonn-region | marktcom | `marktcom` | `python` |
 | bonn-region | Meckenheim | `meckenheim` | `python` |
+| bonn-region | Meetup Bonn groups | `meetup-bonn-groups` | `python` |
 | bonn-region | Melan Märkte | `melan-m-rkte` | `python` |
 | bonn-region | Much | `much` | `python` |
 | bonn-region | Municipal MEC markets | `municipal-mec-markets` | `python` |
@@ -286,6 +287,7 @@ scripts/nrw_events/
     max7.py
     mec_municipal.py
     meckenheim.py
+    meetup.py
     melan.py
     much.py
     museum_koenig.py

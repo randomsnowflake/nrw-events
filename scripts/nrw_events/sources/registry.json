@@ -168,6 +168,20 @@
       "callable": "nrw_events.sources.harmonie:fetch"
     },
     {
+      "id": "meetup-bonn-groups",
+      "display_name": "Meetup Bonn groups",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.meetup:fetch",
+      "component_ids": [
+        "meetup-azure-bonn-meetup",
+        "meetup-bonner-ki-meetup",
+        "meetup-jug-bonn",
+        "meetup-board-games-in-bonn",
+        "meetup-sprachcafe-bonn"
+      ]
+    },
+    {
       "id": "haus-der-geschichte",
       "display_name": "Haus der Geschichte",
       "region": "bonn-region",
