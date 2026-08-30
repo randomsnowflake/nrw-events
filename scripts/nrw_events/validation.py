@@ -270,6 +270,7 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
     if not isinstance(value, list):
         raise EventValidationError("daily_schedule_type")
     slots: list[dict[str, str]] = []
+    conflicted_dates: set[str] = set()
     for index, candidate in enumerate(value[:31]):
         if not isinstance(candidate, dict):
             _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} is not an object")
@@ -288,9 +289,12 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
             _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} violates the event date/time invariant")
             continue
         slot = {"date": date_value, "start_at": start.isoformat(), "end_at": end.isoformat()}
+        if date_value in conflicted_dates:
+            continue
         existing = next((item for item in slots if item["date"] == date_value), None)
         if existing and existing != slot:
             slots.remove(existing)
+            conflicted_dates.add(date_value)
             _publication_warning(event, "publication.schedule-conflict", "daily_schedule", "unknown", f"conflicting schedule slots for {date_value} were omitted")
             continue
         if not existing:
