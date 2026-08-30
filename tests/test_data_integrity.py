@@ -184,6 +184,24 @@ class DataIntegrityTests(unittest.TestCase):
         self.assertEqual(event.end_at, "")
         self.assertFalse(event.all_day)
 
+    def test_validation_keeps_conflicted_schedule_date_unknown(self):
+        event = validate_event({
+            "title": "Festival with conflicting hours",
+            "source": "Test",
+            "date": "2026-08-28",
+            "score": 1.0,
+            "city": "Bonn",
+            "daily_schedule": [
+                {"date": "2026-08-28", "start_at": "2026-08-28T12:00:00+02:00", "end_at": "2026-08-28T20:00:00+02:00"},
+                {"date": "2026-08-28", "start_at": "2026-08-28T14:00:00+02:00", "end_at": "2026-08-28T22:00:00+02:00"},
+                {"date": "2026-08-28", "start_at": "2026-08-28T12:00:00+02:00", "end_at": "2026-08-28T20:00:00+02:00"},
+            ],
+        })
+
+        self.assertEqual(event.daily_schedule, [])
+        self.assertEqual(event.quality_warnings[0]["rule_id"], "publication.schedule-conflict")
+        self.assertEqual(event.quality_warnings[0]["resolution"], "unknown")
+
     def test_validation_extracts_street_food_daily_hours_from_primary_copy(self):
         event = validate_event({
             "title": "Street Food Festival",
