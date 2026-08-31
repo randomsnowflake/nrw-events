@@ -1,7 +1,10 @@
 import json
 import unittest
 from datetime import datetime
+from urllib.parse import parse_qs, urlparse
+from unittest.mock import patch
 
+from nrw_events import common
 from nrw_events.sources import afterjobparty, max7, rheinevents, salsainbonn
 from nrw_events.validation import canonicalize_event
 from tests.helpers import patch_window
@@ -201,6 +204,8 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["time"], "14:00–22:00")
         self.assertEqual(events[0]["price"], "ab 22 €")
+        self.assertEqual(events[0]["admission_basis"], "explicit")
+        self.assertEqual(events[0]["organizer"], "RheinEvents Konzerte GmbH")
         self.assertEqual(events[0]["venue_id"], "bikini-beach-bonn")
         self.assertEqual(events[0]["identity_venue"], "Bikini Beach")
         self.assertEqual(events[0]["venue_address"], "Karl-Duwe-Straße 1, 53227 Bonn")
@@ -211,6 +216,61 @@ class NightlifeSourceTests(unittest.TestCase):
         self.assertIn("von 14:00 bis 22:00 Uhr", events[0]["description"])
         self.assertEqual(events[0]["description_source"], "generated")
         self.assert_canonical(events[0])
+
+    def test_rheinevents_preserves_sold_out_availability(self):
+        payload = {"props": {"pageProps": {"sellerPage": {"events": [{
+            "name": "Barfuss am Strand",
+            "start": "2026-09-06T12:00:00.000Z", "end": "2026-09-06T20:00:00.000Z",
+            "locationName": "Bikini Beach", "locationCity": "Bonn",
+            "url": "barfuss-am-strand", "startingPrice": 22,
+            "saleStatus": "soldOut",
+        }]}}}}
+        html = f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script>'
+
+        [event] = rheinevents._events_from_listing(html)
+
+        self.assertEqual(event["price"], "ab 22 € (ausverkauft)")
+        self.assertEqual(event["availability"], "SoldOut")
+        self.assert_canonical(event)
+
+    def test_rheinevents_does_not_treat_zero_listing_price_as_free(self):
+        item = {
+            "name": "Golden Set Padel & Party",
+            "start": "2026-08-22T17:00:00.000Z", "end": "2026-08-22T22:00:00.000Z",
+            "locationName": "Padelhaus Bonn", "locationCity": "Bornheim",
+            "url": "golden-set", "startingPrice": 0, "saleStatus": "planned",
+        }
+
+        [event] = rheinevents._events_from_items([item])
+
+        self.assertEqual(event["price"], "")
+        self.assertEqual(event["admission_basis"], "")
+
+    def test_rheinevents_fetches_visible_api_pages_for_the_runtime_window(self):
+        def item(title, start, slug):
+            return {
+                "name": title, "start": start, "end": start,
+                "locationName": "Bikini Beach", "locationCity": "Bonn",
+                "url": slug, "startingPrice": 22, "saleStatus": "onSale",
+            }
+
+        pages = [
+            [item("Party eins", "2026-08-20T18:00:00.000Z", "party-eins")],
+            [item("Party zwei", "2026-08-21T18:00:00.000Z", "party-zwei")],
+            [],
+        ]
+        with patch.object(rheinevents, "_PAGE_SIZE", 1), patch.object(
+            common, "fetch_json", side_effect=pages,
+        ) as fetch_json:
+            events = rheinevents.fetch()
+
+        self.assertEqual([event["title"] for event in events], ["Party eins", "Party zwei"])
+        queries = [parse_qs(urlparse(call.args[0]).query) for call in fetch_json.call_args_list]
+        self.assertEqual([query["skip"] for query in queries], [["0"], ["1"], ["2"]])
+        self.assertTrue(all(query["visibleInListing"] == ["true"] for query in queries))
+        self.assertEqual(queries[0]["sellerId"], ["6900854dac377f08c7509516"])
+        self.assertEqual(queries[0]["endMin"], ["2026-07-18T22:00:00.000Z"])
+        self.assertEqual(queries[0]["startMax"], ["2026-09-10T21:59:59.999Z"])
 
     def test_salsa_in_bonn_keeps_public_dances_and_filters_meetings(self):
         payload = {"events": [

@@ -432,6 +432,10 @@
       "id": "rheinevents",
       "display_name": "RheinEvents",
       "region": "bonn-region",
+      "urls": [
+        "https://rheinevents.de/#events",
+        "https://tickets.rheinevents.de/"
+      ],
       "adapter": "python",
       "callable": "nrw_events.sources.rheinevents:fetch"
     },
