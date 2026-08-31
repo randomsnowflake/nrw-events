@@ -73,6 +73,42 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["price"], "24,70 EUR")
         self.assertEqual(events[0]["link"], "https://shop.bff-bonn.com/grillabend")
 
+    def test_bff_falls_back_to_visible_booking_timetable(self):
+        html = """
+        <div class='wp-block-columns block-timetable month_2026-09-01 anzeige frei'>
+          <div class='datum'><span class='datum'>04.09.2026</span><span class='uhrzeit'> 19:00 Uhr</span></div>
+          <div class='linie_bezeichnung'>Grillabend auf dem Rhein - in Bonn</div>
+          <div class='abfahrt_station'>Bonn Alter Zoll - Landebrücke 4</div>
+          <div class='infotext'>Grillabend mit Buffet auf dem Rhein.</div>
+          <div class='weiterlesen_link'><a href='https://shop.bff-bonn.com/grillabend'>Weiterlesen</a></div>
+          <hr class='divider'>
+        """
+
+        events = bonn_food.events_from_bff(html)
+
+        self.assert_food_events(events, 1)
+        self.assertEqual(events[0]["time"], "19:00")
+        self.assertEqual(events[0]["venue"], "Bonn Alter Zoll - Landebrücke 4")
+        self.assertEqual(events[0]["link"], "https://shop.bff-bonn.com/grillabend")
+
+    def test_bff_keeps_distinct_same_day_departures(self):
+        html = """
+        <div class='block-timetable'>
+          <span class='datum'>04.09.2026</span><span class='uhrzeit'>19:00 Uhr</span>
+          <div class='linie_bezeichnung'>Grillabend auf dem Rhein</div>
+          <div class='abfahrt_station'>Bonn Alter Zoll</div>
+          <hr class='divider'>
+        <div class='block-timetable'>
+          <span class='datum'>04.09.2026</span><span class='uhrzeit'>21:00 Uhr</span>
+          <div class='linie_bezeichnung'>Grillabend auf dem Rhein</div>
+          <div class='abfahrt_station'>Bonn Alter Zoll</div>
+          <hr class='divider'>
+        """
+
+        events = bonn_food.events_from_bff(html)
+
+        self.assertEqual([event["time"] for event in events], ["19:00", "21:00"])
+
     def test_vomfass_filters_to_bonn_and_enriches_from_food_event_schema(self):
         listing = """
         <article data-event-card data-city="bonn" data-partner="vomfass-bonn" data-date="2026-09-11">
@@ -213,6 +249,17 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["city"], "Bonn-Bad Godesberg")
         self.assertEqual(events[1]["city"], "Troisdorf")
         self.assertTrue(all(event["all_day"] for event in events))
+
+    def test_street_food_bonn_empty_landing_is_healthy_outside_window(self):
+        self.assertTrue(bonn_food._street_food_bonn_expected_empty(
+            '<div class="sfdatum">28. - 30. August 2027</div>'
+        ))
+        self.assertTrue(bonn_food._street_food_bonn_expected_empty(
+            '<div class="sfdatum">Returning in 2027</div>'
+        ))
+        self.assertFalse(bonn_food._street_food_bonn_expected_empty(
+            '<div class="sfdatum">24. - 26. Juli 2026</div>'
+        ))
 
     def test_street_food_merges_both_organiser_pages_without_duplicates(self):
         bonn_page = """

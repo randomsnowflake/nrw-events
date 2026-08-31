@@ -68,7 +68,10 @@ def _events_from_items(items: list[dict]) -> list:
                 title, date_value=start, time_text=start.strftime("%H:%M") if start else "",
                 venue=venue, city=city, calendar_name="Beethovenfest Bonn",
             )
-        event = common.make_event(title, start, start, venue, city, description, link, SOURCE, f"classical music concert festival {genres}", 1.0, source_id="beethovenfest-bonn", description_source="scraped" if raw_description else "generated", default_category_key=default_category, category_locked=True)
+        # The API publishes a start timestamp but no end timestamp. Do not turn
+        # that into a zero-duration structured interval; an unknown end is both
+        # more accurate and publishable without an invariant warning.
+        event = common.make_event(title, start, None, venue, city, description, link, SOURCE, f"classical music concert festival {genres}", 1.0, source_id="beethovenfest-bonn", description_source="scraped" if raw_description else "generated", default_category_key=default_category, category_locked=True)
         if not event:
             continue
         if raw_description:
