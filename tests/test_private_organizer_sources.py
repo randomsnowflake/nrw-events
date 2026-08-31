@@ -3,7 +3,7 @@ import unittest
 from datetime import date, datetime
 from unittest.mock import patch
 
-from nrw_events import common, report, series
+from nrw_events import common, detail_enrichment, report, series
 from nrw_events.sources import (
     b_future_festival,
     beethovenfest_bonn,
@@ -29,16 +29,20 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         self.addCleanup(self.end.stop)
         self.addCleanup(self.today.stop)
 
-    def test_bonnlive_merges_exact_ticket_time_and_keeps_unticketed_event(self):
+    def test_bonnlive_merges_exact_ticket_time_and_prefers_visible_listing_facts(self):
         listing = """
-        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+        <div role="listitem" class="featured collection-item w-dyn-item"><div class="event_component">
           <div class="event_category">Theater</div><div class="event_title">Das Dschungelbuch | Junges Theater #2</div>
           <div class="date-text date-day">30</div><div class="date-text date-month">August</div><div class="date-text">2026</div>
-          <div class="event_location">Kulturgarten am Post Tower</div><a href="/events/dschungelbuch">Eventdetails</a></div></div>
+          <div class="event_location">Kulturgarten am Post Tower</div>
+          <div class="event_price">Tickets ab €</div><div class="event_price">10.00 €</div>
+          <a href="/events/dschungelbuch">Eventdetails</a></div></div>
         <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
-          <div class="event_category">Konzerte</div><div class="event_title">CelloFellos</div>
+          <div class="event_category">Konzerte</div><div class="event_category">Karneval</div>
+          <div class="event_title">CelloFellos</div>
           <div class="date-text date-day">10</div><div class="date-text date-month">September</div><div class="date-text">2026</div>
           <div class="event_location">Kulturgarten am Post Tower</div><div class="event_description"><p>Zwei Celli, acht Saiten und ein Open-Air-Konzert.</p></div>
+          <div class="event_price">Tickets ab €</div><div class="event_price">29.00</div>
           <a href="/events/cellofellos">Eventdetails</a></div></div>
         """
         tickets = next_data([{
@@ -46,12 +50,125 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
             "start": "2026-08-30T12:00:00.000Z", "end": "2026-08-30T13:00:00.000Z",
             "startingPrice": 8, "locationCity": "Bonn",
         }])
-        events = bonnlive._events_from_pages(listing, tickets)
+        detail_pages = {
+            "https://www.bonn-live.com/events/dschungelbuch": """
+                <h1 class="event_name">Das Dschungelbuch | Junges Theater #2</h1>
+                <div class="event-details_date date-day">30</div><div class="event-details_date date-month">August</div><div class="event-details_date">2026</div>
+                <div class="event_timing"><div>Einlass</div><div class="event_time-wrapper"><div>ab</div><div>14:00</div><div>Uhr</div></div></div>
+                <div class="event_timing"><div>Beginn</div><div class="event_time-wrapper"><div>um</div><div>15:00</div><div>Uhr</div></div></div>
+            """,
+            "https://www.bonn-live.com/events/cellofellos": """
+                <h1 class="event_name">CelloFellos</h1>
+                <div class="event-details_date date-day">10</div><div class="event-details_date date-month">September</div><div class="event-details_date">2026</div>
+                <div class="event_timing"><div>Einlass</div><div class="event_time-wrapper"><div>ab</div><div>18:30</div><div>Uhr</div></div></div>
+                <div class="event_timing"><div>Beginn</div><div class="event_time-wrapper"><div>um</div><div>19:30</div><div>Uhr</div></div></div>
+            """,
+        }
+        events = bonnlive._events_from_pages(
+            listing, tickets, detail_fetcher=lambda link, _timeout: detail_pages[link],
+        )
         self.assertEqual(len(events), 2)
-        self.assertEqual(events[0]["time"], "14:00–15:00")
-        self.assertEqual(events[0]["price"], "ab 8 €")
+        self.assertEqual(events[0]["time"], "15:00")
+        self.assertNotIn("_detail_page_enriched", events[0])
+        self.assertTrue(detail_enrichment._needs_detail(events[0]))
+        self.assertEqual(events[0]["price"], "ab 10 €")
         self.assertEqual(events[0]["series_title"], "Das Dschungelbuch | Junges Theater Bonn")
+        self.assertEqual(events[1]["price"], "ab 29 €")
+        self.assertEqual(events[1]["time"], "19:30")
+        self.assertIn("Karneval", events[1]["category"])
         self.assertIn("Zwei Celli", events[1]["description"])
+
+    def test_bonnlive_matches_repeated_ticket_titles_by_occurrence_date(self):
+        listing = """
+        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+          <div class="event_category">Kino</div><div class="event_title">Open-Air-Kino</div>
+          <div class="date-text date-day">30</div><div class="date-text date-month">August</div><div class="date-text">2026</div>
+          <div class="event_location">Kulturgarten am Post Tower</div><a href="/events/kino-1">Eventdetails</a></div></div>
+        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+          <div class="event_category">Kino</div><div class="event_title">Open-Air-Kino</div>
+          <div class="date-text date-day">31</div><div class="date-text date-month">August</div><div class="date-text">2026</div>
+          <div class="event_location">Kulturgarten am Post Tower</div><a href="/events/kino-2">Eventdetails</a></div></div>
+        """
+        tickets = next_data([
+            {"name": "Open-Air-Kino Bonn", "start": "2026-08-30T17:00:00.000Z"},
+            {"name": "Open-Air-Kino Bonn", "start": "2026-08-31T18:00:00.000Z"},
+        ])
+        detail_requests = []
+        events = bonnlive._events_from_pages(
+            listing,
+            tickets,
+            detail_fetcher=lambda link, _timeout: detail_requests.append(link) or "",
+            detail_batch_timeout=0,
+        )
+        self.assertEqual(detail_requests, [])
+        self.assertEqual([event["time"] for event in events], ["19:00", "20:00"])
+        self.assertTrue(all(event["category_key"] == "cinema" for event in events))
+
+    def test_bonnlive_matches_same_title_same_date_tickets_once_each(self):
+        listing = """
+        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+          <div class="event_category">Kino</div><div class="event_title">Open-Air-Kino</div>
+          <div class="date-text">30</div><div class="date-text">August</div><div class="date-text">2026</div>
+          <div class="event_location">Kulturgarten am Post Tower</div><a href="/events/kino-1">Eventdetails</a></div></div>
+        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+          <div class="event_category">Kino</div><div class="event_title">Open-Air-Kino</div>
+          <div class="date-text">30</div><div class="date-text">August</div><div class="date-text">2026</div>
+          <div class="event_location">Kulturgarten am Post Tower</div><a href="/events/kino-2">Eventdetails</a></div></div>
+        """
+        tickets = next_data([
+            {
+                "name": "Open-Air-Kino Bonn", "start": "2026-08-30T11:00:00.000Z",
+                "end": "2026-08-30T12:00:00.000Z",
+            },
+            {
+                "name": "Open-Air-Kino Bonn", "start": "2026-08-30T16:00:00.000Z",
+                "end": "2026-08-30T17:00:00.000Z",
+            },
+        ])
+
+        events = bonnlive._events_from_pages(listing, tickets, detail_batch_timeout=0)
+
+        self.assertEqual(len(events), 2)
+        self.assertEqual([event["time"] for event in events], ["14:00", "19:00"])
+
+    def test_bonnlive_rejects_malformed_listing_price_and_uses_ticket_price(self):
+        listing = """
+        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+          <div class="event_category">Konzerte</div><div class="event_title">Testkonzert</div>
+          <div class="date-text">30</div><div class="date-text">August</div><div class="date-text">2026</div>
+          <div class="event_location">Kulturgarten am Post Tower</div>
+          <div class="event_price">Tickets ab €</div><div class="event_price">Preis folgt</div>
+          <a href="/events/testkonzert">Eventdetails</a></div></div>
+        """
+        tickets = next_data([{
+            "name": "Testkonzert Bonn", "start": "2026-08-30T16:00:00.000Z", "startingPrice": 12,
+        }])
+
+        [event] = bonnlive._events_from_pages(listing, tickets, detail_batch_timeout=0)
+
+        self.assertEqual(event["price"], "ab 12 €")
+
+    def test_bonnlive_detail_fetch_disables_transport_retries(self):
+        listing = """
+        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+          <div class="event_category">Konzerte</div><div class="event_title">Testkonzert</div>
+          <div class="date-text">30</div><div class="date-text">August</div><div class="date-text">2026</div>
+          <div class="event_location">Kulturgarten am Post Tower</div>
+          <a href="/events/testkonzert">Eventdetails</a></div></div>
+        """
+        detail = """
+        <h1 class="event_name">Testkonzert</h1>
+        <div class="event-details_date">30</div><div class="event-details_date">August</div>
+        <div class="event-details_date">2026</div><div>Beginn</div><div>19:30</div>
+        """
+        with patch.object(common, "fetch_url", side_effect=[listing, ""]), patch.object(
+            common, "fetch_detail_url", return_value=detail,
+        ) as fetch_detail:
+            [event] = bonnlive.fetch()
+
+        self.assertEqual(event["time"], "19:30")
+        fetch_detail.assert_called_once()
+        self.assertEqual(fetch_detail.call_args.kwargs["retry_attempts"], 1)
 
     def test_kunstrasen_reads_page_data_price_and_cached_detail_time(self):
         payload = {"tourTeasers": [{"name": "Aktuelle Veranstaltungen", "tours": [{
