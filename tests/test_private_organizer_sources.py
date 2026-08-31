@@ -198,6 +198,8 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         self.assertEqual(event["price"], "kostenlos")
         self.assertIn("<strong>offenes</strong>", event["description_html"])
         self.assertEqual(event["city"], "Bonn")
+        self.assertEqual(event["time"], "12:00")
+        self.assertEqual(event["end_at"], "")
 
     def test_beethovenfest_fetch_is_atomic_when_pagination_is_incomplete(self):
         payload = {"count": 2, "results": [{"id": 1}], "next": None}
@@ -243,6 +245,38 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         self.assertEqual(event["venue"], "Museum Koenig Bonn")
         self.assertEqual(event["price"], "Festivalticket erforderlich")
         self.assertIn("praxisnaher", event["description"])
+
+    def test_b_future_parses_current_full_iso_timestamp_contract(self):
+        html = """
+        <h2 class="program-hour__label"><time datetime="2026-10-01T13:00:00+02:00"><span>01.10.</span>13:00</time></h2>
+        <article class="event-list-item" data-event-start="2026-10-01T18:00:00+02:00" data-event-end="2026-10-01T23:00:00+02:00">
+        <h3 class="event-list-item__headline"><a href="/2026/veranstaltungen/welcome-night">Welcome Night</a></h3>
+        <p class="event-list-item__description">Welcome to the festival.</p>
+        <p class="event-list-item__time"><time datetime="2026-10-01T18:00:00+02:00">18:00</time><time datetime="2026-10-01T23:00:00+02:00">23:00</time></p>
+        <p class="event-list-item__location">eventmanufaktur</p>
+        <p class="event-list-item__ticket">Mit Festivalticket</p>
+        </article>
+        """
+
+        [event] = b_future_festival._events_from_program(html)
+
+        self.assertEqual(event["start_at"], "2026-10-01T18:00+02:00")
+        self.assertEqual(event["end_at"], "2026-10-01T23:00+02:00")
+        self.assertEqual(event["time"], "18:00–23:00")
+
+    def test_b_future_preserves_explicit_free_admission(self):
+        html = """
+        <h2><time datetime="2026-10-02T10:00:00+02:00">02.10. 10:00</time></h2>
+        <article class="event-list-item" data-event-start="2026-10-02T10:00:00+02:00" data-event-end="2026-10-02T11:00:00+02:00">
+        <h3 class="event-list-item__headline">Offener Talk</h3>
+        <p class="event-list-item__ticket">Freier Eintritt</p>
+        </article>
+        """
+
+        [event] = b_future_festival._events_from_program(html)
+
+        self.assertEqual(event["price"], "kostenlos")
+        self.assertEqual(event["admission_basis"], "explicit")
 
     def test_primary_sources_deduplicate_and_preserve_richer_copy(self):
         base = {"title": "Bläck Fööss & Cécile Quartett", "start_date": "2026-09-09", "end_date": "2026-09-09", "time": "19:30", "venue": "Kulturgarten am Post Tower", "city": "Bonn", "category": "Konzert", "score": 5}

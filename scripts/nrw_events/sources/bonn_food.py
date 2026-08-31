@@ -132,6 +132,9 @@ def fetch_street_food() -> list:
             lambda html, source_url=page_url: events_from_street_food(
                 html, source_url=source_url,
             ),
+            empty_is_healthy=(
+                _street_food_bonn_expected_empty if page_url == _STREET_FOOD_URL else False
+            ),
          source_id="street-food-bonn"))
     return rc.dedupe(events)
 
@@ -184,10 +187,58 @@ def events_from_craftquelle(html: str, detail_fetcher=None) -> list:
 
 
 def events_from_bff(html: str) -> list:
-    return _events_from_schema_html(
+    schema_events = _events_from_schema_html(
         html, source="BFF Bonner Schifffahrt", default_url=_BFF_URL,
         default_city="Bonn", category="kulinarische schifffahrt dinner brunch genuss",
     )
+    if schema_events:
+        return schema_events
+
+    # Some booking-widget responses publish no schema.org Event nodes. Their
+    # visible timetable is still structured and includes the exact date, start
+    # time, departure point, description and booking URL, so use that rather
+    # than treating a populated official calendar as empty.
+    events = []
+    blocks = re.findall(
+        r"<div class=['\"][^'\"]*\bblock-timetable\b[^'\"]*['\"][^>]*>.*?<hr class=['\"]divider['\"][^>]*>",
+        html or "",
+        re.S | re.I,
+    )
+    for block in blocks:
+        date_text = rc.first_group_clean(
+            r"<span class=['\"]datum['\"]>(.*?)</span>", block,
+        )
+        time_text = rc.first_group_clean(
+            r"<span class=['\"]uhrzeit['\"]>(.*?)</span>", block,
+        )
+        title = rc.first_group_clean(
+            r"<div class=['\"]linie_bezeichnung['\"]>(.*?)</div>", block,
+        )
+        venue = rc.first_group_clean(
+            r"<div class=['\"]abfahrt_station['\"]>(.*?)</div>", block,
+        )
+        description = rc.first_group_clean(
+            r"<div class=['\"]infotext['\"]>(.*?)</div>", block,
+        )
+        link = _match(r"<div class=['\"]weiterlesen_link['\"]>.*?href=['\"]([^'\"]+)", block)
+        start = common.parse_date(date_text)
+        if not (start and title):
+            continue
+        start = rc.with_time(start, time_text)
+        event = common.make_event(
+            title, start, None, venue, "Bonn",
+            description or common.factual_event_description(
+                title, date_value=start, time_text=time_text, venue=venue, city="Bonn",
+            ),
+            rc.abs_url(_BFF_URL, link) if link else _BFF_URL,
+            "BFF Bonner Schifffahrt",
+            "kulinarische schifffahrt dinner brunch genuss",
+            0.98,
+            time_text,
+        )
+        if event:
+            events.append(_force_food(event))
+    return rc.dedupe(events)
 
 
 def events_from_vomfass(html: str, detail_fetcher=None) -> list:
@@ -368,6 +419,21 @@ def events_from_street_food(html: str, *, source_url: str = _STREET_FOOD_URL) ->
         if ev:
             events.append(_force_food(ev))
     return rc.dedupe(events)
+
+
+def _street_food_bonn_expected_empty(html: str) -> bool:
+    """Recognize an official Bonn landing page with no current Bonn edition."""
+    hero_date = rc.first_group_clean(
+        r"<div[^>]+class=['\"][^'\"]*\bsfdatum\b[^'\"]*['\"][^>]*>(.*?)</div>",
+        html or "",
+    )
+    if re.search(r"\breturning\s+in\s+20\d{2}\b", hero_date, re.I):
+        return True
+    advertised_dates = common.extract_dates(hero_date)
+    return bool(advertised_dates) and not any(
+        common.window_contains(date_value, date_value)
+        for date_value in advertised_dates
+    )
 
 
 def events_from_original_street_food(html: str) -> list:

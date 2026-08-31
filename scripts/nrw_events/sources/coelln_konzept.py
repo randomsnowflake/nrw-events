@@ -1,7 +1,7 @@
 """Flea and antique market dates from the direct organizer Cölln Konzept."""
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .. import common
 from ..dates import MONTH_DE
@@ -107,10 +107,21 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             venue=venue,
             city=city,
         )
+        time_text = detail.get("time", "")
+        clocks = re.findall(r"\d{1,2}:\d{2}", time_text)
+        structured_start = rc.with_time(start, clocks[0]) if clocks else start
+        structured_end = (
+            rc.with_time(end, clocks[1])
+            if end and len(clocks) > 1
+            else end if end and end.date() != start.date()
+            else None
+        )
+        if structured_end and structured_start and structured_end <= structured_start:
+            structured_end += timedelta(days=1)
         event = common.make_event(
             title,
-            start,
-            end,
+            structured_start,
+            structured_end,
             venue,
             city,
             description,
@@ -118,7 +129,7 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             "Cölln Konzept",
             "flohmarkt trödelmarkt antikmarkt second hand markt",
             0.96,
-            detail.get("time", ""),
+            time_text,
         )
         if event:
             events.append(event)

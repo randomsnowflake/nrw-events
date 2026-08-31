@@ -75,6 +75,22 @@ class KoenigswinterParserTests(unittest.TestCase):
         self.assertIn("16:30 bis 17:30 Uhr", event["description"])
         self.assertIn("Marktplatz Königswinter-Altstadt", event["description"])
         self.assertTrue(event["description"].endswith("."))
+        self.assertEqual(event["start_at"], "2026-07-14T16:30+02:00")
+        self.assertEqual(event["end_at"], "2026-07-14T17:30+02:00")
+
+    def test_listing_parser_rolls_an_overnight_end_into_the_next_day(self):
+        listing_html = """
+<span class="text-muted">Volksfeste</span>
+<h4><a href="/de/veranstaltungskalender/event/overnight.html">Sommerfest</a></h4>
+<div class="mb-2"><i class="icon icon-calendar-day"></i> 18.07.2026 von 15:00 Uhr bis 02:00 Uhr</div>
+<span class="gcevent-list-location-span">Dorfplatz</span>
+"""
+
+        [event] = koenigswinter._events_from_listing(listing_html)
+
+        self.assertEqual(event["start_at"], "2026-07-18T15:00+02:00")
+        self.assertEqual(event["end_at"], "2026-07-19T02:00+02:00")
+        self.assertEqual(event["end_date"], "2026-07-19")
 
     def test_cards_do_not_borrow_following_schedule_or_venue(self):
         listing_html = """

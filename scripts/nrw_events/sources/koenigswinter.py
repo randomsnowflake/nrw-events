@@ -8,6 +8,7 @@ Yields: Siebengebirgsmuseum dates, guided tours, markets, hikes, small culture.
 
 import re
 import urllib.parse
+from datetime import timedelta
 
 from .. import common
 from . import regional_common as rc
@@ -71,10 +72,21 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             venue,
         )
         category = f"{source_category} königswinter siebengebirge"
+        parsed_start = common.parse_date(start_date)
+        parsed_end = common.parse_date(end_date)
+        structured_start = rc.with_time(parsed_start, times[0]) if times else parsed_start
+        structured_end = (
+            rc.with_time(parsed_end, times[1])
+            if parsed_end and len(times) > 1
+            else parsed_end if parsed_end and end_date != start_date
+            else None
+        )
+        if structured_end and structured_start and structured_end <= structured_start:
+            structured_end += timedelta(days=1)
         event = common.make_event(
             title,
-            common.parse_date(start_date),
-            common.parse_date(end_date),
+            structured_start,
+            structured_end,
             venue,
             "Königswinter",
             description,

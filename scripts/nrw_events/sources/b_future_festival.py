@@ -24,7 +24,16 @@ def _field(block: str, class_name: str) -> str:
 
 def _events_from_program(html: str) -> list:
     events = []
-    day_matches = list(re.finditer(r'<h2[^>]*>\s*<time[^>]+datetime=["\'](20\d{2}-\d{2}-\d{2})["\']', html or "", re.I))
+    # The programme used to expose a bare date in the section heading and
+    # clock-only values inside each card. It now emits full ISO timestamps in
+    # both places. Accept both contracts, and prefer the card timestamps: they
+    # are the authoritative occurrence boundaries and also cover events whose
+    # end crosses midnight.
+    day_matches = list(re.finditer(
+        r'<h2[^>]*>\s*<time[^>]+datetime=["\'](20\d{2}-\d{2}-\d{2})(?:T[^"\']*)?["\']',
+        html or "",
+        re.I,
+    ))
     for index, day_match in enumerate(day_matches):
         day_html = (html or "")[day_match.end():day_matches[index + 1].start() if index + 1 < len(day_matches) else len(html or "")]
         for article_match in re.finditer(r'<article\b[^>]*class=["\'][^"\']*\bevent-list-item\b[^"\']*["\'][^>]*>(.*?)</article>', day_html, re.S | re.I):
@@ -32,15 +41,24 @@ def _events_from_program(html: str) -> list:
             title = _field(block, "event-list-item__headline")
             if not title:
                 continue
-            times = re.findall(r'<time[^>]+datetime=["\']([0-2]\d:[0-5]\d)["\']', block, re.I)
-            start = common.parse_iso_date(day_match.group(1))
-            end = start
-            if start and times:
-                hour, minute = map(int, times[0].split(":"))
-                start = start.replace(hour=hour, minute=minute)
-                if len(times) > 1:
-                    hour, minute = map(int, times[1].split(":"))
-                    end = end.replace(hour=hour, minute=minute)
+            article_tag = article_match.group(0).split(">", 1)[0]
+            start_value = re.search(r'data-event-start=["\']([^"\']+)', article_tag, re.I)
+            end_value = re.search(r'data-event-end=["\']([^"\']+)', article_tag, re.I)
+            time_values = re.findall(r'<time[^>]+datetime=["\']([^"\']+)', block, re.I)
+            start = common.parse_iso_date(start_value.group(1)) if start_value else None
+            end = common.parse_iso_date(end_value.group(1)) if end_value else None
+            if not start:
+                start = common.parse_iso_date(day_match.group(1))
+                if start and time_values:
+                    clock = time_values[0].rsplit("T", 1)[-1][:5]
+                    if re.fullmatch(r"[0-2]\d:[0-5]\d", clock):
+                        hour, minute = map(int, clock.split(":"))
+                        start = start.replace(hour=hour, minute=minute)
+            if not end and start and len(time_values) > 1:
+                clock = time_values[1].rsplit("T", 1)[-1][:5]
+                if re.fullmatch(r"[0-2]\d:[0-5]\d", clock):
+                    hour, minute = map(int, clock.split(":"))
+                    end = start.replace(hour=hour, minute=minute)
             room = re.sub(r"^\s*//\s*", "", _field(block, "event-list-item__room")).strip()
             location = _field(block, "event-list-item__location")
             venue = location or room
@@ -64,6 +82,9 @@ def _events_from_program(html: str) -> list:
             ticket = _field(block, "event-list-item__ticket")
             if "festivalticket" in ticket.casefold():
                 event["price"] = "Festivalticket erforderlich"
+                event["admission_basis"] = "explicit"
+            elif re.search(r"\b(?:freier\s+eintritt|eintritt\s+frei)\b", ticket, re.I):
+                event["price"] = "kostenlos"
                 event["admission_basis"] = "explicit"
             events.append(event)
     return rc.dedupe(events)

@@ -90,6 +90,26 @@ _KNOWN_SOURCE_CATEGORIES = (
         # Section/navigation labels can appear in teaser markup, but are not
         # event topics and must not make those cards importable.
         "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt.",
+        # Bonn's feed also mixes campaigns, audiences, districts, institutions,
+        # accessibility facets and navigation labels into the category array.
+        # They are known metadata dimensions, not canonical event formats; keep
+        # them neutral instead of reporting the same false taxonomy drift on
+        # every refresh.
+        "100 Jahre Bad Godesberg", "30 Jahre UN-Stadt Bonn",
+        "Aktiv gegen Einsamkeit", "Bad Godesberg", "Beethoven",
+        "Beethoven-Orchester", "Beethovenhalle", "Beuel",
+        "Bürgerschaftliches Engagement", "Demokratie", "Digitales/Bildung",
+        "Erwachsene", "Europa", "Familien", "Ferienprogramm", "Frankreich",
+        "Für Einzelgäste an festen Terminen",
+        "Für Einzelgäste und Gruppen mit eigener Gästeführung",
+        "Für Gruppen mit eigener Gästeführung", "Gesundheit", "Hardtberg",
+        "Haus der Natur", "Inklusionsthemen", "Inklusiv konzipiert",
+        "Integration/Migration/Interkultur", "Internationales", "Jugendliche",
+        "Junge Erwachsene", "Klima", "Kunstmuseum", "Nachhaltigkeit",
+        "SDG-Tage", "Seniorinnen und Senioren", "Sitzungstermine Rat",
+        "Startseite", "Volkshochschule", "Weihnachten",
+        "Weitere Veranstaltungen", "Wissenschaft", "Wissenschaft / Wirtschaft",
+        "barrierefreier Zugang", "inklusiv",
     }
 )
 
