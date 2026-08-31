@@ -208,8 +208,6 @@ def _events_from_pages(
         )
         if not event:
             continue
-        if detail_time:
-            event["_detail_page_enriched"] = True
         listing_price = _listing_price(block)
         price = listing_price if listing_price is not None else _price_number(ticket.get("startingPrice"))
         if price is not None:
@@ -248,6 +246,7 @@ def fetch() -> list:
                 listing, tickets,
                 detail_fetcher=lambda link, timeout: common.fetch_detail_url(
                     link, cache_namespace="bonnlive", timeout=timeout,
+                    retry_attempts=1,
                 ),
             )
         parser_empty = not events and metrics["out_of_window_count"] == 0

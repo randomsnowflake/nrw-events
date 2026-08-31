@@ -3,7 +3,7 @@ import unittest
 from datetime import date, datetime
 from unittest.mock import patch
 
-from nrw_events import common, report, series
+from nrw_events import common, detail_enrichment, report, series
 from nrw_events.sources import (
     b_future_festival,
     beethovenfest_bonn,
@@ -69,7 +69,8 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         )
         self.assertEqual(len(events), 2)
         self.assertEqual(events[0]["time"], "15:00")
-        self.assertTrue(events[0]["_detail_page_enriched"])
+        self.assertNotIn("_detail_page_enriched", events[0])
+        self.assertTrue(detail_enrichment._needs_detail(events[0]))
         self.assertEqual(events[0]["price"], "ab 10 €")
         self.assertEqual(events[0]["series_title"], "Das Dschungelbuch | Junges Theater Bonn")
         self.assertEqual(events[1]["price"], "ab 29 €")
@@ -146,6 +147,28 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         [event] = bonnlive._events_from_pages(listing, tickets, detail_batch_timeout=0)
 
         self.assertEqual(event["price"], "ab 12 €")
+
+    def test_bonnlive_detail_fetch_disables_transport_retries(self):
+        listing = """
+        <div role="listitem" class="collection-item w-dyn-item"><div class="event_component">
+          <div class="event_category">Konzerte</div><div class="event_title">Testkonzert</div>
+          <div class="date-text">30</div><div class="date-text">August</div><div class="date-text">2026</div>
+          <div class="event_location">Kulturgarten am Post Tower</div>
+          <a href="/events/testkonzert">Eventdetails</a></div></div>
+        """
+        detail = """
+        <h1 class="event_name">Testkonzert</h1>
+        <div class="event-details_date">30</div><div class="event-details_date">August</div>
+        <div class="event-details_date">2026</div><div>Beginn</div><div>19:30</div>
+        """
+        with patch.object(common, "fetch_url", side_effect=[listing, ""]), patch.object(
+            common, "fetch_detail_url", return_value=detail,
+        ) as fetch_detail:
+            [event] = bonnlive.fetch()
+
+        self.assertEqual(event["time"], "19:30")
+        fetch_detail.assert_called_once()
+        self.assertEqual(fetch_detail.call_args.kwargs["retry_attempts"], 1)
 
     def test_kunstrasen_reads_page_data_price_and_cached_detail_time(self):
         payload = {"tourTeasers": [{"name": "Aktuelle Veranstaltungen", "tours": [{
