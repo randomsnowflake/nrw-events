@@ -50,15 +50,31 @@ def _events_from_program(html: str) -> list:
             if not start:
                 start = common.parse_iso_date(day_match.group(1))
                 if start and time_values:
-                    clock = time_values[0].rsplit("T", 1)[-1][:5]
+                    timestamp = (
+                        common.parse_iso_date(time_values[0])
+                        if re.match(r"20\d{2}-\d{2}-\d{2}T", time_values[0])
+                        else None
+                    )
+                    if timestamp:
+                        start = timestamp
+                    else:
+                        clock = time_values[0][:5]
+                        if re.fullmatch(r"[0-2]\d:[0-5]\d", clock):
+                            hour, minute = map(int, clock.split(":"))
+                            start = start.replace(hour=hour, minute=minute)
+            if not end and start and len(time_values) > 1:
+                timestamp = (
+                    common.parse_iso_date(time_values[1])
+                    if re.match(r"20\d{2}-\d{2}-\d{2}T", time_values[1])
+                    else None
+                )
+                if timestamp:
+                    end = timestamp
+                else:
+                    clock = time_values[1][:5]
                     if re.fullmatch(r"[0-2]\d:[0-5]\d", clock):
                         hour, minute = map(int, clock.split(":"))
-                        start = start.replace(hour=hour, minute=minute)
-            if not end and start and len(time_values) > 1:
-                clock = time_values[1].rsplit("T", 1)[-1][:5]
-                if re.fullmatch(r"[0-2]\d:[0-5]\d", clock):
-                    hour, minute = map(int, clock.split(":"))
-                    end = start.replace(hour=hour, minute=minute)
+                        end = start.replace(hour=hour, minute=minute)
             room = re.sub(r"^\s*//\s*", "", _field(block, "event-list-item__room")).strip()
             location = _field(block, "event-list-item__location")
             venue = location or room

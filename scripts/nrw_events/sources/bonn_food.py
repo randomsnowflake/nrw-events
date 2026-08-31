@@ -238,7 +238,7 @@ def events_from_bff(html: str) -> list:
         )
         if event:
             events.append(_force_food(event))
-    return rc.dedupe(events)
+    return rc.dedupe_occurrences(events)
 
 
 def events_from_vomfass(html: str, detail_fetcher=None) -> list:

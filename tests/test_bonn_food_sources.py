@@ -91,6 +91,24 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["venue"], "Bonn Alter Zoll - Landebrücke 4")
         self.assertEqual(events[0]["link"], "https://shop.bff-bonn.com/grillabend")
 
+    def test_bff_keeps_distinct_same_day_departures(self):
+        html = """
+        <div class='block-timetable'>
+          <span class='datum'>04.09.2026</span><span class='uhrzeit'>19:00 Uhr</span>
+          <div class='linie_bezeichnung'>Grillabend auf dem Rhein</div>
+          <div class='abfahrt_station'>Bonn Alter Zoll</div>
+          <hr class='divider'>
+        <div class='block-timetable'>
+          <span class='datum'>04.09.2026</span><span class='uhrzeit'>21:00 Uhr</span>
+          <div class='linie_bezeichnung'>Grillabend auf dem Rhein</div>
+          <div class='abfahrt_station'>Bonn Alter Zoll</div>
+          <hr class='divider'>
+        """
+
+        events = bonn_food.events_from_bff(html)
+
+        self.assertEqual([event["time"] for event in events], ["19:00", "21:00"])
+
     def test_vomfass_filters_to_bonn_and_enriches_from_food_event_schema(self):
         listing = """
         <article data-event-card data-city="bonn" data-partner="vomfass-bonn" data-date="2026-09-11">
