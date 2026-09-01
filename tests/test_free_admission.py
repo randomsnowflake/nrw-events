@@ -91,6 +91,8 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             "Der Museumseintritt muss bezahlt werden.",
             "Der Museumseintritt ist zu bezahlen.",
             "Der Museumseintritt muss entrichtet werden.",
+            "Der Museumseintritt muss gezahlt werden.",
+            "Der Eintritt ins Museum muss gezahlt werden.",
             "Der reguläre Museumseintritt wird erhoben.",
             "Der Museumseintritt ist nicht kostenlos.",
             "Museumseintritt: nicht frei.",

@@ -1703,7 +1703,7 @@ _INFLECTED_MUSEUM_VISITOR_ACCESS_PATTERN = (
 )
 _PAID_MUSEUM_PREDICATE_PATTERN = (
     r"(?:zu\s+(?:zahlen|bezahlen|entrichten)|"
-    r"muss\s+(?:bezahlt|entrichtet)\s+werden|"
+    r"muss\s+(?:bezahlt|entrichtet|gezahlt)\s+werden|"
     r"wird\s+(?:erhoben|berechnet)|kostenpflichtig|erforderlich|"
     r"fällt\s+zusätzlich\s+an)"
 )
