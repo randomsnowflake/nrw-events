@@ -152,10 +152,14 @@ def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
         occurrences = [event]
         generated_fallback = event.get("description_source") == "generated"
         link = (event.get("link") or "").strip()
+        adapter_owns_detail = common.event_in_window(event) and bool(link)
+        if adapter_owns_detail:
+            # Prevent the generic enrichment pass from retrying skipped or
+            # failed adapter-owned detail work under another cache namespace.
+            event["_detail_page_enriched"] = True
         remaining = deadline - time.monotonic()
         if (
-            common.event_in_window(event)
-            and link
+            adapter_owns_detail
             and link not in html_by_link
             and link not in failed_links
             and remaining >= 3.0
@@ -175,8 +179,6 @@ def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
         if link in html_by_link:
             occurrences = _detail_occurrences(event, html_by_link[link])
         for occurrence in occurrences:
-            if link in html_by_link:
-                occurrence["_detail_page_enriched"] = True
             replacement = (
                 _fallback_description(occurrence)
                 if occurrence.get("description_source") == "generated"

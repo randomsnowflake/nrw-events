@@ -933,6 +933,11 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
         link = str(event.get("link") or "").strip()
         if not needs_detail or not link or not common.event_in_window(event):
             continue
+        # This source adapter owns the detail URL for this row. Mark the
+        # attempt even when its optional batch budget is exhausted or the
+        # request fails, so the generic enrichment pass does not fetch the
+        # same URL again under a second cache namespace.
+        event["_detail_page_enriched"] = True
         remaining = deadline - time.monotonic()
         if link not in contexts and link not in failed_links:
             if remaining < 3.0:
@@ -946,7 +951,6 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
         context = contexts.get(link, {})
         if not context:
             continue
-        event["_detail_page_enriched"] = True
         if weak_description and context.get("description"):
             event["description"] = common.concise_description(context["description"], max_chars=0)
             event["description_source"] = "scraped"

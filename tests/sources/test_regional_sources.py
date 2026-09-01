@@ -430,4 +430,5 @@ class NaturregionSiegParserTests(unittest.TestCase):
 
         self.assertEqual(len(enriched), 5)
         self.assertTrue(all(event["description"] for event in enriched))
+        self.assertTrue(all(event["_detail_page_enriched"] for event in enriched))
         log_error.assert_not_called()
