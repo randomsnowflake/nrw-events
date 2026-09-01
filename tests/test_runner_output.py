@@ -56,6 +56,22 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertTrue(published.description)
         self.assertTrue(published.description_html)
 
+    def test_restricted_publication_boundary_accepts_validated_mapping(self):
+        event = {
+            "title": "Mapping target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-08-28",
+            "score": 1.0, "city": "Bonn",
+            "description": "Restricted source prose.",
+        }
+        validated_mapping = runner.validate_event(event).to_dict()
+
+        [published] = runner._enforce_restricted_publication_boundary([
+            validated_mapping,
+        ])
+
+        self.assertNotIn("Restricted source prose", published.description)
+        self.assertTrue(published.description)
+
     def test_logger_emits_identical_worker_warning_once_but_keeps_info_progress(self):
         with mock.patch("sys.stderr", new=io.StringIO()):
             logger = configure_logging("dedupe", "INFO", "", "")

@@ -1605,7 +1605,7 @@ def _enforce_restricted_publication_boundary(events: list) -> list:
         if not ai_enrichment.is_target_event(event):
             protected.append(event)
             continue
-        raw = event.to_dict()
+        raw = event.to_dict() if isinstance(event, CanonicalEvent) else dict(event)
         ai_enrichment.strip_restricted_copy(raw)
         protected.append(validate_event(raw))
     return protected
