@@ -345,8 +345,32 @@ def _broeltal_explicit_place(text: str) -> dict[str, str]:
 
 
 def _broeltal_detail_context(document: str, event: dict) -> dict:
-    """Add venue facts only from the detail extractor's event-content capture."""
+    """Add venue facts only from exact occurrence or bounded event copy."""
     context = detail_enrichment.extract_detail_context(document, event)
+    exact_place: dict[str, str] = {}
+    expected_title = detail_enrichment._exact_title_key(event.get("title"))
+    expected_date = str(event.get("start_date") or event.get("date") or "")[:10]
+    for item in common.jsonld_event_items(document or ""):
+        if (
+            detail_enrichment._exact_title_key(item.get("name")) != expected_title
+            or str(item.get("startDate") or "")[:10] != expected_date
+        ):
+            continue
+        location = item.get("location")
+        if isinstance(location, list):
+            location = next((value for value in location if isinstance(value, dict)), None)
+        if isinstance(location, dict):
+            exact_place["venue"] = common.clean_html(str(location.get("name") or ""))
+            address = location.get("address")
+            if isinstance(address, dict):
+                exact_place["venue_address"] = " ".join(filter(None, (
+                    common.clean_html(str(address.get("streetAddress") or "")),
+                    common.clean_html(str(address.get("postalCode") or "")),
+                    common.clean_html(str(address.get("addressLocality") or "")),
+                )))
+        break
+    context["venue"] = exact_place.get("venue", "")
+    context["venue_address"] = exact_place.get("venue_address", "")
     event_scoped_copy = context.get("exact_description")
     if not event_scoped_copy:
         visible = rc.clean_blocks(document or "")

@@ -210,6 +210,27 @@ class ExplicitSourceVenueTests(unittest.TestCase):
 
         self.assertFalse(context.get("venue"))
 
+    def test_broeltal_clears_unrelated_jsonld_location_on_matching_page(self):
+        event = self._event(
+            "Sommerfest", "https://www.broeltal.de/termine/sommerfest.html",
+            city="Ruppichteroth",
+        )
+        detail = """
+          <h1>Sommerfest</h1><time>16.08.2026</time>
+          <div class="event-description">Musik und Begegnung für die ganze Familie.</div>
+          <script type="application/ld+json">
+          {"@type":"Event","name":"Winterfest","startDate":"2026-12-21",
+           "location":{"@type":"Place","name":"Dorfhaus Schönenberg",
+             "address":{"@type":"PostalAddress","streetAddress":"Dorfstraße 7",
+               "postalCode":"53809","addressLocality":"Ruppichteroth"}}}
+          </script>
+        """
+
+        context = regional_html._broeltal_detail_context(detail, event)
+
+        self.assertFalse(context.get("venue"))
+        self.assertFalse(context.get("venue_address"))
+
     @staticmethod
     def _coelln_listing():
         return """
