@@ -802,6 +802,11 @@ def _record_publication_ai_metrics(
     candidates = Counter(
         event.source_id for event in events if ai_enrichment.is_target_event(event)
     )
+    candidate_events = {
+        event.source_id: event
+        for event in events
+        if ai_enrichment.is_target_event(event)
+    }
     enriched = Counter(event.source_id for event in enriched_events)
     total = sum(candidates.values())
     for source_id, count in candidates.items():
@@ -826,16 +831,21 @@ def _record_publication_ai_metrics(
             and key.endswith("_skipped_without_summary_event_count")
         )
         if budget_without_summary:
-            result.warning(
-                result.source,
+            operational_result = _operational_source_result_for_event(
+                candidate_events[source_id], source_results,
+            ) or result
+            operational_result.warning(
+                candidate_events[source_id].source,
                 "AIEnrichmentBudgetWarning",
                 f"AI enrichment skipped {budget_without_summary}/"
                 f"{count} final target events without a cached summary; those events "
                 "publish with master data only",
                 source_id=source_id,
             )
-            if result.status in {SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY}:
-                result.status = SourceStatus.DEGRADED
+            if operational_result.status in {
+                SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY,
+            }:
+                operational_result.status = SourceStatus.DEGRADED
 
 
 def _publication_filter_reason(

@@ -102,6 +102,39 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(exact.ai_enriched_event_count, 1)
         self.assertEqual(aggregate.ai_candidate_event_count, 0)
 
+    def test_publication_ai_budget_degrades_active_aggregate_producer(self):
+        event = runner.validate_event({
+            "title": "Aggregate-produced target",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+        exact.status = SourceStatus.SCHEDULED_SKIP
+        results = {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        }
+
+        runner._record_publication_ai_metrics(
+            [event], results, {"bonn-de-events": {
+                "ai_deadline_skipped_without_summary_event_count": 1,
+            }}, 25,
+        )
+
+        self.assertEqual(exact.ai_candidate_event_count, 1)
+        self.assertEqual(exact.status, SourceStatus.SCHEDULED_SKIP)
+        self.assertEqual(aggregate.status, SourceStatus.DEGRADED)
+        self.assertEqual(aggregate.warnings[0]["source_id"], "bonn-de-events")
+
     def test_publication_ai_material_can_come_from_aggregate_origin(self):
         event = runner.validate_event({
             "title": "Promoted district event",
