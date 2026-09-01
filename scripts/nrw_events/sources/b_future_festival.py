@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
+from datetime import timedelta
 
 from .. import common
 from . import regional_common as rc
@@ -75,6 +76,8 @@ def _events_from_program(html: str) -> list:
                     if re.fullmatch(r"[0-2]\d:[0-5]\d", clock):
                         hour, minute = map(int, clock.split(":"))
                         end = start.replace(hour=hour, minute=minute)
+                        if end <= start:
+                            end += timedelta(days=1)
             room = re.sub(r"^\s*//\s*", "", _field(block, "event-list-item__room")).strip()
             location = _field(block, "event-list-item__location")
             venue = location or room
