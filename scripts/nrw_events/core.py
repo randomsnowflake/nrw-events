@@ -1927,7 +1927,7 @@ def _structured_event_times(
         structured_start = start if start.hour or start.minute else None
         structured_end = (
             end
-            if structured_start and end and (end.hour or end.minute) and end > structured_start
+            if structured_start and end and end > structured_start
             else None
         )
         return structured_start, structured_end
@@ -1943,7 +1943,7 @@ def _structured_event_times(
         # is unknown. Preserve a genuinely distinct structured end if one exists.
         structured_end = (
             end
-            if end and (end.hour or end.minute) and end > structured_start
+            if end and end > structured_start
             else None
         )
         return structured_start, structured_end
@@ -2031,7 +2031,11 @@ def build_event(draft: EventDraft) -> RawEvent | None:
         event_link = ""
     status = event_status(title, description)
     start_date = start_dt.strftime("%Y-%m-%d") if start_dt else ""
-    final_end = structured_end if "–" in time_text else (end_dt or start_dt)
+    final_end = (
+        end_dt or start_dt
+        if all_day
+        else structured_end if "–" in time_text else (end_dt or start_dt)
+    )
     end_date = final_end.strftime("%Y-%m-%d") if final_end else ""
     local_zone = ZoneInfo(timezone_name)
     start_at = "" if not structured_start else structured_start.replace(tzinfo=local_zone).isoformat(timespec="minutes")

@@ -60,6 +60,41 @@ class StructuredTimeRangeTests(unittest.TestCase):
                 self.assertEqual(event["start_at"], "")
                 self.assertEqual(event["end_at"], "")
 
+    def test_genuine_midnight_end_on_next_day_is_preserved(self):
+        event = self._event(
+            "20:00",
+            start=datetime(2026, 8, 14, 20, 0),
+            end=datetime(2026, 8, 15, 0, 0),
+        )
+
+        self.assertEqual(event["start_at"], "2026-08-14T20:00+02:00")
+        self.assertEqual(event["end_at"], "2026-08-15T00:00+02:00")
+        self.assertEqual(event["end_date"], "2026-08-15")
+
+    def test_explicit_all_day_range_keeps_date_span_despite_incidental_clock_text(self):
+        event = common.make_event(
+            "Sommerprogramm",
+            datetime(2026, 8, 14),
+            datetime(2026, 8, 16),
+            "Rathaus",
+            "Brühl",
+            "Geöffnet täglich von 10:00 bis 18:00 Uhr.",
+            "https://example.test/sommerprogramm",
+            "SiteKit regional",
+            "kultur",
+            time_text="10:00–18:00",
+            all_day=True,
+            source_id="structured-time-test",
+        )
+
+        self.assertIsNotNone(event)
+        assert event is not None
+        self.assertTrue(event["all_day"])
+        self.assertEqual(event["start_at"], "")
+        self.assertEqual(event["end_at"], "")
+        self.assertEqual(event["start_date"], "2026-08-14")
+        self.assertEqual(event["end_date"], "2026-08-16")
+
     def test_multiple_slot_note_does_not_invent_one_structured_occurrence(self):
         note = "Vorstellungen: 10:00, 14:00 und 18:00 Uhr"
         event = self._event(note)
