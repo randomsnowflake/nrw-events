@@ -194,9 +194,10 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertTrue(all(event["source_role"] == "primary" for event in events))
         self.assertTrue(all(event["discovered_via"] == ["beuel-net"] for event in events))
 
-    def test_burg_lede_primary_uses_validated_brightdata_after_direct_403(self):
+    def test_burg_lede_primary_uses_validated_brightdata_once_for_duplicate_cards(self):
         discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[0]
         discovered["link"] = BURG_LEDE_URL
+        duplicate = {**discovered, "title": "Second Burg Lede programme item"}
         direct_error = urllib.error.HTTPError(
             BURG_LEDE_URL, 403, "Forbidden", Message(), None,
         )
@@ -215,16 +216,25 @@ class BonnDistrictSourceTests(unittest.TestCase):
                 "BRIGHT_DATA_ZONE": "events-unlocker",
                 "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0",
             }),
-            patch.object(bonn_districts.regional_common, "fetch_html_events", return_value=[discovered]),
-            patch.object(bonn_districts.common, "fetch_url", side_effect=direct_error),
+            patch.object(
+                bonn_districts.regional_common, "fetch_html_events",
+                return_value=[discovered, duplicate],
+            ),
+            patch.object(
+                bonn_districts.common, "fetch_url", side_effect=direct_error,
+            ) as direct,
             patch("nrw_events.common.urllib.request.urlopen", return_value=bright_response) as urlopen,
         ):
-            [event] = bonn_districts.fetch_beuel()
+            events = bonn_districts.fetch_beuel()
 
+        self.assertEqual(len(events), 2)
+        event = events[0]
         self.assertEqual(event["link"], BURG_LEDE_URL)
         self.assertEqual(event["source"], "burglede.de")
         self.assertEqual(event["source_role"], "primary")
         self.assertEqual(event["discovered_via"], ["beuel-net"])
+        direct.assert_called_once_with(BURG_LEDE_URL, timeout=20)
+        urlopen.assert_called_once()
         payload = json.loads(urlopen.call_args.args[0].data)
         self.assertEqual(payload["url"], BURG_LEDE_URL)
 
@@ -252,9 +262,10 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events, [])
         brightdata.assert_not_called()
 
-    def test_burg_lede_primary_fallback_failure_is_not_promoted(self):
+    def test_burg_lede_primary_fallback_failure_is_attempted_once_for_duplicate_cards(self):
         discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[0]
         discovered["link"] = BURG_LEDE_URL
+        duplicate = {**discovered, "title": "Second Burg Lede programme item"}
         direct_error = urllib.error.HTTPError(
             BURG_LEDE_URL, 403, "Forbidden", Message(), None,
         )
@@ -266,8 +277,13 @@ class BonnDistrictSourceTests(unittest.TestCase):
                 "BRIGHT_DATA_ZONE": "events-unlocker",
                 "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0",
             }),
-            patch.object(bonn_districts.regional_common, "fetch_html_events", return_value=[discovered]),
-            patch.object(bonn_districts.common, "fetch_url", side_effect=direct_error),
+            patch.object(
+                bonn_districts.regional_common, "fetch_html_events",
+                return_value=[discovered, duplicate],
+            ),
+            patch.object(
+                bonn_districts.common, "fetch_url", side_effect=direct_error,
+            ) as direct,
             patch.object(
                 bonn_districts.common, "fetch_url_with_brightdata",
                 side_effect=RuntimeError("Bright Data failed"),
@@ -277,6 +293,7 @@ class BonnDistrictSourceTests(unittest.TestCase):
             events = bonn_districts.fetch_beuel()
 
         self.assertEqual(events, [])
+        direct.assert_called_once_with(BURG_LEDE_URL, timeout=20)
         brightdata.assert_called_once()
 
     def test_burg_lede_primary_direct_success_does_not_use_brightdata(self):

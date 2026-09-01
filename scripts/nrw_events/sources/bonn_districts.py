@@ -511,6 +511,8 @@ def _reviewed_beuel_primary_link(event: dict, link: str) -> str:
 def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
     """Keep discovery records only when their linked first-party page is readable."""
     confirmed = []
+    primary_pages: dict[str, str] = {}
+    failed_primary_pages: set[str] = set()
     for event in events:
         link = str(event.get("link") or "")
         replacement_key = (
@@ -525,15 +527,23 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
         source = hostname.removeprefix("www.")
         if not source or source in {"beuel.net", "www.beuel.net"}:
             continue
-        try:
-            primary_html = primary_fetcher(link)
-            if not str(primary_html or "").strip():
-                raise regional_common.ParserEmptyError("primary event page returned no content")
-        except Exception as exc:
-            common.log_source_error(
-                f"Beuel.net primary ({source})", exc, source_id="beuel-net",
-            )
+        if link in failed_primary_pages:
             continue
+        if link in primary_pages:
+            primary_html = primary_pages[link]
+        else:
+            try:
+                primary_html = str(primary_fetcher(link) or "")
+                if not primary_html.strip():
+                    raise regional_common.ParserEmptyError(
+                        "primary event page returned no content")
+            except Exception as exc:
+                failed_primary_pages.add(link)
+                common.log_source_error(
+                    f"Beuel.net primary ({source})", exc, source_id="beuel-net",
+                )
+                continue
+            primary_pages[link] = primary_html
         event["source"] = (
             "Bonn district festivals (Beuel.net discovery)"
             if link in _BEUEL_CIVIC_AGGREGATOR_URLS
@@ -542,7 +552,7 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
         event["source_id"] = "beuel-net"
         event["source_role"] = "primary"
         event["discovered_via"] = ["beuel-net"]
-        description = _primary_description(event, str(primary_html), source)
+        description = _primary_description(event, primary_html, source)
         if description:
             event["description"] = description
             event["description_html"] = ""
