@@ -79,7 +79,8 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertEqual(events[0]["venue"], "Zehnthof")
         self.assertEqual(events[0]["venue_address"], "Zehnthofstr. 2, 53489 Sinzig")
         self.assertEqual(events[0]["time"], "18:00")
-        self.assertEqual(events[0]["end_at"], events[0]["start_at"])
+        self.assertEqual(events[0]["start_at"], "2026-07-18T18:00+02:00")
+        self.assertEqual(events[0]["end_at"], "")
         self.assertEqual(
             events[0]["link"],
             "https://tourismus.sinzig.de/kalender/2026-07-18-der-ahrweinbau-im-fokus/9697:0",

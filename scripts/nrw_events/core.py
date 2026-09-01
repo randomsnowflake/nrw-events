@@ -1905,6 +1905,61 @@ def _event_time_fields(
     return canonical_time, combined_note, all_day
 
 
+_CANONICAL_TIME_PATTERN = re.compile(
+    r"^(?P<start_hour>\d{2}):(?P<start_minute>\d{2})"
+    r"(?:–(?P<end_hour>\d{2}):(?P<end_minute>\d{2}))?$"
+)
+
+
+def _structured_event_times(
+    start: datetime | None,
+    end: datetime | None,
+    canonical_time: str,
+    all_day: bool,
+) -> tuple[datetime | None, datetime | None]:
+    """Apply one explicit clock or range without inventing an end time."""
+    if start is None or all_day:
+        return None, None
+    match = _CANONICAL_TIME_PATTERN.fullmatch(canonical_time)
+    if not match:
+        # Complex notes can contain several slots. A date-only midnight is not
+        # one of those slots and must not become a structured occurrence.
+        structured_start = start if start.hour or start.minute else None
+        structured_end = (
+            end
+            if structured_start and end and (end.hour or end.minute) and end > structured_start
+            else None
+        )
+        return structured_start, structured_end
+
+    structured_start = start.replace(
+        hour=int(match.group("start_hour")),
+        minute=int(match.group("start_minute")),
+        second=0,
+        microsecond=0,
+    )
+    if match.group("end_hour") is None:
+        # A repeated start/start supplied by legacy adapters means that the end
+        # is unknown. Preserve a genuinely distinct structured end if one exists.
+        structured_end = (
+            end
+            if end and (end.hour or end.minute) and end > structured_start
+            else None
+        )
+        return structured_start, structured_end
+
+    end_day = end if end and end.date() > start.date() else start
+    structured_end = end_day.replace(
+        hour=int(match.group("end_hour")),
+        minute=int(match.group("end_minute")),
+        second=0,
+        microsecond=0,
+    )
+    if structured_end <= structured_start:
+        structured_end += timedelta(days=1)
+    return structured_start, structured_end
+
+
 def _event_location(city: str, venue: str, coords: tuple | None):
     canonical_venue = resolve_venue(venue, city)
     registry_coords = (
@@ -1954,6 +2009,9 @@ def build_event(draft: EventDraft) -> RawEvent | None:
     time_text, time_note, all_day = _event_time_fields(
         start_dt, end_dt, time_text, time_note, all_day,
     )
+    structured_start, structured_end = _structured_event_times(
+        start_dt, end_dt, time_text, all_day,
+    )
     full_text = f"{title} {venue} {city} {description} {category}"
     # URLs encode venue slugs and other implementation detail (for example
     # ``alte-vhs`` in an aggregator concert URL). They are not event content and
@@ -1973,11 +2031,11 @@ def build_event(draft: EventDraft) -> RawEvent | None:
         event_link = ""
     status = event_status(title, description)
     start_date = start_dt.strftime("%Y-%m-%d") if start_dt else ""
-    final_end = end_dt or start_dt
+    final_end = structured_end if "–" in time_text else (end_dt or start_dt)
     end_date = final_end.strftime("%Y-%m-%d") if final_end else ""
     local_zone = ZoneInfo(timezone_name)
-    start_at = "" if all_day or not start_dt else start_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
-    end_at = "" if all_day or not end_dt else end_dt.replace(tzinfo=local_zone).isoformat(timespec="minutes")
+    start_at = "" if not structured_start else structured_start.replace(tzinfo=local_zone).isoformat(timespec="minutes")
+    end_at = "" if not structured_end else structured_end.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     price, admission_basis = infer_admission(title, description, admission=admission)
     ev: RawEvent = {
         "title": clean_html(title),
