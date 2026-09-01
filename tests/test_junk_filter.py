@@ -594,7 +594,7 @@ class JunkFilterTests(unittest.TestCase):
                     "Jeden Donnerstag wird gemeinsam repariert. "
                     "Das Haus nennt außerdem seine Öffnungszeiten und jeden vierten Samstag."
                 ),
-                category="repair café reparatur offene werkstatt",
+                category="kommunal kultur wochenmarkt ausstellung konzert führung",
             ),
             event(
                 "Ausstellungseröffnung Bürgerstiftung",
