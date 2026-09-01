@@ -1696,11 +1696,14 @@ _FREE_PRICE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
-    r"\b(?:zu\s+zahlen\s+ist\s+der\s+museumseintritt|"
-    r"(?:museumseintritt|eintritt\s+ins\s+museum)[^.!?]{0,50}"
-    r"(?:zu\s+zahlen|zu\s+entrichten|kostenpflichtig|erforderlich)|"
-    r"(?:es\s+gilt|zuzüglich\s+ist)\s+(?:der\s+reguläre\s+)?"
-    r"(?:museumseintritt|eintritt\s+ins\s+museum))\b",
+    r"\b(?:"
+    r"zu\s+zahlen\s+ist\s+der\s+(?:reguläre\s+)?"
+    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)|"
+    r"(?:es\s+gilt|zuzüglich(?:\s+ist)?|zzgl\.?)\s+"
+    r"(?:der\s+reguläre\s+)?(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)|"
+    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)[^.!?]{0,50}"
+    r"(?:zu\s+zahlen|zu\s+entrichten|kostenpflichtig|erforderlich|"
+    r"fällt\s+zusätzlich\s+an|muss\s+bezahlt\s+werden))\b",
     re.IGNORECASE,
 )
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(

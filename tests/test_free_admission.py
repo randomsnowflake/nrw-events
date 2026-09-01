@@ -85,6 +85,10 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             "Der reguläre Eintritt ins Museum ist zu entrichten.",
             "Zuzüglich ist der Eintritt ins Museum zu zahlen.",
             "Es gilt der reguläre Museumseintritt.",
+            "Der Museumseintritt fällt zusätzlich an.",
+            "Kostenlos, zzgl. Eintritt in das Museum.",
+            "Zuzüglich Museumseintritt.",
+            "Der Museumseintritt muss bezahlt werden.",
         )
         for paid_phrase in paid_phrases:
             with self.subTest(paid_phrase=paid_phrase):
