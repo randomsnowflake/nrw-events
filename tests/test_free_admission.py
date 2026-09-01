@@ -108,6 +108,31 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
                 self.assertFalse(canonical.admission["isFree"])
                 self.assertEqual(canonical.admission_basis, "explicit")
 
+    def test_negated_museum_admission_is_not_classified_paid(self):
+        phrases = (
+            "Kein Museumseintritt erforderlich.",
+            "Museumseintritt ist nicht erforderlich.",
+            "Der Museumseintritt ist nicht zu zahlen.",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                price, basis = common.infer_admission(
+                    "Museumsführung", f"Die Führung ist kostenlos. {phrase}"
+                )
+                self.assertNotEqual((price, basis), ("kostenpflichtig", "explicit"))
+
+    def test_ancillary_free_access_does_not_become_admission_evidence(self):
+        phrases = (
+            "Der Zugang zum Livestream ist kostenlos.",
+            "Der Zugang zum Download ist kostenlos.",
+            "Der Besuch der Website ist kostenlos.",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                self.assertFalse(common.has_explicit_free_admission_wording(
+                    "Museumsführung", phrase,
+                ))
+
     def test_detects_explicit_whole_event_free_admission_phrases(self):
         cases = [
             ("Sommerfestival", "Der Eintritt ist frei.", ""),

@@ -1706,6 +1706,29 @@ _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
     r"fällt\s+zusätzlich\s+an|muss\s+bezahlt\s+werden))\b",
     re.IGNORECASE,
 )
+_NEGATED_PAID_VISITOR_ACCESS = re.compile(
+    r"\bkein(?:e|en|er|es)?\s+(?:reguläre[rsn]?\s+)?"
+    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
+    r"[^.!?]{0,30}(?:erforderlich|zu\s+zahlen|zu\s+entrichten)|"
+    r"\b(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
+    r"[^.!?]{0,30}\bnicht\s+(?:erforderlich|zu\s+zahlen|zu\s+entrichten|"
+    r"kostenpflichtig|zu\s+bezahlen)",
+    re.IGNORECASE,
+)
+
+
+def _has_paid_visitor_access_without_amount(text: str) -> bool:
+    """Recognize positive museum charges without treating negations as paid."""
+    negated = list(_NEGATED_PAID_VISITOR_ACCESS.finditer(text or ""))
+    for match in _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT.finditer(text or ""):
+        if not any(
+            negation.start() <= match.start() and match.end() <= negation.end()
+            for negation in negated
+        ):
+            return True
+    return False
+
+
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(
     r"\b(?:kosten|preise?|eintritt|teilnahme|gebühr|gebuehr|führungen?|fuehrungen?|"
     r"erwachsene|ermäßigt|ermaessigt)\b[^.]{0,100}\b\d+[,.]?\d*\s*(?:€|eur|euro)(?!\w)",
@@ -1769,9 +1792,9 @@ def source_requires_pre_truncation_admission(source: str, source_id: str) -> boo
 
 
 _DIRECT_EXPLICIT_FREE = re.compile(
-    r"\b(?:eintritt|teilnahme|besuch|einlass|zugang)\b[^.!?]{0,50}"
+    r"\b(?:eintritt|teilnahme|einlass)\b[^.!?]{0,50}"
     r"\b(?:frei|gratis|kostenlos|kostenfrei)\b"
-    r"|\b(?:frei(?:er|em)|kostenloser|kostenfreier)\s+(?:eintritt|besuch|einlass|zugang)\b"
+    r"|\b(?:frei(?:er|em)|kostenloser|kostenfreier)\s+(?:eintritt|einlass)\b"
     r"|\b(?:veranstaltung|event|unser\s+angebot)\b[^.!?]{0,80}"
     r"\b(?:frei|kostenlos|kostenfrei)\b",
     re.IGNORECASE,
@@ -1790,7 +1813,7 @@ def has_explicit_free_admission_wording(title: str, description: str) -> bool:
     text = clean_html(description or "")
     if not text or has_conditional_free_admission(text):
         return False
-    if _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT.search(text):
+    if _has_paid_visitor_access_without_amount(text):
         return False
     if _LIMITED_FREE_TRIAL_PATTERN.search(text):
         return False
@@ -1889,7 +1912,7 @@ def infer_admission(
             for pattern in _FREE_ADMISSION_PATTERNS
         )
     )
-    if _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT.search(description_text):
+    if _has_paid_visitor_access_without_amount(description_text):
         return "kostenpflichtig", "explicit"
     if conditional_free and not unconditional_free:
         return "", ""
