@@ -742,6 +742,25 @@ def _source_result_for_event(
     return _source_result_for_identity(event.source_id, event.source, results)
 
 
+def _operational_source_result_for_event(
+    event: CanonicalEvent, results: dict[str, SourceResult],
+) -> SourceResult | None:
+    """Prefer an active aggregate producer over a scheduled exact owner."""
+    result = _source_result_for_event(event, results)
+    if result is None or result.status != SourceStatus.SCHEDULED_SKIP:
+        return result
+    for candidate in results.values():
+        if (
+            candidate.status != SourceStatus.SCHEDULED_SKIP
+            and (
+                event.source_id in candidate.event_source_ids
+                or event.source in candidate.event_sources
+            )
+        ):
+            return candidate
+    return result
+
+
 def _publication_ai_input(
     event: CanonicalEvent, results: dict[str, SourceResult],
 ) -> dict[str, object]:
@@ -1888,8 +1907,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 source_stats["ai_batch_skipped_without_summary_event_count"] = (
                     source_stats.get("ai_batch_skipped_without_summary_event_count", 0) + 1
                 )
-            for source_id in {event.source_id for event in ai_candidates}:
-                result = _source_result_for_identity(source_id, "", source_results)
+            candidates_by_source = {
+                event.source_id: event for event in ai_candidates
+            }
+            for source_id, event in candidates_by_source.items():
+                result = _operational_source_result_for_event(event, source_results)
                 if result is not None:
                     result.warning(
                         result.source,

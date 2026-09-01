@@ -48,6 +48,31 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertIs(runner._source_result_for_event(event, results), exact)
 
+    def test_operational_resolution_uses_active_aggregate_for_scheduled_exact_owner(self):
+        event = runner.validate_event({
+            "title": "Aggregate-produced event",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+        exact.status = SourceStatus.SCHEDULED_SKIP
+
+        result = runner._operational_source_result_for_event(event, {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        })
+
+        self.assertIs(result, aggregate)
+
     def test_publication_ai_metrics_prefer_exact_owner_over_aggregate_membership(self):
         event = runner.validate_event({
             "title": "Exact AI owner",
