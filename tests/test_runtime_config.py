@@ -108,14 +108,12 @@ class RuntimeConfigTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {
             "NRW_EVENTS_SOURCE_WORKERS": "20",
             "NRW_EVENTS_SOURCE_TIMEOUT_SECONDS": "90",
-            "NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS": "600",
             "NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS": "30",
         }, clear=True):
             settings = config.runtime_config()
 
         self.assertEqual(settings.source_workers, 20)
         self.assertEqual(settings.source_timeout_seconds, 90)
-        self.assertEqual(settings.ai_source_timeout_grace_seconds, 600)
         self.assertEqual(settings.http_request_budget_seconds, 30)
 
     def test_invalid_runtime_setting_is_actionable(self):

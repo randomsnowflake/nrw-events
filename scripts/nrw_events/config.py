@@ -42,7 +42,6 @@ class RuntimeConfig:
     source_workers: int = 12
     source_timeout_seconds: float = 180.0
     source_processing_grace_seconds: float = 0.0
-    ai_source_timeout_grace_seconds: float = 300.0
     source_baseline_min_count: int = 10
     json_out: str = str(default_state_dir() / "nrw-events-latest.json")
     meta_json_out: str = str(default_state_dir() / "nrw-events-latest-meta.json")
@@ -153,9 +152,6 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         source_timeout_seconds=_float("NRW_EVENTS_SOURCE_TIMEOUT_SECONDS", 600.0, 5.0, 1800.0),
         source_processing_grace_seconds=_float(
             "NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS", 180.0, 0.0, 900.0
-        ),
-        ai_source_timeout_grace_seconds=_float(
-            "NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS", 180.0, 0.0, 21600.0
         ),
         source_baseline_min_count=_int("NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT", 10, 1, 10_000),
         json_out=os.environ.get(

@@ -240,6 +240,7 @@ scripts/nrw_events/
   quality.py
   radio_primary_resolution.py
   report.py
+  reviewed_summaries.py
   richtext.py
   runner.py
   runtime.py
@@ -421,6 +422,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `OPENROUTER_API_KEY` | nicht gesetzt | OpenRouter-Schlüssel, wenn `NRW_EVENTS_AI_PROVIDER=openrouter` gewählt ist. Anfragen erzwingen ZDR, schließen sammelnde Provider aus und verwenden nur Endpunkte mit Structured Outputs. |
 | `NRW_EVENTS_AI_PROVIDER` | `openai` | `openai` nutzt die Responses API; `openrouter` nutzt Chat Completions mit providergetrenntem Cache. |
 | `NRW_EVENTS_AI_ENRICHMENT` | `1` | Aktiviert die AI-Verarbeitung ausschließlich für `bonn-de-events`, `bonn-de-sports`, `marktcom` und `radio-bonn-rhein-sieg`. Die Quellprosa wird unabhängig davon nie veröffentlicht. |
+| `NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH` | nicht gesetzt | Optionales JSON-v1-Manifest mit lokal geprüften `content_reviewed`-Zusammenfassungen. Regeln müssen `source_id`, Titel, stabile `event_ids` und `start_dates` exakt absichern; optionale `links`/`times` werden ebenfalls exakt geprüft. Treffer werden nach finaler Deduplizierung und ID-Abgleich vor der AI angewendet und erzeugen keinen Cache- oder Provideraufruf. Ein gesetztes, fehlerhaftes Manifest bricht den Import ab. |
 | `NRW_EVENTS_AI_MODEL` | providerabhängig | Standardmäßig `gpt-5.6-luna` für OpenAI und `deepseek/deepseek-v4-flash-0731` für OpenRouter. Beide Stufen verwenden dasselbe Modell. |
 | `NRW_EVENTS_AI_FACTS_REASONING_EFFORT` | `none` | OpenRouter-Reasoning für die Faktenextraktion. DeepSeek V4 Flash unterstützt `none`, `low`, `high` und `max`; jede Kombination verwendet einen getrennten Cache. |
 | `NRW_EVENTS_AI_SUMMARY_REASONING_EFFORT` | OpenRouter: `low`, sonst `none` | Reasoning für die neutrale Textstufe, unabhängig von der Faktenstufe. Der lokale DeepSeek-Vergleich zeigte bessere Texte mit `low`; Reasoning-Tokens werden als Output berechnet. |
@@ -428,10 +430,9 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_AI_MAX_ATTEMPTS` | `2` | Höchstens zwei Versuche je AI-Stufe und Fehlerfenster. Eine erfolgreiche erste Stufe wird auch bei Fehlern der zweiten wiederverwendet. |
 | `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS` | `168` | Sperrzeit nach ausgeschöpften Versuchen. `0` hält ein abgelehntes, unverändertes Event dauerhaft leer; neue Quelldaten oder eine neue Pipeline-Version erzeugen einen neuen Cache-Eintrag. Der Standard von einer Woche lässt eine abgelehnte Zusammenfassung erneut versuchen, statt die Seite dauerhaft ohne Text zu lassen. |
 | `NRW_EVENTS_AI_TIMEOUT_SECONDS` | `180` | Hartes Gesamtzeitlimit pro AI-Aufruf; lässt DeepSeek Spielraum, verhindert aber endlos tröpfelnde HTTP-Antworten. |
-| `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS` | `600` | Gesamtbudget für die optionale AI-Anreicherung einer Quelle. Nach Ablauf werden Cache-Texte wiederverwendet; übrige Termine erscheinen ohne jede Beschreibung, weil eine eingeschränkte Quelle keine Quellprosa veröffentlichen darf. Der Runner reserviert dasselbe Budget zusätzlich auf der Quell-Deadline. |
-| `NRW_EVENTS_AI_WORKERS` | `8` | Parallel laufende, voneinander unabhängige AI-Cache-/Provider-Aufgaben je Zielquelle (1–16). |
-| `NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS` | `180` | Äußere Worker-Zugabe für Quellen mit aktivierter AI-Anreicherung. Der Runner verwendet mindestens das konfigurierte AI-Gesamtbudget. |
-| `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales lokales Pilotlimit je Quellenlauf; `0` verarbeitet alle Zielevents. Nicht verarbeitete Zielevents bleiben ohne Beschreibung. |
+| `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS` | `600` | Gesamtbudget für die optionale AI-Anreicherung aller finalen, im Zeitfenster liegenden und global deduplizierten Zieltermine. Nach Ablauf werden Cache-Texte oder reine Stammdaten-Fallbacks verwendet. |
+| `NRW_EVENTS_AI_WORKERS` | `8` | Parallel laufende, voneinander unabhängige AI-Cache-/Provider-Aufgaben für finale Zieltermine (1–16). |
+| `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales Pilotlimit für den finalen deduplizierten AI-Batch; `0` verarbeitet alle Zielevents. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
 | `NRW_EVENTS_USER_AGENT`       | moderner Chrome UA | Optionaler Override für HTTP-Requests an öffentliche Quellen. |

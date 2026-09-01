@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Optional, cast
 
-from . import ai_enrichment, common, config, detail_enrichment, early_publication, highlights as highlight_selection, radio_primary_resolution, report, series as series_entities
+from . import ai_enrichment, common, config, detail_enrichment, early_publication, highlights as highlight_selection, radio_primary_resolution, report, reviewed_summaries, series as series_entities
 from .category_taxonomy import CATEGORIES
 from .health import (
     bounded_diagnostic_text,
@@ -217,37 +217,6 @@ def _run_source(
                 events,
                 cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
             )
-        # Restricted source prose is used only as private AI input. The helper
-        # always removes it, even when AI is disabled, unavailable or fails.
-        ai_candidates = sum(
-            1 for event in events
-            if isinstance(event, dict) and ai_enrichment.is_target_event(event)
-        )
-        if ai_candidates:
-            ai_started = time.monotonic()
-            ai_stats: dict[str, int] = {}
-            events = ai_enrichment.enrich_events(events, stats=ai_stats)
-            result.ai_duration_ms = round((time.monotonic() - ai_started) * 1000)
-            result.ai_candidate_event_count = ai_candidates
-            result.ai_skipped_event_count = sum(
-                count for key, count in ai_stats.items()
-                if key.endswith("_skipped_event_count")
-            )
-            result.ai_skipped_without_summary_event_count = sum(
-                count for key, count in ai_stats.items()
-                if key.endswith("_skipped_without_summary_event_count")
-            )
-            # Warm-cache restores are useful skip telemetry, but only a target
-            # that remains without a summary is a published content outage.
-            if result.ai_skipped_without_summary_event_count:
-                result.warning(
-                    name,
-                    "AIEnrichmentBudgetWarning",
-                    f"AI enrichment skipped {result.ai_skipped_without_summary_event_count}/"
-                    f"{ai_candidates} target events without a cached summary; those events "
-                    "publish without a description",
-                    source_id=SOURCE_IDS.get(name, ""),
-                )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         # Discovery records prove that the parser is healthy and contribute to
         # raw source counts, even though the publication gate excludes them.
@@ -314,6 +283,11 @@ def _run_source(
                     source_id=result.source_id,
                 )
             try:
+                private_ai_material = (
+                    ai_enrichment._source_material(event)
+                    if ai_enrichment.is_target_event(event)
+                    else ""
+                )
                 canonical_event = validate_event(event)
                 if not common.event_in_window(canonical_event) and not early_publication.is_eligible(canonical_event):
                     continue
@@ -323,6 +297,16 @@ def _run_source(
                         result.cancelled_events.append(canonical_event.to_dict())
                         known_cancellation_keys.add(canonical_cancellation_key)
                 accepted.append(canonical_event)
+                if private_ai_material:
+                    result._ai_source_material.append({
+                        "event_id": event_id(canonical_event),
+                        "source_id": canonical_event.source_id,
+                        "title": canonical_event.title,
+                        "start_date": canonical_event.start_date,
+                        "time": canonical_event.time,
+                        "link": canonical_event.link,
+                        "material": private_ai_material,
+                    })
             except EventValidationError as exc:
                 result.reject(str(exc), event, in_window=in_window)
         result.accepted_event_count = len(accepted)
@@ -747,6 +731,83 @@ def _source_result_for_event(
         if event.source_id in result.event_source_ids or event.source in result.event_sources:
             return result
     return results.get(event.source)
+
+
+def _publication_ai_input(
+    event: CanonicalEvent, results: dict[str, SourceResult],
+) -> dict[str, object]:
+    """Reattach one dedup winner's private prose without serializing it."""
+    raw: dict[str, object] = event.to_dict()
+    raw["description"] = ""
+    raw["description_html"] = ""
+    result = _source_result_for_event(event, results)
+    if result is None:
+        return raw
+    pre_ai_id = event_id(replace(event, preserved_event_id=""))
+    matches = {
+        item["material"]
+        for item in result._ai_source_material
+        if item.get("event_id") == pre_ai_id
+        and item.get("source_id") == event.source_id
+        and item.get("title") == event.title
+        and item.get("start_date") == event.start_date
+        and item.get("time") == event.time
+        and item.get("link") == event.link
+    }
+    # Conflicting exact records are ambiguous. Structured master data remains a
+    # safe AI input, but no arbitrary duplicate's private prose is selected.
+    if len(matches) == 1:
+        raw["description"] = matches.pop()
+    return raw
+
+
+def _record_publication_ai_metrics(
+    events: Sequence[CanonicalEvent],
+    source_results: dict[str, SourceResult],
+    stats_by_source: dict[str, dict[str, int]],
+    duration_ms: int,
+    enriched_events: Sequence[CanonicalEvent] = (),
+) -> None:
+    candidates = Counter(
+        event.source_id for event in events if ai_enrichment.is_target_event(event)
+    )
+    enriched = Counter(event.source_id for event in enriched_events)
+    total = sum(candidates.values())
+    for source_id, count in candidates.items():
+        result = next((
+            value for value in source_results.values()
+            if source_id in value.event_source_ids or source_id == value.source_id
+        ), None)
+        if result is None:
+            continue
+        result.ai_candidate_event_count += count
+        result.ai_enriched_event_count += enriched[source_id]
+        result.ai_duration_ms += round(duration_ms * count / total) if total else 0
+        source_stats = stats_by_source.get(source_id, {})
+        result.ai_skipped_event_count += sum(
+            value for key, value in source_stats.items()
+            if key.endswith("_skipped_event_count")
+        )
+        result.ai_skipped_without_summary_event_count += sum(
+            value for key, value in source_stats.items()
+            if key.endswith("_skipped_without_summary_event_count")
+        )
+        budget_without_summary = sum(
+            value for key, value in source_stats.items()
+            if key.startswith(("ai_deadline_", "ai_cap_", "ai_cache_budget_"))
+            and key.endswith("_skipped_without_summary_event_count")
+        )
+        if budget_without_summary:
+            result.warning(
+                result.source,
+                "AIEnrichmentBudgetWarning",
+                f"AI enrichment skipped {budget_without_summary}/"
+                f"{count} final target events without a cached summary; those events "
+                "publish with master data only",
+                source_id=source_id,
+            )
+            if result.status in {SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY}:
+                result.status = SourceStatus.DEGRADED
 
 
 def _publication_filter_reason(
@@ -1564,12 +1625,6 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     pool = executor_factory(max_workers=worker_count)
     started: dict[str, tuple[float, threading.Thread, threading.Event, float]] = {}
     started_condition = threading.Condition()
-    ai_settings = ai_enrichment.settings_from_env()
-    ai_target_source_ids = {
-        source_id for source_id in SOURCE_IDS.values()
-        if source_id in ai_enrichment.TARGET_SOURCE_IDS
-    }
-
     def run_source(name: str, fetch: Callable[[], list]):
         cancel_event = threading.Event()
         source_timeout = settings.source_timeout_seconds
@@ -1577,19 +1632,6 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         # a short grace period to canonicalize large successful payloads and
         # return partial detail enrichment instead of discarding the source.
         source_timeout += settings.source_processing_grace_seconds
-        if (
-            ai_settings.enabled
-            and ai_settings.api_key
-            and SOURCE_IDS.get(name) in ai_target_source_ids
-        ):
-            # Scraping keeps its normal source deadline. Only the outer worker
-            # deadline receives extra time for the separately bounded AI pass.
-            # A configured batch budget must never exceed that outer allowance,
-            # otherwise the runner can discard a source during valid AI work.
-            source_timeout += max(
-                settings.ai_source_timeout_grace_seconds,
-                ai_settings.batch_timeout_seconds,
-            )
         with started_condition:
             started[name] = (
                 time.monotonic(), threading.current_thread(), cancel_event, source_timeout,
@@ -1803,11 +1845,86 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     deduped = report.suppress_redundant_series_umbrellas(deduped)
     published_event_ids = {event_id(event) for event in deduped}
     generated_at = context.clock().isoformat(timespec="seconds")
-    deduped = _reconcile_published_ids(deduped, previous)
+    deduped = cast(list[CanonicalEvent], _reconcile_published_ids(deduped, previous))
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
+    deduped, reviewed_warnings = reviewed_summaries.apply_reviewed_summaries(deduped)
+
+    ai_started = time.monotonic()
+    ai_stats_by_source: dict[str, dict[str, int]] = {}
+    ai_validation_warnings: list[dict[str, str]] = []
+    ai_enriched_candidates: list[CanonicalEvent] = []
+    target_indexes = [
+        index for index, event in enumerate(deduped)
+        if ai_enrichment.is_target_event(event) and not event.ai_summary.strip()
+    ]
+    ai_candidates = [deduped[index] for index in target_indexes]
+    if target_indexes:
+        ai_inputs = [
+            _publication_ai_input(deduped[index], source_results)
+            for index in target_indexes
+        ]
+        try:
+            ai_outputs = ai_enrichment.enrich_events(
+                ai_inputs,
+                settings=ai_enrichment.settings_from_env(),
+                stats_by_source=ai_stats_by_source,
+            )
+        except Exception as exc:
+            for event in ai_candidates:
+                source_stats = ai_stats_by_source.setdefault(event.source_id, {})
+                source_stats["ai_batch_skipped_event_count"] = (
+                    source_stats.get("ai_batch_skipped_event_count", 0) + 1
+                )
+                source_stats["ai_batch_skipped_without_summary_event_count"] = (
+                    source_stats.get("ai_batch_skipped_without_summary_event_count", 0) + 1
+                )
+            for source_id in {event.source_id for event in ai_candidates}:
+                result = next((
+                    value for value in source_results.values()
+                    if source_id in value.event_source_ids or source_id == value.source_id
+                ), None)
+                if result is not None:
+                    result.warning(
+                        result.source,
+                        "AIEnrichmentBatchWarning",
+                        f"publication AI batch failed: {type(exc).__name__}",
+                        source_id=source_id,
+                    )
+                    if result.status in {SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY}:
+                        result.status = SourceStatus.DEGRADED
+            log(
+                logger, 40, f"publication AI batch failed: {type(exc).__name__}",
+                run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__,
+            )
+        else:
+            for index, candidate, raw_event in zip(
+                target_indexes, ai_candidates, ai_outputs,
+            ):
+                try:
+                    validated_output = validate_event(raw_event)
+                except EventValidationError as exc:
+                    event = deduped[index]
+                    ai_validation_warnings.append(diagnostic_warning(
+                        event.source,
+                        "AIEnrichmentValidationWarning",
+                        f"AI output was ignored for {event_id(event)}: {exc}",
+                        source_id=event.source_id,
+                    ))
+                else:
+                    deduped[index] = validated_output
+                    if validated_output.ai_summary.strip():
+                        ai_enriched_candidates.append(candidate)
+    ai_processing_duration_ms = round((time.monotonic() - ai_started) * 1000)
+    _record_publication_ai_metrics(
+        ai_candidates, source_results, ai_stats_by_source, ai_processing_duration_ms,
+        ai_enriched_candidates,
+    )
+    for result in source_results.values():
+        result._ai_source_material.clear()
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)
     import_warnings: tuple[dict[str, str], ...] = tuple(
-        sanitized_warning(warning) for warning in cache_warnings
+        sanitized_warning(warning)
+        for warning in (*cache_warnings, *reviewed_warnings, *ai_validation_warnings)
     )
     try:
         series_rows, series_metadata, series_ledger = series_entities.enrich_events(
@@ -1844,6 +1961,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         )
         for event, row in zip(deduped, series_rows)
     ]
+    deduped = _enforce_restricted_publication_boundary(deduped)
     deduped = [
         replace(event, content_hash=content_hash(replace(event, content_hash="")))
         for event in deduped
@@ -1881,9 +1999,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         warnings=import_warnings,
         timings={
             "source_import_duration_ms": source_import_duration_ms,
-            "ai_processing_duration_ms": sum(
-                result.ai_duration_ms for result in source_results.values()
-            ),
+            "ai_processing_duration_ms": ai_processing_duration_ms,
             "total_import_duration_ms": round((time.monotonic() - import_started) * 1000),
         },
         early_announcements=tuple(early_deduped),

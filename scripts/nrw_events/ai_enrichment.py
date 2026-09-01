@@ -2054,6 +2054,7 @@ def enrich_events(
     *,
     settings: AISettings | None = None,
     stats: dict[str, int] | None = None,
+    stats_by_source: dict[str, dict[str, int]] | None = None,
 ) -> list[Any]:
     """Enrich only the configured target sources, with an optional pilot cap.
 
@@ -2072,16 +2073,29 @@ def enrich_events(
     cache_budget_skipped_without_summary = 0
     enriched = list(events)
     candidates: list[tuple[int, RawEvent]] = []
+    source_stats: dict[str, dict[str, int]] = {}
+
+    def bump(source_id: str, key: str, value: int = 1) -> None:
+        source = source_stats.setdefault(source_id, {})
+        source[key] = source.get(key, 0) + value
+
     for index, value in enumerate(events):
         if not isinstance(value, dict) or not is_target_event(value):
             continue
         target = cast(RawEvent, value)
+        source_id = normalize_source_id(target.get("source_id") or target.get("source"))
+        source_stats.setdefault(source_id, {})
         try:
             in_window = common.event_in_window(target)
         except (AttributeError, TypeError):
             in_window = True
         if not in_window:
             enriched[index] = strip_restricted_copy(target)
+            continue
+        # A locally reviewed or otherwise already accepted summary is final.
+        # Do not touch the cache or create a billable model request for it.
+        if str(target.get("ai_summary") or "").strip():
+            enriched[index] = strip_restricted_copy(dict(target))
             continue
         candidates.append((index, target))
 
@@ -2120,16 +2134,21 @@ def enrich_events(
             capped += 1
             cached = cached_fallbacks[index]
             enriched[index] = cached
-            capped_without_summary += int(not str(cached.get("ai_summary", "")).strip())
+            without_summary = int(not str(cached.get("ai_summary", "")).strip())
+            capped_without_summary += without_summary
+            source_id = normalize_source_id(target.get("source_id") or target.get("source"))
+            bump(source_id, "ai_cap_skipped_event_count")
+            bump(source_id, "ai_cap_skipped_without_summary_event_count", without_summary)
             continue
         pending.append((index, target))
 
-    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, bool, bool, bool, bool]:
+    def enrich_one(item: tuple[int, RawEvent]) -> tuple[int, RawEvent, str, bool, bool, bool, bool]:
         index, target = item
+        source_id = normalize_source_id(target.get("source_id") or target.get("source"))
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             cached = _reuse_cached_success(target, configured)
-            return index, cached, True, not str(cached.get("ai_summary", "")).strip(), False, False
+            return index, cached, source_id, True, not str(cached.get("ai_summary", "")).strip(), False, False
         # One event may need facts and summary retries. Divide the remaining
         # source budget across that worst case so every concurrently running
         # event still finishes within the shared wall-clock batch deadline.
@@ -2142,11 +2161,11 @@ def enrich_events(
                 target,
                 settings=replace(configured, timeout_seconds=request_timeout),
             )
-            return index, result, False, False, False, False
+            return index, result, source_id, False, False, False, False
         except AICacheMissBudgetExceeded:
             cached = _reuse_cached_success(target, configured)
             return (
-                index, cached, False, False, True,
+                index, cached, source_id, False, False, True,
                 not str(cached.get("ai_summary", "")).strip(),
             )
 
@@ -2157,12 +2176,24 @@ def enrich_events(
         ) as executor:
             # The worker returns its own skip flag rather than incrementing a
             # shared counter, so the tally stays correct without a lock.
-            for index, result, skipped, without_summary, budget_skipped, budget_without_summary in executor.map(enrich_one, pending):
+            for index, result, source_id, skipped, without_summary, budget_skipped, budget_without_summary in executor.map(enrich_one, pending):
                 enriched[index] = result
                 expired += int(skipped)
                 expired_without_summary += int(without_summary)
                 cache_budget_skipped += int(budget_skipped)
                 cache_budget_skipped_without_summary += int(budget_without_summary)
+                bump(source_id, "ai_deadline_skipped_event_count", int(skipped))
+                bump(
+                    source_id,
+                    "ai_deadline_skipped_without_summary_event_count",
+                    int(without_summary),
+                )
+                bump(source_id, "ai_cache_budget_skipped_event_count", int(budget_skipped))
+                bump(
+                    source_id,
+                    "ai_cache_budget_skipped_without_summary_event_count",
+                    int(budget_without_summary),
+                )
     if stats is not None:
         stats["ai_deadline_skipped_event_count"] = expired
         stats["ai_cap_skipped_event_count"] = capped
@@ -2172,4 +2203,6 @@ def enrich_events(
         stats[
             "ai_cache_budget_skipped_without_summary_event_count"
         ] = cache_budget_skipped_without_summary
+    if stats_by_source is not None:
+        stats_by_source.update(source_stats)
     return enriched
