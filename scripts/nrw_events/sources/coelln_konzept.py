@@ -3,7 +3,7 @@
 import re
 from datetime import datetime, timedelta
 
-from .. import common
+from .. import common, normalization
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
@@ -74,6 +74,7 @@ def _detail_context(html: str) -> dict:
         "description": description,
         "venue": venue,
         "has_location": bool(raw_venue),
+        "raw_venue": raw_venue,
         "time": time_text,
     }
 
@@ -152,9 +153,11 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             # whenever a location element existed, even if canonicalization
             # reduced it to blank; it used the title only when no location was
             # present at all.
-            event["identity_venue"] = (
-                event.get("venue") if detail.get("has_location") else title
-            )
+            event["identity_venue"] = title
+            if detail.get("has_location"):
+                event["identity_venue"] = normalization.resolve_venue(
+                    str(detail.get("raw_venue") or ""), city,
+                ).venue
             event["identity_venue_locked"] = True
             events.append(event)
     return rc.dedupe(events)

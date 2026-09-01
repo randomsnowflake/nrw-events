@@ -77,6 +77,24 @@ class ExplicitSourceVenueTests(unittest.TestCase):
             "",
         )
 
+    def test_coelln_preserves_filtered_direction_identity(self):
+        [event] = coelln_konzept._events_from_listing(
+            self._coelln_listing(),
+            lambda _url: """
+              <h2>Antikmarkt Bonn</h2>
+              <p class="textmarkt">Antiquitäten und Design.</p>
+              <h3>Standort:</h3>
+              <p class="textmarkt">Anfahrt über Annostraße Navi: Annostr. 3, 53721 Siegburg</p>
+            """,
+        )
+
+        self.assertEqual(event["venue"], "")
+        self.assertEqual(event["identity_venue"], "Anfahrt über Annostraße Navi:")
+        old_identity = dict(event, venue="Anfahrt über Annostraße Navi:")
+        old_identity.pop("identity_venue", None)
+        old_identity.pop("identity_venue_locked", None)
+        self.assertEqual(event_id(event), event_id(old_identity))
+
     def test_broeltal_recovers_all_explicit_phrase_shapes(self):
         cases = (
             (
@@ -103,6 +121,8 @@ class ExplicitSourceVenueTests(unittest.TestCase):
           </a>
         """
         detail = """
+          <h1>Sommerfest Schönenberg</h1>
+          <time>20.08.2026</time>
           <div class="event-description">
             Ort der Veranstaltung: Am Dorfhaus im Mehrgenerationenpark Schönenberg
           </div>
@@ -154,6 +174,22 @@ class ExplicitSourceVenueTests(unittest.TestCase):
             },
         ):
             context = regional_html._broeltal_detail_context("<html></html>", event)
+
+        self.assertFalse(context.get("venue"))
+
+    def test_broeltal_rejects_place_copy_from_another_occurrence(self):
+        event = self._event(
+            "Sommerfest", "https://www.broeltal.de/termine/sommerfest.html",
+            city="Ruppichteroth",
+        )
+        detail = """
+          <h1>Winterfest</h1><time>21.12.2026</time>
+          <div class="event-description">
+            Ort der Veranstaltung: Am Dorfhaus im Mehrgenerationenpark Schönenberg
+          </div>
+        """
+
+        context = regional_html._broeltal_detail_context(detail, event)
 
         self.assertFalse(context.get("venue"))
 

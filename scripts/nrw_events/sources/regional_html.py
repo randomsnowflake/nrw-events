@@ -2,6 +2,7 @@
 
 import re
 import urllib.parse
+from datetime import datetime
 
 from .. import common, detail_enrichment
 from . import regional_common as rc
@@ -346,7 +347,22 @@ def _broeltal_explicit_place(text: str) -> dict[str, str]:
 def _broeltal_detail_context(document: str, event: dict) -> dict:
     """Add venue facts only from the detail extractor's event-content capture."""
     context = detail_enrichment.extract_detail_context(document, event)
-    event_scoped_copy = context.get("exact_description") or context.get("description")
+    event_scoped_copy = context.get("exact_description")
+    if not event_scoped_copy:
+        visible = rc.clean_blocks(document or "")
+        title = rc.clean(str(event.get("title") or ""))
+        start_date = str(event.get("start_date") or event.get("date") or "")[:10]
+        date_labels = {start_date}
+        try:
+            parsed_date = datetime.strptime(start_date, "%Y-%m-%d")
+            date_labels.add(parsed_date.strftime("%d.%m.%Y"))
+            date_labels.add(f"{parsed_date.day}.{parsed_date.month}.{parsed_date.year}")
+        except ValueError:
+            pass
+        if title and title.casefold() in visible.casefold() and any(
+            label and label in visible for label in date_labels
+        ):
+            event_scoped_copy = context.get("description")
     context.update(_broeltal_explicit_place(str(event_scoped_copy or "")))
     return context
 
