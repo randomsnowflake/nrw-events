@@ -134,6 +134,9 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             "Gar nicht zu zahlen ist der Museumseintritt.",
             "Ausdrücklich nicht extra zu zahlen ist der Museumseintritt.",
             "Keineswegs zusätzlich zu zahlen ist der Museumseintritt.",
+            "Der Museumseintritt ist weder erforderlich noch zu bezahlen.",
+            "Der Museumseintritt ist auf keinen Fall erforderlich.",
+            "Kein über den regulären Tarif hinausgehender zusätzlicher Museumseintritt erforderlich.",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
