@@ -1698,6 +1698,9 @@ _FREE_PRICE_PATTERN = re.compile(
 _MUSEUM_VISITOR_ACCESS_PATTERN = (
     r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
 )
+_INFLECTED_MUSEUM_VISITOR_ACCESS_PATTERN = (
+    r"(?:museumseintritts?|eintritt\s+(?:ins|in\s+das)\s+museum)"
+)
 _PAID_MUSEUM_PREDICATE_PATTERN = (
     r"(?:zu\s+(?:zahlen|bezahlen|entrichten)|"
     r"muss\s+(?:bezahlt|entrichtet)\s+werden|"
@@ -1707,8 +1710,12 @@ _PAID_MUSEUM_PREDICATE_PATTERN = (
 _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
     rf"\b(?:"
     rf"zu\s+zahlen\s+ist\s+der\s+(?:reguläre\s+)?{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
-    rf"(?:es\s+gilt|zuzüglich(?:\s+ist)?|zzgl\.?)\s+"
-    rf"(?:der\s+reguläre\s+)?{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"es\s+gilt\s+(?:der\s+reguläre\s+)?{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"(?:zuzüglich(?:\s+ist)?|zzgl\.?)\s+"
+    rf"(?:(?:des|dem|der)\s+)?(?:regulär(?:e|en|er|es|em)\s+)?"
+    rf"{_INFLECTED_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,20}}"
+    rf"\bnicht\s+(?:kostenlos|kostenfrei|frei)|"
     rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,50}}"
     rf"{_PAID_MUSEUM_PREDICATE_PATTERN})\b",
     re.IGNORECASE,
