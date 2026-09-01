@@ -224,13 +224,16 @@ def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
 
 
 def _routine_market(context: EventText) -> tuple[str, ...] | None:
-    matched = _first(ROUTINE_MARKET_DROP_TERMS, context.content)
+    # Market filtering is about the occurrence itself. Detail pages often carry
+    # venue-wide opening hours or sibling schedules in their prose.
+    title_category = f"{context.title} {context.category}"
+    if _first(CULTURAL_EVENT_TERMS, context.title):
+        return None
+    matched = _first(ROUTINE_MARKET_DROP_TERMS, title_category)
     if not matched:
         recurrence = _EVENT_RECURRENCE_CONTEXT.search(context.title_description)
-        if recurrence and re.search(
-            r"\bmarkt(?:-shop)?\b|\böffnungszeiten\b|\boeffnungszeiten\b",
-            context.title_description,
-        ):
+        market_shape = re.search(r"\bmarkt(?:-shop)?\b", title_category)
+        if recurrence and market_shape:
             matched = recurrence.group(0)
     return (matched,) if matched and not context.destination_market else None
 

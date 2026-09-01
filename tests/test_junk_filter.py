@@ -586,6 +586,28 @@ class JunkFilterTests(unittest.TestCase):
                 self.assertTrue(decision.should_drop)
                 self.assertEqual(decision.rule_id, expected_rule)
 
+    def test_market_filter_ignores_unrelated_opening_hours_and_cultural_titles(self):
+        cases = (
+            event(
+                "Repair Café MVA Bonn - Fahrrad, Geräte, Nähen",
+                description=(
+                    "Jeden Donnerstag wird gemeinsam repariert. "
+                    "Das Haus nennt außerdem seine Öffnungszeiten und jeden vierten Samstag."
+                ),
+                category="repair café reparatur offene werkstatt",
+            ),
+            event(
+                "Ausstellungseröffnung Bürgerstiftung",
+                description="Öffnungszeiten: jeden Samstag. Kunst trifft Innovation.",
+                category="kommunal kultur markt ausstellung konzert führung",
+            ),
+        )
+
+        for candidate in cases:
+            with self.subTest(title=candidate["title"]):
+                decision = evaluate_event_quality(candidate)
+                self.assertFalse(decision.should_drop)
+
     def test_recurring_destination_markets_survive_routine_filter(self):
         cases = [
             ("Flohmarkt Bonn Siemensstraße", "Wöchentlich jeden Samstag"),
