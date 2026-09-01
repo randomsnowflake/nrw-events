@@ -346,7 +346,8 @@ def _broeltal_explicit_place(text: str) -> dict[str, str]:
 def _broeltal_detail_context(document: str, event: dict) -> dict:
     """Add venue facts only from the detail extractor's event-content capture."""
     context = detail_enrichment.extract_detail_context(document, event)
-    context.update(_broeltal_explicit_place(str(context.get("description") or "")))
+    event_scoped_copy = context.get("exact_description") or context.get("description")
+    context.update(_broeltal_explicit_place(str(event_scoped_copy or "")))
     return context
 
 
@@ -377,12 +378,11 @@ def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
         if ev:
             ev["identity_venue"] = ""
             ev["identity_venue_locked"] = True
+            ev.update(_broeltal_explicit_place(text))
             ev = _enrich_regional_detail(
                 ev, detail_fetcher, "Bröltal / Ruppichteroth detail",
                 context_extractor=_broeltal_detail_context,
             )
-            if not ev.get("venue"):
-                ev.update(_broeltal_explicit_place(str(ev.get("description") or "")))
             events.append(ev)
     return events
 

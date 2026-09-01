@@ -145,6 +145,10 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             time_text,
         )
         if event:
+            # Existing public IDs used the former title-as-venue fallback.
+            # Keep that identity input while publishing only source-backed places.
+            event["identity_venue"] = title
+            event["identity_venue_locked"] = True
             events.append(event)
     return rc.dedupe(events)
 

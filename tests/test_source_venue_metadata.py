@@ -1,7 +1,9 @@
 import unittest
 from datetime import datetime
+from unittest.mock import patch
 
 from nrw_events import report
+from nrw_events.identity import event_id
 from nrw_events.sources import coelln_konzept, harmonie, regional_html
 from nrw_events.validation import canonicalize_event
 from tests.helpers import patch_window
@@ -42,6 +44,10 @@ class ExplicitSourceVenueTests(unittest.TestCase):
 
         self.assertEqual(event["venue"], "Friedensplatz")
         self.assertEqual(event["venue_address"], "53111 Bonn")
+        old_identity = dict(event, venue=event["title"])
+        old_identity.pop("identity_venue", None)
+        old_identity.pop("identity_venue_locked", None)
+        self.assertEqual(event_id(event), event_id(old_identity))
         canonical = canonicalize_event(event)
         [published] = report.deduplicate([canonical])
         self.assertTrue(published.venue)
@@ -127,6 +133,22 @@ class ExplicitSourceVenueTests(unittest.TestCase):
         """
 
         context = regional_html._broeltal_detail_context(detail, event)
+
+        self.assertFalse(context.get("venue"))
+
+    def test_broeltal_uses_exact_event_copy_for_location(self):
+        event = self._event(
+            "Sommerfest", "https://www.broeltal.de/termine/sommerfest.html", city="Ruppichteroth"
+        )
+        with patch.object(
+            regional_html.detail_enrichment,
+            "extract_detail_context",
+            return_value={
+                "description": "Treffpunkt ist der Parkplatz am Rathaus.",
+                "exact_description": "Offizielle Beschreibung ohne Ortsangabe.",
+            },
+        ):
+            context = regional_html._broeltal_detail_context("<html></html>", event)
 
         self.assertFalse(context.get("venue"))
 
