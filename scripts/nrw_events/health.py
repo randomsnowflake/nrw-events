@@ -149,6 +149,8 @@ class SourceResult:
     duration_ms: int = 0
     ai_duration_ms: int = 0
     ai_candidate_event_count: int = 0
+    # Final billable candidates that passed output validation with a summary.
+    ai_enriched_event_count: int = 0
     # Target events the AI pass never reached, including warm-cache restores.
     ai_skipped_event_count: int = 0
     # Skipped target events for which no cached summary could be restored.
@@ -164,6 +166,9 @@ class SourceResult:
     error: Optional[dict[str, str]] = None
     status_reason: str = ""
     source_id: str = ""
+    # Private source prose carried only in memory to the publication-stage AI
+    # pass. Deliberately omitted from ``as_dict`` and every snapshot artifact.
+    _ai_source_material: list[dict[str, Any]] = field(default_factory=list, repr=False)
 
     def __post_init__(self) -> None:
         self.source = bounded_diagnostic_text(self.source, 100) or "unknown-source"
@@ -270,6 +275,7 @@ class SourceResult:
             "duration_ms": self.duration_ms,
             "ai_duration_ms": self.ai_duration_ms,
             "ai_candidate_event_count": self.ai_candidate_event_count,
+            "ai_enriched_event_count": self.ai_enriched_event_count,
             "ai_skipped_event_count": self.ai_skipped_event_count,
             "ai_skipped_without_summary_event_count": self.ai_skipped_without_summary_event_count,
             "event_sources": self.event_sources,

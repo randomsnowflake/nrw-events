@@ -306,10 +306,10 @@ class OpenIssueContractTests(unittest.TestCase):
         self.assertEqual(result.source_results["Stalled"].status, runner.SourceStatus.FAILED)
         self.assertEqual(result.source_results["Fast"].status, runner.SourceStatus.HEALTHY)
 
-    def test_restricted_source_gets_separate_ai_worker_grace(self):
+    def test_restricted_source_does_not_borrow_publication_ai_budget(self):
         settings = config.RuntimeConfig(
             score_floor=0, source_timeout_seconds=0.03,
-            ai_source_timeout_grace_seconds=0.1, series_ledger_json="",
+            series_ledger_json="",
         )
         context = RunContext(
             settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
@@ -330,15 +330,14 @@ class OpenIssueContractTests(unittest.TestCase):
                 "Bonn.de Events": lambda: (time.sleep(0.06), [raw_event()])[1],
             })
 
-        self.assertEqual(result.source_results["Bonn.de Events"].status, runner.SourceStatus.HEALTHY)
-        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
+        self.assertEqual(result.source_results["Bonn.de Events"].status, runner.SourceStatus.FAILED)
+        self.assertEqual(result.events, ())
 
-    def test_ai_batch_budget_cannot_exceed_outer_worker_allowance(self):
+    def test_publication_ai_runs_after_source_worker_deadline_is_finished(self):
         settings = config.RuntimeConfig(
             score_floor=0,
             source_timeout_seconds=0.03,
             source_processing_grace_seconds=0,
-            ai_source_timeout_grace_seconds=0.02,
             series_ledger_json="",
         )
         context = RunContext(
@@ -357,10 +356,11 @@ class OpenIssueContractTests(unittest.TestCase):
                     ),
                 ), \
                 mock.patch.object(
-                    runner.ai_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+                    runner.ai_enrichment, "enrich_events",
+                    side_effect=lambda events, **_: (time.sleep(0.08), events)[1],
                 ):
             result = runner.run_import(context, {
-                "Bonn.de Events": lambda: (time.sleep(0.08), [raw_event()])[1],
+                "Bonn.de Events": lambda: [raw_event()],
             })
 
         self.assertEqual(result.source_results["Bonn.de Events"].status, runner.SourceStatus.HEALTHY)

@@ -10,6 +10,7 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common, core, report, runner
+from nrw_events.identity import content_hash, event_id
 from nrw_events.health import (
     MAX_REJECTION_SAMPLE_JSON_LENGTH,
     SourceFetchResult,
@@ -128,42 +129,609 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertIn(warning, result.warnings)
 
-    def test_runner_records_ai_worker_duration_and_candidate_count(self):
+    def test_ai_enriches_only_the_final_deduped_publishable_winner(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json="", score_floor=0.3),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "publication-ai", configure_logging("publication-ai", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+        winner = {
+            "title": "Final target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn", "venue": "",
+            "link": "https://example.test/winner",
+            "description": "Private winner source material.",
+        }
+        duplicate = {
+            **winner,
+            "score": 0.8,
+            "link": "https://example.test/duplicate",
+            "description": "Private duplicate source material.",
+        }
+        filtered = {
+            **winner,
+            "title": "Filtered target", "score": 0.1,
+            "link": "https://example.test/filtered",
+            "description": "Private filtered source material.",
+        }
+        outside = {
+            **winner,
+            "title": "Outside target", "date": "2026-07-01",
+            "link": "https://example.test/outside",
+            "description": "Private outside source material.",
+        }
+        seen_ids = []
+        pre_ai_hashes = []
+
+        def enrich_final(events, *, settings=None, stats=None, stats_by_source=None):
+            self.assertEqual(["Final target"], [value["title"] for value in events])
+            [value] = events
+            self.assertEqual("Private winner source material.", value["description"])
+            self.assertNotIn("Private duplicate", value["description"])
+            seen_ids.append(event_id(value))
+            pre_ai_hashes.append(value["content_hash"])
+            self.assertTrue(pre_ai_hashes[-1])
+            if stats is not None:
+                stats.update({
+                    "ai_deadline_skipped_event_count": 0,
+                    "ai_cap_skipped_event_count": 0,
+                    "ai_cache_budget_skipped_event_count": 0,
+                    "ai_deadline_skipped_without_summary_event_count": 0,
+                    "ai_cap_skipped_without_summary_event_count": 0,
+                    "ai_cache_budget_skipped_without_summary_event_count": 0,
+                })
+            return [{
+                **value,
+                "description": "Provider attempted restricted copy.",
+                "description_html": "<p>Provider attempted restricted copy.</p>",
+                "description_source": "scraped",
+                "ai_summary": "Reviewed generated summary.",
+                "time": "19:30",
+                "venue": "AI learned venue",
+                "preserved_event_id": event_id(value),
+            }]
+
+        with mock.patch.object(runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events), \
+             mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=enrich_final) as enrich:
+            result = runner.run_import(context, {
+                "Bonn.de Events": lambda: [winner, duplicate, filtered, outside],
+            })
+
+        enrich.assert_called_once()
+        [published] = result.events
+        self.assertEqual("Reviewed generated summary.", published.ai_summary)
+        self.assertNotIn("Provider attempted", published.description)
+        self.assertNotIn("Provider attempted", published.description_html)
+        self.assertEqual(seen_ids, [event_id(published)])
+        self.assertEqual(content_hash(published.to_dict()), published.content_hash)
+        self.assertNotEqual(pre_ai_hashes[0], published.content_hash)
+        self.assertNotIn("Private", json.dumps(published.to_dict()))
+        self.assertNotIn("Private", json.dumps(runner.build_snapshot(result, context).events))
+        source_result = result.source_results["Bonn.de Events"]
+        self.assertEqual(1, source_result.ai_candidate_event_count)
+        self.assertEqual(1, source_result.ai_enriched_event_count)
+        self.assertEqual(1, source_result.as_dict()["ai_enriched_event_count"])
+
+    def test_publication_ai_keeps_winner_prose_after_dedup_fills_schedule_and_link(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "publication-ai-dedup-metadata",
+            configure_logging("publication-ai-dedup-metadata", "ERROR", "", ""),
+        )
+        winner = {
+            "title": "Metadata target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn", "venue": "Marktplatz",
+            "description": "Private winner programme prose.",
+        }
+        duplicate = {
+            **winner,
+            "score": 0.8,
+            "time": "19:30",
+            "link": "https://example.test/metadata-target",
+            "description": "Private duplicate programme prose.",
+        }
+
+        def enrich_final(events, **_kwargs):
+            [value] = events
+            self.assertEqual("19:30", value["time"])
+            self.assertEqual("https://example.test/metadata-target", value["link"])
+            self.assertEqual("Private winner programme prose.", value["description"])
+            return [{**value, "ai_summary": "Generated summary."}]
+
+        with mock.patch.object(
+            runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+        ), mock.patch.object(
+            runner.ai_enrichment, "enrich_events", side_effect=enrich_final,
+        ):
+            result = runner.run_import(
+                context, {"Bonn.de Events": lambda: [winner, duplicate]},
+            )
+
+        [published] = result.events
+        self.assertEqual("Generated summary.", published.ai_summary)
+
+    def test_invalid_publication_ai_settings_fail_explicitly(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "invalid-publication-ai-settings",
+            configure_logging("invalid-publication-ai-settings", "ERROR", "", ""),
+        )
+        raw = {
+            "title": "Configuration target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn",
+        }
+
+        with mock.patch.dict(os.environ, {"NRW_EVENTS_AI_WORKERS": "0"}), \
+             mock.patch.object(
+                 runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+             ), mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich:
+            with self.assertRaisesRegex(
+                ValueError, "NRW_EVENTS_AI_WORKERS must be between 1 and 16",
+            ):
+                runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        enrich.assert_not_called()
+
+    def test_reviewed_summary_manifest_is_applied_before_billable_ai(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "reviewed-summary", configure_logging("reviewed-summary", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+        raw = {
+            "title": "Reviewed target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "time": "19:30", "score": 1.0, "city": "Bonn",
+            "venue": "Marktplatz", "link": "https://example.test/reviewed",
+            "description": "Private reviewed source material.",
+        }
+        stable_id = event_id(runner.validate_event(raw))
+        manifest = {
+            "version": 1,
+            "rules": [{
+                "id": "reviewed-target",
+                "match": {
+                    "source_id": "bonn-de-events",
+                    "title": "Reviewed target",
+                    "event_ids": [stable_id],
+                    "links": [raw["link"]],
+                    "start_dates": ["2026-06-09"],
+                    "times": ["19:30"],
+                },
+                "set": {"ai_summary": "Locally reviewed summary."},
+                "evidence": {"verdict": "content_reviewed"},
+            }],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(manifest, handle)
+            with mock.patch.dict(os.environ, {"NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH": path}), \
+                 mock.patch.object(runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events), \
+                 mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich:
+                result = runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        [published] = result.events
+        self.assertEqual("Locally reviewed summary.", published.ai_summary)
+        self.assertNotIn("Private reviewed", json.dumps(published.to_dict()))
+        enrich.assert_not_called()
+        self.assertEqual(
+            0, result.source_results["Bonn.de Events"].ai_enriched_event_count,
+        )
+
+    def test_mismatched_reviewed_summary_guard_does_not_suppress_ai(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "stale-summary", configure_logging("stale-summary", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 6, 8, 12),
+        )
+        raw = {
+            "title": "Current target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "time": "19:30", "score": 1.0, "city": "Bonn",
+            "venue": "Marktplatz", "link": "https://example.test/current",
+            "description": "Private current source material.",
+        }
+        manifest = {
+            "version": 1,
+            "rules": [{
+                "id": "stale-title",
+                "match": {
+                    "source_id": "bonn-de-events", "title": "Old target",
+                    "event_ids": [event_id(runner.validate_event(raw))],
+                    "start_dates": ["2026-06-09"],
+                },
+                "set": {"ai_summary": "Stale reviewed summary."},
+                "evidence": {"verdict": "content_reviewed"},
+            }],
+        }
+
+        def generated(events, **_kwargs):
+            return [{
+                **events[0],
+                "description": "", "description_html": "",
+                "description_source": "generated",
+                "ai_summary": "Fresh AI summary.",
+            }]
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(manifest, handle)
+            with mock.patch.dict(os.environ, {"NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH": path}), \
+                 mock.patch.object(runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events), \
+                 mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=generated) as enrich:
+                result = runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        self.assertEqual("Fresh AI summary.", result.events[0].ai_summary)
+        enrich.assert_called_once()
+
+    def test_malformed_reviewed_summary_manifest_fails_closed(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "bad-summary-manifest",
+            configure_logging("bad-summary-manifest", "ERROR", "", ""),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump({"version": 2, "rules": []}, handle)
+            with mock.patch.dict(os.environ, {"NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH": path}):
+                with self.assertRaisesRegex(ValueError, "version must be 1"):
+                    runner.run_import(context, {})
+
+    def test_reviewed_summary_manifest_rejects_non_integer_version_one(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            for version in (True, 1.0):
+                with self.subTest(version=version):
+                    with open(path, "w", encoding="utf-8") as handle:
+                        json.dump({"version": version, "rules": []}, handle)
+                    with self.assertRaisesRegex(ValueError, "version must be 1"):
+                        runner.reviewed_summaries.apply_reviewed_summaries([], path)
+
+    def test_malformed_reviewed_summary_rule_fails_closed(self):
+        manifest = {
+            "version": 1,
+            "rules": [{
+                "id": "missing-evidence",
+                "match": {
+                    "source_id": "bonn-de-events", "title": "Event",
+                    "event_ids": ["event-id"], "start_dates": ["2026-06-09"],
+                },
+                "set": {"ai_summary": "Summary"},
+            }],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(manifest, handle)
+            with self.assertRaisesRegex(ValueError, "missing-evidence.*malformed"):
+                runner.reviewed_summaries.apply_reviewed_summaries([], path)
+
+    def test_reviewed_summary_manifest_rejects_unknown_keys_at_every_level(self):
+        rule = {
+            "id": "strict-rule",
+            "match": {
+                "source_id": "bonn-de-events", "title": "Event",
+                "event_ids": ["event-id"], "start_dates": ["2026-06-09"],
+            },
+            "set": {"ai_summary": "Summary"},
+            "evidence": {"verdict": "content_reviewed"},
+        }
+        malformed_manifests = {
+            "root": {"version": 1, "rules": [rule], "unknown": True},
+            "rule": {
+                "version": 1, "rules": [{**rule, "unknown": True}],
+            },
+            "match": {
+                "version": 1,
+                "rules": [{**rule, "match": {**rule["match"], "unknown": True}}],
+            },
+            "evidence": {
+                "version": 1,
+                "rules": [{
+                    **rule,
+                    "evidence": {**rule["evidence"], "unknown": True},
+                }],
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            for level, manifest in malformed_manifests.items():
+                with self.subTest(level=level):
+                    with open(path, "w", encoding="utf-8") as handle:
+                        json.dump(manifest, handle)
+                    with self.assertRaisesRegex(ValueError, "unknown keys"):
+                        runner.reviewed_summaries.apply_reviewed_summaries([], path)
+
+    def test_identical_summary_rules_are_still_ambiguous(self):
+        event = runner.validate_event({
+            "title": "Ambiguous target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn",
+        })
+        match = {
+            "source_id": event.source_id,
+            "title": event.title,
+            "event_ids": [event_id(event)],
+            "start_dates": [event.start_date],
+        }
+        manifest = {
+            "version": 1,
+            "rules": [
+                {
+                    "id": rule_id, "match": match,
+                    "set": {"ai_summary": "Same reviewed summary."},
+                    "evidence": {"verdict": "content_reviewed"},
+                }
+                for rule_id in ("first", "second")
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(manifest, handle)
+            [unchanged], warnings = runner.reviewed_summaries.apply_reviewed_summaries(
+                [event], path,
+            )
+
+        self.assertEqual("", unchanged.ai_summary)
+        self.assertEqual("ReviewedSummaryAmbiguityWarning", warnings[0]["error_type"])
+
+    def test_reviewed_summary_preserves_non_restricted_description_and_provenance(self):
+        event = runner.validate_event({
+            "title": "Publisher-authored event", "source": "Official venue",
+            "source_id": "official-venue", "date": "2026-06-09",
+            "time": "19:30", "score": 1.0, "city": "Bonn",
+            "link": "https://example.test/official",
+            "description": "Canonical publisher-authored description.",
+            "description_html": "<p>Canonical publisher-authored description.</p>",
+            "description_source": "scraped",
+        })
+        manifest = {
+            "version": 1,
+            "rules": [{
+                "id": "official-summary",
+                "match": {
+                    "source_id": event.source_id, "title": event.title,
+                    "event_ids": [event_id(event)], "start_dates": [event.start_date],
+                },
+                "set": {"ai_summary": "Content-reviewed summary."},
+                "evidence": {"verdict": "content_reviewed"},
+            }],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "reviewed.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                json.dump(manifest, handle)
+            [reviewed], warnings = runner.reviewed_summaries.apply_reviewed_summaries(
+                [event], path,
+            )
+
+        self.assertEqual([], warnings)
+        self.assertEqual("Content-reviewed summary.", reviewed.ai_summary)
+        self.assertEqual(event.description, reviewed.description)
+        self.assertEqual(event.description_html, reviewed.description_html)
+        self.assertEqual(event.description_source, reviewed.description_source)
+
+    def test_empty_optional_reviewed_summary_guards_are_treated_as_omitted(self):
+        event = runner.validate_event({
+            "title": "Optional guards", "source": "Official venue",
+            "source_id": "official-venue", "date": "2026-06-09",
+            "time": "19:30", "score": 1.0, "city": "Bonn",
+            "link": "https://example.test/optional",
+        })
+        for empty_guard in ("links", "times"):
+            with self.subTest(empty_guard=empty_guard), tempfile.TemporaryDirectory() as directory:
+                manifest = {
+                    "version": 1,
+                    "rules": [{
+                        "id": f"empty-{empty_guard}",
+                        "match": {
+                            "source_id": event.source_id, "title": event.title,
+                            "event_ids": [event_id(event)],
+                            "start_dates": [event.start_date], empty_guard: [],
+                        },
+                        "set": {"ai_summary": f"Matched empty {empty_guard}."},
+                        "evidence": {"verdict": "content_reviewed"},
+                    }],
+                }
+                path = os.path.join(directory, "reviewed.json")
+                with open(path, "w", encoding="utf-8") as handle:
+                    json.dump(manifest, handle)
+                [reviewed], warnings = runner.reviewed_summaries.apply_reviewed_summaries(
+                    [event], path,
+                )
+
+            self.assertEqual([], warnings)
+            self.assertEqual(f"Matched empty {empty_guard}.", reviewed.ai_summary)
+
+    def test_non_empty_optional_reviewed_summary_guards_remain_strict(self):
+        event = runner.validate_event({
+            "title": "Strict guards", "source": "Official venue",
+            "source_id": "official-venue", "date": "2026-06-09",
+            "time": "19:30", "score": 1.0, "city": "Bonn",
+            "link": "https://example.test/current",
+        })
+        for guard, stale_value in (
+            ("links", "https://example.test/stale"), ("times", "20:00"),
+        ):
+            with self.subTest(guard=guard), tempfile.TemporaryDirectory() as directory:
+                manifest = {
+                    "version": 1,
+                    "rules": [{
+                        "id": f"strict-{guard}",
+                        "match": {
+                            "source_id": event.source_id, "title": event.title,
+                            "event_ids": [event_id(event)],
+                            "start_dates": [event.start_date], guard: [stale_value],
+                        },
+                        "set": {"ai_summary": "Must not apply."},
+                        "evidence": {"verdict": "content_reviewed"},
+                    }],
+                }
+                path = os.path.join(directory, "reviewed.json")
+                with open(path, "w", encoding="utf-8") as handle:
+                    json.dump(manifest, handle)
+                [unchanged], warnings = runner.reviewed_summaries.apply_reviewed_summaries(
+                    [event], path,
+                )
+
+            self.assertEqual([], warnings)
+            self.assertEqual("", unchanged.ai_summary)
+
+    def test_publication_ai_exception_keeps_sanitized_events_and_degrades_source(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "ai-exception", configure_logging("ai-exception", "ERROR", "", ""),
+        )
+        raw = {
+            "title": "Fallback target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn",
+            "description": "Private fallback source material.",
+        }
+        with mock.patch.object(runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events), \
+             mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=RuntimeError("provider down")):
+            result = runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        [published] = result.events
+        self.assertNotIn("Private fallback", published.description)
+        self.assertTrue(published.description)
+        source_result = result.source_results["Bonn.de Events"]
+        self.assertEqual(SourceStatus.DEGRADED, source_result.status)
+        self.assertEqual(1, source_result.ai_skipped_event_count)
+        self.assertEqual(1, source_result.ai_skipped_without_summary_event_count)
+        self.assertTrue(any(
+            warning["error_type"] == "AIEnrichmentBatchWarning"
+            for warning in source_result.warnings
+        ))
+
+    def test_invalid_publication_ai_output_is_not_counted_as_enriched(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "invalid-ai-output",
+            configure_logging("invalid-ai-output", "ERROR", "", ""),
+        )
+        raw = {
+            "title": "Validation target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn",
+        }
+
+        def invalid_output(events, **_kwargs):
+            return [{**events[0], "title": "", "ai_summary": "Attempted summary."}]
+
+        with mock.patch.object(
+            runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+        ), mock.patch.object(
+            runner.ai_enrichment, "enrich_events", side_effect=invalid_output,
+        ):
+            result = runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        self.assertEqual("", result.events[0].ai_summary)
+        source_result = result.source_results["Bonn.de Events"]
+        self.assertEqual(1, source_result.ai_candidate_event_count)
+        self.assertEqual(0, source_result.ai_enriched_event_count)
+        self.assertEqual(0, source_result.as_dict()["ai_enriched_event_count"])
+        self.assertTrue(any(
+            warning["error_type"] == "AIEnrichmentValidationWarning"
+            for warning in result.warnings
+        ))
+
+    def test_source_worker_defers_ai_and_telemetry_to_publication_stage(self):
         event = {
             "title": "Event", "source": "Bonn.de Events",
             "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
         }
 
-        def delayed_enrichment(events, **_):
-            time.sleep(0.01)
-            return events
-
-        with mock.patch.object(runner.ai_enrichment, "is_target_event", return_value=True), \
-             mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=delayed_enrichment):
+        with mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich:
             result, _ = runner._run_source("Bonn.de Events", lambda: [event])
 
-        self.assertEqual(result.ai_candidate_event_count, 1)
-        self.assertGreaterEqual(result.ai_duration_ms, 5)
-        self.assertEqual(result.as_dict()["ai_duration_ms"], result.ai_duration_ms)
+        enrich.assert_not_called()
+        self.assertEqual(result.ai_candidate_event_count, 0)
+        self.assertEqual(result.ai_duration_ms, 0)
+
+    def test_publication_ai_clears_private_source_material_when_there_are_no_candidates(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json="", score_floor=0.5),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "no-ai-candidates", configure_logging("no-ai-candidates", "ERROR", "", ""),
+        )
+        raw = {
+            "title": "Filtered target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 0.1, "city": "Bonn",
+            "description": "Private filtered source material.",
+        }
+
+        with mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich:
+            result = runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        enrich.assert_not_called()
+        self.assertEqual(
+            [], result.source_results["Bonn.de Events"]._ai_source_material,
+        )
+
+    def test_publication_ai_clears_private_source_material_when_ai_is_disabled(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "ai-disabled", configure_logging("ai-disabled", "ERROR", "", ""),
+        )
+        raw = {
+            "title": "Disabled target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn",
+            "description": "Private disabled source material.",
+        }
+        disabled_settings = mock.Mock(enabled=False)
+
+        def disabled_enrichment(events, *, settings, **_kwargs):
+            self.assertIs(disabled_settings, settings)
+            return events
+
+        with mock.patch.object(
+            runner.ai_enrichment, "settings_from_env", return_value=disabled_settings,
+        ), mock.patch.object(
+            runner.ai_enrichment, "enrich_events", side_effect=disabled_enrichment,
+        ):
+            result = runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        self.assertEqual(
+            [], result.source_results["Bonn.de Events"]._ai_source_material,
+        )
 
     def test_runner_warns_only_for_skips_without_a_cached_summary(self):
-        event = {
+        event = runner.validate_event({
             "title": "Event", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
             "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
-        }
+        })
+        result = SourceResult(
+            "Bonn.de Events", source_id="bonn-de-events",
+            event_source_ids=["bonn-de-events"],
+        )
 
-        def cached_skip(events, *, stats):
-            stats.update({
+        runner._record_publication_ai_metrics(
+            [event], {"Bonn.de Events": result},
+            {"bonn-de-events": {
                 "ai_deadline_skipped_event_count": 1,
-                "ai_cap_skipped_event_count": 0,
                 "ai_deadline_skipped_without_summary_event_count": 0,
-                "ai_cap_skipped_without_summary_event_count": 0,
-            })
-            return events
-
-        with mock.patch.object(runner.ai_enrichment, "is_target_event", return_value=True), \
-             mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=cached_skip):
-            result, _ = runner._run_source("Bonn.de Events", lambda: [event])
+            }},
+            10,
+        )
 
         self.assertEqual(1, result.ai_skipped_event_count)
         self.assertEqual(0, result.ai_skipped_without_summary_event_count)
@@ -171,6 +739,28 @@ class RunnerOutputTests(unittest.TestCase):
             warning["error_type"] == "AIEnrichmentBudgetWarning"
             for warning in result.warnings
         ))
+
+    def test_enriched_metric_aggregates_child_sources_per_source_result(self):
+        events = [
+            runner.validate_event({
+                "title": title, "source": "Grouped source", "source_id": source_id,
+                "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
+            })
+            for title, source_id in (
+                ("Civic event", "bonn-de-events"),
+                ("Sports event", "bonn-de-sports"),
+            )
+        ]
+        result = SourceResult(
+            "Grouped source", source_id="grouped-source",
+            event_source_ids=["bonn-de-events", "bonn-de-sports"],
+        )
+
+        runner._record_publication_ai_metrics(
+            events, {"Grouped source": result}, {}, 10, events,
+        )
+
+        self.assertEqual(2, result.ai_enriched_event_count)
 
     def test_discovery_candidates_are_sanitized_research_leads_before_enrichment(self):
         event = {

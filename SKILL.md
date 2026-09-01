@@ -76,10 +76,15 @@ For model comparisons, `NRW_EVENTS_AI_PROVIDER=openrouter` uses
 `OPENROUTER_API_KEY`, strict structured Chat Completions, zero-data-retention
 routing, and a provider-specific cache namespace. Its default model is
 `deepseek/deepseek-v4-flash-0731` with reasoning disabled.
+AI runs only after canonical validation, publication filtering and global
+deduplication. `NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH` may point to a strict
+version-1 export of website `content_reviewed` rules; exact final-ID matches are
+applied first and never enter the AI cache/provider batch. A malformed configured
+manifest fails the refresh, while an absent variable leaves default behavior unchanged.
 The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 `NRW_EVENTS_CACHE_DIR`, `NRW_EVENTS_AI_MAX_ATTEMPTS`,
 `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS`, `NRW_EVENTS_AI_TIMEOUT_SECONDS`,
-`NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS`, `NRW_EVENTS_AI_SOURCE_TIMEOUT_GRACE_SECONDS`,
+`NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS`,
 `NRW_EVENTS_AI_MAX_EVENTS`, `NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY`, and
 `NRW_EVENTS_AI_MODEL`. The facts and summary stages have independent cache
 compatibility versions: summary-only prompt or quality changes reuse successful
@@ -228,6 +233,7 @@ scripts/nrw_events/
   quality.py
   radio_primary_resolution.py
   report.py
+  reviewed_summaries.py
   richtext.py
   runner.py
   runtime.py
