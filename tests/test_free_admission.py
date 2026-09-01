@@ -8,6 +8,98 @@ infer_free_admission_price = common.infer_free_admission_price
 
 
 class FreeAdmissionDetectionTests(unittest.TestCase):
+    def test_explicit_source_wording_keeps_explicit_provenance(self):
+        cases = [
+            ("Lesung", "Der Eintritt ist frei."),
+            ("Konzert", "Musik am Rhein.\n\nfrei, es geht der Hut rum"),
+            ("Workshop", "Der Workshop ist kostenlos und ohne Anmeldung."),
+            ("Radtour", "Eine kostenlose, geführte Fahrradtour durch Troisdorf."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title, common.TODAY, None, "Rathaus", "Brühl", description,
+                    "https://example.test/event", "SiteKit regional", "lokal",
+                    source_id="sitekit-bruehl",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                self.assertEqual(event["price"], "kostenlos")
+                self.assertEqual(canonicalize_event(event).admission_basis, "explicit")
+
+    def test_explicit_provenance_survives_canonicalization(self):
+        event = common.make_event(
+            "Konzert im Park", common.TODAY, None, "Stadtpark", "Bonn",
+            "Eintritt frei; um eine Spende wird gebeten.",
+            "https://example.test/konzert", "SiteKit regional", "konzert",
+            source_id="sitekit-bruehl",
+        )
+
+        self.assertIsNotNone(event)
+        assert event is not None
+        canonical = canonicalize_event(event)
+        self.assertEqual(canonical.admission_basis, "explicit")
+        self.assertTrue(canonical.admission["isFree"])
+        self.assertEqual(canonical.admission["basis"], "structured")
+
+    def test_pre_truncation_sources_record_explicit_basis_in_raw_event(self):
+        for source, source_id in (
+            ("Haus der Geschichte", "haus-der-geschichte"),
+            ("Literaturhaus Bonn", "literaturhaus-bonn"),
+        ):
+            with self.subTest(source=source):
+                event = common.make_event(
+                    "Lesung", common.TODAY, None, "Museum", "Bonn",
+                    "Langer redaktioneller Text. Der Eintritt ist frei.",
+                    "https://example.test/lesung", source, "literatur",
+                    source_id=source_id,
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                self.assertEqual(event["admission_basis"], "explicit")
+
+    def test_non_admission_controls_do_not_gain_explicit_provenance(self):
+        cases = [
+            ("Flohmarkt", "Stände im ganzen Viertel."),
+            ("Markt", "Standgebühr für Verkäufer: 10 Euro."),
+            ("Repair Café", "Spenden für Ersatzteile sind willkommen."),
+            ("Lesung", "Autorengespräch in der Stadtbibliothek."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                _price, basis = common.infer_admission(title, description)
+                self.assertNotEqual(basis, "explicit")
+                event = common.make_event(
+                    title, common.TODAY, None, "Marktplatz", "Bonn", description,
+                    "https://example.test/event", "Quelle", "lokal",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                self.assertIsNone(canonicalize_event(event).admission["isFree"])
+
+    def test_paid_museum_admission_wins_over_a_free_activity(self):
+        description = (
+            "Die Veranstaltung ist kostenlos, die Teilnehmerzahl ist begrenzt. "
+            "Zu zahlen ist der Museumseintritt."
+        )
+
+        self.assertEqual(
+            common.infer_admission("Geschichte(n) einer Stadt", description),
+            ("kostenpflichtig", "explicit"),
+        )
+        event = common.make_event(
+            "Geschichte(n) einer Stadt", common.TODAY, None, "Museum", "Troisdorf",
+            description, "https://example.test/museum", "Troisdorf", "führung",
+            source_id="troisdorf",
+        )
+        self.assertIsNotNone(event)
+        assert event is not None
+        canonical = canonicalize_event(event)
+        self.assertFalse(canonical.admission["isFree"])
+        self.assertEqual(canonical.admission_basis, "explicit")
+
     def test_detects_explicit_whole_event_free_admission_phrases(self):
         cases = [
             ("Sommerfestival", "Der Eintritt ist frei.", ""),

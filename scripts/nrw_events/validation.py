@@ -555,7 +555,13 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         and not common.has_conditional_free_admission(event["description"])
         and not _QUALIFIED_FREE_VISITOR.search(event["description"])
     )
-    if inferred_admission_basis == "inferred" and explicit_free_visitor:
+    if inferred_admission_basis == "inferred" and (
+        explicit_free_visitor
+        or (
+            common.source_preserves_explicit_admission(event["source"], event["source_id"])
+            and common.has_explicit_free_admission_wording(event["title"], event["description"])
+        )
+    ):
         inferred_admission_basis = "explicit"
     elif inferred_admission_basis in {"implicit", "inferred"}:
         _publication_warning(event, "publication.admission-not-explicit", "admission", "unknown", "free admission lacked explicit visitor evidence and was omitted")

@@ -121,6 +121,24 @@ class NaturregionSiegParserTests(unittest.TestCase):
         common._reset_detail_page_cache()
         self.cache_env.stop()
 
+    def test_detail_merge_preserves_explicit_admission_provenance(self):
+        listing = {
+            "title": "Mittelalter-Markt",
+            "description": "Markt mit Handwerk und Musik.",
+            "price": "",
+            "admission_basis": "",
+        }
+        detail = {
+            "description": "Markt mit Handwerk und Musik. Eintritt frei.",
+            "price": "kostenlos",
+            "admission_basis": "explicit",
+        }
+
+        merged = naturregion_sieg._merge_detail_event(listing, detail)
+
+        self.assertEqual(merged["price"], "kostenlos")
+        self.assertEqual(merged["admission_basis"], "explicit")
+
     def test_fetch_enriches_listing_event_from_detail_jsonld(self):
         listing_html = """
 <div class="tile tile--one-quarter tile--single-height">
