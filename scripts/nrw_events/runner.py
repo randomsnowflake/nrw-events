@@ -722,14 +722,24 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
             result.anomalies.append("zero_after_recent_nonempty")
 
 
+def _source_result_for_identity(
+    source_id: str, source: str, results: dict[str, SourceResult],
+) -> SourceResult | None:
+    """Resolve an exact source owner before considering aggregate membership."""
+    for result in results.values():
+        if source_id == result.source_id or (source and source == result.source):
+            return result
+    for result in results.values():
+        if source_id in result.event_source_ids or source in result.event_sources:
+            return result
+    return results.get(source)
+
+
 def _source_result_for_event(
     event: CanonicalEvent, results: dict[str, SourceResult],
 ) -> SourceResult | None:
     """Resolve a canonical child source back to its runner result."""
-    for result in results.values():
-        if event.source_id in result.event_source_ids or event.source in result.event_sources:
-            return result
-    return results.get(event.source)
+    return _source_result_for_identity(event.source_id, event.source, results)
 
 
 def _publication_ai_input(
@@ -778,10 +788,7 @@ def _record_publication_ai_metrics(
     enriched = Counter(event.source_id for event in enriched_events)
     total = sum(candidates.values())
     for source_id, count in candidates.items():
-        result = next((
-            value for value in source_results.values()
-            if source_id in value.event_source_ids or source_id == value.source_id
-        ), None)
+        result = _source_result_for_identity(source_id, "", source_results)
         if result is None:
             continue
         result.ai_candidate_event_count += count
@@ -1884,10 +1891,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                     source_stats.get("ai_batch_skipped_without_summary_event_count", 0) + 1
                 )
             for source_id in {event.source_id for event in ai_candidates}:
-                result = next((
-                    value for value in source_results.values()
-                    if source_id in value.event_source_ids or source_id == value.source_id
-                ), None)
+                result = _source_result_for_identity(source_id, "", source_results)
                 if result is not None:
                     result.warning(
                         result.source,
