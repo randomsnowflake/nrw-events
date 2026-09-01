@@ -1,7 +1,9 @@
 import json
 import unittest
+import urllib.error
 from datetime import datetime
-from unittest.mock import patch
+from email.message import Message
+from unittest.mock import Mock, patch
 
 from nrw_events import common, report, validation
 from nrw_events.sources import SOURCES, bonn, bonn_districts
@@ -27,6 +29,12 @@ JMJ_KIRMES_HTML = """
   <p>Ab 2026 startet die Kirmes schon am Freitag mit dem Aufstellen der Vogelstange. Der Samstag rückt stärker in den Mittelpunkt und die Saalabende finden samstags, sonntags und montags statt. Die Kirmes endet am Dienstag mit der Beerdigung des Kirmeskerls.</p>
   <p>Werbetext, der nicht Teil der Übersicht ist.</p>
 </div><!-- .entry-content -->
+"""
+
+BURG_LEDE_URL = "https://www.burglede.de/veranstaltungen-2026/"
+BURG_LEDE_HTML = """
+<html><title>Veranstaltungen 2026 | Wasserburg in Bonn-Vilich</title>
+<body>Der Verein der Freunde und Förderer der Burg Lede e.V. lädt ein.</body></html>
 """
 
 BAD_GODESBERG_HTML = """
@@ -185,6 +193,107 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertTrue(all(event["source_id"] == "beuel-net" for event in events))
         self.assertTrue(all(event["source_role"] == "primary" for event in events))
         self.assertTrue(all(event["discovered_via"] == ["beuel-net"] for event in events))
+
+    def test_burg_lede_primary_uses_validated_brightdata_after_direct_403(self):
+        discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[0]
+        discovered["link"] = BURG_LEDE_URL
+        direct_error = urllib.error.HTTPError(
+            BURG_LEDE_URL, 403, "Forbidden", Message(), None,
+        )
+        self.addCleanup(direct_error.close)
+        bright_response = Mock()
+        bright_response.status = 200
+        bright_response.headers = Message()
+        bright_response.read.return_value = json.dumps({
+            "status_code": 200,
+            "body": BURG_LEDE_HTML,
+        }).encode()
+
+        with (
+            patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0",
+            }),
+            patch.object(bonn_districts.regional_common, "fetch_html_events", return_value=[discovered]),
+            patch.object(bonn_districts.common, "fetch_url", side_effect=direct_error),
+            patch("nrw_events.common.urllib.request.urlopen", return_value=bright_response) as urlopen,
+        ):
+            [event] = bonn_districts.fetch_beuel()
+
+        self.assertEqual(event["link"], BURG_LEDE_URL)
+        self.assertEqual(event["source"], "burglede.de")
+        self.assertEqual(event["source_role"], "primary")
+        self.assertEqual(event["discovered_via"], ["beuel-net"])
+        payload = json.loads(urlopen.call_args.args[0].data)
+        self.assertEqual(payload["url"], BURG_LEDE_URL)
+
+    def test_burg_lede_primary_403_without_credentials_is_not_promoted(self):
+        discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[0]
+        discovered["link"] = BURG_LEDE_URL
+        direct_error = urllib.error.HTTPError(
+            BURG_LEDE_URL, 403, "Forbidden", Message(), None,
+        )
+        self.addCleanup(direct_error.close)
+
+        with (
+            patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "",
+                "BRIGHT_DATA_ZONE": "",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0",
+            }),
+            patch.object(bonn_districts.regional_common, "fetch_html_events", return_value=[discovered]),
+            patch.object(bonn_districts.common, "fetch_url", side_effect=direct_error),
+            patch.object(bonn_districts.common, "fetch_url_with_brightdata") as brightdata,
+            patch.object(bonn_districts.common, "log_source_error"),
+        ):
+            events = bonn_districts.fetch_beuel()
+
+        self.assertEqual(events, [])
+        brightdata.assert_not_called()
+
+    def test_burg_lede_primary_fallback_failure_is_not_promoted(self):
+        discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[0]
+        discovered["link"] = BURG_LEDE_URL
+        direct_error = urllib.error.HTTPError(
+            BURG_LEDE_URL, 403, "Forbidden", Message(), None,
+        )
+        self.addCleanup(direct_error.close)
+
+        with (
+            patch.dict("os.environ", {
+                "BRIGHT_DATA_API_KEY": "secret-key",
+                "BRIGHT_DATA_ZONE": "events-unlocker",
+                "NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0",
+            }),
+            patch.object(bonn_districts.regional_common, "fetch_html_events", return_value=[discovered]),
+            patch.object(bonn_districts.common, "fetch_url", side_effect=direct_error),
+            patch.object(
+                bonn_districts.common, "fetch_url_with_brightdata",
+                side_effect=RuntimeError("Bright Data failed"),
+            ) as brightdata,
+            patch.object(bonn_districts.common, "log_source_error"),
+        ):
+            events = bonn_districts.fetch_beuel()
+
+        self.assertEqual(events, [])
+        brightdata.assert_called_once()
+
+    def test_burg_lede_primary_direct_success_does_not_use_brightdata(self):
+        discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[0]
+        discovered["link"] = BURG_LEDE_URL
+
+        with (
+            patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}),
+            patch.object(bonn_districts.regional_common, "fetch_html_events", return_value=[discovered]),
+            patch.object(bonn_districts.common, "fetch_url", return_value=BURG_LEDE_HTML) as direct,
+            patch.object(bonn_districts.common, "fetch_url_with_brightdata") as brightdata,
+        ):
+            [event] = bonn_districts.fetch_beuel()
+
+        self.assertEqual(event["source_role"], "primary")
+        direct.assert_called_once_with(BURG_LEDE_URL, timeout=20)
+        brightdata.assert_not_called()
 
     def test_beuel_replaces_obsolete_nikolausmarkt_endpoint_before_fetch(self):
         html = """

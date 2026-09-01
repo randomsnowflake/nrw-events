@@ -54,6 +54,7 @@ _BEUEL_MIRECOURTPLATZ_PROGRAMME_DATES = frozenset({
     "2026-07-29", "2026-08-05", "2026-08-12",
     "2026-08-19", "2026-08-26", "2026-09-02",
 })
+_BURG_LEDE_PRIMARY_URL = "https://www.burglede.de/veranstaltungen-2026/"
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -552,15 +553,27 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
     return confirmed
 
 
+def _fetch_beuel_primary(url: str) -> str:
+    kwargs = {}
+    if url.rstrip("/") == _BURG_LEDE_PRIMARY_URL.rstrip("/"):
+        kwargs = {
+            "brightdata_fallback": True,
+            "allowed_hosts": ("www.burglede.de",),
+            "required_body_markers": ("Veranstaltungen 2026", "Burg Lede"),
+            "fallback_statuses": (403,),
+        }
+    return common.fetch_detail_url(
+        url, cache_namespace="beuel-primary", timeout=20, **kwargs,
+    )
+
+
 def fetch_beuel() -> list:
     discovered = regional_common.fetch_html_events(
         "Beuel.net", BEUEL_URL, events_from_beuel_html, source_id="beuel-net",
     )
     return _confirm_beuel_primary_sources(
         discovered,
-        primary_fetcher=lambda url: common.fetch_detail_url(
-            url, cache_namespace="beuel-primary", timeout=20,
-        ),
+        primary_fetcher=_fetch_beuel_primary,
     )
 
 
