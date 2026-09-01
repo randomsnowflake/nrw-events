@@ -397,6 +397,27 @@ def _template_price(document: str) -> str:
     return ""
 
 
+def _arp_museum_subline_price(document: str, event: dict) -> str:
+    """Prefer Arp Museum's event-headline admission over plugin metadata."""
+    if str(event.get("source_id") or "").casefold() != "arp-museum":
+        return ""
+    headline = re.search(
+        r'<section[^>]+class=["\'][^"\']*\bce-page-headline\b[^"\']*["\'][^>]*>'
+        r'(.*?)</section>',
+        document or "",
+        re.I | re.S,
+    )
+    if not headline:
+        return ""
+    subline = re.search(
+        r'<p[^>]+class=["\'][^"\']*\bsubline\b[^"\']*["\'][^>]*>(.*?)</p>',
+        headline.group(1),
+        re.I | re.S,
+    )
+    value = common.clean_html(subline.group(1)) if subline else ""
+    return "kostenlos" if re.search(r"\bkostenfrei+i?\b", value, re.I) else ""
+
+
 def _adfc_shoebox(document: str, event: dict) -> dict | None:
     """Decode the event payload embedded by the ADFC Ember application."""
     try:
@@ -941,12 +962,13 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
     )
     exact_description, exact_description_html = _exact_jsonld_description(document, event)
     tribe_price = _tribe_price(document)
+    arp_subline_price = _arp_museum_subline_price(document, event)
     context = {
         "description": description,
         "description_html": description_html,
         "exact_description": exact_description,
         "exact_description_html": exact_description_html,
-        "price": _first(parser.item_values, "price") or _visible_labeled_value(
+        "price": arp_subline_price or _first(parser.item_values, "price") or _visible_labeled_value(
             document, "Preis", "Preise", "Kosten", "Eintritt",
         ) or _template_price(document),
         # A bare itemprop=name may be the event title, organizer or venue.  It
@@ -967,7 +989,7 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
         # A calendar's visitor-facing event cost is stronger evidence than its
         # generated JSON-LD. Plugins can retain a default currency there even
         # while rendering the organizer's complete price correctly.
-        if structured_price is not None and not tribe_price:
+        if structured_price is not None and not tribe_price and not arp_subline_price:
             context["price"] = structured_price
         location = item.get("location")
         if isinstance(location, list):

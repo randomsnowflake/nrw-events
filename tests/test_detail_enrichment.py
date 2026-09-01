@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from nrw_events import detail_enrichment, richtext
+from nrw_events.validation import canonicalize_event
 
 
 class DetailEnrichmentTests(unittest.TestCase):
@@ -500,6 +501,39 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "kostenfrei, Hutspende erwünscht")
         self.assertNotIn("vergrößern", context["description"])
         self.assertNotIn("Diese Seite teilen", context["description"])
+
+    def test_arp_visible_free_subline_overrides_conflicting_structured_price(self):
+        document = """
+        <section class="grid-row ce-page-headline">
+          <h1>Museumsfest</h1>
+          <p class="subline">11 – 18 Uhr | Arp Museum<br>
+          Sonder-Veranstaltung – kostenfrei – keine Anmeldung erforderlich</p>
+        </section>
+        <script type="application/ld+json">
+        {"@type":"Event","name":"Museumsfest","startDate":"2026-09-27",
+         "offers":{"price":"12","priceCurrency":"EUR"}}
+        </script>
+        <div class="va-content"><p>Tag der offenen Tür.</p></div>
+        """
+        event = self.event(
+            title="Museumsfest",
+            source="Arp Museum",
+            source_id="arp-museum",
+            start_date="2026-09-27",
+            end_date="2026-09-27",
+            date="2026-09-27",
+            score=0.9,
+        )
+
+        context = detail_enrichment.extract_detail_context(document, event)
+        enriched = detail_enrichment.apply_detail_context(event, context)
+
+        self.assertEqual("kostenlos", context["price"])
+        self.assertEqual("kostenlos", enriched["price"])
+        self.assertEqual("explicit", enriched["admission_basis"])
+        canonical = canonicalize_event(enriched)
+        self.assertTrue(canonical.admission["isFree"])
+        self.assertEqual("structured", canonical.admission["basis"])
 
     def test_extracts_shapehub_content(self):
         document = """
