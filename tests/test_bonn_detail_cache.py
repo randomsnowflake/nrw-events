@@ -227,7 +227,8 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched[1]["description"], "Recovered publisher detail.")
         self.assertEqual(enriched[1]["time"], "17:00–22:00")
         self.assertEqual(enriched[1]["end_at"], "2026-07-18T22:00+02:00")
-        log_error.assert_called_once()
+        self.assertTrue(enriched[1]["_detail_page_enriched"])
+        log_error.assert_not_called()
 
     def test_calendar_pagination_finishes_before_final_detail_enrichment(self):
         def listing(title: str, page_count: int = 1) -> str:

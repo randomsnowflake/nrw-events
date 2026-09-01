@@ -559,6 +559,7 @@ def _fetch_detail_context(link: str, timeout: float = 15) -> dict:
             cache_namespace="bonn-detail",
             cache_failures=True,
             timeout=timeout,
+            retry_attempts=1,
             accept="text/html,*/*;q=0.8",
             sec_fetch_mode="navigate",
             sec_fetch_dest="document",
@@ -915,16 +916,26 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
     )
     contexts: dict[str, dict] = {}
     failed_links: set[str] = set()
-    skipped = 0
     for index in ordered:
         event = enriched[index]
+        weak_description = (
+            event.get("description_source") == "generated"
+            or _is_sparse_listing_description(
+                str(event.get("description") or ""), str(event.get("title") or ""),
+            )
+        )
+        needs_detail = (
+            weak_description
+            or not event.get("venue")
+            or not event.get("venue_address")
+            or event.get("category_key") == "other"
+        )
         link = str(event.get("link") or "").strip()
-        if not link or not common.event_in_window(event):
+        if not needs_detail or not link or not common.event_in_window(event):
             continue
         remaining = deadline - time.monotonic()
         if link not in contexts and link not in failed_links:
             if remaining < 3.0:
-                skipped += 1
                 continue
             request_timeout = 15.0 if remaining >= 30.0 else max(1.0, remaining / 3.0)
             context = _fetch_detail_context(link, timeout=request_timeout)
@@ -935,12 +946,7 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
         context = contexts.get(link, {})
         if not context:
             continue
-        weak_description = (
-            event.get("description_source") == "generated"
-            or _is_sparse_listing_description(
-                str(event.get("description") or ""), str(event.get("title") or ""),
-            )
-        )
+        event["_detail_page_enriched"] = True
         if weak_description and context.get("description"):
             event["description"] = common.concise_description(context["description"], max_chars=0)
             event["description_source"] = "scraped"
@@ -963,11 +969,6 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
             if admission_basis:
                 event["admission_basis"] = admission_basis
         enriched[index] = event
-    if skipped:
-        common.log_source_error(
-            "Bonn.de detail budget",
-            TimeoutError(f"detail budget expired before {skipped} event(s)"),
-        )
     return enriched
 
 

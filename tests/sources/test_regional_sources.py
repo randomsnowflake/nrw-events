@@ -360,8 +360,8 @@ class NaturregionSiegParserTests(unittest.TestCase):
         clock = [0.0]
         calls = []
 
-        def fetch_detail(url, *, cache_namespace, timeout):
-            calls.append((url, timeout))
+        def fetch_detail(url, *, cache_namespace, timeout, retry_attempts):
+            calls.append((url, timeout, retry_attempts))
             clock[0] += timeout
             return ""
 
@@ -376,8 +376,9 @@ class NaturregionSiegParserTests(unittest.TestCase):
 
         self.assertEqual(len(enriched), 20)
         self.assertLessEqual(clock[0], 25.0)
-        self.assertEqual(len(calls), len({url for url, _timeout in calls}))
+        self.assertEqual(len(calls), len({url for url, _timeout, _attempts in calls}))
         self.assertLess(len(calls), 10)
+        self.assertTrue(all(attempts == 1 for _url, _timeout, attempts in calls))
 
     def test_generated_fallback_is_rebuilt_after_detail_recovers_time_range(self):
         event = {
@@ -406,8 +407,9 @@ class NaturregionSiegParserTests(unittest.TestCase):
         self.assertEqual(enriched["time"], "13:00–14:15")
         self.assertIn("von 13:00 bis 14:15 Uhr", enriched["description"])
         self.assertEqual(enriched["description_source"], "generated")
+        self.assertTrue(enriched["_detail_page_enriched"])
 
-    def test_detail_budget_expiry_is_reported_once_without_event_loss(self):
+    def test_detail_budget_expiry_keeps_events_without_degrading_source(self):
         events = [
             {
                 "title": f"Event {index}",
@@ -428,5 +430,4 @@ class NaturregionSiegParserTests(unittest.TestCase):
 
         self.assertEqual(len(enriched), 5)
         self.assertTrue(all(event["description"] for event in enriched))
-        log_error.assert_called_once()
-        self.assertIn("5 event(s)", str(log_error.call_args.args[1]))
+        log_error.assert_not_called()
