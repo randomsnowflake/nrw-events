@@ -112,4 +112,5 @@ class ModuleBoundaryTests(unittest.TestCase):
         with patch.object(harmonie.common, "fetch_ical", return_value=[{"title": "Concert"}]):
             result = harmonie.fetch()
         self.assertEqual(result.status, SourceStatus.HEALTHY)
-        self.assertEqual(result.events, ({"title": "Concert"},))
+        self.assertEqual(result.events[0]["title"], "Concert")
+        self.assertEqual(result.events[0]["venue"], "Harmonie Bonn")

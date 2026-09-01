@@ -300,6 +300,56 @@ def _broeltal_named_address(text: str) -> dict[str, str]:
     }
 
 
+def _broeltal_explicit_place(text: str) -> dict[str, str]:
+    """Recover only the location phrases used in Bröltal event body copy."""
+    prose = rc.clean_blocks(text or "")
+    named_address = _broeltal_named_address(prose)
+    if named_address:
+        return named_address
+
+    pfarrheim = re.search(
+        r"\bim\s+(Pfarrheim\s+[^,.\n]{2,80}),\s*([^,\n]{2,80}?\d+[a-z]?)"
+        r"(?=\s+(?:statt|$)|[.;\n])",
+        prose,
+        re.I,
+    )
+    if pfarrheim:
+        return {
+            "venue": rc.clean(pfarrheim.group(1)),
+            "venue_address": rc.clean(pfarrheim.group(2)),
+        }
+
+    meeting_point = re.search(
+        r"\bTreffpunkt\s+ist\s+(?:der|die|das)\s+([^.;\n]{4,160})",
+        prose,
+        re.I,
+    )
+    if meeting_point:
+        venue = re.sub(
+            r"\s+um\s+\d{1,2}(?::\d{2})?\s*Uhr\b.*$",
+            "",
+            rc.clean(meeting_point.group(1)),
+            flags=re.I,
+        )
+        return {"venue": venue}
+
+    event_place = re.search(
+        r"\bOrt\s+der\s+Veranstaltung\s*:\s*([^.;\n]{4,160})",
+        prose,
+        re.I,
+    )
+    if event_place:
+        return {"venue": rc.clean(event_place.group(1))}
+    return {}
+
+
+def _broeltal_detail_context(document: str, event: dict) -> dict:
+    """Add venue facts only from the detail extractor's event-content capture."""
+    context = detail_enrichment.extract_detail_context(document, event)
+    context.update(_broeltal_explicit_place(str(context.get("description") or "")))
+    return context
+
+
 def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
     events = []
     blocks = re.findall(r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>',
@@ -329,21 +379,27 @@ def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
             ev["identity_venue_locked"] = True
             ev = _enrich_regional_detail(
                 ev, detail_fetcher, "Bröltal / Ruppichteroth detail",
+                context_extractor=_broeltal_detail_context,
             )
             if not ev.get("venue"):
-                ev.update(_broeltal_named_address(str(ev.get("description") or "")))
+                ev.update(_broeltal_explicit_place(str(ev.get("description") or "")))
             events.append(ev)
     return events
 
 
-def _enrich_regional_detail(event: dict, detail_fetcher, source: str) -> dict:
+def _enrich_regional_detail(
+    event: dict,
+    detail_fetcher,
+    source: str,
+    context_extractor=detail_enrichment.extract_detail_context,
+) -> dict:
     if not detail_fetcher or not common.window_contains(
         common.parse_iso_date(str(event.get("start_date") or "")),
     ):
         return event
     try:
         document = detail_fetcher(str(event.get("link") or ""))
-        context = detail_enrichment.extract_detail_context(document, event)
+        context = context_extractor(document, event)
         return detail_enrichment.apply_detail_context(event, context)
     except Exception as exc:
         common.log_source_error(source, exc)

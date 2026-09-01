@@ -13,6 +13,19 @@ _URL = rc.abs_url(_BASE_URL, "termine.php")
 _MARKET_WORDS = re.compile(r"floh|trödel|antik|mädchenkram|sammler", re.I)
 
 
+def _explicit_location(value: str) -> str:
+    """Keep a page-labelled market place, but not a postal city placeholder."""
+    location = rc.clean(value).strip(" ,.;")
+    if re.match(r"^(?:Anfahrt|Einfahrt|Navi|Parken)\b", location, re.I):
+        return ""
+    if re.fullmatch(r"(?:\d{5}\s+)?[A-Za-zÄÖÜäöüß -]+", location) and (
+        re.match(r"^\d{5}\s+", location)
+        or location.casefold() in {"bonn", "köln", "linz", "linz am rhein"}
+    ):
+        return ""
+    return location
+
+
 def _date_range(text: str, year: int):
     cleaned = rc.clean(text)
     shared = re.search(r"(\d{1,2})\./(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)", cleaned)
@@ -44,7 +57,7 @@ def _detail_context(html: str) -> dict:
         re.S | re.I,
     )
     description = common.concise_description(rc.clean(first_description.group(1) if first_description else ""))
-    venue = rc.clean(location.group(1) if location else "")
+    venue = _explicit_location(location.group(1) if location else "")
     time_match = re.search(
         r"(?:von|Marktzeit(?:en)?[^\d]{0,20})\s*(\d{1,2})(?::(\d{2}))?\s*"
         r"(?:bis|[-–])\s*(\d{1,2})(?::(\d{2}))?\s*Uhr",
@@ -98,7 +111,7 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
                 common.log_source_error("Cölln Konzept detail", exc)
                 detail_cache[link] = {}
         detail = detail_cache[link]
-        venue = detail.get("venue") or title
+        venue = detail.get("venue", "")
         city = rc.city_from_text(f"{venue} {title}", "Köln")
         description = detail.get("description") or common.factual_event_description(
             title,
