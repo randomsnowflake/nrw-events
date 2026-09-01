@@ -57,7 +57,8 @@ def _detail_context(html: str) -> dict:
         re.S | re.I,
     )
     description = common.concise_description(rc.clean(first_description.group(1) if first_description else ""))
-    venue = _explicit_location(location.group(1) if location else "")
+    raw_venue = rc.clean(location.group(1) if location else "")
+    venue = _explicit_location(raw_venue)
     time_match = re.search(
         r"(?:von|Marktzeit(?:en)?[^\d]{0,20})\s*(\d{1,2})(?::(\d{2}))?\s*"
         r"(?:bis|[-–])\s*(\d{1,2})(?::(\d{2}))?\s*Uhr",
@@ -72,6 +73,7 @@ def _detail_context(html: str) -> dict:
         "title": rc.clean(heading.group(1) if heading else ""),
         "description": description,
         "venue": venue,
+        "has_location": bool(raw_venue),
         "time": time_text,
     }
 
@@ -145,9 +147,14 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             time_text,
         )
         if event:
-            # Existing public IDs used the former title-as-venue fallback.
-            # Keep that identity input while publishing only source-backed places.
-            event["identity_venue"] = title
+            # Keep the old canonical venue identity while publishing only a
+            # source-backed place. The old adapter used the parsed location
+            # whenever a location element existed, even if canonicalization
+            # reduced it to blank; it used the title only when no location was
+            # present at all.
+            event["identity_venue"] = (
+                event.get("venue") if detail.get("has_location") else title
+            )
             event["identity_venue_locked"] = True
             events.append(event)
     return rc.dedupe(events)

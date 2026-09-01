@@ -44,7 +44,7 @@ class ExplicitSourceVenueTests(unittest.TestCase):
 
         self.assertEqual(event["venue"], "Friedensplatz")
         self.assertEqual(event["venue_address"], "53111 Bonn")
-        old_identity = dict(event, venue=event["title"])
+        old_identity = dict(event, venue=event["venue"])
         old_identity.pop("identity_venue", None)
         old_identity.pop("identity_venue_locked", None)
         self.assertEqual(event_id(event), event_id(old_identity))
@@ -63,6 +63,11 @@ class ExplicitSourceVenueTests(unittest.TestCase):
         )
 
         self.assertEqual(event["venue"], "")
+        self.assertEqual(event["identity_venue"], "")
+        old_identity = dict(event, venue="")
+        old_identity.pop("identity_venue", None)
+        old_identity.pop("identity_venue_locked", None)
+        self.assertEqual(event_id(event), event_id(old_identity))
 
     def test_coelln_does_not_turn_directions_into_a_venue(self):
         self.assertEqual(
