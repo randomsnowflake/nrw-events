@@ -45,7 +45,8 @@ _STRONG_ROUTINE_PHRASE_TERMS = ROUTINE_PHRASE_TERMS - _WEAK_RECURRENCE_TERMS
 _WEAK_COURSE_TERMS = frozenset({"beratung", "fortgeschrittene"})
 _STRONG_ROUTINE_COURSE_TERMS = ROUTINE_COURSE_TERMS - _WEAK_COURSE_TERMS
 _ROUTINE_MEETUP_CONTEXT = re.compile(
-    r"\b(?:treff(?:en)?|treffpunkt|stammtisch|(?:senioren|frauen)kreis|gruppe|"
+    r"\b(?:(?:spiele|eltern|senioren|frauen|jugend|baby|kinder|nachbarschafts)treff(?:en)?|"
+    r"treff(?:en)?|treffpunkt|stammtisch|(?:senioren|frauen)kreis|gruppe|"
     r"selbsthilfegruppe|gesprächsrunde|gespraechsrunde|clubabend|spiele[-\s]nachmittag)\b"
 )
 _RECURRENCE_CONTEXT = re.compile(

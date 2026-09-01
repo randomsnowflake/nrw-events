@@ -426,6 +426,8 @@ class JunkFilterTests(unittest.TestCase):
             ("Treffen des ZWAR-Netzwerkes", "Wir treffen uns regelmäßig alle 14 Tage."),
             ("Selbsthilfegruppe Tag Eins", "Regelmäßige Gesprächsrunden."),
             ("Offener Näh- und Handarbeitstreff", "Wiederkehrender Termin jeden Montag."),
+            ("Spieletreff für Erwachsene", "Wöchentlich jeden Donnerstag."),
+            ("Elterntreff", "Regelmäßiges Angebot."),
         ]
 
         for title, description in cases:
