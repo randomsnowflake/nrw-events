@@ -161,6 +161,104 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["start_time"], "14:00")
         self.assertEqual(context["end_time"], "17:00")
 
+    def test_detail_context_accepts_current_scheduling_section_class(self):
+        html = """
+<section class="SP-EventInformation__scheduling">
+  <div class="SP-Scheduling SP-Scheduling--eventInformation">
+    <span class="SP-Scheduling__begin">
+      <span class="SP-Scheduling__date">Samstag, 12. September 2026</span>
+      <span class="SP-Scheduling__time">17:00 Uhr</span>
+      <span class="SP-Scheduling__dash">–</span>
+      <span class="SP-Scheduling__time">22:00 Uhr</span>
+    </span>
+  </div>
+</section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["start_time"], "17:00")
+        self.assertEqual(context["end_time"], "22:00")
+
+    def test_bounded_listing_detail_pass_prioritizes_sparse_final_targets(self):
+        events = [
+            {
+                "title": title,
+                "date": "2026-07-18",
+                "start_date": "2026-07-18",
+                "end_date": "2026-07-18",
+                "time": "17:00",
+                "description": description,
+                "description_source": source,
+                "link": f"https://www.bonn.de/veranstaltungskalender/{index}.php",
+                "venue": "",
+                "city": "Bonn",
+            }
+            for index, (title, description, source) in enumerate((
+                ("Already complete", "Publisher copy with enough detail.", "scraped"),
+                ("Sparse target", "Sparse target", "scraped"),
+                ("Generated target", "Generated facts.", "generated"),
+            ))
+        ]
+        clock = [0.0]
+        calls = []
+
+        def fetch_detail(link, timeout=15):
+            calls.append((link, timeout))
+            clock[0] += timeout
+            return {
+                "description": "Recovered publisher detail.",
+                "description_html": "<p>Recovered publisher detail.</p>",
+                "venue": "Kirchvorplatz",
+                "city": "Bonn",
+                "start_time": "17:00",
+                "end_time": "22:00",
+            }
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "6"}), \
+             patch.object(bonn.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(bonn, "_fetch_detail_context", side_effect=fetch_detail), \
+             patch.object(common, "log_source_error") as log_error:
+            enriched = bonn._enrich_listing_details(events)
+
+        self.assertEqual(len(enriched), 3)
+        self.assertLessEqual(clock[0], 6.0)
+        self.assertEqual(calls[0][0], events[1]["link"])
+        self.assertEqual(enriched[1]["description"], "Recovered publisher detail.")
+        self.assertEqual(enriched[1]["time"], "17:00–22:00")
+        self.assertEqual(enriched[1]["end_at"], "2026-07-18T22:00+02:00")
+        log_error.assert_called_once()
+
+    def test_calendar_pagination_finishes_before_final_detail_enrichment(self):
+        def listing(title: str, page_count: int = 1) -> str:
+            return f"""
+<div class="SP-Pagination" data-page="{{&quot;min&quot;:1,&quot;max&quot;:{page_count}}}"></div>
+<article class="SP-Teaser">
+  <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/{title}.php">
+    <span class="SP-Kicker__text">Musik/Konzert</span>
+    <div class="SP-Scheduling"><span><span class="SP-Scheduling__date">18.07.2026</span></span></div>
+    <h1 class="SP-Teaser__headline">{title}</h1>
+  </a>
+</article>
+"""
+
+        listing_fetches = []
+
+        def fetch_listing(url, **_kwargs):
+            listing_fetches.append(url)
+            return listing("First", 2) if len(listing_fetches) == 1 else listing("Second")
+
+        def fetch_detail(_link, timeout=15):
+            self.assertEqual(len(listing_fetches), 2)
+            return {"description": "Recovered detail.", "venue": "Venue", "city": "Bonn"}
+
+        with patch.object(common, "fetch_url", side_effect=fetch_listing), \
+             patch.object(bonn, "_fetch_detail_context", side_effect=fetch_detail):
+            events = bonn._fetch_calendar_listing_events()
+
+        self.assertEqual([event["title"] for event in events], ["First", "Second"])
+        self.assertTrue(all(event["description"] == "Recovered detail." for event in events))
+
     def test_listing_uses_detail_end_time_for_each_occurrence(self):
         html = """
 <article class="SP-Teaser">

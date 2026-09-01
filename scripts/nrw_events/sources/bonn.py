@@ -18,6 +18,7 @@ Fetchers, all reading bonn.de:
 import json
 import os
 import re
+import time
 from datetime import datetime, timedelta
 from html import unescape
 
@@ -416,7 +417,7 @@ def _parse_detail_context(html: str) -> dict:
     }
 
     schedule_match = re.search(
-        r'<section[^>]+class="[^"]*EventInformation__date[^"]*"[^>]*>(.*?)</section>',
+        r'''<section[^>]+class=["'][^"']*(?:EventInformation__date|SP-EventInformation__scheduling)[^"']*["'][^>]*>(.*?)</section>''',
         html or "",
         re.I | re.S,
     )
@@ -549,7 +550,7 @@ def _apply_detail_time(event: dict, context: dict) -> dict:
     return event
 
 
-def _fetch_detail_context(link: str) -> dict:
+def _fetch_detail_context(link: str, timeout: float = 15) -> dict:
     if not link or "bonn.de/veranstaltungskalender/" not in link:
         return {}
     try:
@@ -557,7 +558,7 @@ def _fetch_detail_context(link: str) -> dict:
             link,
             cache_namespace="bonn-detail",
             cache_failures=True,
-            timeout=15,
+            timeout=timeout,
             accept="text/html,*/*;q=0.8",
             sec_fetch_mode="navigate",
             sec_fetch_dest="document",
@@ -659,21 +660,24 @@ def fetch_events() -> list:
     still use the shared persistent TTL cache.
     """
     source = "Bonn.de Events"
-    free_events = _fetch_free_calendar_events(source)
-    calendar_events = _fetch_calendar_listing_events(source)
+    free_events = _fetch_free_calendar_events(source, enrich_details=False)
+    calendar_events = _fetch_calendar_listing_events(source, enrich_details=False)
     events = _merge_fallback_events(free_events, calendar_events)
-    events = _merge_fallback_events(events, _fetch_rss_events(source))
+    events = _merge_fallback_events(
+        events, _fetch_rss_events(source, enrich_details=False),
+    )
     events = _merge_fallback_events(
         events,
-        fetch_events_json(source, include_fallbacks=False),
+        fetch_events_json(source, include_fallbacks=False, enrich_details=False),
     )
-    return _drop_redundant_dated_title_variants(events)
+    return _drop_redundant_dated_title_variants(_enrich_listing_details(events))
 
 
 def fetch_events_json(
     source: str = "Bonn.de Events",
     *,
     include_fallbacks: bool = True,
+    enrich_details: bool = True,
 ) -> list:
     """Legacy JSON fallback → dated, activity-only, venue-pinned events."""
     try:
@@ -729,7 +733,12 @@ def fetch_events_json(
         identity_venue = venue
         detail_context = {}
         location_address = (item.get("locationAddress") or "").strip()
-        if link and common.window_contains(start_dt, end_dt) and (not description or not venue or not location_address):
+        if (
+            enrich_details
+            and link
+            and common.window_contains(start_dt, end_dt)
+            and (not description or not venue or not location_address)
+        ):
             detail_context = _fetch_detail_context(link)
             description = description or detail_context.get("description", "")
             venue = venue or detail_context.get("venue", "")
@@ -889,7 +898,82 @@ def _is_sparse_listing_description(description: str, title: str) -> bool:
     ))
 
 
-def _listing_events_from_html(html: str, source: str, *, free_only: bool = False) -> list:
+def _enrich_listing_details(events: list[dict]) -> list[dict]:
+    """Enrich final in-window listing rows within one separate detail budget."""
+    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
+    deadline = time.monotonic() + max(batch_timeout, 0.0)
+    enriched = [dict(event) for event in events]
+    ordered = sorted(
+        range(len(enriched)),
+        key=lambda index: not (
+            enriched[index].get("description_source") == "generated"
+            or _is_sparse_listing_description(
+                str(enriched[index].get("description") or ""),
+                str(enriched[index].get("title") or ""),
+            )
+        ),
+    )
+    contexts: dict[str, dict] = {}
+    failed_links: set[str] = set()
+    skipped = 0
+    for index in ordered:
+        event = enriched[index]
+        link = str(event.get("link") or "").strip()
+        if not link or not common.event_in_window(event):
+            continue
+        remaining = deadline - time.monotonic()
+        if link not in contexts and link not in failed_links:
+            if remaining < 3.0:
+                skipped += 1
+                continue
+            request_timeout = 15.0 if remaining >= 30.0 else max(1.0, remaining / 3.0)
+            context = _fetch_detail_context(link, timeout=request_timeout)
+            if context:
+                contexts[link] = context
+            else:
+                failed_links.add(link)
+        context = contexts.get(link, {})
+        if not context:
+            continue
+        weak_description = (
+            event.get("description_source") == "generated"
+            or _is_sparse_listing_description(
+                str(event.get("description") or ""), str(event.get("title") or ""),
+            )
+        )
+        if weak_description and context.get("description"):
+            event["description"] = common.concise_description(context["description"], max_chars=0)
+            event["description_source"] = "scraped"
+        if weak_description and context.get("description_html"):
+            event["description_html"] = context["description_html"]
+        if not event.get("venue") and context.get("venue"):
+            event["venue"] = context["venue"]
+        event["city"] = common.refine_city_from_text(
+            str(context.get("city") or event.get("city") or "Bonn"),
+            " ".join(str(event.get(field) or "") for field in ("title", "venue", "description")),
+        )
+        event = _apply_detail_time(event, context)
+        event = _apply_detail_location(event, context)
+        event = _apply_detail_source_link(event, context)
+        price, admission_basis = _event_admission(
+            str(event.get("price") or ""), str(event.get("venue") or ""), context,
+        )
+        if price:
+            event["price"] = price
+            if admission_basis:
+                event["admission_basis"] = admission_basis
+        enriched[index] = event
+    if skipped:
+        common.log_source_error(
+            "Bonn.de detail budget",
+            TimeoutError(f"detail budget expired before {skipped} event(s)"),
+        )
+    return enriched
+
+
+def _listing_events_from_html(
+    html: str, source: str, *, free_only: bool = False, fetch_details: bool = True,
+) -> list:
     events, seen = [], set()
     unknown_categories = set()
     for body in rc.class_tag_blocks(html, "article", "SP-Teaser"):
@@ -930,7 +1014,7 @@ def _listing_events_from_html(html: str, source: str, *, free_only: bool = False
         classification_description = listing_description
         venue, city = "", "Bonn"
         detail_context = {}
-        if has_in_window_occurrence:
+        if has_in_window_occurrence and fetch_details:
             detail_context = _fetch_detail_context(link)
             venue = detail_context.get("venue", "")
             city = detail_context.get("city", "") or city
@@ -1000,7 +1084,9 @@ def _calendar_listing_events_from_html(html: str, source: str) -> list:
     return _listing_events_from_html(html, source, free_only=False)
 
 
-def _fetch_calendar_listing_events(source: str = "Bonn.de Events") -> list:
+def _fetch_calendar_listing_events(
+    source: str = "Bonn.de Events", *, enrich_details: bool = True,
+) -> list:
     """Crawl Bonn's server-rendered calendar result pages.
 
     Bonn's structured JSON and RSS feeds sometimes omit valid municipal events
@@ -1014,21 +1100,27 @@ def _fetch_calendar_listing_events(source: str = "Bonn.de Events") -> list:
         common.log_source_error(f"{source} calendar listing fallback", e)
         return []
 
-    events = _calendar_listing_events_from_html(first, source)
+    events = _listing_events_from_html(first, source, fetch_details=False)
     max_page = min(_pagination_max(first), int(os.environ.get("NRW_EVENTS_BONN_CALENDAR_MAX_PAGES", "30")))
     for page in range(2, max_page + 1):
         try:
             events = _merge_fallback_events(
                 events,
-                _calendar_listing_events_from_html(common.fetch_url(_calendar_search_url(page, free_only=False), timeout=25), source),
+                _listing_events_from_html(
+                    common.fetch_url(_calendar_search_url(page, free_only=False), timeout=25),
+                    source,
+                    fetch_details=False,
+                ),
             )
         except Exception as e:
             common.log_source_error(f"{source} calendar listing fallback page {page}", e)
             continue
-    return events
+    return _enrich_listing_details(events) if enrich_details else events
 
 
-def _fetch_free_calendar_events(source: str = "Bonn.de Events") -> list:
+def _fetch_free_calendar_events(
+    source: str = "Bonn.de Events", *, enrich_details: bool = True,
+) -> list:
     """Fallback: crawl Bonn's free-category listing when the JSON feed is broken.
 
     The public JSON endpoint occasionally truncates before current-day entries.
@@ -1041,18 +1133,23 @@ def _fetch_free_calendar_events(source: str = "Bonn.de Events") -> list:
         common.log_source_error(f"{source} free calendar fallback", e)
         return []
 
-    events = _free_listing_events_from_html(first, source)
+    events = _listing_events_from_html(first, source, free_only=True, fetch_details=False)
     max_page = min(_pagination_max(first), 20)
     for page in range(2, max_page + 1):
         try:
             events = _merge_fallback_events(
                 events,
-                _free_listing_events_from_html(common.fetch_url(_calendar_search_url(page, free_only=True), timeout=25), source),
+                _listing_events_from_html(
+                    common.fetch_url(_calendar_search_url(page, free_only=True), timeout=25),
+                    source,
+                    free_only=True,
+                    fetch_details=False,
+                ),
             )
         except Exception as e:
             common.log_source_error(f"{source} free calendar fallback page {page}", e)
             continue
-    return events
+    return _enrich_listing_details(events) if enrich_details else events
 
 
 def _parse_sport_time(text: str) -> str:
@@ -1142,7 +1239,9 @@ def fetch_sports() -> list:
         return []
 
 
-def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
+def _fetch_rss_events(
+    source: str = "Bonn.de RSS", *, enrich_details: bool = True,
+) -> list:
     import xml.etree.ElementTree as ET
     try:
         root = ET.fromstring(common.fetch_url(
@@ -1173,7 +1272,12 @@ def _fetch_rss_events(source: str = "Bonn.de RSS") -> list:
                 "official calendar rss bonn",
                 trust=0.76,
             )
-            if ev and common.window_contains(event_date) and ev.get("category_key") == "other":
+            if (
+                enrich_details
+                and ev
+                and common.window_contains(event_date)
+                and ev.get("category_key") == "other"
+            ):
                 detail_context = _fetch_detail_context(link)
                 detail_description = detail_context.get("description") or ""
                 if detail_description:

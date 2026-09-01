@@ -148,8 +148,10 @@ def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
     html_by_link = {}
     failed_links = set()
     enriched_events = []
+    skipped_events = 0
     for event in events:
         occurrences = [event]
+        generated_fallback = event.get("description_source") == "generated"
         link = (event.get("link") or "").strip()
         remaining = deadline - time.monotonic()
         if (
@@ -170,14 +172,35 @@ def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
             except Exception as exc:
                 failed_links.add(link)
                 common.log_source_error(f"{_SOURCE} detail", exc)
+        elif (
+            common.event_in_window(event)
+            and link
+            and link not in html_by_link
+            and link not in failed_links
+            and remaining < 3.0
+        ):
+            skipped_events += 1
         if link in html_by_link:
             occurrences = _detail_occurrences(event, html_by_link[link])
         for occurrence in occurrences:
-            replacement = occurrence.get("description") or _fallback_description(occurrence)
+            replacement = (
+                _fallback_description(occurrence)
+                if occurrence.get("description_source") == "generated"
+                or (
+                    generated_fallback
+                    and occurrence.get("description") == event.get("description")
+                )
+                else occurrence.get("description") or _fallback_description(occurrence)
+            )
             if replacement:
                 occurrence["description"] = replacement
                 occurrence["description_source"] = common.description_source_for(replacement)
             enriched_events.append(occurrence)
+    if skipped_events:
+        common.log_source_error(
+            f"{_SOURCE} detail budget",
+            TimeoutError(f"detail budget expired before {skipped_events} event(s)"),
+        )
     return enriched_events
 
 
