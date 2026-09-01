@@ -398,8 +398,14 @@ def _template_price(document: str) -> str:
 
 
 def _arp_museum_subline_price(document: str, event: dict) -> str:
-    """Prefer Arp Museum's event-headline admission over plugin metadata."""
+    """Prefer Arp Museum's exact event-headline admission over plugin metadata."""
     if str(event.get("source_id") or "").casefold() != "arp-museum":
+        return ""
+    try:
+        hostname = (urlsplit(str(event.get("link") or "")).hostname or "").casefold()
+    except ValueError:
+        return ""
+    if hostname not in {"arpmuseum.org", "www.arpmuseum.org"}:
         return ""
     headline = re.search(
         r'<section[^>]+class=["\'][^"\']*\bce-page-headline\b[^"\']*["\'][^>]*>'
@@ -414,8 +420,14 @@ def _arp_museum_subline_price(document: str, event: dict) -> str:
         headline.group(1),
         re.I | re.S,
     )
-    value = common.clean_html(subline.group(1)) if subline else ""
-    return "kostenlos" if re.search(r"\bkostenfrei+i?\b", value, re.I) else ""
+    value = common.clean_html(subline.group(1)).casefold() if subline else ""
+    normalized = re.sub(r"[^a-zäöüß]+", " ", value).strip()
+    explicit_free = re.search(
+        r"\bsonder veranstaltung (?:kostenfrei{1,2}|eintritt frei)"
+        r"(?: keine anmeldung erforderlich)?$",
+        normalized,
+    )
+    return "kostenlos" if explicit_free else ""
 
 
 def _adfc_shoebox(document: str, event: dict) -> dict | None:

@@ -519,6 +519,7 @@ class DetailEnrichmentTests(unittest.TestCase):
             title="Museumsfest",
             source="Arp Museum",
             source_id="arp-museum",
+            link="https://arpmuseum.org/veranstaltungen/detail/museumsfest.html",
             start_date="2026-09-27",
             end_date="2026-09-27",
             date="2026-09-27",
@@ -534,6 +535,38 @@ class DetailEnrichmentTests(unittest.TestCase):
         canonical = canonicalize_event(enriched)
         self.assertTrue(canonical.admission["isFree"])
         self.assertEqual("structured", canonical.admission["basis"])
+
+    def test_arp_subline_does_not_promote_conditional_or_wrong_host_free_text(self):
+        template = """
+        <section class="ce-page-headline"><h1>Museumsfest</h1>
+          <p class="subline">Sonder-Veranstaltung – {subline}</p>
+        </section>
+        <script type="application/ld+json">
+        {{"@type":"Event","name":"Museumsfest","startDate":"2026-09-27",
+          "offers":{{"price":"15","priceCurrency":"EUR"}}}}
+        </script>
+        """
+        base = self.event(
+            title="Museumsfest",
+            source="Arp Museum",
+            source_id="arp-museum",
+            link="https://arpmuseum.org/veranstaltungen/detail/museumsfest.html",
+            start_date="2026-09-27",
+            end_date="2026-09-27",
+            date="2026-09-27",
+        )
+        for subline in ("nicht kostenfrei", "Eintritt 15 €, Kinder kostenfrei"):
+            with self.subTest(subline=subline):
+                context = detail_enrichment.extract_detail_context(
+                    template.format(subline=subline), base,
+                )
+                self.assertEqual("15 EUR", context["price"])
+
+        wrong_host = dict(base, link="https://example.org/museumsfest")
+        context = detail_enrichment.extract_detail_context(
+            template.format(subline="kostenfrei"), wrong_host,
+        )
+        self.assertEqual("15 EUR", context["price"])
 
     def test_extracts_shapehub_content(self):
         document = """
