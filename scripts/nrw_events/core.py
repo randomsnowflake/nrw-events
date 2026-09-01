@@ -1695,26 +1695,35 @@ _FREE_PRICE_PATTERN = re.compile(
     r"|0(?:[,.]00)?\s*(?:€|eur|euro))$",
     re.IGNORECASE,
 )
+_MUSEUM_VISITOR_ACCESS_PATTERN = (
+    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
+)
+_PAID_MUSEUM_PREDICATE_PATTERN = (
+    r"(?:zu\s+(?:zahlen|bezahlen|entrichten)|"
+    r"muss\s+(?:bezahlt|entrichtet)\s+werden|"
+    r"wird\s+(?:erhoben|berechnet)|kostenpflichtig|erforderlich|"
+    r"fällt\s+zusätzlich\s+an)"
+)
 _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
-    r"\b(?:"
-    r"zu\s+zahlen\s+ist\s+der\s+(?:reguläre\s+)?"
-    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)|"
-    r"(?:es\s+gilt|zuzüglich(?:\s+ist)?|zzgl\.?)\s+"
-    r"(?:der\s+reguläre\s+)?(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)|"
-    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)[^.!?]{0,50}"
-    r"(?:zu\s+zahlen|zu\s+entrichten|kostenpflichtig|erforderlich|"
-    r"fällt\s+zusätzlich\s+an|muss\s+bezahlt\s+werden))\b",
+    rf"\b(?:"
+    rf"zu\s+zahlen\s+ist\s+der\s+(?:reguläre\s+)?{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"(?:es\s+gilt|zuzüglich(?:\s+ist)?|zzgl\.?)\s+"
+    rf"(?:der\s+reguläre\s+)?{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,50}}"
+    rf"{_PAID_MUSEUM_PREDICATE_PATTERN})\b",
     re.IGNORECASE,
 )
 _NEGATED_PAID_VISITOR_ACCESS = re.compile(
-    r"\bkein(?:e|en|er|es)?(?:\s+\w+){0,3}\s+"
-    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
-    r"[^.!?]{0,40}(?:erforderlich|zu\s+zahlen|zu\s+entrichten|"
-    r"kostenpflichtig|zu\s+bezahlen)|"
-    r"\b(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
-    r"[^.!?]{0,40}\b(?:nicht(?:\s+mehr)?|gar\s+nicht|keineswegs|keinesfalls|"
-    r"ausdrücklich\s+nicht)\b[^.!?]{0,20}"
-    r"(?:erforderlich|zu\s+zahlen|zu\s+entrichten|kostenpflichtig|zu\s+bezahlen)",
+    rf"\bkein(?:e|en|er|es)?(?:\s+\w+){{0,3}}\s+"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,40}}"
+    rf"{_PAID_MUSEUM_PREDICATE_PATTERN}|"
+    rf"\b{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,40}}\b"
+    rf"(?:nicht(?:\s+mehr)?|gar\s+nicht|keineswegs|keinesfalls|"
+    rf"ausdrücklich\s+nicht|nie|unter\s+keinen\s+umständen)\b"
+    rf"[^.!?;]{{0,20}}{_PAID_MUSEUM_PREDICATE_PATTERN}|"
+    rf"\b(?:weder|nie|unter\s+keinen\s+umständen)\b[^.!?;]{{0,40}}"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,50}}"
+    rf"{_PAID_MUSEUM_PREDICATE_PATTERN}",
     re.IGNORECASE,
 )
 
