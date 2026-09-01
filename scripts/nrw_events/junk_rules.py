@@ -38,6 +38,32 @@ SEARCH_STRONG_SIGNALS = _TERMS["search_strong_signal"]
 EXPLICIT_LOCAL_EVENT_TERMS = _TERMS["explicit_local_event"]
 SEARCH_STATIC_PAGE_TERMS = _TERMS["search_static_page"]
 
+_WEAK_RECURRENCE_TERMS = frozenset({
+    "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
+})
+_STRONG_ROUTINE_PHRASE_TERMS = ROUTINE_PHRASE_TERMS - _WEAK_RECURRENCE_TERMS
+_WEAK_COURSE_TERMS = frozenset({"beratung", "fortgeschrittene"})
+_STRONG_ROUTINE_COURSE_TERMS = ROUTINE_COURSE_TERMS - _WEAK_COURSE_TERMS
+_ROUTINE_MEETUP_CONTEXT = re.compile(
+    r"\b(?:treff(?:en)?|treffpunkt|stammtisch|(?:senioren|frauen)kreis|gruppe|"
+    r"selbsthilfegruppe|gesprächsrunde|gespraechsrunde|clubabend|spiele[-\s]nachmittag)\b"
+)
+_RECURRENCE_CONTEXT = re.compile(
+    r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
+    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag)|"
+    r"einmal\s+im\s+monat|freitags)\b"
+)
+_ADVICE_SERVICE_CONTEXT = re.compile(
+    r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
+    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag)|"
+    r"für\s+mitglieder|fuer\s+mitglieder|beratungstermin|beratungszentrum|"
+    r"schuldnerberatung|insolvenzberatung)\b"
+)
+_VOCATIONAL_COURSE_CONTEXT = re.compile(
+    r"\b(?:regelmäßig(?:en|er)?|regelmaessig(?:en|er)?|wöchentlich(?:en|er)?|"
+    r"woechentlich(?:en|er)?|unterricht|kurseinheiten)\b"
+)
+
 _DESTINATION_MARKET_PATTERN = re.compile(
     r"\b(?:abendflohmarkt|antikmarkt|feierabendmarkt|flohmarkt|garagenflohmarkt|hausflohmarkt|"
     r"hofflohmarkt|hof[-\s]?flohmarkt|jahrmarkt|kunstmarkt|nachbarschaftsmarkt|"
@@ -166,7 +192,24 @@ def _governance(context: EventText) -> tuple[str, ...] | None:
 
 
 def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
-    matched = _first(ROUTINE_PHRASE_TERMS, context.text)
+    # Generic recurrence prose is weak evidence: it often comes from a venue's
+    # navigation, biography, or series boilerplate rather than this occurrence.
+    matched = _first(_STRONG_ROUTINE_PHRASE_TERMS, context.content)
+    if not matched:
+        recurring = _first(_WEAK_RECURRENCE_TERMS, context.content)
+        recurring = recurring or (
+            "recurring schedule" if _RECURRENCE_CONTEXT.search(context.title_description) else ""
+        )
+        recurring = recurring or (
+            "recurring source path" if "/wiederkehrende-termine/" in context.link else ""
+        )
+        routine_shape = _ROUTINE_MEETUP_CONTEXT.search(context.title_description)
+        broad_recurring_listing = (
+            "/wiederkehrende-termine/" in context.link
+            and context.category == "begegnung"
+        )
+        if recurring and (routine_shape or broad_recurring_listing):
+            matched = recurring
     if (
         "cinema-special" not in context.category
         and matched
@@ -179,8 +222,38 @@ def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
 
 
 def _routine_market(context: EventText) -> tuple[str, ...] | None:
-    matched = _first(ROUTINE_MARKET_DROP_TERMS, context.text)
+    matched = _first(ROUTINE_MARKET_DROP_TERMS, context.content)
+    if not matched:
+        recurring = _first(_WEAK_RECURRENCE_TERMS, context.content)
+        if recurring and re.search(
+            r"\bmarkt(?:-shop)?\b|\böffnungszeiten\b|\boeffnungszeiten\b",
+            context.title_description,
+        ):
+            matched = recurring
     return (matched,) if matched and not context.destination_market else None
+
+
+def _routine_course(context: EventText) -> tuple[str, ...] | None:
+    matched = _first(_STRONG_ROUTINE_COURSE_TERMS, context.content)
+    if matched:
+        return (matched,)
+
+    # "Beratung" and "Fortgeschrittene" describe many public events without
+    # making them standing services or courses. Require the weak word in the
+    # event title plus separate, event-scoped service/course evidence.
+    if "beratung" in context.title and _ADVICE_SERVICE_CONTEXT.search(
+        context.title_description
+    ):
+        return ("beratung",)
+    if "fortgeschrittene" in context.title:
+        course = _first(COURSE_CONTEXT_TERMS, context.content)
+        if course:
+            return "fortgeschrittene", course
+    title_course = _first(COURSE_CONTEXT_TERMS, context.title)
+    vocational = _VOCATIONAL_COURSE_CONTEXT.search(context.description)
+    if title_course and vocational:
+        return title_course, vocational.group(0)
+    return None
 
 
 def _language_course(context: EventText) -> tuple[str, ...] | None:
@@ -231,7 +304,7 @@ RULES = (
     Rule("civic.governance", "routine political or administrative meeting is outside the editorial scope", _governance),
     Rule("civic.routine-meetup", "recurring low-signal meetup is not a destination event", _routine_meetup),
     Rule("civic.routine-market", "routine produce market is civic infrastructure, not a special market event", _routine_market),
-    Rule("civic.course", "routine course or support offer is not a destination event", _contains(ROUTINE_COURSE_TERMS, "text")),
+    Rule("civic.course", "routine course or support offer is not a destination event", _routine_course),
     Rule("civic.language-course", "recurring language instruction is not a destination event", _language_course),
     Rule("civic.recurring-course", "recurring course series is not a destination event", _recurring_course),
     Rule("search.static-page", "search result describes a static page rather than a dated event", _search_static),
