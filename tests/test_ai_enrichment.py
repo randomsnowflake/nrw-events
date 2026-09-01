@@ -670,6 +670,44 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("Altes Rathaus", result["venue"])
         self.assertEqual("", result["description"])
 
+    def test_disabled_provider_reuses_exact_occurrence_across_bonn_source_aliases(self):
+        sports = event(source="Bonn.de Sports", source_id="bonn-de-sports", time="19:30")
+        first = ai_enrichment.enrich_event(
+            sports,
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        dedup_winner = event(source="Bonn.de Events", source_id="bonn-de-events", time="19:30")
+        self.assertEqual(event_id(sports), event_id(dedup_winner))
+
+        result = ai_enrichment.enrich_event(
+            dedup_winner,
+            settings=replace(self.settings, enabled=False, api_key=""),
+            client=FakeClient([]),
+            now=self.now + timedelta(days=1),
+        )
+
+        self.assertEqual(first["ai_summary"], result["ai_summary"])
+        self.assertEqual("", result["venue"])
+
+    def test_bonn_source_alias_cache_rejects_a_different_occurrence_time(self):
+        ai_enrichment.enrich_event(
+            event(source="Bonn.de Sports", source_id="bonn-de-sports", time="19:30"),
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+
+        result = ai_enrichment.enrich_event(
+            event(source="Bonn.de Events", source_id="bonn-de-events", time="21:00"),
+            settings=replace(self.settings, enabled=False, api_key=""),
+            client=FakeClient([]),
+            now=self.now + timedelta(days=1),
+        )
+
+        self.assertEqual("", result["ai_summary"])
+
     def test_cross_identity_fallback_reuses_start_time_when_source_adds_end_time(self):
         first = ai_enrichment.enrich_event(
             event(venue="", time="19:30"),
