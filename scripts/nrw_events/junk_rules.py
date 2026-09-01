@@ -45,14 +45,16 @@ _STRONG_ROUTINE_PHRASE_TERMS = ROUTINE_PHRASE_TERMS - _WEAK_RECURRENCE_TERMS
 _WEAK_COURSE_TERMS = frozenset({"beratung", "fortgeschrittene"})
 _STRONG_ROUTINE_COURSE_TERMS = ROUTINE_COURSE_TERMS - _WEAK_COURSE_TERMS
 _ROUTINE_MEETUP_CONTEXT = re.compile(
-    r"\b(?:(?:spiele|eltern|senioren|frauen|jugend|baby|kinder|nachbarschafts)treff(?:en)?|"
+    r"\b(?:(?:spiele|eltern|senioren|frauen|jugend|baby|kinder|nachbarschafts|"
+    r"mütter|muetter|männer|maenner|krabbel|montags|dienstags|mittwochs|"
+    r"donnerstags|freitags|samstags|sonntags)treff(?:en)?|"
     r"treff(?:en)?|treffpunkt|stammtisch|(?:senioren|frauen)kreis|gruppe|"
     r"selbsthilfegruppe|gesprächsrunde|gespraechsrunde|clubabend|spiele[-\s]nachmittag)\b"
 )
 _RECURRENCE_CONTEXT = re.compile(
     r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
-    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag)|"
-    r"einmal\s+im\s+monat|freitags)\b"
+    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag|"
+    r"samstag|sonntag)|einmal\s+im\s+monat|freitags|samstags|sonntags)\b"
 )
 _ADVICE_SERVICE_CONTEXT = re.compile(
     r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
@@ -204,7 +206,10 @@ def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
         recurring = recurring or (
             "recurring source path" if "/wiederkehrende-termine/" in context.link else ""
         )
-        routine_shape = _ROUTINE_MEETUP_CONTEXT.search(context.title_description)
+        # The meetup shape must belong to the occurrence title. Generic prose
+        # such as "der Verein trifft sich regelmäßig" must not turn an
+        # otherwise one-off public action into a routine service.
+        routine_shape = _ROUTINE_MEETUP_CONTEXT.search(context.title)
         broad_recurring_listing = (
             "/wiederkehrende-termine/" in context.link
             and context.category == "begegnung"

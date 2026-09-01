@@ -428,6 +428,9 @@ class JunkFilterTests(unittest.TestCase):
             ("Offener Näh- und Handarbeitstreff", "Wiederkehrender Termin jeden Montag."),
             ("Spieletreff für Erwachsene", "Wöchentlich jeden Donnerstag."),
             ("Elterntreff", "Regelmäßiges Angebot."),
+            ("Müttertreff", "Samstags im Nachbarschaftszentrum."),
+            ("Männertreff", "Sonntags im Gemeindehaus."),
+            ("Krabbeltreff", "Jeden Samstag für Familien."),
         ]
 
         for title, description in cases:
