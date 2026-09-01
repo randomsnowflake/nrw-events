@@ -644,7 +644,7 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertTrue(result["description_html"])
         self.assertEqual("", result["ai_summary"])
 
-    def test_disabled_provider_reuses_summary_for_same_occurrence_after_identity_enrichment(self):
+    def test_disabled_provider_rejects_location_identity_without_cached_evidence(self):
         original = event(venue="", time="19:30")
         first = ai_enrichment.enrich_event(
             original,
@@ -666,9 +666,11 @@ class AIEnrichmentTests(unittest.TestCase):
             now=self.now + timedelta(days=1),
         )
 
-        self.assertEqual(first["ai_summary"], result["ai_summary"])
+        self.assertTrue(first["ai_summary"])
+        self.assertEqual("", result["ai_summary"])
         self.assertEqual("Altes Rathaus", result["venue"])
-        self.assertEqual("", result["description"])
+        self.assertTrue(result["description"])
+        self.assertEqual("generated", result["description_source"])
 
     def test_disabled_provider_reuses_exact_occurrence_across_bonn_source_aliases(self):
         sports = event(source="Bonn.de Sports", source_id="bonn-de-sports", time="19:30")
@@ -714,6 +716,12 @@ class AIEnrichmentTests(unittest.TestCase):
 
         self.assertEqual("", result["ai_summary"])
 
+    def test_cached_occurrence_rejects_missing_location_facts_for_known_venue(self):
+        current = event(venue="Oper Bonn", time="19:30")
+        cached_facts = dict(FACTS, venue="")
+
+        self.assertFalse(ai_enrichment._cached_occurrence_matches(current, cached_facts))
+
     def test_cross_identity_fallback_reuses_start_time_when_source_adds_end_time(self):
         first = ai_enrichment.enrich_event(
             event(venue="", time="19:30"),
@@ -733,7 +741,7 @@ class AIEnrichmentTests(unittest.TestCase):
                 [values[column] for column in columns],
             )
             connection.commit()
-        changed = event(venue="Altes Rathaus", time="19:30–21:00")
+        changed = event(venue="", time="19:30–21:00")
 
         result = ai_enrichment.enrich_event(
             changed,

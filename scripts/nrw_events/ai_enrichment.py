@@ -1712,7 +1712,11 @@ def _event_occurrence_start_time(event: Mapping[str, Any]) -> str:
     return match.group(1) if match else ""
 
 
-def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any]) -> bool:
+def _cached_occurrence_matches(
+    event: Mapping[str, Any],
+    facts: Mapping[str, Any],
+    result: Mapping[str, Any] | None = None,
+) -> bool:
     """Conservatively match an accepted cache row after mutable identity fields changed."""
     def text(value: object) -> str:
         return category_taxonomy.comparison_text(str(value or ""))
@@ -1733,8 +1737,8 @@ def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any
         return False
     for field in ("city", "venue"):
         current = text(event.get(field))
-        cached = text(facts.get(field))
-        if current and cached and current != cached:
+        cached = text(facts.get(field) or (result or {}).get(field))
+        if current and current != cached:
             return False
     return True
 
@@ -1809,7 +1813,7 @@ def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
                     isinstance(result, dict)
                     and _clean_nullable(result.get("ai_summary"), 4000)
                     and isinstance(facts, dict)
-                    and _cached_occurrence_matches(event, facts)
+                    and _cached_occurrence_matches(event, facts, result)
                 ):
                     return _apply_result(safe_event, result)
             cross_rows = connection.execute(
@@ -1842,7 +1846,7 @@ def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
             continue
         if not isinstance(result, dict) or not _clean_nullable(result.get("ai_summary"), 4000):
             continue
-        if isinstance(facts, dict) and _cached_occurrence_matches(event, facts):
+        if isinstance(facts, dict) and _cached_occurrence_matches(event, facts, result):
             key_identity = _historical_event_key_identity(row["event_key"])
             if key_identity not in cross_key_matches:
                 cross_key_matches[key_identity] = result
