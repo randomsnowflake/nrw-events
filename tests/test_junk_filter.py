@@ -434,6 +434,13 @@ class JunkFilterTests(unittest.TestCase):
             ("Trauertreff", "Samstags im Gemeindehaus."),
             ("Queertreff", "Sonntags im Jugendzentrum."),
             ("Lauftreff", "Jeden Samstag am Rheinufer."),
+            ("Spieletreff für Erwachsene", "Monatlich am ersten Donnerstag."),
+            ("Lauftreff am Rhein", "Dienstags um 18 Uhr."),
+            ("Elterntreff", "Alle zwei Wochen."),
+            (
+                "Advanced Contemporary Dance Training",
+                "Monatlicher Kurs für Fortgeschrittene mit zehn Terminen.",
+            ),
         ]
 
         for title, description in cases:

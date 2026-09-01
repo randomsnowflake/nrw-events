@@ -51,19 +51,26 @@ _ROUTINE_MEETUP_CONTEXT = re.compile(
 )
 _RECURRENCE_CONTEXT = re.compile(
     r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
+    r"monatlich(?:e[rsn]?)?|montags|dienstags|mittwochs|donnerstags|"
     r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag|"
-    r"samstag|sonntag)|einmal\s+im\s+monat|freitags|samstags|sonntags)\b"
+    r"samstag|sonntag)|am\s+(?:ersten|zweiten|dritten|vierten)\s+\w+\s+im\s+monat|"
+    r"alle\s+(?:zwei|drei|vier|\d+)\s+(?:wochen|tage)|"
+    r"(?:zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|\d+)\s+termine|"
+    r"einmal\s+im\s+monat|freitags|samstags|sonntags)\b"
 )
 _ADVICE_SERVICE_CONTEXT = re.compile(
     r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
+    r"monatlich(?:e[rsn]?)?|montags|dienstags|mittwochs|donnerstags|"
     r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag|"
-    r"samstag|sonntag)|samstags|sonntags|"
+    r"samstag|sonntag)|am\s+(?:ersten|zweiten|dritten|vierten)\s+\w+\s+im\s+monat|"
+    r"alle\s+(?:zwei|drei|vier|\d+)\s+(?:wochen|tage)|samstags|sonntags|"
     r"für\s+mitglieder|fuer\s+mitglieder|beratungstermin|beratungszentrum|"
     r"schuldnerberatung|insolvenzberatung)\b"
 )
 _VOCATIONAL_COURSE_CONTEXT = re.compile(
     r"\b(?:regelmäßig(?:en|er)?|regelmaessig(?:en|er)?|wöchentlich(?:en|er)?|"
-    r"woechentlich(?:en|er)?|unterricht|kurseinheiten)\b"
+    r"woechentlich(?:en|er)?|monatlich(?:e[rsn]?)?|unterricht|kurseinheiten|"
+    r"(?:zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|\d+)\s+termine)\b"
 )
 
 _DESTINATION_MARKET_PATTERN = re.compile(
