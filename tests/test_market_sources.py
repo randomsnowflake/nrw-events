@@ -86,6 +86,20 @@ class MarketSourceTests(unittest.TestCase):
             "https://www.grote-hiller.de/unsere-maerkte/hennef-meiersheide-maedelsmarkt/",
         )
 
+    def test_grote_hiller_uses_only_live_listing_pages(self):
+        self.assertEqual(
+            grote_hiller._URLS,
+            (
+                "https://www.grote-hiller.de/troedelmaerkte/",
+                "https://www.grote-hiller.de/stadtflohmaerkte/",
+                "https://www.grote-hiller.de/maedelsflohmaerkte/",
+            ),
+        )
+        self.assertNotIn(
+            "https://www.grote-hiller.de/fashion-family/",
+            grote_hiller._URLS,
+        )
+
     def test_grote_hiller_extracts_visitor_admission_not_seller_fees(self):
         html = """
         <div id="markt1" class="row listing">
