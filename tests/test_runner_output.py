@@ -77,6 +77,38 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(exact.ai_enriched_event_count, 1)
         self.assertEqual(aggregate.ai_candidate_event_count, 0)
 
+    def test_publication_ai_material_can_come_from_aggregate_origin(self):
+        event = runner.validate_event({
+            "title": "Promoted district event",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        aggregate._ai_source_material = [{
+            "event_id": event_id(replace(event, preserved_event_id="")),
+            "source_id": event.source_id,
+            "title": event.title,
+            "start_date": event.start_date,
+            "score": event.score,
+            "material": "Private aggregate-owned source copy.",
+        }]
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+
+        ai_input = runner._publication_ai_input(event, {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        })
+
+        self.assertEqual(ai_input["description"], "Private aggregate-owned source copy.")
+
     def test_restricted_publication_boundary_removes_copy_adopted_during_dedup(self):
         canonical = runner.validate_event({
             "title": "Stadtgartenkonzert",

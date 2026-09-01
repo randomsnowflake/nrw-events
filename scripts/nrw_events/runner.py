@@ -749,12 +749,10 @@ def _publication_ai_input(
     raw: dict[str, object] = event.to_dict()
     raw["description"] = ""
     raw["description_html"] = ""
-    result = _source_result_for_event(event, results)
-    if result is None:
-        return raw
     pre_ai_id = event_id(replace(event, preserved_event_id=""))
     matches = [
         item
+        for result in results.values()
         for item in result._ai_source_material
         if item.get("event_id") == pre_ai_id
         and item.get("source_id") == event.source_id
