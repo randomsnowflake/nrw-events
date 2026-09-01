@@ -49,28 +49,20 @@ _ROUTINE_MEETUP_CONTEXT = re.compile(
     r"treff(?:en)?|treffpunkt|stammtisch|(?:senioren|frauen)kreis|gruppe|"
     r"selbsthilfegruppe|gesprächsrunde|gespraechsrunde|clubabend|spiele[-\s]nachmittag)\b"
 )
-_RECURRENCE_CONTEXT = re.compile(
-    r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
-    r"monatlich(?:e[rsn]?)?|montags|dienstags|mittwochs|donnerstags|"
-    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag|"
-    r"samstag|sonntag)|am\s+(?:ersten|zweiten|dritten|vierten)\s+\w+\s+im\s+monat|"
+_EVENT_RECURRENCE_CONTEXT = re.compile(
+    r"\b(?:regelmäßig(?:e[rsn]?)?|regelmaessig(?:e[rsn]?)?|"
+    r"wöchentlich(?:e[rsn]?)?|woechentlich(?:e[rsn]?)?|wiederkehrend(?:e[rsn]?)?|"
+    r"monatlich(?:e[rsn]?)?|montags|dienstags|mittwochs|donnerstags|freitags|samstags|sonntags|"
+    r"jeden\s+(?:(?:ersten|zweiten|dritten|vierten)\s+)?"
+    r"(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)|"
+    r"am\s+(?:ersten|zweiten|dritten|vierten)\s+\w+\s+im\s+monat|"
     r"alle\s+(?:zwei|drei|vier|\d+)\s+(?:wochen|tage)|"
     r"(?:zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|\d+)\s+termine|"
-    r"einmal\s+im\s+monat|freitags|samstags|sonntags)\b"
+    r"einmal\s+im\s+monat)\b"
 )
 _ADVICE_SERVICE_CONTEXT = re.compile(
-    r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
-    r"monatlich(?:e[rsn]?)?|montags|dienstags|mittwochs|donnerstags|"
-    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag|"
-    r"samstag|sonntag)|am\s+(?:ersten|zweiten|dritten|vierten)\s+\w+\s+im\s+monat|"
-    r"alle\s+(?:zwei|drei|vier|\d+)\s+(?:wochen|tage)|samstags|sonntags|"
-    r"für\s+mitglieder|fuer\s+mitglieder|beratungstermin|beratungszentrum|"
+    r"\b(?:für\s+mitglieder|fuer\s+mitglieder|beratungstermin|beratungszentrum|"
     r"schuldnerberatung|insolvenzberatung)\b"
-)
-_VOCATIONAL_COURSE_CONTEXT = re.compile(
-    r"\b(?:regelmäßig(?:en|er)?|regelmaessig(?:en|er)?|wöchentlich(?:en|er)?|"
-    r"woechentlich(?:en|er)?|monatlich(?:e[rsn]?)?|unterricht|kurseinheiten|"
-    r"(?:zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|\d+)\s+termine)\b"
 )
 
 _DESTINATION_MARKET_PATTERN = re.compile(
@@ -205,10 +197,8 @@ def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
     # navigation, biography, or series boilerplate rather than this occurrence.
     matched = _first(_STRONG_ROUTINE_PHRASE_TERMS, context.title)
     if not matched:
-        recurring = _first(_WEAK_RECURRENCE_TERMS, context.content)
-        recurring = recurring or (
-            "recurring schedule" if _RECURRENCE_CONTEXT.search(context.title_description) else ""
-        )
+        recurrence = _EVENT_RECURRENCE_CONTEXT.search(context.title_description)
+        recurring = recurrence.group(0) if recurrence else ""
         recurring = recurring or (
             "recurring source path" if "/wiederkehrende-termine/" in context.link else ""
         )
@@ -236,12 +226,12 @@ def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
 def _routine_market(context: EventText) -> tuple[str, ...] | None:
     matched = _first(ROUTINE_MARKET_DROP_TERMS, context.content)
     if not matched:
-        recurring = _first(_WEAK_RECURRENCE_TERMS, context.content)
-        if recurring and re.search(
+        recurrence = _EVENT_RECURRENCE_CONTEXT.search(context.title_description)
+        if recurrence and re.search(
             r"\bmarkt(?:-shop)?\b|\böffnungszeiten\b|\boeffnungszeiten\b",
             context.title_description,
         ):
-            matched = recurring
+            matched = recurrence.group(0)
     return (matched,) if matched and not context.destination_market else None
 
 
@@ -252,20 +242,18 @@ def _routine_course(context: EventText) -> tuple[str, ...] | None:
 
     # "Beratung" and "Fortgeschrittene" describe many public events without
     # making them standing services or courses. Require the weak word in the
-    # event title plus separate, event-scoped service/course evidence.
-    if "beratung" in context.title and _ADVICE_SERVICE_CONTEXT.search(
-        context.title_description
-    ):
-        return ("beratung",)
-    if "fortgeschrittene" in context.title:
-        course = _first(COURSE_CONTEXT_TERMS, context.title)
-        vocational = _VOCATIONAL_COURSE_CONTEXT.search(context.description)
-        if course and vocational:
-            return "fortgeschrittene", course, vocational.group(0)
+    # event title plus separate, event-scoped service or recurrence evidence.
+    recurrence = _EVENT_RECURRENCE_CONTEXT.search(context.title_description)
+    advice_service = _ADVICE_SERVICE_CONTEXT.search(context.title_description)
+    if "beratung" in context.title and (recurrence or advice_service):
+        evidence = recurrence or advice_service
+        return "beratung", evidence.group(0)
+
     title_course = _first(COURSE_CONTEXT_TERMS, context.title)
-    vocational = _VOCATIONAL_COURSE_CONTEXT.search(context.description)
-    if title_course and vocational:
-        return title_course, vocational.group(0)
+    if title_course and recurrence:
+        if "fortgeschrittene" in context.title:
+            return "fortgeschrittene", title_course, recurrence.group(0)
+        return title_course, recurrence.group(0)
     return None
 
 

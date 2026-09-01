@@ -502,6 +502,16 @@ class JunkFilterTests(unittest.TestCase):
                 "Ein einmaliger Workshop für das Stadtfest.",
                 "Tanz Workshop",
             ),
+            (
+                "Advanced Dance Training",
+                "Einmaliger Unterricht mit einem Gastdozenten.",
+                "Tanz Workshop",
+            ),
+            (
+                "Beratung für Familien",
+                "Ein einmaliger Informationsabend mit offener Fragerunde.",
+                "Familie",
+            ),
         ]
 
         for title, description, category in cases:
@@ -525,6 +535,12 @@ class JunkFilterTests(unittest.TestCase):
                 "civic.course",
             ),
             (
+                "Beratung für Familien",
+                "Zehn Termine für Eltern und Kinder.",
+                "Beratung",
+                "civic.course",
+            ),
+            (
                 "Offener Treff im Nachbarschaftshaus",
                 "Der Treff findet wöchentlich statt.",
                 "Soziales",
@@ -534,6 +550,12 @@ class JunkFilterTests(unittest.TestCase):
                 "Schuldner- und Insolvenzberatung",
                 "Im Städtischen Beratungszentrum Älterwerden, Behinderung und Rente.",
                 "Kommunal",
+                "civic.course",
+            ),
+            (
+                "Advanced Dance Training",
+                "Dienstags für fortgeschrittene Tanzschaffende.",
+                "Workshop",
                 "civic.course",
             ),
             (
