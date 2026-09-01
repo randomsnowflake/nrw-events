@@ -362,7 +362,13 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
         if title and title.casefold() in visible.casefold() and any(
             label and label in visible for label in date_labels
         ):
-            event_scoped_copy = context.get("description")
+            visible_description = re.search(
+                r'<(?:div|section)\b[^>]*class=["\'][^"\']*\bevent-description\b'
+                r'[^"\']*["\'][^>]*>(.*?)</(?:div|section)>',
+                document or "", re.I | re.S,
+            )
+            if visible_description:
+                event_scoped_copy = visible_description.group(1)
     context.update(_broeltal_explicit_place(str(event_scoped_copy or "")))
     return context
 
