@@ -232,8 +232,12 @@ def _routine_market(context: EventText) -> tuple[str, ...] | None:
     matched = _first(ROUTINE_MARKET_DROP_TERMS, title_category)
     if not matched:
         recurrence = _EVENT_RECURRENCE_CONTEXT.search(context.title_description)
-        market_shape = re.search(r"\bmarkt(?:-shop)?\b", title_category)
-        if recurrence and market_shape:
+        category_market = re.fullmatch(
+            r"(?:markt|märkte|wochenmarkt|flohmarkt|trödelmarkt)",
+            context.category.strip(),
+        )
+        market_shape = re.search(r"\bmarkt(?:-shop)?\b", context.title)
+        if recurrence and (market_shape or category_market):
             matched = recurrence.group(0)
     return (matched,) if matched and not context.destination_market else None
 
