@@ -102,7 +102,7 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Erwachsene", "Europa", "Familien", "Ferienprogramm", "Frankreich",
         "Für Einzelgäste an festen Terminen",
         "Für Einzelgäste und Gruppen mit eigener Gästeführung",
-        "Für Gruppen mit eigener Gästeführung", "Gesundheit", "Hardtberg",
+        "Für Gruppen mit eigener Gästeführung", "Gesundheit", "Gleichstellung", "Hardtberg",
         "Haus der Natur", "Inklusionsthemen", "Inklusiv konzipiert",
         "Integration/Migration/Interkultur", "Internationales", "Jugendliche",
         "Junge Erwachsene", "Klima", "Kunstmuseum", "Nachhaltigkeit",

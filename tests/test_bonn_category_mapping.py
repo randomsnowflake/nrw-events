@@ -162,12 +162,14 @@ class BonnCategoryMappingTests(unittest.TestCase):
         self.assertEqual(bonn._SOURCE_CATEGORY_MAP, expected)
         self.assertIn("Führungen/Rundgänge/Touren", bonn._ALLOW)
         self.assertNotIn("Führungen/Rundgänge/Touren", bonn._SOURCE_CATEGORY_MAP)
-        self.assertTrue({
-            "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt."
-        }.issubset(bonn._KNOWN_SOURCE_CATEGORIES))
-        self.assertFalse({
-            "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt."
-        } & bonn._ALLOW)
+        neutral_facets = {
+            "Ausgehen. Erleben.",
+            "Veranstaltungen. Kalender.",
+            "Barrierefreie Stadt.",
+            "Gleichstellung",
+        }
+        self.assertTrue(neutral_facets.issubset(bonn._KNOWN_SOURCE_CATEGORIES))
+        self.assertFalse(neutral_facets & bonn._ALLOW)
 
     def test_current_bonn_topic_categories_are_accepted_without_taxonomy_warning(self):
         categories = {
