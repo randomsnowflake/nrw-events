@@ -1728,7 +1728,7 @@ _NEGATED_PAID_VISITOR_ACCESS = re.compile(
 )
 
 
-def _has_paid_visitor_access_without_amount(text: str) -> bool:
+def has_paid_visitor_access(text: str) -> bool:
     """Recognize positive museum charges without treating negations as paid."""
     negated = list(_NEGATED_PAID_VISITOR_ACCESS.finditer(text or ""))
     for match in _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT.finditer(text or ""):
@@ -1738,6 +1738,9 @@ def _has_paid_visitor_access_without_amount(text: str) -> bool:
         ):
             return True
     return False
+
+
+_has_paid_visitor_access_without_amount = has_paid_visitor_access
 
 
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(

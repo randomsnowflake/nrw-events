@@ -839,13 +839,7 @@ def _market_title_evidence_matches(left: dict, right: dict) -> bool:
 
 def _has_separate_admission_charge(event) -> bool:
     text = " ".join((event.get("description", ""), event.get("price", ""))).casefold()
-    return bool(re.search(
-        r"museumseintritt\s+(?:fällt|faellt)\s+zusätzlich\s+an|"
-        r"regulärer\s+museumseintritt\s+ist\s+erforderlich|"
-        r"kostenlos\s+zzgl\.?\s+eintritt|"
-        r"kostenlos[^.]{0,80}(?:zuzüglich|zuzueglich)\s+(?:museum)?eintritt",
-        text,
-    ))
+    return common.has_paid_visitor_access(text)
 
 
 def _adopted_description(source: dict) -> dict:
