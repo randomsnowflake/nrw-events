@@ -1707,12 +1707,14 @@ _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_PAID_VISITOR_ACCESS = re.compile(
-    r"\bkein(?:e|en|er|es)?\s+(?:reguläre[rsn]?\s+)?"
+    r"\bkein(?:e|en|er|es)?(?:\s+\w+){0,3}\s+"
     r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
-    r"[^.!?]{0,30}(?:erforderlich|zu\s+zahlen|zu\s+entrichten)|"
+    r"[^.!?]{0,40}(?:erforderlich|zu\s+zahlen|zu\s+entrichten|"
+    r"kostenpflichtig|zu\s+bezahlen)|"
     r"\b(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
-    r"[^.!?]{0,30}\bnicht\s+(?:erforderlich|zu\s+zahlen|zu\s+entrichten|"
-    r"kostenpflichtig|zu\s+bezahlen)",
+    r"[^.!?]{0,40}\b(?:nicht(?:\s+mehr)?|gar\s+nicht|keineswegs|keinesfalls|"
+    r"ausdrücklich\s+nicht)\b[^.!?]{0,20}"
+    r"(?:erforderlich|zu\s+zahlen|zu\s+entrichten|kostenpflichtig|zu\s+bezahlen)",
     re.IGNORECASE,
 )
 

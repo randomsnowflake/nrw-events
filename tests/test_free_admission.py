@@ -111,8 +111,12 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
     def test_negated_museum_admission_is_not_classified_paid(self):
         phrases = (
             "Kein Museumseintritt erforderlich.",
+            "Es ist kein zusätzlicher Museumseintritt erforderlich.",
             "Museumseintritt ist nicht erforderlich.",
             "Der Museumseintritt ist nicht zu zahlen.",
+            "Der Museumseintritt ist nicht mehr erforderlich.",
+            "Der Eintritt ins Museum ist keineswegs zu zahlen.",
+            "Der Museumseintritt ist keinesfalls erforderlich.",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
