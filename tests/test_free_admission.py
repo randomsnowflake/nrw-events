@@ -80,25 +80,29 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
                 self.assertIsNone(canonicalize_event(event).admission["isFree"])
 
     def test_paid_museum_admission_wins_over_a_free_activity(self):
-        description = (
-            "Die Veranstaltung ist kostenlos, die Teilnehmerzahl ist begrenzt. "
-            "Zu zahlen ist der Museumseintritt."
+        paid_phrases = (
+            "Zu zahlen ist der Museumseintritt.",
+            "Der reguläre Eintritt ins Museum ist zu entrichten.",
+            "Zuzüglich ist der Eintritt ins Museum zu zahlen.",
+            "Es gilt der reguläre Museumseintritt.",
         )
-
-        self.assertEqual(
-            common.infer_admission("Geschichte(n) einer Stadt", description),
-            ("kostenpflichtig", "explicit"),
-        )
-        event = common.make_event(
-            "Geschichte(n) einer Stadt", common.TODAY, None, "Museum", "Troisdorf",
-            description, "https://example.test/museum", "Troisdorf", "führung",
-            source_id="troisdorf",
-        )
-        self.assertIsNotNone(event)
-        assert event is not None
-        canonical = canonicalize_event(event)
-        self.assertFalse(canonical.admission["isFree"])
-        self.assertEqual(canonical.admission_basis, "explicit")
+        for paid_phrase in paid_phrases:
+            with self.subTest(paid_phrase=paid_phrase):
+                description = f"Die Führung ist kostenlos. {paid_phrase}"
+                self.assertEqual(
+                    common.infer_admission("Museumsführung", description),
+                    ("kostenpflichtig", "explicit"),
+                )
+                event = common.make_event(
+                    "Museumsführung", common.TODAY, None, "Museum", "Troisdorf",
+                    description, "https://example.test/museum", "Troisdorf", "führung",
+                    source_id="troisdorf",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                canonical = canonicalize_event(event)
+                self.assertFalse(canonical.admission["isFree"])
+                self.assertEqual(canonical.admission_basis, "explicit")
 
     def test_detects_explicit_whole_event_free_admission_phrases(self):
         cases = [

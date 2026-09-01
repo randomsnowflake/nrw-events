@@ -1697,7 +1697,10 @@ _FREE_PRICE_PATTERN = re.compile(
 )
 _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
     r"\b(?:zu\s+zahlen\s+ist\s+der\s+museumseintritt|"
-    r"museumseintritt\s+(?:ist\s+)?(?:zu\s+zahlen|kostenpflichtig|erforderlich))\b",
+    r"(?:museumseintritt|eintritt\s+ins\s+museum)[^.!?]{0,50}"
+    r"(?:zu\s+zahlen|zu\s+entrichten|kostenpflichtig|erforderlich)|"
+    r"(?:es\s+gilt|zuzüglich\s+ist)\s+(?:der\s+reguläre\s+)?"
+    r"(?:museumseintritt|eintritt\s+ins\s+museum))\b",
     re.IGNORECASE,
 )
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(
@@ -1783,6 +1786,8 @@ def has_explicit_free_admission_wording(title: str, description: str) -> bool:
     """Recognize event-scoped free wording, excluding qualified offers."""
     text = clean_html(description or "")
     if not text or has_conditional_free_admission(text):
+        return False
+    if _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT.search(text):
         return False
     if _LIMITED_FREE_TRIAL_PATTERN.search(text):
         return False
