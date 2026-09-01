@@ -678,7 +678,13 @@ class AIEnrichmentTests(unittest.TestCase):
             client=FakeClient([FACTS, SUMMARY]),
             now=self.now,
         )
-        dedup_winner = event(source="Bonn.de Events", source_id="bonn-de-events", time="19:30")
+        dedup_winner = event(
+            source="Bonn.de Events",
+            source_id="bonn-de-events",
+            time="",
+            start_at="2026-08-09T19:30+02:00",
+            preserved_event_id=event_id(sports),
+        )
         self.assertEqual(event_id(sports), event_id(dedup_winner))
 
         result = ai_enrichment.enrich_event(

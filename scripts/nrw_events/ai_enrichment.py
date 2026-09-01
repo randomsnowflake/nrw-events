@@ -1701,6 +1701,17 @@ def _occurrence_start_time(value: object) -> str:
     return match.group(1) if match else category_taxonomy.comparison_text(raw)
 
 
+def _event_occurrence_start_time(event: Mapping[str, Any]) -> str:
+    explicit = _occurrence_start_time(event.get("time"))
+    if explicit:
+        return explicit
+    match = re.search(
+        r"[T ](\d{2}:\d{2})(?::\d{2})?(?:[+-]\d{2}:?\d{2}|Z)?$",
+        str(event.get("start_at") or ""),
+    )
+    return match.group(1) if match else ""
+
+
 def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any]) -> bool:
     """Conservatively match an accepted cache row after mutable identity fields changed."""
     def text(value: object) -> str:
@@ -1716,7 +1727,7 @@ def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any
         or not event_start
         or event_start != facts_start
         or event_end != facts_end
-        or _occurrence_start_time(event.get("time"))
+        or _event_occurrence_start_time(event)
         != _occurrence_start_time(facts.get("time"))
     ):
         return False
