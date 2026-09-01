@@ -431,6 +431,9 @@ class JunkFilterTests(unittest.TestCase):
             ("Müttertreff", "Samstags im Nachbarschaftszentrum."),
             ("Männertreff", "Sonntags im Gemeindehaus."),
             ("Krabbeltreff", "Jeden Samstag für Familien."),
+            ("Trauertreff", "Samstags im Gemeindehaus."),
+            ("Queertreff", "Sonntags im Jugendzentrum."),
+            ("Lauftreff", "Jeden Samstag am Rheinufer."),
         ]
 
         for title, description in cases:
@@ -477,6 +480,21 @@ class JunkFilterTests(unittest.TestCase):
                 "Die wiederkehrende Reihe präsentiert heute ein Live-Konzert.",
                 "Musik Konzert",
             ),
+            (
+                "Müllsammelaktion am Rheinufer",
+                "Der veranstaltende Verein lädt sonst regelmäßig zum Stammtisch.",
+                "Umwelt Aktionstag",
+            ),
+            (
+                "Tag der offenen Tür",
+                "Im Nachbarraum informiert ein Träger über seinen Deutschkurs.",
+                "Familie Fest",
+            ),
+            (
+                "Einmaliges Tanztraining für Fortgeschrittene",
+                "Ein einmaliger Workshop für das Stadtfest.",
+                "Tanz Workshop",
+            ),
         ]
 
         for title, description, category in cases:
@@ -490,6 +508,12 @@ class JunkFilterTests(unittest.TestCase):
             (
                 "Individuelles Radreisen – Beratung für Mitglieder",
                 "Die Beratung findet regelmäßig jeden ersten Donnerstag statt.",
+                "Beratung",
+                "civic.course",
+            ),
+            (
+                "Beratung für Familien",
+                "Samstags im Beratungszentrum.",
                 "Beratung",
                 "civic.course",
             ),

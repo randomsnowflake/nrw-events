@@ -45,9 +45,7 @@ _STRONG_ROUTINE_PHRASE_TERMS = ROUTINE_PHRASE_TERMS - _WEAK_RECURRENCE_TERMS
 _WEAK_COURSE_TERMS = frozenset({"beratung", "fortgeschrittene"})
 _STRONG_ROUTINE_COURSE_TERMS = ROUTINE_COURSE_TERMS - _WEAK_COURSE_TERMS
 _ROUTINE_MEETUP_CONTEXT = re.compile(
-    r"\b(?:(?:spiele|eltern|senioren|frauen|jugend|baby|kinder|nachbarschafts|"
-    r"mütter|muetter|männer|maenner|krabbel|montags|dienstags|mittwochs|"
-    r"donnerstags|freitags|samstags|sonntags)treff(?:en)?|"
+    r"\b(?:[a-zäöüß]+treff(?:en)?|"
     r"treff(?:en)?|treffpunkt|stammtisch|(?:senioren|frauen)kreis|gruppe|"
     r"selbsthilfegruppe|gesprächsrunde|gespraechsrunde|clubabend|spiele[-\s]nachmittag)\b"
 )
@@ -58,7 +56,8 @@ _RECURRENCE_CONTEXT = re.compile(
 )
 _ADVICE_SERVICE_CONTEXT = re.compile(
     r"\b(?:regelmäßig|regelmaessig|wöchentlich|woechentlich|wiederkehrend|"
-    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag)|"
+    r"jeden\s+(?:ersten|zweiten|dritten|vierten|montag|dienstag|mittwoch|donnerstag|freitag|"
+    r"samstag|sonntag)|samstags|sonntags|"
     r"für\s+mitglieder|fuer\s+mitglieder|beratungstermin|beratungszentrum|"
     r"schuldnerberatung|insolvenzberatung)\b"
 )
@@ -197,7 +196,7 @@ def _governance(context: EventText) -> tuple[str, ...] | None:
 def _routine_meetup(context: EventText) -> tuple[str, ...] | None:
     # Generic recurrence prose is weak evidence: it often comes from a venue's
     # navigation, biography, or series boilerplate rather than this occurrence.
-    matched = _first(_STRONG_ROUTINE_PHRASE_TERMS, context.content)
+    matched = _first(_STRONG_ROUTINE_PHRASE_TERMS, context.title)
     if not matched:
         recurring = _first(_WEAK_RECURRENCE_TERMS, context.content)
         recurring = recurring or (
@@ -240,7 +239,7 @@ def _routine_market(context: EventText) -> tuple[str, ...] | None:
 
 
 def _routine_course(context: EventText) -> tuple[str, ...] | None:
-    matched = _first(_STRONG_ROUTINE_COURSE_TERMS, context.content)
+    matched = _first(_STRONG_ROUTINE_COURSE_TERMS, context.title)
     if matched:
         return (matched,)
 
@@ -252,9 +251,10 @@ def _routine_course(context: EventText) -> tuple[str, ...] | None:
     ):
         return ("beratung",)
     if "fortgeschrittene" in context.title:
-        course = _first(COURSE_CONTEXT_TERMS, context.content)
-        if course:
-            return "fortgeschrittene", course
+        course = _first(COURSE_CONTEXT_TERMS, context.title)
+        vocational = _VOCATIONAL_COURSE_CONTEXT.search(context.description)
+        if course and vocational:
+            return "fortgeschrittene", course, vocational.group(0)
     title_course = _first(COURSE_CONTEXT_TERMS, context.title)
     vocational = _VOCATIONAL_COURSE_CONTEXT.search(context.description)
     if title_course and vocational:
@@ -263,14 +263,18 @@ def _routine_course(context: EventText) -> tuple[str, ...] | None:
 
 
 def _language_course(context: EventText) -> tuple[str, ...] | None:
-    language = _LANGUAGE_NAME.search(context.text)
-    course = _LANGUAGE_COURSE_CONTEXT.search(context.text)
-    return (language.group(0), course.group(0)) if language and course else None
+    language_title = _LANGUAGE_NAME.search(context.title)
+    course_title = _LANGUAGE_COURSE_CONTEXT.search(context.title)
+    language = language_title or _LANGUAGE_NAME.search(context.description)
+    course = course_title or _LANGUAGE_COURSE_CONTEXT.search(context.description)
+    if language and course and (language_title or course_title):
+        return language.group(0), course.group(0)
+    return None
 
 
 def _recurring_course(context: EventText) -> tuple[str, ...] | None:
-    recurring = _first(RECURRING_COURSE_MARKERS, context.text)
-    course = _first(COURSE_CONTEXT_TERMS, context.text)
+    recurring = _first(RECURRING_COURSE_MARKERS, context.title_description)
+    course = _first(COURSE_CONTEXT_TERMS, context.title)
     if recurring and course and not _first(CULTURAL_EVENT_TERMS, context.content):
         return recurring, course
     return None
