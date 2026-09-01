@@ -1714,6 +1714,9 @@ _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_PAID_VISITOR_ACCESS = re.compile(
+    rf"\b(?:nicht|keinesfalls|nie|unter\s+keinen\s+umständen)\s+"
+    rf"zu\s+zahlen\s+ist\s+(?:der\s+)?(?:reguläre\s+)?"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
     rf"\bkein(?:e|en|er|es)?(?:\s+\w+){{0,3}}\s+"
     rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,40}}"
     rf"{_PAID_MUSEUM_PREDICATE_PATTERN}|"

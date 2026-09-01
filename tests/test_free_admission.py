@@ -123,6 +123,10 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             "Weder der Museumseintritt noch die Führung sind zu zahlen.",
             "Der Museumseintritt ist nie zu zahlen.",
             "Der Museumseintritt ist unter keinen Umständen zu zahlen.",
+            "Nicht zu zahlen ist der Museumseintritt.",
+            "Keinesfalls zu zahlen ist der Museumseintritt.",
+            "Nie zu zahlen ist der Museumseintritt.",
+            "Unter keinen Umständen zu zahlen ist der Museumseintritt.",
         )
         for phrase in phrases:
             with self.subTest(phrase=phrase):
