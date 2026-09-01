@@ -407,6 +407,16 @@ def _arp_museum_subline_price(document: str, event: dict) -> str:
         return ""
     if hostname not in {"arpmuseum.org", "www.arpmuseum.org"}:
         return ""
+    labeled_price = _visible_labeled_value(
+        document, "Preis", "Preise", "Kosten", "Eintritt",
+    )
+    if re.search(
+        r"(?:\bzzgl\.?|\bzuzüglich|\bzuzueglich)\s+"
+        r"[^.!?;]{0,40}\bmuseumseintritt\b",
+        labeled_price,
+        re.I,
+    ):
+        return ""
     headline = re.search(
         r'<section[^>]+class=["\'][^"\']*\bce-page-headline\b[^"\']*["\'][^>]*>'
         r'(.*?)</section>',

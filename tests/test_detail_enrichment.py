@@ -568,6 +568,32 @@ class DetailEnrichmentTests(unittest.TestCase):
         )
         self.assertEqual("15 EUR", context["price"])
 
+    def test_arp_subline_does_not_override_explicit_museum_charge(self):
+        document = """
+        <section class="ce-page-headline"><h1>Die Sonne sehen!</h1>
+          <p class="subline">Sonder-Veranstaltung – kostenfrei</p>
+        </section>
+        <div class="va-content"><p><strong>Kosten:</strong>
+          kostenfrei, zzgl. Museumseintritt</p></div>
+        <script type="application/ld+json">
+        {"@type":"Event","name":"Die Sonne sehen!","startDate":"2026-09-27",
+         "offers":{"price":"15","priceCurrency":"EUR"}}
+        </script>
+        """
+        event = self.event(
+            title="Die Sonne sehen!",
+            source="Arp Museum",
+            source_id="arp-museum",
+            link="https://arpmuseum.org/veranstaltungen/detail/sonne.html",
+            start_date="2026-09-27",
+            end_date="2026-09-27",
+            date="2026-09-27",
+        )
+
+        context = detail_enrichment.extract_detail_context(document, event)
+
+        self.assertEqual("15 EUR", context["price"])
+
     def test_extracts_shapehub_content(self):
         document = """
         <div class="shapehub-detail-description">
