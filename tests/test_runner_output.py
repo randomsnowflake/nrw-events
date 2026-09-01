@@ -213,6 +213,70 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(1, source_result.ai_enriched_event_count)
         self.assertEqual(1, source_result.as_dict()["ai_enriched_event_count"])
 
+    def test_publication_ai_keeps_winner_prose_after_dedup_fills_schedule_and_link(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "publication-ai-dedup-metadata",
+            configure_logging("publication-ai-dedup-metadata", "ERROR", "", ""),
+        )
+        winner = {
+            "title": "Metadata target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn", "venue": "Marktplatz",
+            "description": "Private winner programme prose.",
+        }
+        duplicate = {
+            **winner,
+            "score": 0.8,
+            "time": "19:30",
+            "link": "https://example.test/metadata-target",
+            "description": "Private duplicate programme prose.",
+        }
+
+        def enrich_final(events, **_kwargs):
+            [value] = events
+            self.assertEqual("19:30", value["time"])
+            self.assertEqual("https://example.test/metadata-target", value["link"])
+            self.assertEqual("Private winner programme prose.", value["description"])
+            return [{**value, "ai_summary": "Generated summary."}]
+
+        with mock.patch.object(
+            runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+        ), mock.patch.object(
+            runner.ai_enrichment, "enrich_events", side_effect=enrich_final,
+        ):
+            result = runner.run_import(
+                context, {"Bonn.de Events": lambda: [winner, duplicate]},
+            )
+
+        [published] = result.events
+        self.assertEqual("Generated summary.", published.ai_summary)
+
+    def test_invalid_publication_ai_settings_fail_explicitly(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "invalid-publication-ai-settings",
+            configure_logging("invalid-publication-ai-settings", "ERROR", "", ""),
+        )
+        raw = {
+            "title": "Configuration target", "source": "Bonn.de Events",
+            "source_id": "bonn-de-events", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn",
+        }
+
+        with mock.patch.dict(os.environ, {"NRW_EVENTS_AI_WORKERS": "0"}), \
+             mock.patch.object(
+                 runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+             ), mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich:
+            with self.assertRaisesRegex(
+                ValueError, "NRW_EVENTS_AI_WORKERS must be between 1 and 16",
+            ):
+                runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+
+        enrich.assert_not_called()
+
     def test_reviewed_summary_manifest_is_applied_before_billable_ai(self):
         context = RunContext(
             config.RuntimeConfig(series_ledger_json=""),

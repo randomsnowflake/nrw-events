@@ -303,8 +303,7 @@ def _run_source(
                         "source_id": canonical_event.source_id,
                         "title": canonical_event.title,
                         "start_date": canonical_event.start_date,
-                        "time": canonical_event.time,
-                        "link": canonical_event.link,
+                        "score": canonical_event.score,
                         "material": private_ai_material,
                     })
             except EventValidationError as exc:
@@ -744,20 +743,25 @@ def _publication_ai_input(
     if result is None:
         return raw
     pre_ai_id = event_id(replace(event, preserved_event_id=""))
-    matches = {
-        item["material"]
+    matches = [
+        item
         for item in result._ai_source_material
         if item.get("event_id") == pre_ai_id
         and item.get("source_id") == event.source_id
         and item.get("title") == event.title
         and item.get("start_date") == event.start_date
-        and item.get("time") == event.time
-        and item.get("link") == event.link
-    }
+    ]
+    # Same-source duplicates can share a stable occurrence ID. The winner's
+    # score survives field-wise metadata enrichment, so use it only to narrow
+    # such collisions without depending on mutable time or link fields.
+    score_matches = [item for item in matches if item.get("score") == event.score]
+    if score_matches:
+        matches = score_matches
+    materials = {str(item["material"]) for item in matches}
     # Conflicting exact records are ambiguous. Structured master data remains a
     # safe AI input, but no arbitrary duplicate's private prose is selected.
-    if len(matches) == 1:
-        raw["description"] = matches.pop()
+    if len(materials) == 1:
+        raw["description"] = materials.pop()
     return raw
 
 
@@ -1863,10 +1867,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             _publication_ai_input(deduped[index], source_results)
             for index in target_indexes
         ]
+        ai_settings = ai_enrichment.settings_from_env()
         try:
             ai_outputs = ai_enrichment.enrich_events(
                 ai_inputs,
-                settings=ai_enrichment.settings_from_env(),
+                settings=ai_settings,
                 stats_by_source=ai_stats_by_source,
             )
         except Exception as exc:

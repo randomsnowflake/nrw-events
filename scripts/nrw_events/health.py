@@ -168,7 +168,7 @@ class SourceResult:
     source_id: str = ""
     # Private source prose carried only in memory to the publication-stage AI
     # pass. Deliberately omitted from ``as_dict`` and every snapshot artifact.
-    _ai_source_material: list[dict[str, str]] = field(default_factory=list, repr=False)
+    _ai_source_material: list[dict[str, Any]] = field(default_factory=list, repr=False)
 
     def __post_init__(self) -> None:
         self.source = bounded_diagnostic_text(self.source, 100) or "unknown-source"
