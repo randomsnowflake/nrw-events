@@ -279,6 +279,21 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         self.assertEqual(event["end_at"], "2026-10-02T01:00+02:00")
         self.assertEqual(event["end_date"], "2026-10-02")
 
+    def test_b_future_rolls_clock_only_overnight_end_into_next_day(self):
+        html = """
+        <h2><time datetime="2026-10-01">01.10.</time></h2>
+        <article class="event-list-item">
+        <h3 class="event-list-item__headline">Late Night Talk</h3>
+        <p class="event-list-item__time"><time datetime="23:00">23:00</time><time datetime="01:00">01:00</time></p>
+        </article>
+        """
+
+        [event] = b_future_festival._events_from_program(html)
+
+        self.assertEqual(event["start_at"], "2026-10-01T23:00+02:00")
+        self.assertEqual(event["end_at"], "2026-10-02T01:00+02:00")
+        self.assertEqual(event["end_date"], "2026-10-02")
+
     def test_b_future_preserves_explicit_free_admission(self):
         html = """
         <h2><time datetime="2026-10-02T10:00:00+02:00">02.10. 10:00</time></h2>
