@@ -883,7 +883,10 @@ class OpenIssueContractTests(unittest.TestCase):
                 "Bonn.de Events": lambda: civic,
             })
 
-        self.assertEqual(
+        # Sources run concurrently, so completion order is deliberately not a
+        # publication contract. Verify the exact surviving occurrences without
+        # coupling this test to thread scheduling.
+        self.assertCountEqual(
             [(event.title, event.start_date, event.source_id) for event in result.events],
             [
                 ("Should Men Walk Home?", "2026-08-17", "internationale-stummfilmtage"),
