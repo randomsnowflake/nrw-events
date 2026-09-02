@@ -150,11 +150,16 @@ def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
     enriched_events = []
     for event in events:
         occurrences = [event]
+        generated_fallback = event.get("description_source") == "generated"
         link = (event.get("link") or "").strip()
+        adapter_owns_detail = common.event_in_window(event) and bool(link)
+        if adapter_owns_detail:
+            # Prevent the generic enrichment pass from retrying skipped or
+            # failed adapter-owned detail work under another cache namespace.
+            event["_detail_page_enriched"] = True
         remaining = deadline - time.monotonic()
         if (
-            common.event_in_window(event)
-            and link
+            adapter_owns_detail
             and link not in html_by_link
             and link not in failed_links
             and remaining >= 3.0
@@ -165,6 +170,7 @@ def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
                     detail_fetcher(link) if detail_fetcher
                     else common.fetch_detail_url(
                         link, cache_namespace="naturregion-sieg", timeout=request_timeout,
+                        retry_attempts=1,
                     )
                 )
             except Exception as exc:
@@ -173,7 +179,15 @@ def _enrich_listing_events(events: list, detail_fetcher=None) -> list:
         if link in html_by_link:
             occurrences = _detail_occurrences(event, html_by_link[link])
         for occurrence in occurrences:
-            replacement = occurrence.get("description") or _fallback_description(occurrence)
+            replacement = (
+                _fallback_description(occurrence)
+                if occurrence.get("description_source") == "generated"
+                or (
+                    generated_fallback
+                    and occurrence.get("description") == event.get("description")
+                )
+                else occurrence.get("description") or _fallback_description(occurrence)
+            )
             if replacement:
                 occurrence["description"] = replacement
                 occurrence["description_source"] = common.description_source_for(replacement)

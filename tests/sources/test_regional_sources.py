@@ -378,8 +378,8 @@ class NaturregionSiegParserTests(unittest.TestCase):
         clock = [0.0]
         calls = []
 
-        def fetch_detail(url, *, cache_namespace, timeout):
-            calls.append((url, timeout))
+        def fetch_detail(url, *, cache_namespace, timeout, retry_attempts):
+            calls.append((url, timeout, retry_attempts))
             clock[0] += timeout
             return ""
 
@@ -394,5 +394,59 @@ class NaturregionSiegParserTests(unittest.TestCase):
 
         self.assertEqual(len(enriched), 20)
         self.assertLessEqual(clock[0], 25.0)
-        self.assertEqual(len(calls), len({url for url, _timeout in calls}))
+        self.assertEqual(len(calls), len({url for url, _timeout, _attempts in calls}))
         self.assertLess(len(calls), 10)
+        self.assertTrue(all(attempts == 1 for _url, _timeout, attempts in calls))
+
+    def test_generated_fallback_is_rebuilt_after_detail_recovers_time_range(self):
+        event = {
+            "title": "Draußen Aktiv",
+            "date": "2026-07-15",
+            "start_date": "2026-07-15",
+            "end_date": "2026-07-15",
+            "link": "https://naturregion-sieg.de/event/draussen-aktiv",
+            "description": "„Draußen Aktiv“ findet am 15.07.2026 statt.",
+            "description_source": "generated",
+            "city": "Windeck",
+            "venue": "Sportplatz",
+        }
+        detail_html = """
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Event","name":"Draußen Aktiv",
+ "description":"","startDate":"2026-07-15T13:00:00+02:00",
+ "endDate":"2026-07-15T14:15:00+02:00"}
+</script>
+"""
+
+        [enriched] = naturregion_sieg._enrich_listing_events(
+            [event], detail_fetcher=lambda _url: detail_html,
+        )
+
+        self.assertEqual(enriched["time"], "13:00–14:15")
+        self.assertIn("von 13:00 bis 14:15 Uhr", enriched["description"])
+        self.assertEqual(enriched["description_source"], "generated")
+        self.assertTrue(enriched["_detail_page_enriched"])
+
+    def test_detail_budget_expiry_keeps_events_without_degrading_source(self):
+        events = [
+            {
+                "title": f"Event {index}",
+                "date": "2026-07-15",
+                "start_date": "2026-07-15",
+                "end_date": "2026-07-15",
+                "link": f"https://naturregion-sieg.de/event/{index}",
+                "description": "",
+                "city": "Windeck",
+                "venue": "",
+            }
+            for index in range(5)
+        ]
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "0"}), \
+             patch.object(common, "log_source_error") as log_error:
+            enriched = naturregion_sieg._enrich_listing_events(events)
+
+        self.assertEqual(len(enriched), 5)
+        self.assertTrue(all(event["description"] for event in enriched))
+        self.assertTrue(all(event["_detail_page_enriched"] for event in enriched))
+        log_error.assert_not_called()
