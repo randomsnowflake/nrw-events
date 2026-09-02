@@ -383,6 +383,20 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertEqual(event["price"], "")
         self.assertIn("Museumseintritt fällt zusätzlich an", event["description"])
 
+    def test_dedup_uses_shared_paid_museum_predicates(self):
+        phrases = (
+            "Der Museumseintritt ist zu bezahlen.",
+            "Der Museumseintritt muss entrichtet werden.",
+            "Der reguläre Museumseintritt wird erhoben.",
+            "Zuzüglich Museumseintritt.",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                self.assertTrue(report._has_separate_admission_charge({
+                    "description": f"Die Führung ist kostenlos. {phrase}",
+                    "price": "kostenlos",
+                }))
+
 
 if __name__ == "__main__":
     unittest.main()

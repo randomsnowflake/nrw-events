@@ -44,7 +44,7 @@ from .junk_rules import legacy_junk_decision
 from .quality import evaluate_event_quality
 from .location import refine_bonn_location as refine_bonn_location
 from .location import guess_city_from_text, haversine, resolve_location
-from .models import AdmissionDefault, EventDraft, RawEvent
+from .models import AdmissionDefault, EventDraft, RawEvent, normalize_source_id
 from .normalization import resolve_venue
 from .observability import LOGGER_NAME, log, redact
 from .scoring import category_score, distance_score
@@ -1695,6 +1695,68 @@ _FREE_PRICE_PATTERN = re.compile(
     r"|0(?:[,.]00)?\s*(?:€|eur|euro))$",
     re.IGNORECASE,
 )
+_MUSEUM_VISITOR_ACCESS_PATTERN = (
+    r"(?:museumseintritt|eintritt\s+(?:ins|in\s+das)\s+museum)"
+)
+_INFLECTED_MUSEUM_VISITOR_ACCESS_PATTERN = (
+    r"(?:museumseintritts?|eintritt\s+(?:ins|in\s+das)\s+museum)"
+)
+_PAID_MUSEUM_PREDICATE_PATTERN = (
+    r"(?:zu\s+(?:zahlen|bezahlen|entrichten)|"
+    r"muss\s+(?:bezahlt|entrichtet|gezahlt)\s+werden|"
+    r"wird\s+(?:erhoben|berechnet)|kostenpflichtig|erforderlich|"
+    r"fällt\s+zusätzlich\s+an)"
+)
+_PAID_VISITOR_ACCESS_WITHOUT_AMOUNT = re.compile(
+    rf"\b(?:"
+    rf"zu\s+zahlen\s+ist\s+der\s+(?:reguläre\s+)?{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"es\s+gilt\s+(?:der\s+reguläre\s+)?{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"(?:zuzüglich(?:\s+ist)?|zzgl\.?)\s+"
+    rf"(?:(?:des|dem|der)\s+)?(?:regulär(?:e|en|er|es|em)\s+)?"
+    rf"{_INFLECTED_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,20}}"
+    rf"\bnicht\s+(?:kostenlos|kostenfrei|frei)|"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,50}}"
+    rf"{_PAID_MUSEUM_PREDICATE_PATTERN})\b",
+    re.IGNORECASE,
+)
+_NEGATED_PAID_VISITOR_ACCESS = re.compile(
+    rf"\b(?:nicht(?:\s+mehr)?|gar\s+nicht|ausdrücklich\s+nicht|"
+    rf"keinesfalls|keineswegs|nie|unter\s+keinen\s+umständen|"
+    rf"auf\s+keinen\s+fall)"
+    rf"(?:\s+(?:extra|zusätzlich|gesondert|separat))*\s+"
+    rf"zu\s+zahlen\s+ist\s+(?:der\s+)?(?:reguläre\s+)?"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}|"
+    rf"\bkein(?:e|en|er|es)?(?:\s+[\w-]+){{0,8}}\s+"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,40}}"
+    rf"{_PAID_MUSEUM_PREDICATE_PATTERN}|"
+    rf"\b{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,40}}\b"
+    rf"(?:nicht(?:\s+mehr)?|gar\s+nicht|keineswegs|keinesfalls|"
+    rf"ausdrücklich\s+nicht|nie|unter\s+keinen\s+umständen|"
+    rf"auf\s+keinen\s+fall|weder[^.!?;]{{0,30}}noch)\b"
+    rf"[^.!?;]{{0,20}}{_PAID_MUSEUM_PREDICATE_PATTERN}|"
+    rf"\b(?:weder|nie|unter\s+keinen\s+umständen)\b[^.!?;]{{0,40}}"
+    rf"{_MUSEUM_VISITOR_ACCESS_PATTERN}[^.!?;]{{0,50}}"
+    rf"{_PAID_MUSEUM_PREDICATE_PATTERN}",
+    re.IGNORECASE,
+)
+
+
+def has_paid_visitor_access(text: str) -> bool:
+    """Recognize positive museum charges without treating negations as paid."""
+    negated = list(_NEGATED_PAID_VISITOR_ACCESS.finditer(text or ""))
+    for match in _PAID_VISITOR_ACCESS_WITHOUT_AMOUNT.finditer(text or ""):
+        if not any(
+            negation.start() <= match.start() and match.end() <= negation.end()
+            for negation in negated
+        ):
+            return True
+    return False
+
+
+_has_paid_visitor_access_without_amount = has_paid_visitor_access
+
+
 _LIMITED_FREE_WITH_PAID_PATTERN = re.compile(
     r"\b(?:kosten|preise?|eintritt|teilnahme|gebühr|gebuehr|führungen?|fuehrungen?|"
     r"erwachsene|ermäßigt|ermaessigt)\b[^.]{0,100}\b\d+[,.]?\d*\s*(?:€|eur|euro)(?!\w)",
@@ -1730,6 +1792,75 @@ _CONDITIONAL_FREE_ADMISSION_PATTERN = re.compile(
 def has_conditional_free_admission(value: str) -> bool:
     """Return whether free access is limited to a date or visitor group."""
     return bool(_CONDITIONAL_FREE_ADMISSION_PATTERN.search(clean_html(value or "")))
+
+
+_EXPLICIT_ADMISSION_SOURCE_IDS = frozenset({
+    "adfc-bonn",
+    "haus-der-geschichte",
+    "literaturhaus-bonn",
+    "naturregion-sieg",
+    "troisdorf",
+})
+
+
+def source_preserves_explicit_admission(source: str, source_id: str) -> bool:
+    """Return whether this audited first-party adapter owns maintained copy."""
+    normalized = normalize_source_id(source_id or source)
+    return (
+        normalized in _EXPLICIT_ADMISSION_SOURCE_IDS
+        or normalized.startswith("sitekit-")
+        or normalized.startswith("ionas4-")
+    )
+
+
+def source_requires_pre_truncation_admission(source: str, source_id: str) -> bool:
+    """Return whether the adapter shortens maintained logistics after parsing."""
+    normalized = normalize_source_id(source_id or source)
+    return normalized in {"haus-der-geschichte", "literaturhaus-bonn"}
+
+
+_DIRECT_EXPLICIT_FREE = re.compile(
+    r"\b(?:eintritt|teilnahme|einlass)\b[^.!?]{0,50}"
+    r"\b(?:frei|gratis|kostenlos|kostenfrei)\b"
+    r"|\b(?:frei(?:er|em)|kostenloser|kostenfreier)\s+(?:eintritt|einlass)\b"
+    r"|\b(?:veranstaltung|event|unser\s+angebot)\b[^.!?]{0,80}"
+    r"\b(?:frei|kostenlos|kostenfrei)\b",
+    re.IGNORECASE,
+)
+_ACTIVITY_EXPLICIT_FREE = re.compile(
+    r"\b(?P<activity>workshop|führung|fuehrung|tour|training|konzert|programm)\b"
+    r"[^.!?]{0,60}\b(?:ist|sind)\s+(?:frei|kostenlos|kostenfrei)\b"
+    r"|\b(?:kostenlose|kostenloser|kostenlosen|kostenfreie|kostenfreier|kostenfreien)"
+    r"(?:[,\s–-]+[a-zäöüß-]+){0,2}[,\s–-]+(?P<prefixed>workshop|führung|fuehrung|[a-zäöüß-]*tour|training|konzert|programm)\b",
+    re.IGNORECASE,
+)
+
+
+def has_explicit_free_admission_wording(title: str, description: str) -> bool:
+    """Recognize event-scoped free wording, excluding qualified offers."""
+    text = clean_html(description or "")
+    if not text or has_conditional_free_admission(text):
+        return False
+    if _has_paid_visitor_access_without_amount(text):
+        return False
+    if _LIMITED_FREE_TRIAL_PATTERN.search(text):
+        return False
+    normalized = re.sub(r"\s+", " ", text).strip().casefold()
+    if _VISITOR_ADMISSION_AMOUNT_PATTERN.search(normalized):
+        return False
+    if _FREE_DESCRIPTION_BLOCK_PATTERN.search(clean_html_blocks(description or "")):
+        return True
+    if _DIRECT_EXPLICIT_FREE.search(normalized):
+        return True
+    title_text = clean_html(title or "").casefold()
+    activity_suffixes = ("workshop", "führung", "fuehrung", "tour", "training", "konzert", "programm")
+    for match in _ACTIVITY_EXPLICIT_FREE.finditer(normalized):
+        activity = (match.group("activity") or match.group("prefixed") or "").casefold()
+        if activity in title_text:
+            return True
+        if any(activity.endswith(suffix) and suffix in title_text for suffix in activity_suffixes):
+            return True
+    return False
 
 # These event types normally have no visitor admission even when the source only
 # publishes ancillary charges or leaves the price field empty. Keep the list
@@ -1809,6 +1940,8 @@ def infer_admission(
             for pattern in _FREE_ADMISSION_PATTERNS
         )
     )
+    if _has_paid_visitor_access_without_amount(description_text):
+        return "kostenpflichtig", "explicit"
     if conditional_free and not unconditional_free:
         return "", ""
 
@@ -1850,9 +1983,9 @@ def infer_admission(
     if _FREE_TITLE_PATTERN.search(clean_html(title or "")):
         return "kostenlos", "inferred"
     if _FREE_DESCRIPTION_BLOCK_PATTERN.search(clean_html_blocks(description or "")):
-        return "kostenlos", "inferred"
+        return "kostenlos", admission_basis or "inferred"
     if any(re.search(pattern, text, re.IGNORECASE) for pattern in _FREE_ADMISSION_PATTERNS):
-        return "kostenlos", "inferred"
+        return "kostenlos", admission_basis or "inferred"
     clean_title = clean_html(title or "")
     if (
         _IMPLICIT_FREE_TITLE_PATTERN.search(clean_title)
@@ -2041,6 +2174,12 @@ def build_event(draft: EventDraft) -> RawEvent | None:
     start_at = "" if not structured_start else structured_start.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     end_at = "" if not structured_end else structured_end.replace(tzinfo=local_zone).isoformat(timespec="minutes")
     price, admission_basis = infer_admission(title, description, admission=admission)
+    if (
+        admission_basis == "inferred"
+        and source_requires_pre_truncation_admission(source, source_id)
+        and has_explicit_free_admission_wording(title, description)
+    ):
+        admission_basis = "explicit"
     ev: RawEvent = {
         "title": clean_html(title),
         "date": date_text,

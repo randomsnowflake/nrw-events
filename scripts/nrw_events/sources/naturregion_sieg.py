@@ -18,7 +18,7 @@ _SOURCE = "Naturregion Sieg"
 _CATEGORY = "naturregion sieg outdoor kultur markt"
 _TRUST = 0.9
 _DETAIL_FIELDS = (
-    "description", "description_source", "price", "time", "venue", "city", "distance_km",
+    "description", "description_source", "price", "admission_basis", "time", "venue", "city", "distance_km",
     "location_confidence", "location_source", "status", "start_at", "end_at",
     "end_date", "all_day", "timezone",
 )

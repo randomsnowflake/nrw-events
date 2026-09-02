@@ -8,6 +8,183 @@ infer_free_admission_price = common.infer_free_admission_price
 
 
 class FreeAdmissionDetectionTests(unittest.TestCase):
+    def test_explicit_source_wording_keeps_explicit_provenance(self):
+        cases = [
+            ("Lesung", "Der Eintritt ist frei."),
+            ("Konzert", "Musik am Rhein.\n\nfrei, es geht der Hut rum"),
+            ("Workshop", "Der Workshop ist kostenlos und ohne Anmeldung."),
+            ("Radtour", "Eine kostenlose, geführte Fahrradtour durch Troisdorf."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                event = common.make_event(
+                    title, common.TODAY, None, "Rathaus", "Brühl", description,
+                    "https://example.test/event", "SiteKit regional", "lokal",
+                    source_id="sitekit-bruehl",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                self.assertEqual(event["price"], "kostenlos")
+                self.assertEqual(canonicalize_event(event).admission_basis, "explicit")
+
+    def test_explicit_provenance_survives_canonicalization(self):
+        event = common.make_event(
+            "Konzert im Park", common.TODAY, None, "Stadtpark", "Bonn",
+            "Eintritt frei; um eine Spende wird gebeten.",
+            "https://example.test/konzert", "SiteKit regional", "konzert",
+            source_id="sitekit-bruehl",
+        )
+
+        self.assertIsNotNone(event)
+        assert event is not None
+        canonical = canonicalize_event(event)
+        self.assertEqual(canonical.admission_basis, "explicit")
+        self.assertTrue(canonical.admission["isFree"])
+        self.assertEqual(canonical.admission["basis"], "structured")
+
+    def test_pre_truncation_sources_record_explicit_basis_in_raw_event(self):
+        for source, source_id in (
+            ("Haus der Geschichte", "haus-der-geschichte"),
+            ("Literaturhaus Bonn", "literaturhaus-bonn"),
+        ):
+            with self.subTest(source=source):
+                event = common.make_event(
+                    "Lesung", common.TODAY, None, "Museum", "Bonn",
+                    "Langer redaktioneller Text. Der Eintritt ist frei.",
+                    "https://example.test/lesung", source, "literatur",
+                    source_id=source_id,
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                self.assertEqual(event["admission_basis"], "explicit")
+
+    def test_non_admission_controls_do_not_gain_explicit_provenance(self):
+        cases = [
+            ("Flohmarkt", "Stände im ganzen Viertel."),
+            ("Markt", "Standgebühr für Verkäufer: 10 Euro."),
+            ("Repair Café", "Spenden für Ersatzteile sind willkommen."),
+            ("Lesung", "Autorengespräch in der Stadtbibliothek."),
+        ]
+
+        for title, description in cases:
+            with self.subTest(title=title):
+                _price, basis = common.infer_admission(title, description)
+                self.assertNotEqual(basis, "explicit")
+                event = common.make_event(
+                    title, common.TODAY, None, "Marktplatz", "Bonn", description,
+                    "https://example.test/event", "Quelle", "lokal",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                self.assertIsNone(canonicalize_event(event).admission["isFree"])
+
+    def test_paid_museum_admission_wins_over_a_free_activity(self):
+        paid_phrases = (
+            "Zu zahlen ist der Museumseintritt.",
+            "Der reguläre Eintritt ins Museum ist zu entrichten.",
+            "Zuzüglich ist der Eintritt ins Museum zu zahlen.",
+            "Es gilt der reguläre Museumseintritt.",
+            "Der Museumseintritt fällt zusätzlich an.",
+            "Kostenlos, zzgl. Eintritt in das Museum.",
+            "Zuzüglich Museumseintritt.",
+            "Der Museumseintritt muss bezahlt werden.",
+            "Der Museumseintritt ist zu bezahlen.",
+            "Der Museumseintritt muss entrichtet werden.",
+            "Der Museumseintritt muss gezahlt werden.",
+            "Der Eintritt ins Museum muss gezahlt werden.",
+            "Der reguläre Museumseintritt wird erhoben.",
+            "Der Museumseintritt ist nicht kostenlos.",
+            "Museumseintritt: nicht frei.",
+            "Kostenlos, zzgl. regulärem Museumseintritt.",
+            "Kostenlos, zuzüglich des regulären Museumseintritts.",
+        )
+        for paid_phrase in paid_phrases:
+            with self.subTest(paid_phrase=paid_phrase):
+                description = f"Die Führung ist kostenlos. {paid_phrase}"
+                self.assertEqual(
+                    common.infer_admission("Museumsführung", description),
+                    ("kostenpflichtig", "explicit"),
+                )
+                event = common.make_event(
+                    "Museumsführung", common.TODAY, None, "Museum", "Troisdorf",
+                    description, "https://example.test/museum", "Troisdorf", "führung",
+                    source_id="troisdorf",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                canonical = canonicalize_event(event)
+                self.assertFalse(canonical.admission["isFree"])
+                self.assertEqual(canonical.admission_basis, "explicit")
+
+    def test_negated_museum_admission_is_not_classified_paid(self):
+        phrases = (
+            "Kein Museumseintritt erforderlich.",
+            "Es ist kein zusätzlicher Museumseintritt erforderlich.",
+            "Museumseintritt ist nicht erforderlich.",
+            "Der Museumseintritt ist nicht zu zahlen.",
+            "Der Museumseintritt ist nicht mehr erforderlich.",
+            "Der Eintritt ins Museum ist keineswegs zu zahlen.",
+            "Der Museumseintritt ist keinesfalls erforderlich.",
+            "Weder der Museumseintritt noch die Führung sind zu zahlen.",
+            "Der Museumseintritt ist nie zu zahlen.",
+            "Der Museumseintritt ist unter keinen Umständen zu zahlen.",
+            "Nicht zu zahlen ist der Museumseintritt.",
+            "Keinesfalls zu zahlen ist der Museumseintritt.",
+            "Nie zu zahlen ist der Museumseintritt.",
+            "Unter keinen Umständen zu zahlen ist der Museumseintritt.",
+            "Gar nicht zu zahlen ist der Museumseintritt.",
+            "Ausdrücklich nicht extra zu zahlen ist der Museumseintritt.",
+            "Keineswegs zusätzlich zu zahlen ist der Museumseintritt.",
+            "Der Museumseintritt ist weder erforderlich noch zu bezahlen.",
+            "Der Museumseintritt ist auf keinen Fall erforderlich.",
+            "Kein über den regulären Tarif hinausgehender zusätzlicher Museumseintritt erforderlich.",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                description = f"Die Führung ist kostenlos. {phrase}"
+                price, basis = common.infer_admission("Museumsführung", description)
+                self.assertNotEqual((price, basis), ("kostenpflichtig", "explicit"))
+                event = common.make_event(
+                    "Museumsführung", common.TODAY, None, "Museum", "Troisdorf",
+                    description, "https://example.test/museum", "Troisdorf", "führung",
+                    source_id="troisdorf",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                self.assertTrue(canonicalize_event(event).admission["isFree"])
+
+    def test_unrelated_negation_does_not_hide_paid_museum_admission(self):
+        descriptions = (
+            "Die Führung ist nie kostenlos. Der Museumseintritt ist zu bezahlen.",
+            "Unter keinen Umständen ist die Führung kostenlos; der Museumseintritt wird erhoben.",
+            "Weder Audioguide noch Garderobe sind kostenlos. Der Museumseintritt muss entrichtet werden.",
+        )
+        for description in descriptions:
+            with self.subTest(description=description):
+                event = common.make_event(
+                    "Museumsführung", common.TODAY, None, "Museum", "Troisdorf",
+                    description, "https://example.test/museum", "Troisdorf", "führung",
+                    source_id="troisdorf",
+                )
+                self.assertIsNotNone(event)
+                assert event is not None
+                canonical = canonicalize_event(event)
+                self.assertFalse(canonical.admission["isFree"])
+                self.assertEqual(canonical.admission_basis, "explicit")
+
+    def test_ancillary_free_access_does_not_become_admission_evidence(self):
+        phrases = (
+            "Der Zugang zum Livestream ist kostenlos.",
+            "Der Zugang zum Download ist kostenlos.",
+            "Der Besuch der Website ist kostenlos.",
+        )
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                self.assertFalse(common.has_explicit_free_admission_wording(
+                    "Museumsführung", phrase,
+                ))
+
     def test_detects_explicit_whole_event_free_admission_phrases(self):
         cases = [
             ("Sommerfestival", "Der Eintritt ist frei.", ""),
