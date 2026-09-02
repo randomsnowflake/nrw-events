@@ -25,6 +25,148 @@ from tests.helpers import default_window, make_runner_env, patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_publication_source_resolution_prefers_exact_owner_over_aggregate_membership(self):
+        event = runner.validate_event({
+            "title": "Exact owner",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 0.2,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+        results = {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        }
+
+        self.assertIs(runner._source_result_for_event(event, results), exact)
+
+    def test_operational_resolution_uses_active_aggregate_for_scheduled_exact_owner(self):
+        event = runner.validate_event({
+            "title": "Aggregate-produced event",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+        exact.status = SourceStatus.SCHEDULED_SKIP
+
+        result = runner._operational_source_result_for_event(event, {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        })
+
+        self.assertIs(result, aggregate)
+
+    def test_publication_ai_metrics_prefer_exact_owner_over_aggregate_membership(self):
+        event = runner.validate_event({
+            "title": "Exact AI owner",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+        results = {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        }
+
+        runner._record_publication_ai_metrics(
+            [event], results, {"bonn-de-events": {}}, 25, [event]
+        )
+
+        self.assertEqual(exact.ai_candidate_event_count, 1)
+        self.assertEqual(exact.ai_enriched_event_count, 1)
+        self.assertEqual(aggregate.ai_candidate_event_count, 0)
+
+    def test_publication_ai_budget_degrades_active_aggregate_producer(self):
+        event = runner.validate_event({
+            "title": "Aggregate-produced target",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+        exact.status = SourceStatus.SCHEDULED_SKIP
+        results = {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        }
+
+        runner._record_publication_ai_metrics(
+            [event], results, {"bonn-de-events": {
+                "ai_deadline_skipped_without_summary_event_count": 1,
+            }}, 25,
+        )
+
+        self.assertEqual(exact.ai_candidate_event_count, 1)
+        self.assertEqual(exact.status, SourceStatus.SCHEDULED_SKIP)
+        self.assertEqual(aggregate.status, SourceStatus.DEGRADED)
+        self.assertEqual(aggregate.warnings[0]["source_id"], "bonn-de-events")
+
+    def test_publication_ai_material_can_come_from_aggregate_origin(self):
+        event = runner.validate_event({
+            "title": "Promoted district event",
+            "source": "Bonn.de Events",
+            "source_id": "bonn-de-events",
+            "date": "2026-09-02",
+            "score": 1.0,
+            "city": "Bonn",
+        })
+        aggregate = SourceResult(
+            "Bonn district festivals",
+            source_id="bonn-district-festivals",
+            event_sources=["Bonn.de Events"],
+            event_source_ids=["bonn-de-events"],
+        )
+        aggregate._ai_source_material = [{
+            "event_id": event_id(replace(event, preserved_event_id="")),
+            "source_id": event.source_id,
+            "title": event.title,
+            "start_date": event.start_date,
+            "score": event.score,
+            "material": "Private aggregate-owned source copy.",
+        }]
+        exact = SourceResult("Bonn.de Events", source_id="bonn-de-events")
+
+        ai_input = runner._publication_ai_input(event, {
+            "Bonn district festivals": aggregate,
+            "Bonn.de Events": exact,
+        })
+
+        self.assertEqual(ai_input["description"], "Private aggregate-owned source copy.")
+
     def test_restricted_publication_boundary_removes_copy_adopted_during_dedup(self):
         canonical = runner.validate_event({
             "title": "Stadtgartenkonzert",

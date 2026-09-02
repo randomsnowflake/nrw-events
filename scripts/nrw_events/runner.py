@@ -722,14 +722,43 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
             result.anomalies.append("zero_after_recent_nonempty")
 
 
+def _source_result_for_identity(
+    source_id: str, source: str, results: dict[str, SourceResult],
+) -> SourceResult | None:
+    """Resolve an exact source owner before considering aggregate membership."""
+    for result in results.values():
+        if source_id == result.source_id or (source and source == result.source):
+            return result
+    for result in results.values():
+        if source_id in result.event_source_ids or source in result.event_sources:
+            return result
+    return results.get(source)
+
+
 def _source_result_for_event(
     event: CanonicalEvent, results: dict[str, SourceResult],
 ) -> SourceResult | None:
     """Resolve a canonical child source back to its runner result."""
-    for result in results.values():
-        if event.source_id in result.event_source_ids or event.source in result.event_sources:
-            return result
-    return results.get(event.source)
+    return _source_result_for_identity(event.source_id, event.source, results)
+
+
+def _operational_source_result_for_event(
+    event: CanonicalEvent, results: dict[str, SourceResult],
+) -> SourceResult | None:
+    """Prefer an active aggregate producer over a scheduled exact owner."""
+    result = _source_result_for_event(event, results)
+    if result is None or result.status != SourceStatus.SCHEDULED_SKIP:
+        return result
+    for candidate in results.values():
+        if (
+            candidate.status != SourceStatus.SCHEDULED_SKIP
+            and (
+                event.source_id in candidate.event_source_ids
+                or event.source in candidate.event_sources
+            )
+        ):
+            return candidate
+    return result
 
 
 def _publication_ai_input(
@@ -739,12 +768,10 @@ def _publication_ai_input(
     raw: dict[str, object] = event.to_dict()
     raw["description"] = ""
     raw["description_html"] = ""
-    result = _source_result_for_event(event, results)
-    if result is None:
-        return raw
     pre_ai_id = event_id(replace(event, preserved_event_id=""))
     matches = [
         item
+        for result in results.values()
         for item in result._ai_source_material
         if item.get("event_id") == pre_ai_id
         and item.get("source_id") == event.source_id
@@ -775,13 +802,15 @@ def _record_publication_ai_metrics(
     candidates = Counter(
         event.source_id for event in events if ai_enrichment.is_target_event(event)
     )
+    candidate_events = {
+        event.source_id: event
+        for event in events
+        if ai_enrichment.is_target_event(event)
+    }
     enriched = Counter(event.source_id for event in enriched_events)
     total = sum(candidates.values())
     for source_id, count in candidates.items():
-        result = next((
-            value for value in source_results.values()
-            if source_id in value.event_source_ids or source_id == value.source_id
-        ), None)
+        result = _source_result_for_identity(source_id, "", source_results)
         if result is None:
             continue
         result.ai_candidate_event_count += count
@@ -802,16 +831,21 @@ def _record_publication_ai_metrics(
             and key.endswith("_skipped_without_summary_event_count")
         )
         if budget_without_summary:
-            result.warning(
-                result.source,
+            operational_result = _operational_source_result_for_event(
+                candidate_events[source_id], source_results,
+            ) or result
+            operational_result.warning(
+                candidate_events[source_id].source,
                 "AIEnrichmentBudgetWarning",
                 f"AI enrichment skipped {budget_without_summary}/"
                 f"{count} final target events without a cached summary; those events "
                 "publish with master data only",
                 source_id=source_id,
             )
-            if result.status in {SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY}:
-                result.status = SourceStatus.DEGRADED
+            if operational_result.status in {
+                SourceStatus.HEALTHY, SourceStatus.HEALTHY_EMPTY,
+            }:
+                operational_result.status = SourceStatus.DEGRADED
 
 
 def _publication_filter_reason(
@@ -1883,11 +1917,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 source_stats["ai_batch_skipped_without_summary_event_count"] = (
                     source_stats.get("ai_batch_skipped_without_summary_event_count", 0) + 1
                 )
-            for source_id in {event.source_id for event in ai_candidates}:
-                result = next((
-                    value for value in source_results.values()
-                    if source_id in value.event_source_ids or source_id == value.source_id
-                ), None)
+            candidates_by_source = {
+                event.source_id: event for event in ai_candidates
+            }
+            for source_id, event in candidates_by_source.items():
+                result = _operational_source_result_for_event(event, source_results)
                 if result is not None:
                     result.warning(
                         result.source,
