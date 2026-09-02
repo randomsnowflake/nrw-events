@@ -33,7 +33,7 @@ class UniBonnSourceTests(unittest.TestCase):
             raise AssertionError(f"unexpected URL {url}")
 
         with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}), \
-                patch.object(common, "fetch_url", side_effect=fake_fetch):
+                patch.object(common, "fetch_url_with_brightdata_fallback", side_effect=fake_fetch):
             events = uni_bonn.fetch()
 
         self.assertEqual(len(events), 1)
@@ -55,6 +55,34 @@ class UniBonnSourceTests(unittest.TestCase):
         self.assertEqual(event["source_id"], "uni-bonn")
         self.assertEqual(event["category_key"], "concert")
         self.assertEqual(requested, [uni_bonn._ICAL_URL, CHOIR_URL])
+
+    def test_calendar_transport_uses_allowlisted_403_fallback(self):
+        with patch.object(
+            common,
+            "fetch_url_with_brightdata_fallback",
+            return_value="BEGIN:VCALENDAR\nEND:VCALENDAR",
+        ) as fetch:
+            body = uni_bonn._fetch_calendar(uni_bonn._ICAL_URL, timeout=7)
+
+        self.assertIn("BEGIN:VCALENDAR", body)
+        fetch.assert_called_once_with(
+            uni_bonn._ICAL_URL,
+            allowed_hosts=("www.uni-bonn.de",),
+            fallback_statuses=(403, 408, 429, 500, 502, 503, 504),
+            fallback_on_timeout=True,
+            required_body_markers=("BEGIN:VCALENDAR",),
+            timeout=7,
+        )
+
+    def test_detail_transport_uses_the_same_allowlisted_fallback(self):
+        url = "https://www.uni-bonn.de/de/veranstaltungen/beispiel"
+        with patch.object(common, "fetch_detail_url", return_value="<html></html>") as fetch:
+            body = uni_bonn._fetch_detail(url)
+
+        self.assertEqual(body, "<html></html>")
+        self.assertTrue(fetch.call_args.kwargs["brightdata_fallback"])
+        self.assertEqual(fetch.call_args.kwargs["allowed_hosts"], ("www.uni-bonn.de",))
+        self.assertIn(403, fetch.call_args.kwargs["fallback_statuses"])
 
     def test_detail_failure_keeps_complete_ical_record(self):
         with patch.object(common, "log_source_error"):

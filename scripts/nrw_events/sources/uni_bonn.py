@@ -18,6 +18,8 @@ _ICAL_URL = "https://www.uni-bonn.de/de/veranstaltungen?ical_download=1"
 _SOURCE = "Universität Bonn"
 _SOURCE_ID = "uni-bonn"
 _CACHE_NAMESPACE = "uni-bonn-detail"
+_ALLOWED_HOSTS = ("www.uni-bonn.de",)
+_RECOVERABLE_HTTP_STATUSES = (403, 408, 429, 500, 502, 503, 504)
 _MAX_DURATION = timedelta(days=366 * 5)
 _ORDINARY_EVENT_MAX_DURATION = timedelta(days=31)
 _LONG_RUNNING_RE = re.compile(r"\b(?:ausstellung|exhibition|museum|kunstkammer)\b", re.I)
@@ -25,6 +27,30 @@ _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
 })
+
+
+def _fetch_calendar(url: str, **kwargs) -> str:
+    return common.fetch_url_with_brightdata_fallback(
+        url,
+        allowed_hosts=_ALLOWED_HOSTS,
+        fallback_statuses=_RECOVERABLE_HTTP_STATUSES,
+        fallback_on_timeout=True,
+        required_body_markers=("BEGIN:VCALENDAR",),
+        **kwargs,
+    )
+
+
+def _fetch_detail(url: str) -> str:
+    return common.fetch_detail_url(
+        url,
+        cache_namespace=_CACHE_NAMESPACE,
+        timeout=15,
+        brightdata_fallback=True,
+        allowed_hosts=_ALLOWED_HOSTS,
+        fallback_statuses=_RECOVERABLE_HTTP_STATUSES,
+        fallback_on_timeout=True,
+        required_body_markers=("<html",),
+    )
 
 
 class _ContentItemParser(HTMLParser):
@@ -151,7 +177,7 @@ def _enrich_details(events: list, detail_fetcher=None) -> list:
         extract_context=_parse_detail_context,
         fallback=lambda event: event.get("description", ""),
         timeout=15,
-        detail_fetcher=detail_fetcher,
+        detail_fetcher=detail_fetcher or _fetch_detail,
         needs_enrichment=lambda event: not event.get("venue"),
         merge_context=_merge_context,
     )
@@ -193,6 +219,7 @@ def fetch() -> list:
             trust=1.0,
             source_id=_SOURCE_ID,
             event_filter=_valid_duration,
+            fetcher=_fetch_calendar,
         )
         return _correct_categories(_enrich_details(events))
     except Exception as exc:

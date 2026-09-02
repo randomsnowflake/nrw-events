@@ -1828,6 +1828,10 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 result.reject(rejection_reason, event, in_window=True)
             continue
         filtered.append(event)
+    # Directory fallbacks can be replaced by a better first-party record below.
+    # Reconcile their already-published IDs before dropping them so the winner
+    # can inherit every historical URL, not only today's freshly computed ID.
+    filtered = cast(list[CanonicalEvent], _reconcile_published_ids(filtered, previous))
     filtered, replaced_market_fallbacks = partition_directory_fallbacks(filtered)
     for event in replaced_market_fallbacks:
         result = _source_result_for_event(event, source_results)

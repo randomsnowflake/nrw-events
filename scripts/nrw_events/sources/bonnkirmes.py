@@ -118,12 +118,23 @@ def _venue(text: str, city: str) -> str:
 
 def _description(paragraphs: list[str], start: datetime) -> str:
     selected = paragraphs[:1]
-    selected.extend(
-        paragraph
-        for paragraph in paragraphs[1:]
-        if re.search(r"\b(?:Öffnungszeiten|Zum Schutz)\b", paragraph, re.IGNORECASE)
-    )
-    description = " ".join(selected)
+    for index, paragraph in enumerate(paragraphs[1:], start=1):
+        if re.search(r"\bZum Schutz\b", paragraph, re.IGNORECASE):
+            selected.append(paragraph)
+        if not re.search(r"\bÖffnungszeiten\b", paragraph, re.IGNORECASE):
+            continue
+        selected.append(paragraph)
+        for continuation in paragraphs[index + 1:]:
+            continuation = continuation.strip(" \t\r\n\u200b")
+            if not continuation or re.search(
+                r"\b(?:Please contact|Thanks for submitting|Adresse:)\b",
+                continuation,
+                re.IGNORECASE,
+            ):
+                break
+            selected.append(continuation)
+        break
+    description = " ".join(dict.fromkeys(selected))
     # The organizer sometimes updates the actual date range without replacing
     # the prose year immediately before it. The parsed range is the event-scoped
     # fact; reconcile only this narrow sentence instead of rewriting other years.
@@ -134,7 +145,7 @@ def _description(paragraphs: list[str], start: datetime) -> str:
         description,
         flags=re.IGNORECASE,
     )
-    return common.concise_description(description)
+    return common.concise_description(description, max_chars=0)
 
 
 def events_from_html(html: str, *, strict: bool = False) -> list:
