@@ -41,6 +41,7 @@ TARGET_SOURCE_IDS = frozenset({
     "marktcom",
     "radio-bonn-rhein-sieg",
 })
+_BONN_CACHE_CONTINUITY_SOURCE_IDS = frozenset({"bonn-de-events", "bonn-de-sports"})
 PIPELINE_VERSION = "event-facts-summary-v6"
 OPENROUTER_PIPELINE_VERSION = "event-facts-summary-v15"
 # Facts and summaries have independent compatibility boundaries. Bump this
@@ -1700,7 +1701,22 @@ def _occurrence_start_time(value: object) -> str:
     return match.group(1) if match else category_taxonomy.comparison_text(raw)
 
 
-def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any]) -> bool:
+def _event_occurrence_start_time(event: Mapping[str, Any]) -> str:
+    explicit = _occurrence_start_time(event.get("time"))
+    if explicit:
+        return explicit
+    match = re.search(
+        r"[T ](\d{2}:\d{2})(?::\d{2})?(?:[+-]\d{2}:?\d{2}|Z)?$",
+        str(event.get("start_at") or ""),
+    )
+    return match.group(1) if match else ""
+
+
+def _cached_occurrence_matches(
+    event: Mapping[str, Any],
+    facts: Mapping[str, Any],
+    result: Mapping[str, Any] | None = None,
+) -> bool:
     """Conservatively match an accepted cache row after mutable identity fields changed."""
     def text(value: object) -> str:
         return category_taxonomy.comparison_text(str(value or ""))
@@ -1715,14 +1731,14 @@ def _cached_occurrence_matches(event: Mapping[str, Any], facts: Mapping[str, Any
         or not event_start
         or event_start != facts_start
         or event_end != facts_end
-        or _occurrence_start_time(event.get("time"))
+        or _event_occurrence_start_time(event)
         != _occurrence_start_time(facts.get("time"))
     ):
         return False
     for field in ("city", "venue"):
         current = text(event.get(field))
-        cached = text(facts.get(field))
-        if current and cached and current != cached:
+        cached = text(facts.get(field) or (result or {}).get(field))
+        if current and current != cached:
             return False
     return True
 
@@ -1771,6 +1787,35 @@ def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
                     continue
                 if isinstance(result, dict) and _clean_nullable(result.get("ai_summary"), 4000):
                     return _apply_result(safe_event, result)
+            alias_rows = []
+            if source_id in _BONN_CACHE_CONTINUITY_SOURCE_IDS:
+                alias_rows = connection.execute(
+                    """SELECT event_key, stage1_json, stage2_json
+                         FROM ai_event_enrichment
+                        WHERE source_id IN (?, ?) AND source_id != ?
+                          AND pipeline_version = ? AND event_key = ?
+                          AND stage2_json != ''
+                     ORDER BY updated_at DESC""",
+                    (
+                        *_BONN_CACHE_CONTINUITY_SOURCE_IDS,
+                        source_id,
+                        pipeline_version,
+                        current_key,
+                    ),
+                ).fetchall()
+            for row in alias_rows:
+                try:
+                    result = json.loads(row["stage2_json"])
+                    facts = json.loads(row["stage1_json"])
+                except (TypeError, json.JSONDecodeError):
+                    continue
+                if (
+                    isinstance(result, dict)
+                    and _clean_nullable(result.get("ai_summary"), 4000)
+                    and isinstance(facts, dict)
+                    and _cached_occurrence_matches(event, facts, result)
+                ):
+                    return _apply_result(safe_event, result)
             cross_rows = connection.execute(
                 """SELECT event_key, stage1_json, stage2_json
                      FROM ai_event_enrichment
@@ -1801,7 +1846,7 @@ def _reuse_cached_success(event: RawEvent, settings: AISettings) -> RawEvent:
             continue
         if not isinstance(result, dict) or not _clean_nullable(result.get("ai_summary"), 4000):
             continue
-        if isinstance(facts, dict) and _cached_occurrence_matches(event, facts):
+        if isinstance(facts, dict) and _cached_occurrence_matches(event, facts, result):
             key_identity = _historical_event_key_identity(row["event_key"])
             if key_identity not in cross_key_matches:
                 cross_key_matches[key_identity] = result
