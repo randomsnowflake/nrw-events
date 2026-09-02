@@ -3,6 +3,7 @@ import unittest
 from unittest.mock import patch
 
 from nrw_events import detail_enrichment, richtext
+from nrw_events.validation import canonicalize_event
 
 
 class DetailEnrichmentTests(unittest.TestCase):
@@ -500,6 +501,98 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "kostenfrei, Hutspende erwünscht")
         self.assertNotIn("vergrößern", context["description"])
         self.assertNotIn("Diese Seite teilen", context["description"])
+
+    def test_arp_visible_free_subline_overrides_conflicting_structured_price(self):
+        document = """
+        <section class="grid-row ce-page-headline">
+          <h1>Museumsfest</h1>
+          <p class="subline">11 – 18 Uhr | Arp Museum<br>
+          Sonder-Veranstaltung – kostenfrei – keine Anmeldung erforderlich</p>
+        </section>
+        <script type="application/ld+json">
+        {"@type":"Event","name":"Museumsfest","startDate":"2026-09-27",
+         "offers":{"price":"12","priceCurrency":"EUR"}}
+        </script>
+        <div class="va-content"><p>Tag der offenen Tür.</p></div>
+        """
+        event = self.event(
+            title="Museumsfest",
+            source="Arp Museum",
+            source_id="arp-museum",
+            link="https://arpmuseum.org/veranstaltungen/detail/museumsfest.html",
+            start_date="2026-09-27",
+            end_date="2026-09-27",
+            date="2026-09-27",
+            score=0.9,
+        )
+
+        context = detail_enrichment.extract_detail_context(document, event)
+        enriched = detail_enrichment.apply_detail_context(event, context)
+
+        self.assertEqual("kostenlos", context["price"])
+        self.assertEqual("kostenlos", enriched["price"])
+        self.assertEqual("explicit", enriched["admission_basis"])
+        canonical = canonicalize_event(enriched)
+        self.assertTrue(canonical.admission["isFree"])
+        self.assertEqual("structured", canonical.admission["basis"])
+
+    def test_arp_subline_does_not_promote_conditional_or_wrong_host_free_text(self):
+        template = """
+        <section class="ce-page-headline"><h1>Museumsfest</h1>
+          <p class="subline">Sonder-Veranstaltung – {subline}</p>
+        </section>
+        <script type="application/ld+json">
+        {{"@type":"Event","name":"Museumsfest","startDate":"2026-09-27",
+          "offers":{{"price":"15","priceCurrency":"EUR"}}}}
+        </script>
+        """
+        base = self.event(
+            title="Museumsfest",
+            source="Arp Museum",
+            source_id="arp-museum",
+            link="https://arpmuseum.org/veranstaltungen/detail/museumsfest.html",
+            start_date="2026-09-27",
+            end_date="2026-09-27",
+            date="2026-09-27",
+        )
+        for subline in ("nicht kostenfrei", "Eintritt 15 €, Kinder kostenfrei"):
+            with self.subTest(subline=subline):
+                context = detail_enrichment.extract_detail_context(
+                    template.format(subline=subline), base,
+                )
+                self.assertEqual("15 EUR", context["price"])
+
+        wrong_host = dict(base, link="https://example.org/museumsfest")
+        context = detail_enrichment.extract_detail_context(
+            template.format(subline="kostenfrei"), wrong_host,
+        )
+        self.assertEqual("15 EUR", context["price"])
+
+    def test_arp_subline_does_not_override_explicit_museum_charge(self):
+        document = """
+        <section class="ce-page-headline"><h1>Die Sonne sehen!</h1>
+          <p class="subline">Sonder-Veranstaltung – kostenfrei</p>
+        </section>
+        <div class="va-content"><p><strong>Kosten:</strong>
+          kostenfrei, zzgl. Museumseintritt</p></div>
+        <script type="application/ld+json">
+        {"@type":"Event","name":"Die Sonne sehen!","startDate":"2026-09-27",
+         "offers":{"price":"15","priceCurrency":"EUR"}}
+        </script>
+        """
+        event = self.event(
+            title="Die Sonne sehen!",
+            source="Arp Museum",
+            source_id="arp-museum",
+            link="https://arpmuseum.org/veranstaltungen/detail/sonne.html",
+            start_date="2026-09-27",
+            end_date="2026-09-27",
+            date="2026-09-27",
+        )
+
+        context = detail_enrichment.extract_detail_context(document, event)
+
+        self.assertEqual("15 EUR", context["price"])
 
     def test_extracts_shapehub_content(self):
         document = """
