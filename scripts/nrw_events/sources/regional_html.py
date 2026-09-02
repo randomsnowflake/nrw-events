@@ -2,6 +2,7 @@
 
 import re
 import urllib.parse
+from datetime import datetime
 
 from .. import common, detail_enrichment
 from . import regional_common as rc
@@ -300,6 +301,102 @@ def _broeltal_named_address(text: str) -> dict[str, str]:
     }
 
 
+def _broeltal_explicit_place(text: str) -> dict[str, str]:
+    """Recover only the location phrases used in Bröltal event body copy."""
+    prose = rc.clean_blocks(text or "")
+    named_address = _broeltal_named_address(prose)
+    if named_address:
+        return named_address
+
+    pfarrheim = re.search(
+        r"\bim\s+(Pfarrheim\s+[^,.\n]{2,80}),\s*([^,\n]{2,80}?\d+[a-z]?)"
+        r"(?=\s+(?:statt|$)|[.;\n])",
+        prose,
+        re.I,
+    )
+    if pfarrheim:
+        return {
+            "venue": rc.clean(pfarrheim.group(1)),
+            "venue_address": rc.clean(pfarrheim.group(2)),
+        }
+
+    meeting_point = re.search(
+        r"\bTreffpunkt\s+ist\s+(?:der|die|das)\s+([^.;\n]{4,160})",
+        prose,
+        re.I,
+    )
+    if meeting_point:
+        venue = re.sub(
+            r"\s+um\s+\d{1,2}(?::\d{2})?\s*Uhr\b.*$",
+            "",
+            rc.clean(meeting_point.group(1)),
+            flags=re.I,
+        )
+        return {"venue": venue}
+
+    event_place = re.search(
+        r"\bOrt\s+der\s+Veranstaltung\s*:\s*([^.;\n]{4,160})",
+        prose,
+        re.I,
+    )
+    if event_place:
+        return {"venue": rc.clean(event_place.group(1))}
+    return {}
+
+
+def _broeltal_detail_context(document: str, event: dict) -> dict:
+    """Add venue facts only from exact occurrence or bounded event copy."""
+    context = detail_enrichment.extract_detail_context(document, event)
+    exact_place: dict[str, str] = {}
+    expected_title = detail_enrichment._exact_title_key(event.get("title"))
+    expected_date = str(event.get("start_date") or event.get("date") or "")[:10]
+    for item in common.jsonld_event_items(document or ""):
+        if (
+            detail_enrichment._exact_title_key(item.get("name")) != expected_title
+            or str(item.get("startDate") or "")[:10] != expected_date
+        ):
+            continue
+        location = item.get("location")
+        if isinstance(location, list):
+            location = next((value for value in location if isinstance(value, dict)), None)
+        if isinstance(location, dict):
+            exact_place["venue"] = common.clean_html(str(location.get("name") or ""))
+            address = location.get("address")
+            if isinstance(address, dict):
+                exact_place["venue_address"] = " ".join(filter(None, (
+                    common.clean_html(str(address.get("streetAddress") or "")),
+                    common.clean_html(str(address.get("postalCode") or "")),
+                    common.clean_html(str(address.get("addressLocality") or "")),
+                )))
+        break
+    context["venue"] = exact_place.get("venue", "")
+    context["venue_address"] = exact_place.get("venue_address", "")
+    event_scoped_copy = context.get("exact_description")
+    if not event_scoped_copy:
+        visible = rc.clean_blocks(document or "")
+        title = rc.clean(str(event.get("title") or ""))
+        start_date = str(event.get("start_date") or event.get("date") or "")[:10]
+        date_labels = {start_date}
+        try:
+            parsed_date = datetime.strptime(start_date, "%Y-%m-%d")
+            date_labels.add(parsed_date.strftime("%d.%m.%Y"))
+            date_labels.add(f"{parsed_date.day}.{parsed_date.month}.{parsed_date.year}")
+        except ValueError:
+            pass
+        if title and title.casefold() in visible.casefold() and any(
+            label and label in visible for label in date_labels
+        ):
+            visible_description = re.search(
+                r'<(?:div|section)\b[^>]*class=["\'][^"\']*\bevent-description\b'
+                r'[^"\']*["\'][^>]*>(.*?)</(?:div|section)>',
+                document or "", re.I | re.S,
+            )
+            if visible_description:
+                event_scoped_copy = visible_description.group(1)
+    context.update(_broeltal_explicit_place(str(event_scoped_copy or "")))
+    return context
+
+
 def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
     events = []
     blocks = re.findall(r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>',
@@ -327,23 +424,28 @@ def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
         if ev:
             ev["identity_venue"] = ""
             ev["identity_venue_locked"] = True
+            ev.update(_broeltal_explicit_place(text))
             ev = _enrich_regional_detail(
                 ev, detail_fetcher, "Bröltal / Ruppichteroth detail",
+                context_extractor=_broeltal_detail_context,
             )
-            if not ev.get("venue"):
-                ev.update(_broeltal_named_address(str(ev.get("description") or "")))
             events.append(ev)
     return events
 
 
-def _enrich_regional_detail(event: dict, detail_fetcher, source: str) -> dict:
+def _enrich_regional_detail(
+    event: dict,
+    detail_fetcher,
+    source: str,
+    context_extractor=detail_enrichment.extract_detail_context,
+) -> dict:
     if not detail_fetcher or not common.window_contains(
         common.parse_iso_date(str(event.get("start_date") or "")),
     ):
         return event
     try:
         document = detail_fetcher(str(event.get("link") or ""))
-        context = detail_enrichment.extract_detail_context(document, event)
+        context = context_extractor(document, event)
         return detail_enrichment.apply_detail_context(event, context)
     except Exception as exc:
         common.log_source_error(source, exc)

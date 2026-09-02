@@ -3,7 +3,7 @@
 import re
 from datetime import datetime, timedelta
 
-from .. import common
+from .. import common, normalization
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
@@ -11,6 +11,19 @@ from . import regional_common as rc
 _BASE_URL = "https://www.coelln-konzept.de/"
 _URL = rc.abs_url(_BASE_URL, "termine.php")
 _MARKET_WORDS = re.compile(r"floh|trödel|antik|mädchenkram|sammler", re.I)
+
+
+def _explicit_location(value: str) -> str:
+    """Keep a page-labelled market place, but not a postal city placeholder."""
+    location = rc.clean(value).strip(" ,.;")
+    if re.match(r"^(?:Anfahrt|Einfahrt|Navi|Parken)\b", location, re.I):
+        return ""
+    if re.fullmatch(r"(?:\d{5}\s+)?[A-Za-zÄÖÜäöüß -]+", location) and (
+        re.match(r"^\d{5}\s+", location)
+        or location.casefold() in {"bonn", "köln", "linz", "linz am rhein"}
+    ):
+        return ""
+    return location
 
 
 def _date_range(text: str, year: int):
@@ -44,7 +57,8 @@ def _detail_context(html: str) -> dict:
         re.S | re.I,
     )
     description = common.concise_description(rc.clean(first_description.group(1) if first_description else ""))
-    venue = rc.clean(location.group(1) if location else "")
+    raw_venue = rc.clean(location.group(1) if location else "")
+    venue = _explicit_location(raw_venue)
     time_match = re.search(
         r"(?:von|Marktzeit(?:en)?[^\d]{0,20})\s*(\d{1,2})(?::(\d{2}))?\s*"
         r"(?:bis|[-–])\s*(\d{1,2})(?::(\d{2}))?\s*Uhr",
@@ -59,6 +73,8 @@ def _detail_context(html: str) -> dict:
         "title": rc.clean(heading.group(1) if heading else ""),
         "description": description,
         "venue": venue,
+        "has_location": bool(raw_venue),
+        "raw_venue": raw_venue,
         "time": time_text,
     }
 
@@ -98,7 +114,7 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
                 common.log_source_error("Cölln Konzept detail", exc)
                 detail_cache[link] = {}
         detail = detail_cache[link]
-        venue = detail.get("venue") or title
+        venue = detail.get("venue", "")
         city = rc.city_from_text(f"{venue} {title}", "Köln")
         description = detail.get("description") or common.factual_event_description(
             title,
@@ -132,6 +148,17 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             time_text,
         )
         if event:
+            # Keep the old canonical venue identity while publishing only a
+            # source-backed place. The old adapter used the parsed location
+            # whenever a location element existed, even if canonicalization
+            # reduced it to blank; it used the title only when no location was
+            # present at all.
+            event["identity_venue"] = title
+            if detail.get("has_location"):
+                event["identity_venue"] = normalization.resolve_venue(
+                    str(detail.get("raw_venue") or ""), city,
+                ).venue
+            event["identity_venue_locked"] = True
             events.append(event)
     return rc.dedupe(events)
 
