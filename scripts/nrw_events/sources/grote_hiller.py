@@ -13,7 +13,6 @@ _URLS = (
     f"{_BASE_URL}/troedelmaerkte/",
     f"{_BASE_URL}/stadtflohmaerkte/",
     f"{_BASE_URL}/maedelsflohmaerkte/",
-    f"{_BASE_URL}/fashion-family/",
 )
 _CITY_ALIASES = {
     "denklingen": "Reichshof",
