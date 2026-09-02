@@ -426,6 +426,21 @@ class JunkFilterTests(unittest.TestCase):
             ("Treffen des ZWAR-Netzwerkes", "Wir treffen uns regelmäßig alle 14 Tage."),
             ("Selbsthilfegruppe Tag Eins", "Regelmäßige Gesprächsrunden."),
             ("Offener Näh- und Handarbeitstreff", "Wiederkehrender Termin jeden Montag."),
+            ("Spieletreff für Erwachsene", "Wöchentlich jeden Donnerstag."),
+            ("Elterntreff", "Regelmäßiges Angebot."),
+            ("Müttertreff", "Samstags im Nachbarschaftszentrum."),
+            ("Männertreff", "Sonntags im Gemeindehaus."),
+            ("Krabbeltreff", "Jeden Samstag für Familien."),
+            ("Trauertreff", "Samstags im Gemeindehaus."),
+            ("Queertreff", "Sonntags im Jugendzentrum."),
+            ("Lauftreff", "Jeden Samstag am Rheinufer."),
+            ("Spieletreff für Erwachsene", "Monatlich am ersten Donnerstag."),
+            ("Lauftreff am Rhein", "Dienstags um 18 Uhr."),
+            ("Elterntreff", "Alle zwei Wochen."),
+            (
+                "Advanced Contemporary Dance Training",
+                "Monatlicher Kurs für Fortgeschrittene mit zehn Terminen.",
+            ),
         ]
 
         for title, description in cases:
@@ -434,6 +449,164 @@ class JunkFilterTests(unittest.TestCase):
                     **event(title, description=description),
                     "link": "https://example.test/wiederkehrende-termine/meeting/",
                 }))
+
+    def test_weak_civic_words_do_not_hide_one_off_public_events(self):
+        cases = [
+            (
+                "Herbst-Weinprobe im Wachtberger Weinladen, RaibleWein",
+                "Herbstliche Weine mit persönlicher Beratung im Weinladen.",
+                "Genuss Weinprobe",
+            ),
+            (
+                "Repair Café Lannesdorf",
+                "Ehrenamtliche bieten Hilfe und persönliche Beratung beim Reparieren.",
+                "Nachhaltigkeit",
+            ),
+            (
+                "REPAIR-CAFÈ an der Mühlenbachhalle",
+                "Der regelmäßig angebotene Termin lädt zum gemeinsamen Reparieren ein.",
+                "Nachbarschaft",
+            ),
+            (
+                "Brettspielabend: Bonn spielt",
+                "Die Künstlerbiografie erwähnt Politikberatung; heute werden Spiele vorgestellt.",
+                "Kultur",
+            ),
+            (
+                "Empowerment für Frauen & Mädchen",
+                "Ein einmaliger Workshop; weitere Angebote finden regelmäßig statt.",
+                "Workshop",
+            ),
+            (
+                "Müllsammelaktion",
+                "Ein öffentlicher Aktionstag; der Verein trifft sich regelmäßig.",
+                "Umwelt Aktionstag",
+            ),
+            (
+                "Jazz Jam",
+                "Die wiederkehrende Reihe präsentiert heute ein Live-Konzert.",
+                "Musik Konzert",
+            ),
+            (
+                "Müllsammelaktion am Rheinufer",
+                "Der veranstaltende Verein lädt sonst regelmäßig zum Stammtisch.",
+                "Umwelt Aktionstag",
+            ),
+            (
+                "Tag der offenen Tür",
+                "Im Nachbarraum informiert ein Träger über seinen Deutschkurs.",
+                "Familie Fest",
+            ),
+            (
+                "Einmaliges Tanztraining für Fortgeschrittene",
+                "Ein einmaliger Workshop für das Stadtfest.",
+                "Tanz Workshop",
+            ),
+            (
+                "Advanced Dance Training",
+                "Einmaliger Unterricht mit einem Gastdozenten.",
+                "Tanz Workshop",
+            ),
+            (
+                "Beratung für Familien",
+                "Ein einmaliger Informationsabend mit offener Fragerunde.",
+                "Familie",
+            ),
+        ]
+
+        for title, description, category in cases:
+            with self.subTest(title=title):
+                self.assertFalse(common.is_junk_event(event(
+                    title, description=description, category=category,
+                )))
+
+    def test_weak_civic_words_still_require_event_scoped_service_evidence(self):
+        cases = [
+            (
+                "Individuelles Radreisen – Beratung für Mitglieder",
+                "Die Beratung findet regelmäßig jeden ersten Donnerstag statt.",
+                "Beratung",
+                "civic.course",
+            ),
+            (
+                "Beratung für Familien",
+                "Samstags im Beratungszentrum.",
+                "Beratung",
+                "civic.course",
+            ),
+            (
+                "Beratung für Familien",
+                "Zehn Termine für Eltern und Kinder.",
+                "Beratung",
+                "civic.course",
+            ),
+            (
+                "Offener Treff im Nachbarschaftshaus",
+                "Der Treff findet wöchentlich statt.",
+                "Soziales",
+                "civic.routine-meetup",
+            ),
+            (
+                "Schuldner- und Insolvenzberatung",
+                "Im Städtischen Beratungszentrum Älterwerden, Behinderung und Rente.",
+                "Kommunal",
+                "civic.course",
+            ),
+            (
+                "Advanced Dance Training",
+                "Dienstags für fortgeschrittene Tanzschaffende.",
+                "Workshop",
+                "civic.course",
+            ),
+            (
+                "Advanced Embodied Contemporary Dance Training",
+                "Dieses Format bietet regelmäßigen Unterricht für fortgeschrittene Tanzschaffende.",
+                "Workshop",
+                "civic.course",
+            ),
+            (
+                "MittwochsTreff im Gereonshof",
+                "Jeden Mittwoch findet ein Treff zum Sprachelernen statt.",
+                "Begegnung",
+                "civic.routine-meetup",
+            ),
+            (
+                "Jazz Jam fällt aus",
+                "Das Konzert ist abgesagt.",
+                "Musik Konzert",
+                "availability.unavailable",
+            ),
+        ]
+
+        for title, description, category, expected_rule in cases:
+            with self.subTest(title=title):
+                decision = evaluate_event_quality(event(
+                    title, description=description, category=category,
+                ))
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, expected_rule)
+
+    def test_market_filter_ignores_unrelated_opening_hours_and_cultural_titles(self):
+        cases = (
+            event(
+                "Repair Café MVA Bonn - Fahrrad, Geräte, Nähen",
+                description=(
+                    "Jeden Donnerstag wird gemeinsam repariert. "
+                    "Das Haus nennt außerdem seine Öffnungszeiten und jeden vierten Samstag."
+                ),
+                category="kommunal kultur wochenmarkt ausstellung konzert führung",
+            ),
+            event(
+                "Ausstellungseröffnung Bürgerstiftung",
+                description="Öffnungszeiten: jeden Samstag. Kunst trifft Innovation.",
+                category="kommunal kultur markt ausstellung konzert führung",
+            ),
+        )
+
+        for candidate in cases:
+            with self.subTest(title=candidate["title"]):
+                decision = evaluate_event_quality(candidate)
+                self.assertFalse(decision.should_drop)
 
     def test_recurring_destination_markets_survive_routine_filter(self):
         cases = [
