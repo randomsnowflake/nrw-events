@@ -109,6 +109,10 @@ class ExplicitSourceVenueTests(unittest.TestCase):
                 "Ort der Veranstaltung: Am Dorfhaus im Mehrgenerationenpark Schönenberg",
                 {"venue": "Am Dorfhaus im Mehrgenerationenpark Schönenberg"},
             ),
+            (
+                "Die KULT PARTY steigt im Festzelt in Bruchhausen Röttgen ab 20:00 Uhr.",
+                {"venue": "Festzelt Bruchhausen Röttgen"},
+            ),
         )
         for prose, expected in cases:
             with self.subTest(prose=prose):
@@ -147,6 +151,95 @@ class ExplicitSourceVenueTests(unittest.TestCase):
             regional_html._broeltal_explicit_place("Musik und Begegnung für die ganze Familie."),
             {},
         )
+
+    def test_broeltal_binds_dedicated_page_copy_by_title_and_date(self):
+        event = self._event(
+            "Bröltaler Erntedankfest",
+            "https://www.broeltal.de/termine/erntedankfest.html",
+            city="Ruppichteroth",
+        )
+        event["start_date"] = "2026-09-04"
+        detail = """
+          <div class="tx-gbevents-pi1"><div class="card"><div class="card-body">
+            <h4>Bröltaler Erntedankfest</h4><h4>04.09. – 07.09.2026</h4>
+            <p>Die KULT PARTY steigt im Festzelt in Bruchhausen Röttgen ab 20:00 Uhr.</p>
+          </div></div></div>
+        """
+
+        context = regional_html._broeltal_detail_context(detail, event)
+
+        self.assertEqual(context["venue"], "Festzelt Bruchhausen Röttgen")
+
+    def test_broeltal_does_not_cross_into_a_sibling_event_card_for_location(self):
+        event = self._event(
+            "Bröltaler Erntedankfest",
+            "https://www.broeltal.de/termine/erntedankfest.html",
+            city="Ruppichteroth",
+        )
+        event["start_date"] = "2026-09-04"
+        detail = """
+          <div class="tx-gbevents-pi1">
+            <div class="card"><div class="card-body">
+              <h4>Bröltaler Erntedankfest</h4><h4>04.09. – 07.09.2026</h4>
+              <p>Musik und Begegnung für die ganze Familie.</p>
+            </div></div>
+            <div class="card"><div class="card-body">
+              <h4>Winterfest</h4><h4>21.12.2026</h4>
+              <p>Die Feier steigt im Festzelt in Fremdort ab 20:00 Uhr.</p>
+            </div></div>
+          </div>
+        """
+
+        context = regional_html._broeltal_detail_context(detail, event)
+
+        self.assertEqual(context["venue"], "")
+
+    def test_broeltal_card_boundary_overrides_cross_occurrence_exact_description(self):
+        event = self._event(
+            "Bröltaler Erntedankfest",
+            "https://www.broeltal.de/termine/erntedankfest.html",
+            city="Ruppichteroth",
+        )
+        event["start_date"] = "2026-09-04"
+        detail = """
+          <div class="tx-gbevents-pi1">
+            <div class="card"><div class="card-body">
+              <h4>Bröltaler Erntedankfest</h4><h4>04.09. – 07.09.2026</h4>
+              <p>Musik und Begegnung für die ganze Familie.</p>
+            </div></div>
+            <div class="card"><div class="card-body">
+              <h4>Winterfest</h4><h4>21.12.2026</h4>
+              <p>Die Feier steigt im Festzelt in Fremdort ab 20:00 Uhr.</p>
+            </div></div>
+          </div>
+        """
+        with patch.object(
+            regional_html.detail_enrichment,
+            "extract_detail_context",
+            return_value={
+                "description": "Die Feier steigt im Festzelt in Fremdort ab 20:00 Uhr.",
+                "exact_description": "Die Feier steigt im Festzelt in Fremdort ab 20:00 Uhr.",
+            },
+        ):
+            context = regional_html._broeltal_detail_context(detail, event)
+
+        self.assertEqual(context["venue"], "")
+
+    def test_broeltal_does_not_use_same_page_footer_copy_as_event_location(self):
+        event = self._event(
+            "Bröltaler Erntedankfest",
+            "https://www.broeltal.de/termine/erntedankfest.html",
+            city="Ruppichteroth",
+        )
+        event["start_date"] = "2026-09-04"
+        detail = """
+          <main><h1>Bröltaler Erntedankfest</h1><p>04.09. – 07.09.2026</p></main>
+          <footer>Besuchen Sie uns im Festzelt in Fremdort ab 20:00 Uhr.</footer>
+        """
+
+        context = regional_html._broeltal_detail_context(detail, event)
+
+        self.assertEqual(context["venue"], "")
 
     def test_broeltal_ignores_footer_location_contamination(self):
         event = self._event(

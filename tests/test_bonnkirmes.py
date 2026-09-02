@@ -91,6 +91,38 @@ class BonnKirmesSourceTests(unittest.TestCase):
         self.assertEqual(len(deduped), 1)
         self.assertEqual(deduped[0]["source"], "Kirmes in Bonn")
 
+    def test_keeps_complete_split_opening_hours_without_contact_boilerplate(self):
+        html = """
+        <h3>Herbstkirmes Duisdorf</h3>
+        <p>Jedes Jahr findet die Herbstkirmes statt. Im Jahr 2025 findet die Kirmes vom 04.09.2026 bis zum 07.09.2026 statt.</p>
+        <p>Öffnungszeiten: Samstag 12.00 bis 23.00 Uhr,</p>
+        <p>Sonntag 11.00 bis 23.00 Uhr, Freitag und Montag 14.00 bis 23.00 Uhr.</p>
+        <p>\u200b</p>
+        <p>Please contact us by using this form:</p>
+        <p>bonnarge@example.test</p>
+        """
+
+        [event] = bonnkirmes.events_from_html(html, strict=True)
+
+        self.assertIn("Samstag 12.00 bis 23.00 Uhr", event["description"])
+        self.assertIn("Sonntag 11.00 bis 23.00 Uhr", event["description"])
+        self.assertIn("Freitag und Montag 14.00 bis 23.00 Uhr", event["description"])
+        self.assertNotIn("Please contact", event["description"])
+        self.assertNotIn("example.test", event["description"])
+
+    def test_description_does_not_repeat_a_lead_paragraph_that_contains_selected_markers(self):
+        description = bonnkirmes._description(
+            [
+                "Intro.",
+                "Öffnungszeiten und Zum Schutz der Besucher gelten Regeln.",
+                "Weiterer Hinweis.",
+            ],
+            datetime(2026, 9, 4),
+        )
+
+        self.assertEqual(description.count("Öffnungszeiten"), 1)
+        self.assertEqual(description.count("Zum Schutz"), 1)
+
     def test_recognizable_page_without_dated_fair_sections_reports_parser_drift(self):
         with self.assertRaisesRegex(rc.ParserEmptyError, "dated fair sections"):
             bonnkirmes.events_from_html(

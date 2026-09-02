@@ -3,6 +3,7 @@
 import re
 import urllib.parse
 from datetime import datetime
+from html.parser import HTMLParser
 
 from .. import common, detail_enrichment
 from . import regional_common as rc
@@ -334,6 +335,14 @@ def _broeltal_explicit_place(text: str) -> dict[str, str]:
         )
         return {"venue": venue}
 
+    festival_tent = re.search(
+        r"\bim\s+Festzelt\s+in\s+([^,.;\n]{3,80}?)(?=\s+(?:ab|um)\s+\d|[,.;\n]|$)",
+        prose,
+        re.I,
+    )
+    if festival_tent:
+        return {"venue": f"Festzelt {rc.clean(festival_tent.group(1))}"}
+
     event_place = re.search(
         r"\bOrt\s+der\s+Veranstaltung\s*:\s*([^.;\n]{4,160})",
         prose,
@@ -342,6 +351,47 @@ def _broeltal_explicit_place(text: str) -> dict[str, str]:
     if event_place:
         return {"venue": rc.clean(event_place.group(1))}
     return {}
+
+
+class _CardTextParser(HTMLParser):
+    """Return text from exact `div.card` blocks without crossing siblings."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.blocks: list[str] = []
+        self._depth = 0
+        self._text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self._depth:
+            if tag.casefold() == "div":
+                self._depth += 1
+            return
+        if tag.casefold() != "div":
+            return
+        classes = next((value or "" for key, value in attrs if key.casefold() == "class"), "")
+        if "card" in classes.split():
+            self._depth = 1
+            self._text = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self._depth or tag.casefold() != "div":
+            return
+        self._depth -= 1
+        if self._depth == 0:
+            self.blocks.append(" ".join(self._text))
+            self._text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._depth and data.strip():
+            self._text.append(data)
+
+
+def _card_text_blocks(document: str) -> list[str]:
+    parser = _CardTextParser()
+    parser.feed(document or "")
+    parser.close()
+    return parser.blocks
 
 
 def _broeltal_detail_context(document: str, event: dict) -> dict:
@@ -371,28 +421,49 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
         break
     context["venue"] = exact_place.get("venue", "")
     context["venue_address"] = exact_place.get("venue_address", "")
-    event_scoped_copy = context.get("exact_description")
-    if not event_scoped_copy:
-        visible = rc.clean_blocks(document or "")
-        title = rc.clean(str(event.get("title") or ""))
-        start_date = str(event.get("start_date") or event.get("date") or "")[:10]
-        date_labels = {start_date}
-        try:
-            parsed_date = datetime.strptime(start_date, "%Y-%m-%d")
-            date_labels.add(parsed_date.strftime("%d.%m.%Y"))
-            date_labels.add(f"{parsed_date.day}.{parsed_date.month}.{parsed_date.year}")
-        except ValueError:
-            pass
-        if title and title.casefold() in visible.casefold() and any(
-            label and label in visible for label in date_labels
-        ):
-            visible_description = re.search(
-                r'<(?:div|section)\b[^>]*class=["\'][^"\']*\bevent-description\b'
-                r'[^"\']*["\'][^>]*>(.*?)</(?:div|section)>',
-                document or "", re.I | re.S,
+    visible_document = re.sub(
+        r"<script\b[^>]*>.*?</script>",
+        "",
+        document or "",
+        flags=re.I | re.S,
+    )
+    visible = rc.clean_blocks(visible_document)
+    title = rc.clean(str(event.get("title") or ""))
+    start_date = str(event.get("start_date") or event.get("date") or "")[:10]
+    date_labels = {start_date}
+    short_date = ""
+    expected_year = ""
+    try:
+        parsed_date = datetime.strptime(start_date, "%Y-%m-%d")
+        date_labels.add(parsed_date.strftime("%d.%m.%Y"))
+        date_labels.add(f"{parsed_date.day}.{parsed_date.month}.{parsed_date.year}")
+        short_date = parsed_date.strftime("%d.%m.")
+        expected_year = str(parsed_date.year)
+    except ValueError:
+        pass
+
+    def occurrence_matches(text: str) -> bool:
+        date_matches = any(label and label in text for label in date_labels)
+        if short_date and expected_year:
+            date_matches = date_matches or (
+                short_date in text and expected_year in text
             )
-            if visible_description:
-                event_scoped_copy = visible_description.group(1)
+        return bool(title and title.casefold() in text.casefold() and date_matches)
+
+    card_blocks = _card_text_blocks(visible_document)
+    event_scoped_copy = None if card_blocks else context.get("exact_description")
+    for card_block in card_blocks:
+        if occurrence_matches(rc.clean_blocks(card_block)):
+            event_scoped_copy = card_block
+            break
+    if not card_blocks and not event_scoped_copy and occurrence_matches(visible):
+        visible_description = re.search(
+            r'<(?:div|section)\b[^>]*class=["\'][^"\']*\bevent-description\b'
+            r'[^"\']*["\'][^>]*>(.*?)</(?:div|section)>',
+            visible_document, re.I | re.S,
+        )
+        if visible_description:
+            event_scoped_copy = visible_description.group(1)
     context.update(_broeltal_explicit_place(str(event_scoped_copy or "")))
     return context
 

@@ -122,6 +122,41 @@ class BonnPressFestivalTests(unittest.TestCase):
         self.assertEqual(event["source"], "Bonn district festivals")
         self.assertNotIn("Poppelsdorfer-Strassenfest-", event["link"])
 
+    def test_bonnfest_press_range_collapses_with_reviewed_calendar_rows(self):
+        self.addCleanup(patch.stopall)
+        patch.object(common, "TODAY", datetime(2026, 9, 1)).start()
+        patch.object(common, "END_DATE", datetime(2026, 9, 30)).start()
+        press_html = """
+        <ul><li>
+          Bonn-Fest, Innenstadt Bonn (Markt, Münsterplatz, Remigiusplatz),
+          25. bis 27. September 2026, city-marketing bonn
+        </li></ul>
+        """
+        sports_html = """
+        <article data-source="sports" class="SP-Teaser SP-Teaser--textual">
+          <a href="/veranstaltungskalender/veranstaltungen/hauptkalender/extern/BonnFest-2026.php" class="SP-Teaser__inner">
+            <span class="SP-Kicker__text">Stadtfest</span>
+            <span class="SP-Scheduling__date">25.09.2026</span>
+            <span class="SP-Scheduling__date">26.09.2026</span>
+            <h1 class="SP-Teaser__headline">BonnFest 2026</h1>
+          </a>
+        </article>
+        """
+        with patch.object(common, "fetch_url", return_value=press_html):
+            [press] = bonn.fetch_press_festivals()
+        [calendar] = bonn._apply_reviewed_sport_occurrence_corrections(
+            bonn.events_from_sport_teasers(sports_html),
+        )
+
+        [deduped] = report.deduplicate([press, calendar])
+
+        self.assertEqual(deduped["title"], "BonnFest 2026")
+        self.assertEqual(deduped["start_date"], "2026-09-25")
+        self.assertEqual(deduped["end_date"], "2026-09-27")
+        self.assertEqual(deduped["venue"], "Bonner Innenstadt")
+        self.assertIn("25. bis 27. September 2026", deduped["description"])
+        self.assertIn("/BonnFest-2026.php", deduped["link"])
+
     def test_corrects_reviewed_beuel_festival_dates_and_keeps_published_alias(self):
         self.addCleanup(patch.stopall)
         patch.object(common, "END_DATE", datetime(2026, 9, 30)).start()

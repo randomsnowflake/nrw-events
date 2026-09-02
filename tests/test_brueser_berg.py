@@ -64,11 +64,30 @@ class BrueserBergSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "10:30")
         self.assertEqual(events[0]["link"], "https://files.example.test/figuren.pdf")
         self.assertEqual(events[1]["link"], "https://brueser-berg.de/familienfest")
+        self.assertEqual(events[1]["venue"], "Borsigallee")
         self.assertEqual(events[1]["end_date"], "2026-09-05")
         self.assertEqual(events[1]["end_at"], "2026-09-05T18:00+02:00")
         self.assertTrue(all(event["description"] for event in events))
         self.assertTrue(all(event["source_id"] == "veranstaltungen-brueser-berg" for event in events))
         self.assertTrue(all(event["score"] >= 0.4 for event in events))
+
+    def test_reviewed_family_market_street_replaces_the_generic_pedestrian_zone(self):
+        self.assertEqual(
+            bonn_districts._brueser_berg_venue(
+                "Familienfest mit Flohmarkt",
+                "Fußgängerzone Brüser Berg",
+            ),
+            "Borsigallee",
+        )
+
+    def test_reviewed_family_market_street_does_not_override_new_exact_source_venue(self):
+        self.assertEqual(
+            bonn_districts._brueser_berg_venue(
+                "Familienfest mit Flohmarkt",
+                "Neue genaue Straße 12",
+            ),
+            "Neue genaue Straße 12",
+        )
 
     def test_fetch_discovers_the_public_base44_entity_endpoint(self):
         page = '<script>const appId = "6a71c68354b14b3b2e8741d7";</script>'

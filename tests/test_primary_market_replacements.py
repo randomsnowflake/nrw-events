@@ -1,8 +1,9 @@
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from unittest import mock
 
-from nrw_events import config, runner
+from nrw_events import config, identity, runner
 from nrw_events.market_source_fallbacks import partition_directory_fallbacks
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
@@ -241,6 +242,167 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
             {(event.start_date, event.city) for event in kept},
             {(event.start_date, event.city) for event in self._directory_cohort()},
         )
+
+    def test_niederbachem_directory_copy_is_replaced_by_same_day_municipal_record(self):
+        directory = replace(
+            self._canonical(
+                "Flohmarkt Niederbachem Wachtberg",
+                "2026-09-12",
+                "Wachtberg",
+                "marktcom",
+                "marktcom",
+                venue="Flohmarkt Niederbachem",
+            ),
+            preserved_event_id="published-niederbachem-old-id",
+        )
+        primary = self._canonical(
+            "Flohmarkt Niederbachem / Garagenverkauf",
+            "2026-09-12",
+            "Wachtberg",
+            "Wachtberg",
+            "wachtberg",
+            venue="Niederbachem",
+        )
+
+        kept, replaced = partition_directory_fallbacks([directory, primary])
+
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0].source_id, "wachtberg")
+        generated_alias = identity.event_id(replace(directory, preserved_event_id="").to_dict())
+        self.assertIn("published-niederbachem-old-id", kept[0].previous_event_ids)
+        self.assertIn(generated_alias, kept[0].previous_event_ids)
+        self.assertEqual(replaced, [directory])
+
+    def test_niederbachem_directory_copy_stays_when_municipal_occurrence_is_absent(self):
+        directory = self._canonical(
+            "Flohmarkt Niederbachem Wachtberg",
+            "2026-09-12",
+            "Wachtberg",
+            "marktcom",
+            "marktcom",
+            venue="Flohmarkt Niederbachem",
+        )
+        different_day = self._canonical(
+            "Flohmarkt Niederbachem / Garagenverkauf",
+            "2026-09-13",
+            "Wachtberg",
+            "Wachtberg",
+            "wachtberg",
+            venue="Niederbachem",
+        )
+
+        kept, replaced = partition_directory_fallbacks([directory, different_day])
+
+        self.assertEqual(kept, [directory, different_day])
+        self.assertEqual(replaced, [])
+
+    def test_niederbachem_directory_copy_stays_for_unrelated_same_day_event(self):
+        directory = self._canonical(
+            "Flohmarkt Niederbachem Wachtberg",
+            "2026-09-12",
+            "Wachtberg",
+            "marktcom",
+            "marktcom",
+            venue="Flohmarkt Niederbachem",
+        )
+        sibling = self._canonical(
+            "Sommerkonzert Wachtberg",
+            "2026-09-12",
+            "Wachtberg",
+            "Wachtberg",
+            "wachtberg",
+            venue="Köllenhof",
+        )
+
+        kept, replaced = partition_directory_fallbacks([directory, sibling])
+
+        self.assertEqual(kept, [directory, sibling])
+        self.assertEqual(replaced, [])
+
+    def test_replacement_alias_is_attached_only_to_matching_primary_among_siblings(self):
+        directory = self._canonical(
+            "Flohmarkt Niederbachem Wachtberg",
+            "2026-09-12",
+            "Wachtberg",
+            "marktcom",
+            "marktcom",
+            venue="Flohmarkt Niederbachem",
+        )
+        primaries = [
+            self._canonical(
+                title,
+                "2026-09-12",
+                "Wachtberg",
+                "Wachtberg",
+                "wachtberg",
+                venue=venue,
+            )
+            for title, venue in (
+                ("Flohmarkt Niederbachem / Garagenverkauf", "Niederbachem"),
+                ("Flohmarkt Oberbachem", "Oberbachem"),
+            )
+        ]
+
+        kept, replaced = partition_directory_fallbacks([directory, *primaries])
+
+        self.assertEqual(replaced, [directory])
+        self.assertEqual(len(kept), 2)
+        alias = identity.event_id(directory.to_dict())
+        self.assertIn(alias, kept[0].previous_event_ids)
+        self.assertNotIn(alias, kept[1].previous_event_ids)
+
+    def test_directory_copy_stays_when_two_identity_matching_primaries_are_ambiguous(self):
+        directory = self._canonical(
+            "Flohmarkt Niederbachem Wachtberg",
+            "2026-09-12",
+            "Wachtberg",
+            source="marktcom.de",
+            source_id="marktcom",
+            organizer="Marktcom",
+        )
+        primaries = [
+            self._canonical(
+                "Flohmarkt Niederbachem / Garagenverkauf",
+                "2026-09-12",
+                "Wachtberg",
+                source="Wachtberg",
+                source_id="wachtberg",
+                organizer=f"Ortsverein {suffix}",
+            )
+            for suffix in ("A", "B")
+        ]
+
+        kept, replaced = partition_directory_fallbacks([directory, *primaries])
+
+        self.assertEqual(replaced, [])
+        self.assertIn(directory, kept)
+        self.assertTrue(all(not event.previous_event_ids for event in primaries))
+
+    def test_directory_copy_stays_when_primary_alias_capacity_is_exhausted(self):
+        directory = self._canonical(
+            "Flohmarkt Niederbachem Wachtberg",
+            "2026-09-12",
+            "Wachtberg",
+            source="marktcom.de",
+            source_id="marktcom",
+            organizer="Marktcom",
+        )
+        primary = replace(
+            self._canonical(
+                "Flohmarkt Niederbachem / Garagenverkauf",
+                "2026-09-12",
+                "Wachtberg",
+                source="Wachtberg",
+                source_id="wachtberg",
+                organizer="Ortsverein Niederbachem",
+            ),
+            previous_event_ids=[f"old-{index}" for index in range(20)],
+        )
+
+        kept, replaced = partition_directory_fallbacks([directory, primary])
+
+        self.assertEqual(replaced, [])
+        self.assertEqual(kept, [directory, primary])
 
     def test_marktcom_is_retained_when_primary_sources_return_nothing(self):
         directory = self._directory_cohort()

@@ -798,6 +798,10 @@ def fetch_events_json(
 _HTML_URL = "https://www.bonn.de/bonn-erleben/ausgehen-und-erleben/veranstaltungskalender.php"
 _SPORTS_URL = "https://www.bonn.de/bonn-erleben/aktiv-und-unterwegs/sportveranstaltungen.php"
 _RSS_URL = (_HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit")
+_BONNFEST_2026_DESCRIPTION = (
+    "Das BonnFest findet vom 25. bis 27. September 2026 in der "
+    "Bonner Innenstadt statt."
+)
 # Annual press release. The slug embeds the year; we build it dynamically so the
 # source keeps working in future years with no code change (no dates hardcoded).
 _PRESS_MONTH_PATHS = (
@@ -811,6 +815,14 @@ _PRESS_MONTH_PATHS = (
 # a stale detail URL in a later year.
 _PRESS_PRIMARY_DETAIL_URLS = {
     (
+        "BonnFest 2026",
+        "2026-09-25",
+        "2026-09-27",
+    ): (
+        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+        "hauptkalender/extern/BonnFest-2026.php"
+    ),
+    (
         "Poppelsdorfer Straßenfest",
         "2026-09-19",
         "2026-09-19",
@@ -818,6 +830,17 @@ _PRESS_PRIMARY_DETAIL_URLS = {
         "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
         "hauptkalender/extern/Poppelsdorfer-Strassenfest-.php"
     ),
+}
+
+_PRESS_PRIMARY_EVENT_OVERRIDES = {
+    (
+        "BonnFest 2026",
+        "2026-09-25",
+        "2026-09-27",
+    ): {
+        "venue": "Bonner Innenstadt",
+        "description": _BONNFEST_2026_DESCRIPTION,
+    },
 }
 
 # The city's annual overview still advertises this occurrence for 29–30 August.
@@ -1201,6 +1224,51 @@ def events_from_sport_teasers(html: str) -> list:
     return events
 
 
+def _apply_reviewed_sport_occurrence_corrections(events: list[dict]) -> list[dict]:
+    """Collapse BonnFest teaser rows into the official 25–27 September range."""
+    corrected: list[dict] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    bonnfest_start = datetime(2026, 9, 25)
+    bonnfest_end = datetime(2026, 9, 27)
+    for event in events:
+        candidate = dict(event)
+        event_date = common.parse_iso_date(str(candidate.get("start_date") or ""))
+        detail_path = common.urllib.parse.urlparse(str(candidate.get("link") or "")).path
+        if (
+            common.clean_html(str(candidate.get("title") or "")).casefold() == "bonnfest 2026"
+            and event_date
+            and event_date.date() in {
+                bonnfest_start.date(),
+                datetime(2026, 9, 26).date(),
+                bonnfest_end.date(),
+            }
+            and detail_path.endswith("/BonnFest-2026.php")
+        ):
+            candidate.update({
+                "date": "2026-09-25",
+                "start_date": "2026-09-25",
+                "end_date": "2026-09-27",
+                "time": "",
+                "start_at": "",
+                "end_at": "",
+                "all_day": True,
+                "description": _BONNFEST_2026_DESCRIPTION,
+                "description_html": "",
+                "description_source": "generated",
+            })
+        key = (
+            common.clean_html(str(candidate.get("title") or "")).casefold(),
+            str(candidate.get("start_date") or ""),
+            str(candidate.get("end_date") or ""),
+            str(candidate.get("link") or ""),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        corrected.append(candidate)
+    return corrected
+
+
 def _enrich_sport_details(events: list[dict], detail_fetcher) -> list[dict]:
     """Recover official Bonn.de Place data omitted from sport teaser cards."""
     enriched = []
@@ -1230,13 +1298,15 @@ def fetch_sports() -> list:
     source = "Bonn.de Sports"
     try:
         events = events_from_sport_teasers(common.fetch_url(_SPORTS_URL, timeout=20))
-        return _enrich_sport_details(
-            events,
-            lambda url: common.fetch_detail_url(
-                url,
-                cache_namespace="bonn-sports-detail",
-                timeout=15,
-                retry_attempts=1,
+        return _apply_reviewed_sport_occurrence_corrections(
+            _enrich_sport_details(
+                events,
+                lambda url: common.fetch_detail_url(
+                    url,
+                    cache_namespace="bonn-sports-detail",
+                    timeout=15,
+                    retry_attempts=1,
+                ),
             ),
         )
     except Exception as e:
@@ -1542,6 +1612,8 @@ def fetch_press_festivals() -> list:
             if len(text) < 6:
                 continue
             title = _press_event_title(text)
+            if title.casefold() == "bonn-fest":
+                title = f"BonnFest {year}"
             if len(title) < 3:
                 continue
             reviewed_ranges = []
@@ -1583,11 +1655,12 @@ def fetch_press_festivals() -> list:
                             "discovered_via": ["bonn-district-festivals"],
                             "previous_event_ids": correction["previous_event_ids"],
                         })
-                    primary_url = _PRESS_PRIMARY_DETAIL_URLS.get((
+                    occurrence_key = (
                         title,
                         start.strftime("%Y-%m-%d"),
                         end.strftime("%Y-%m-%d"),
-                    ))
+                    )
+                    primary_url = _PRESS_PRIMARY_DETAIL_URLS.get(occurrence_key)
                     if primary_url:
                         ev.update({
                             "link": primary_url,
@@ -1596,6 +1669,7 @@ def fetch_press_festivals() -> list:
                             "source_id": "bonn-de-events",
                             "discovered_via": ["bonn-district-festivals"],
                         })
+                        ev.update(_PRESS_PRIMARY_EVENT_OVERRIDES.get(occurrence_key, {}))
                     events.append(ev)
     deduped = []
     seen = set()

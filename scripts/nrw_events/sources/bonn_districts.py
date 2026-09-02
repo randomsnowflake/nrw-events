@@ -87,6 +87,26 @@ def _is_brueser_berg_row(row: dict) -> bool:
     return any(regional_common.clean(marker).casefold() in venue for marker in _BRUESER_BERG_LOCAL_VENUES)
 
 
+def _brueser_berg_venue(title: str, venue: str) -> str:
+    """Keep the reviewed street while allowing later exact source updates."""
+    normalized_title = title.casefold()
+    generic_venues = {
+        regional_common.clean(candidate).casefold()
+        for candidate in (
+            "",
+            "Brüser Berg Zentrum",
+            "Fußgängerzone Brüser Berg",
+        )
+    }
+    if (
+        "familienfest" in normalized_title
+        and "flohmarkt" in normalized_title
+        and regional_common.clean(venue).casefold() in generic_venues
+    ):
+        return "Borsigallee"
+    return venue
+
+
 def events_from_brueser_berg_json(raw: str) -> list:
     try:
         rows = json.loads(raw)
@@ -126,7 +146,10 @@ def events_from_brueser_berg_json(raw: str) -> list:
                     end = candidate
             except ValueError:
                 pass
-        venue = common.clean_html(str(row.get("location") or ""))
+        venue = _brueser_berg_venue(
+            title,
+            common.clean_html(str(row.get("location") or "")),
+        )
         description = common.concise_description(str(row.get("description") or ""))
         if not description:
             description = common.factual_event_description(
