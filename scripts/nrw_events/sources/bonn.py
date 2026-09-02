@@ -108,7 +108,7 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Integration/Migration/Interkultur", "Internationales", "Jugendliche",
         "Junge Erwachsene", "Klima", "Kunstmuseum", "Nachhaltigkeit",
         "SDG-Tage", "Seniorinnen und Senioren", "Sitzungstermine Rat",
-        "Startseite", "Volkshochschule", "Weihnachten",
+        "Stadtbibliothek", "Startseite", "Volkshochschule", "Weihnachten",
         "Weitere Veranstaltungen", "Wissenschaft", "Wissenschaft / Wirtschaft",
         "barrierefreier Zugang", "inklusiv",
     }

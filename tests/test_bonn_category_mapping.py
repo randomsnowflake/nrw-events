@@ -265,6 +265,19 @@ class BonnCategoryMappingTests(unittest.TestCase):
         self.assertEqual(events[0]["category_key"], "concert")
         self.assertFalse(events[0]["category_reason"].startswith("bonn-source-category:"))
 
+    def test_stadtbibliothek_is_a_known_neutral_source_facet(self):
+        with patch.object(common, "log_source_error") as log_source_error:
+            events = self._fetch_json([
+                self._json_item(
+                    ["Vorträge/Lesungen/Diskussionen", "Stadtbibliothek"],
+                    "Eva Wlodarek",
+                )
+            ])
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["category_key"], "talk")
+        log_source_error.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

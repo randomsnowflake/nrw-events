@@ -159,6 +159,28 @@ class DataIntegrityTests(unittest.TestCase):
         self.assertEqual(event.end_at, "2026-08-30T17:00:00+02:00")
         self.assertEqual(event.quality_warnings[0]["resolution"], "repaired_from_time")
 
+    def test_validation_drops_resolved_structured_end_warning_on_revalidation(self):
+        event = validate_event({
+            "title": "Konzert ohne bekannte Endzeit",
+            "source": "Kulturkalender",
+            "date": "2026-09-11",
+            "score": 1.0,
+            "city": "Bonn",
+            "time": "20:00",
+            "start_at": "2026-09-11T20:00:00+02:00",
+            "end_at": "",
+            "quality_warnings": [{
+                "rule_id": "publication.end-not-after-start",
+                "field": "end_at",
+                "resolution": "unknown",
+                "message": "structured end was not after start and was omitted",
+            }],
+        })
+
+        self.assertEqual(event.start_at, "2026-09-11T20:00:00+02:00")
+        self.assertEqual(event.end_at, "")
+        self.assertEqual(event.quality_warnings, [])
+
     def test_validation_keeps_per_day_schedule_without_flattening(self):
         event = validate_event({
             "title": "Street Food Festival",

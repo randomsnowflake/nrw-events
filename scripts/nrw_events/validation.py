@@ -398,6 +398,19 @@ def _discovery_provenance(event: dict[str, Any]) -> None:
 
 
 def _canonical_temporal_fields(event: dict[str, Any]) -> None:
+    # Canonical records can be revalidated after source continuity or
+    # deduplication. Recompute this invariant from the current fields instead
+    # of carrying a warning that an earlier importer version already repaired.
+    warnings = event.get("quality_warnings")
+    if isinstance(warnings, list):
+        event["quality_warnings"] = [
+            warning
+            for warning in warnings
+            if not (
+                isinstance(warning, dict)
+                and warning.get("rule_id") == "publication.end-not-after-start"
+            )
+        ]
     start_date = _text(event, "start_date", 10)
     end_date = _text(event, "end_date", 10)
     legacy_date = _text(event, "date", 80)
