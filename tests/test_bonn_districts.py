@@ -501,6 +501,8 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["city"], "Bonn-Duisdorf")
         self.assertEqual(events[0]["time"], "17:00")
+        self.assertEqual(events[0]["end_at"], "")
+        self.assertEqual(events[0]["end_date"], "2026-07-19")
         self.assertIn("vielfältige Auswahl", events[0]["description"])
 
     def test_ical_wrappers_guarantee_a_description(self):

@@ -755,7 +755,7 @@ def events_from_hardtberg_json(raw: str) -> list:
                 venue="Hardtberger Kulturzentrum", city="Bonn-Duisdorf",
             )
         event = common.make_event(
-            title, start, start, "Hardtberger Kulturzentrum", "Bonn-Duisdorf",
+            title, start, None, "Hardtberger Kulturzentrum", "Bonn-Duisdorf",
             description, item.get("link") or "https://www.hardtbergkultur.de/",
             "Hardtberg Kultur", "kultur konzert ausstellung", 1.0,
             time_text=start.strftime("%H:%M"), all_day=False,
