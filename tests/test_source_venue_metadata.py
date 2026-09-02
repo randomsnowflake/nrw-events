@@ -225,6 +225,33 @@ class ExplicitSourceVenueTests(unittest.TestCase):
 
         self.assertEqual(context["venue"], "")
 
+    def test_broeltal_keeps_exact_jsonld_description_with_only_unrelated_cards(self):
+        event = self._event(
+            "Erntedankfest",
+            "https://www.broeltal.de/termine/erntedankfest.html",
+            city="Ruppichteroth",
+        )
+        event["start_date"] = "2026-09-20"
+        detail = """
+          <script type="application/ld+json">
+          {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Erntedankfest",
+            "startDate": "2026-09-20",
+            "description": "Die KULT PARTY steigt im Festzelt in Bruchhausen Röttgen ab 20:00 Uhr."
+          }
+          </script>
+          <div class="card"><div class="card-body">
+            <h4>Wintermarkt</h4><h4>12.12.2026</h4>
+            <p>Der Wintermarkt findet im Bürgerhaus statt.</p>
+          </div></div>
+        """
+
+        context = regional_html._broeltal_detail_context(detail, event)
+
+        self.assertEqual(context["venue"], "Festzelt Bruchhausen Röttgen")
+
     def test_broeltal_does_not_use_same_page_footer_copy_as_event_location(self):
         event = self._event(
             "Bröltaler Erntedankfest",

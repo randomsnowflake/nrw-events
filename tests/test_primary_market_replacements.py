@@ -483,6 +483,56 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         self.assertEqual(len(result.events), 7)
         self.assertTrue(all(event.source_id == "marktcom" for event in result.events))
 
+    def test_runner_transfers_published_directory_url_to_primary_replacement(self):
+        directory = self._canonical(
+            "Flohmarkt Niederbachem Wachtberg",
+            "2026-09-12",
+            "Wachtberg",
+            "marktcom",
+            "marktcom",
+            venue="Flohmarkt Niederbachem",
+        )
+        primary = self._canonical(
+            "Flohmarkt Niederbachem / Garagenverkauf",
+            "2026-09-12",
+            "Wachtberg",
+            "Wachtberg",
+            "wachtberg",
+            venue="Niederbachem",
+        )
+        previous_directory = {
+            **directory.to_dict(),
+            "event_id": "published-niederbachem-old-id",
+        }
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 9, 12), datetime(2026, 9, 12)),
+            "market-published-url-transfer",
+            configure_logging("market-published-url-transfer", "ERROR", "", ""),
+            clock=lambda: datetime(2026, 9, 2, 12),
+        )
+
+        with mock.patch.object(
+            runner,
+            "_previous_snapshot",
+            return_value={"events": [previous_directory]},
+        ), mock.patch.object(
+            runner.detail_enrichment,
+            "enrich_events",
+            side_effect=lambda events, **_kwargs: events,
+        ):
+            result = runner.run_import(context, {
+                "marktcom": lambda: [directory.to_dict()],
+                "Wachtberg": lambda: [primary.to_dict()],
+            })
+
+        self.assertEqual(len(result.events), 1)
+        self.assertEqual(result.events[0].source_id, "wachtberg")
+        self.assertIn(
+            "published-niederbachem-old-id",
+            result.events[0].previous_event_ids,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

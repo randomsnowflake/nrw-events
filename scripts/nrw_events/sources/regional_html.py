@@ -451,7 +451,7 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
         return bool(title and title.casefold() in text.casefold() and date_matches)
 
     card_blocks = _card_text_blocks(visible_document)
-    event_scoped_copy = None if card_blocks else context.get("exact_description")
+    event_scoped_copy = context.get("exact_description")
     for card_block in card_blocks:
         if occurrence_matches(rc.clean_blocks(card_block)):
             event_scoped_copy = card_block
