@@ -1463,6 +1463,7 @@ def _bucket(ev: dict) -> str:
     return CATEGORY_SECTIONS[ev.get("category_key", "other")]
 
 
+@performance.measured("ranking.features")
 def ranking_features(ev: dict) -> dict[str, float]:
     """Return named editorial ranking features without presentation side effects."""
     text = (ev.get("title", "") + " " + ev.get("category", "") + " " + ev.get("description", "")).lower()

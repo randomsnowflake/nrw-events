@@ -3,6 +3,7 @@
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import copy_context
+from threading import Barrier
 
 from nrw_events import performance
 
@@ -70,6 +71,26 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(list(snapshot["counts"]), ["a", "z"])
         snapshot["counts"]["z"] = 99
         self.assertEqual(collector.snapshot()["counts"]["z"], 1)
+
+    def test_overlapping_sources_keep_separate_observations(self):
+        collector = performance.Collector()
+        barrier = Barrier(2)
+
+        def worker(name):
+            with performance.source_scope(name), performance.span("parse"):
+                barrier.wait(timeout=5)
+                performance.count("candidates", 3 if name == "first" else 7)
+
+        with performance.collect(collector), ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(copy_context().run, worker, name) for name in ("first", "second")]
+            for future in futures:
+                future.result()
+            performance.count("outside")
+        result = collector.snapshot()
+        self.assertEqual(result["counts"]["candidates"], 10)
+        self.assertEqual(result["sources"]["first"]["counts"], {"candidates": 3})
+        self.assertEqual(result["sources"]["second"]["counts"], {"candidates": 7})
+        self.assertEqual(result["sources"]["first"]["stages"]["parse"]["calls"], 1)
 
 
 if __name__ == "__main__":

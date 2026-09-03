@@ -134,6 +134,7 @@ def event_id(event: Mapping[str, Any]) -> str:
     return "-".join(segments)
 
 
+@performance.measured("identity.assign_ids")
 def assign_event_ids(events: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Return the events with a unique ``event_id`` on every record.
 

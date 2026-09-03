@@ -42,17 +42,35 @@ class Collector:
         self._lock = threading.Lock()
         self._stages: dict[str, _Stage] = {}
         self._counts: dict[str, int] = {}
+        self._source_stages: dict[str, dict[str, _Stage]] = {}
+        self._source_counts: dict[str, dict[str, int]] = {}
 
-    def record(self, name: str, wall_seconds: float, cpu_seconds: float) -> None:
+    def record(self, name: str, wall_seconds: float, cpu_seconds: float, source: str | None = None) -> None:
         with self._lock:
             stage = self._stages.setdefault(name, _Stage())
             stage.calls += 1
             stage.wall_seconds += wall_seconds
             stage.cpu_seconds += cpu_seconds
+            if source is not None:
+                source_stage = self._source_stages.setdefault(source, {}).setdefault(name, _Stage())
+                source_stage.calls += 1
+                source_stage.wall_seconds += wall_seconds
+                source_stage.cpu_seconds += cpu_seconds
 
-    def count(self, name: str, amount: int) -> None:
+    def count(self, name: str, amount: int, source: str | None = None) -> None:
         with self._lock:
             self._counts[name] = self._counts.get(name, 0) + amount
+            if source is not None:
+                counts = self._source_counts.setdefault(source, {})
+                counts[name] = counts.get(name, 0) + amount
+
+    @staticmethod
+    def _stage_snapshot(stages: dict[str, _Stage]) -> dict:
+        return {
+            name: {"calls": stage.calls, "wall_ms": round(stage.wall_seconds * 1000, 6),
+                   "thread_cpu_ms": round(stage.cpu_seconds * 1000, 6)}
+            for name, stage in sorted(stages.items())
+        }
 
     def snapshot(self) -> dict:
         """Return detached JSON-ready data while late workers may still finish."""
@@ -60,19 +78,30 @@ class Collector:
             return {
                 "schema_version": 1,
                 "timing_semantics": "inclusive; concurrent and nested stages overlap",
-                "stages": {
-                    name: {
-                        "calls": stage.calls,
-                        "wall_ms": round(stage.wall_seconds * 1000, 6),
-                        "thread_cpu_ms": round(stage.cpu_seconds * 1000, 6),
-                    }
-                    for name, stage in sorted(self._stages.items())
-                },
+                "stages": self._stage_snapshot(self._stages),
                 "counts": dict(sorted(self._counts.items())),
+                "sources": {
+                    source: {
+                        "stages": self._stage_snapshot(self._source_stages.get(source, {})),
+                        "counts": dict(sorted(self._source_counts.get(source, {}).items())),
+                    }
+                    for source in sorted(self._source_stages.keys() | self._source_counts.keys())
+                },
             }
 
 
 _ACTIVE: ContextVar[Collector | None] = ContextVar("nrw_events_performance", default=None)
+_SOURCE: ContextVar[str | None] = ContextVar("nrw_events_performance_source", default=None)
+
+
+@contextmanager
+def source_scope(name: str) -> Iterator[None]:
+    """Attach aggregate observations to a logical source, not a URL or event."""
+    token = _SOURCE.set(name)
+    try:
+        yield
+    finally:
+        _SOURCE.reset(token)
 
 
 @contextmanager
@@ -98,13 +127,13 @@ def span(name: str) -> Iterator[None]:
     finally:
         cpu_elapsed = collector.cpu_clock() - cpu_started
         wall_elapsed = collector.wall_clock() - wall_started
-        collector.record(name, wall_elapsed, cpu_elapsed)
+        collector.record(name, wall_elapsed, cpu_elapsed, _SOURCE.get())
 
 
 def count(name: str, amount: int = 1) -> None:
     collector = _ACTIVE.get()
     if collector is not None:
-        collector.count(name, amount)
+        collector.count(name, amount, _SOURCE.get())
 
 
 def queued_at() -> float | None:
@@ -115,7 +144,7 @@ def queued_at() -> float | None:
 def record_queue_wait(started: float | None) -> None:
     collector = _ACTIVE.get()
     if collector is not None and started is not None:
-        collector.record("source.queue_wait", collector.wall_clock() - started, 0.0)
+        collector.record("source.queue_wait", collector.wall_clock() - started, 0.0, _SOURCE.get())
 
 
 def measured(name: str) -> Callable[[Callable[P, T]], Callable[P, T]]:

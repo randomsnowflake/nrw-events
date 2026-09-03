@@ -28,11 +28,7 @@ These warnings remain a separate test-cleanup concern.
 
 ### Remaining work for #356
 
-- Add per-source stage attribution, separate parser/network spans, and explicit filter and early-dedup measurements.
-- Add a large generated recurrence fixture and a real composite-adapter replay with detail-cache hits and misses.
-- Add an operator-supplied cache input without access to the live writable cache.
 - Measure the complete multi-source path and establish its critical path before concurrency changes.
-- Repeat the overhead measurement after the final instrumentation changes.
 - Verify the website snapshot contract before release.
 
 The current measurements and full test logs are in `/tmp/nrw-performance-evidence.rnDzxw` on the development machine.
@@ -61,6 +57,12 @@ The `sources` array accepts registered source names or declarative iCal sources.
 The example manifest shows the iCal fields.
 Optional `previous_snapshot` and `series_ledger` fields select existing input files.
 The benchmark reads these files but does not publish over them.
+
+The optional `detail_cache_dir` field copies an existing cache into the isolated state directory.
+The original cache remains read-only.
+The `detail_cache_seed` array prepares selected direct-transport entries from recorded response files.
+Each entry specifies `namespace`, `url`, `file`, and optional `age_seconds`.
+The default age is 60 seconds.
 
 Keep operator-supplied responses outside the repository.
 Do not commit credentials, production caches, or private source text.
@@ -113,6 +115,27 @@ The public snapshot schema remains unchanged.
 Remove this variable to disable the diagnostics.
 
 Do not start another production refresh only to collect metrics while an authorized refresh is active.
+
+### Extended measurement and composite replay
+
+Metrics now include per-source stages and counts, a separate iCal parser stage, filtering, validation, ranking, and each deduplication pass.
+The replay compares public metadata, highlights, and the durable series ledger.
+No ledger fields are excluded from this comparison.
+
+The extended measurement took 2,620.45 ms median with telemetry and 2,605.92 ms without telemetry on Wachtberg.
+Each mode used five runs.
+The measured overhead was 0.56%, with identical public data and durable artifacts.
+
+Generate the composite fixture in an empty directory:
+
+```sh
+.venv/bin/python scripts/generate_composite_performance_fixture.py /tmp/nrw-composite-fixture --per-calendar 10
+```
+
+This fixture uses the real SiteKit and IONAS4 adapters against synthetic recorded responses.
+It covers eleven municipal calendars, shared detail enrichment, 55 cache hits, and 165 cache misses.
+The first two repeated runs produced 110 events, healthy source states, no warnings, and identical artifacts.
+The fixture does not contact these municipalities.
 
 ## Taxonomy keyword cache
 

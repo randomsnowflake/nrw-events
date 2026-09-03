@@ -3049,13 +3049,33 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
     to route through the persistent TTL cache, so a repeat run costs no requests.
     """
     read = fetcher or fetch_url
-    raw = _ical_unfold(read(
+    raw = read(
         url,
         timeout=20,
         accept="text/calendar,application/calendar+json;q=0.9,*/*;q=0.8",
         sec_fetch_mode="no-cors",
         sec_fetch_dest="empty",
-    ))
+    )
+    return parse_ical(
+        raw, url, source, default_city, category, trust, source_id,
+        event_filter=event_filter, city_resolver=city_resolver, admission=admission,
+        default_category_key=default_category_key, category_locked=category_locked,
+        empty_calendar_is_valid=empty_calendar_is_valid, description_max_chars=description_max_chars,
+    )
+
+
+@performance.measured("ical.parse_canonicalize")
+def parse_ical(
+    raw: str, url: str, source: str, default_city: str, category: str = "",
+    trust: float = 1.0, source_id: str = "", *,
+    event_filter: Callable[[dict[str, str], datetime, datetime], bool] | None = None,
+    city_resolver: Callable[[str], str] | None = None,
+    admission: AdmissionDefault | None = None,
+    default_category_key: str = "", category_locked: bool = False,
+    empty_calendar_is_valid: bool = False, description_max_chars: int | None = None,
+) -> list[RawEvent]:
+    """Parse an already fetched calendar with the same source/runtime policy."""
+    raw = _ical_unfold(raw)
     raw = re.sub(r"BEGIN:VALARM.*?END:VALARM", "", raw, flags=re.S | re.I)
     events: list[RawEvent] = []
     blocks = re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S)

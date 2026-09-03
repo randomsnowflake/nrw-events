@@ -978,6 +978,7 @@ def _record_publication_ai_metrics(
                 operational_result.status = SourceStatus.DEGRADED
 
 
+@performance.measured("publication.filter")
 def _publication_filter_reason(
     event: CanonicalEvent, settings: config.RuntimeConfig,
 ) -> str:
@@ -1849,7 +1850,6 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     started: dict[str, tuple[float, threading.Thread, threading.Event, float]] = {}
     started_condition = threading.Condition()
     def run_source(name: str, fetch: Callable[[], list], queued_at: float | None):
-        performance.record_queue_wait(queued_at)
         cancel_event = threading.Event()
         source_timeout = settings.source_timeout_seconds
         # Network work stays capped by source_timeout_seconds.  The worker gets
@@ -1861,7 +1861,9 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 time.monotonic(), threading.current_thread(), cancel_event, source_timeout,
             )
             started_condition.notify_all()
-        return _run_source(name, fetch, settings.source_timeout_seconds, cancel_event)
+        with performance.source_scope(name):
+            performance.record_queue_wait(queued_at)
+            return _run_source(name, fetch, settings.source_timeout_seconds, cancel_event)
 
     def accept_result(name: str, future: Future) -> None:
         result, events = future.result()
@@ -2261,8 +2263,12 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     if import_warnings and run_status != "failed":
         run_status = "degraded"
     boundary_warning_count = len(publication_boundary_warnings)
+    with performance.span("dedup.early"):
+        performance.count("dedup_early_input", len(early_candidates))
+        early_unique = report.deduplicate(early_candidates)
+        performance.count("dedup_early_output", len(early_unique))
     early_deduped = _enforce_restricted_publication_boundary(
-        report.deduplicate(early_candidates),
+        early_unique,
         publication_boundary_warnings,
     )
     import_warnings = (

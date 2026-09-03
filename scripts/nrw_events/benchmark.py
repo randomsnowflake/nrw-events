@@ -8,6 +8,7 @@ import json
 import math
 import os
 import resource
+import shutil
 import socket
 import statistics
 import subprocess
@@ -73,6 +74,14 @@ def summarize(values: list[float]) -> dict[str, float]:
     }
 
 
+def replay_differences(left: dict, right: dict) -> list[str]:
+    """Compare public metadata and durable artifacts with no ledger exclusions."""
+    return [
+        *differences(left["snapshot"], right["snapshot"]),
+        *differences({"artifacts": left["artifacts"]}, {"artifacts": right["artifacts"]}),
+    ]
+
+
 def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     # Called only in an isolated worker process by the command below. Do not
     # load .env or inherit production credentials and cache paths.
@@ -84,6 +93,22 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     os.environ["NRW_EVENTS_TAXONOMY_CACHE"] = "1" if manifest.get("taxonomy_cache", True) else "0"
     os.environ["NRW_EVENTS_NORMALIZATION_CACHE"] = "1" if manifest.get("normalization_cache", True) else "0"
     root = manifest_path.parent
+    os.environ["NRW_EVENTS_CACHE_DIR"] = str(state / "cache")
+    os.environ["NRW_EVENTS_AI_ENRICHMENT"] = "0"
+    if manifest.get("detail_cache_dir"):
+        shutil.copytree(root / manifest["detail_cache_dir"], state / "cache", dirs_exist_ok=True)
+    for seed in manifest.get("detail_cache_seed", []):
+        cache = common._load_detail_page_cache(seed["namespace"], common._detail_page_cache_ttl_seconds())
+        now = time.time() - float(seed.get("age_seconds", 60))
+        cache["entries"][seed["url"]] = {
+            "body": (root / seed["file"]).read_text(encoding="utf-8"),
+            "fetched_at": now, "accessed_at": now,
+        }
+        cache["dirty"] = True
+        warning = common._persist_detail_page_cache(cache)
+        if warning:
+            raise OSError("cannot prepare isolated replay cache")
+    common._reset_detail_page_cache()
     transport = ReplayTransport({
         url: ((root / entry["file"]).read_bytes(), entry.get("content_type", "text/html; charset=utf-8"),
               entry.get("status", 200))
@@ -135,7 +160,8 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     return {"wall_ms": elapsed * 1000, "process_cpu_ms": cpu * 1000, "peak_rss_mib": peak_rss_mib,
             "taxonomy_cache": category_taxonomy._cached_keyword_matches.cache_info()._asdict(),
             "normalization_cache": normalization._cached_comparison_text.cache_info()._asdict(),
-            "telemetry": collector.snapshot(), "snapshot": snapshot.metadata}
+            "telemetry": collector.snapshot(), "snapshot": snapshot.metadata,
+            "artifacts": {"series_ledger": snapshot.series_ledger, "highlights": snapshot.highlights}}
 
 
 def main() -> int:
@@ -169,7 +195,7 @@ def main() -> int:
                 command.append("--without-telemetry")
             completed = subprocess.run(command, env=env, capture_output=True, text=True, check=True, timeout=900)
             runs.append(json.loads(completed.stdout))
-    deltas = [differences(runs[0]["snapshot"], run["snapshot"]) for run in runs[1:]]
+    deltas = [replay_differences(runs[0], run) for run in runs[1:]]
     output = {
         "repetitions": len(runs), "mode": "offline replay; fresh process and isolated state per run; AI disabled",
         "wall_ms": summarize([run["wall_ms"] for run in runs]),

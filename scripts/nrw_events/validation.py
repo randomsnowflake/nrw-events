@@ -10,7 +10,7 @@ from datetime import datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import ai_enrichment, category_taxonomy, common, event_types, richtext
+from . import ai_enrichment, category_taxonomy, common, event_types, performance, richtext
 from .models import (
     MAX_DISCOVERY_PROVENANCE_SOURCES,
     CanonicalEvent,
@@ -817,6 +817,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     return CanonicalEvent(**canonical_fields)
 
 
+@performance.measured("canonicalization.validate")
 def validate_event(raw_event: RawEvent | object) -> CanonicalEvent:
     """Backward-compatible name for the canonical conversion boundary."""
     return canonicalize_event(raw_event)
