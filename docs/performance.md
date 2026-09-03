@@ -318,3 +318,26 @@ The same mixed-source replay took 2,590.77 ms median across five runs (minimum 2
 This is a 35.85% reduction from its 4,038.31 ms baseline.
 Public metadata, highlights, and the durable ledger remained identical.
 The production improvement still requires live measurement.
+
+## Live canary findings before release
+
+Two cold runs covered SiteKit and IONAS4 against live endpoints with separate empty caches.
+Serial components took 482.17 seconds and three workers took 294.99 seconds.
+Both runs produced 752 events.
+The parallel run reached additional detail pages and recorded one read timeout on a Rösrath page.
+The serial run had not reached that page within its detail budget.
+A direct follow-up returned HTTP 200 in 0.53 seconds.
+This cold-run timeout remains part of the evidence, not a clean-run claim.
+
+Two subsequent runs used separate copies of the same partially populated cache.
+Both produced 751 events, with no HTTP errors, 429 responses, 503 responses, or timeouts.
+Both retained zero old events.
+SiteKit reported the same empty optional Zülpich calendar in every run.
+Live payloads and detail coverage differed, so these runs do not replace the deterministic offline equality proof.
+
+The complete live comparison exposed an existing all-day bug in seven Grafschaft events.
+The calendar explicitly declared `allDay: true`, but additional JSON-LD coverage supplied placeholder midnight timestamps.
+Those timestamps changed the schedule and natural event ID.
+The IONAS4 adapter now locks the empty time identity when the source explicitly declares an all-day event.
+Unknown schedules remain eligible for detail enrichment.
+Regression tests preserve the all-day fields and prove that existing cross-run reconciliation retains previously published URLs.

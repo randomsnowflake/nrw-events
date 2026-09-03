@@ -4,7 +4,8 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import http, report
+from nrw_events import detail_enrichment, http, report, runner
+from nrw_events.identity import event_id
 from nrw_events.sources import (
     bonn_venues,
     kunstmuseum_bonn,
@@ -138,6 +139,34 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["end_date"], "2026-07-12")
         self.assertEqual(requested, [])
+
+    def test_explicit_ionas4_all_day_survives_additional_detail_coverage(self):
+        raw = {
+            "id": "83743:0", "title": "Kirmes in Bengen", "allDay": True,
+            "start": "2026-07-18T00:00", "end": "2026-07-22T00:00",
+            "category": {"name": "Fest"}, "location": {"name": "Dorfplatz Bengen"},
+            "website": "https://www.gemeinde-grafschaft.de/kalender/kirmes/",
+        }
+        event = regional_ionas4._events_from_items(
+            [raw], "Grafschaft", "https://www.gemeinde-grafschaft.de/kalender/kalendergrafschaft/",
+            0.9, source_id="ionas4-grafschaft",
+        )[0]
+        enriched = detail_enrichment.apply_detail_context(event, {
+            "time": "00:00", "start_at": "2026-07-18T00:00:00+02:00",
+            "end_at": "2026-07-21T23:59:59.000999999+02:00", "organizer": "Sportfreunde Bengen",
+        })
+        self.assertTrue(enriched["all_day"])
+        self.assertEqual(enriched["time"], "")
+        self.assertEqual(enriched["start_at"], "")
+        self.assertEqual(enriched["end_date"], "2026-07-21")
+        self.assertEqual(event_id(enriched), event_id(event))
+        self.assertEqual(enriched["organizer"], "Sportfreunde Bengen")
+        prior = {**event, "identity_time_locked": False, "time": "00:00", "all_day": False,
+                 "start_at": "2026-07-18T00:00:00+02:00"}
+        prior["event_id"] = event_id(prior)
+        reconciled = runner._reconcile_published_ids([enriched], {"events": [prior]})[0]
+        self.assertEqual(event_id(reconciled), prior["event_id"])
+        self.assertTrue(reconciled["all_day"])
 
     def test_ionas4_collapses_consecutive_all_day_occurrences_into_one_run(self):
         items = [

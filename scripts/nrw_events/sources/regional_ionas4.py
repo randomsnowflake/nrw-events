@@ -283,6 +283,13 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             source_id=source_id,
         )
         if event:
+            if item_all_day is True:
+                # The calendar explicitly owns the schedule. Its JSON-LD
+                # detail may encode this same span as 00:00 through 23:59.
+                # More detail coverage must not turn it into a timed event
+                # or move its URL. Unknown schedules remain enrichable.
+                event["identity_time"] = ""
+                event["identity_time_locked"] = True
             if context.get("organizer"):
                 event["organizer"] = context["organizer"]
             event["description"] = _description_with_context(event)
