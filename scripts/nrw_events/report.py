@@ -40,7 +40,9 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
     "bonn.de events", "bonn.de sports", "bonn district festivals",
 )
 _CIVIC_AGGREGATOR_SOURCE_EXACT = frozenset({"ahrtal"})
-_BONN_FALLBACK_SOURCE_IDS = frozenset({"bonn-de-events", "bonn-de-sports"})
+_RESTRICTED_FALLBACK_SOURCE_IDS = frozenset({
+    "beuel-net", "bonn-de-events", "bonn-de-sports",
+})
 _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
     ("marktcom", "familienferienflohmarktbonn"):
         "bonn-rigalsche-wiese-flohmarkt",
@@ -76,6 +78,10 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
         "bonn-de-events",
         "urslipfisterjoroloffbandpeggymarchfrauhuggenbergerundichmusikshow",
     ): "pantheon-ursli-pfister-peggy-march",
+    ("rathausmusik", "musikaufderrathaustreppetheroots"):
+        "rathausmusik-2026-09-10-primary",
+    ("beuel-net", "musikaufderrathaustreppethecottiesbeatrb"):
+        "rathausmusik-2026-09-10-primary",
 }
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 _REUSED_OVERVIEW_LINK_THRESHOLD = 5
@@ -1125,11 +1131,11 @@ def _merge_duplicate_metadata(
 
     duplicate_has_charge = _has_separate_admission_charge(duplicate)
     winner_has_charge = _has_separate_admission_charge(winner)
-    duplicate_is_bonn_fallback = (
-        duplicate.get("source_id") in _BONN_FALLBACK_SOURCE_IDS
-        and winner.get("source_id") not in _BONN_FALLBACK_SOURCE_IDS
+    duplicate_is_restricted_fallback = (
+        duplicate.get("source_id") in _RESTRICTED_FALLBACK_SOURCE_IDS
+        and winner.get("source_id") not in _RESTRICTED_FALLBACK_SOURCE_IDS
     )
-    if not duplicate_is_bonn_fallback and ((duplicate_has_charge and not winner_has_charge) or (
+    if not duplicate_is_restricted_fallback and ((duplicate_has_charge and not winner_has_charge) or (
         len(duplicate.get("description", "").strip())
         > len(winner.get("description", "").strip())
         and not (winner_has_charge and not duplicate_has_charge)
@@ -1150,7 +1156,7 @@ def _merge_duplicate_metadata(
     if (
         not winner.get("ai_summary")
         and duplicate.get("ai_summary")
-        and not (duplicate_is_bonn_fallback and winner_has_extracted_content)
+        and not (duplicate_is_restricted_fallback and winner_has_extracted_content)
     ):
         updates["ai_summary"] = duplicate["ai_summary"]
 
