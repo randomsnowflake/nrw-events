@@ -6,7 +6,6 @@ from urllib.parse import urlencode
 
 from .. import category_taxonomy, common
 
-
 _SOURCE = "Kleines Theater Bad Godesberg"
 _BASE = "https://kleinestheater.eu/events/"
 _CATEGORY = "theater bühne schauspiel musical comedy show"

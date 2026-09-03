@@ -240,6 +240,7 @@ scripts/nrw_events/
   quality.py
   radio_primary_resolution.py
   report.py
+  reviewed_corrections.py
   reviewed_summaries.py
   richtext.py
   runner.py
@@ -433,6 +434,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS` | `600` | Gesamtbudget für die optionale AI-Anreicherung aller finalen, im Zeitfenster liegenden und global deduplizierten Zieltermine. Nach Ablauf werden Cache-Texte oder reine Stammdaten-Fallbacks verwendet. |
 | `NRW_EVENTS_AI_WORKERS` | `8` | Parallel laufende, voneinander unabhängige AI-Cache-/Provider-Aufgaben für finale Zieltermine (1–16). |
 | `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales Pilotlimit für den finalen deduplizierten AI-Batch; `0` verarbeitet alle Zielevents. |
+| `NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY` | `150` | Kostenbremse für neue AI-Cache-Zeilen pro UTC-Tag; `0` hebt das Limit nur für bewusst überwachte Läufe auf. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
 | `NRW_EVENTS_USER_AGENT`       | moderner Chrome UA | Optionaler Override für HTTP-Requests an öffentliche Quellen. |
@@ -794,7 +796,21 @@ eigenen Scheduler ausgeführt:
 bash scripts/run_canary.sh
 # optionales persistentes Zustandsverzeichnis
 bash scripts/run_canary.sh /pfad/zum/canary-state
+
+# Beispiel: täglich um 06:15 Uhr über cron ausführen
+15 6 * * * cd /pfad/zu/nrw-events && bash scripts/run_canary.sh
 ```
+
+Der Canary ist der Operator-Vertrag für Teilabbrüche: Ein Rückgang einer Quelle
+auf null oder auf weniger als die Hälfte ihrer letzten Rohzählung wird als
+Baseline-Anomalie gemeldet. Retention schützt dabei die Veröffentlichung, ersetzt
+aber nicht die Alarmierung.
+
+Für reproduzierbare Offline-Auswertungen der KI-Anreicherung dient
+`scripts/evaluate_ai_enrichment.py`. Geprüfte Ortsvorschläge werden mit
+`scripts/enrich_verified_venue_locations.py` in einen Snapshot übernommen; beide
+Werkzeuge ändern keine Live-Quelle. Der kanonische installierte Einstiegspunkt ist
+`nrw-events`; `scripts/nrw-events.sh` bleibt der Repository-Wrapper für lokale Läufe.
 
 Parser-Fixtures lassen sich ausschließlich für die in
 `tests/fixtures/manifest.json` allowlisteten URLs aktualisieren:

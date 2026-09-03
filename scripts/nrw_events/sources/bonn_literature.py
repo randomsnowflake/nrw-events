@@ -6,7 +6,6 @@ from .. import common
 from ..category_taxonomy import CATEGORY_BY_KEY
 from . import regional_common as rc
 
-
 LITERATURHAUS_ICAL = "https://literaturhaus-bonn.de/veranstaltungen/?ical=1"
 PARKBUCHHANDLUNG_URL = "https://www.parkbuchhandlung.de/veranstaltungen/"
 

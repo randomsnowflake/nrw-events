@@ -201,8 +201,15 @@ def _events_from_search_results(content: str, source: str = "Bundeskunsthalle") 
         )
         if not event:
             continue
-        if "badge--free" in article or re.search(r"\bKostenlos\b", common.clean_html(article), re.I):
-            event["price"] = "kostenlos"
+        admission_text = (
+            "Eintritt frei"
+            if "badge--free" in article
+            else common.clean_html(article)
+        )
+        free_price = common.infer_free_admission_price(title, admission_text)
+        if free_price:
+            event["price"] = free_price
+            event["admission_basis"] = "explicit"
 
         key = _occurrence_key(event)
         events_by_occurrence.setdefault(key, event)
@@ -216,11 +223,12 @@ def _fetch_program_events(source: str) -> list:
         return []
     dated_fields = []
     for name, value in fields:
+        dated_value = value
         if name.endswith("[startDate]"):
-            value = common.TODAY.strftime("%Y-%m-%d")
+            dated_value = common.TODAY.strftime("%Y-%m-%d")
         elif name.endswith("[endedBeforeDate]"):
-            value = common.END_DATE.strftime("%Y-%m-%d")
-        dated_fields.append((name, value))
+            dated_value = common.END_DATE.strftime("%Y-%m-%d")
+        dated_fields.append((name, dated_value))
     api_url = common.urllib.parse.urljoin(_EVENTS_URL, api_path)
     payload = common.post_form(
         api_url,

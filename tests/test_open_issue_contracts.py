@@ -1,16 +1,17 @@
 import json
+import tempfile
 import threading
 import time
 import unittest
-from unittest import mock
 from datetime import date, datetime
 from pathlib import Path
+from unittest import mock
 
 from nrw_events import common, config, highlights, report, runner, series
+from nrw_events.health import SourceFetchResult, SourceStatus
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.source_specs import AdapterType, SourceSpec, adapter_for, load_source_specs, typed_adapter_for
-from nrw_events.health import SourceFetchResult, SourceStatus
 
 
 def raw_event(title="Flohmarkt Rheinaue", day="2026-08-15", **overrides):
@@ -27,6 +28,32 @@ def raw_event(title="Flohmarkt Rheinaue", day="2026-08-15", **overrides):
 
 
 class OpenIssueContractTests(unittest.TestCase):
+    def test_corrupt_series_ledger_is_preserved_as_backup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "series.json"
+            path.write_text("{broken", encoding="utf-8")
+            self.assertEqual(series.load_ledger(str(path))["series"], {})
+            self.assertEqual(
+                path.with_name("series.json.bak").read_text(encoding="utf-8"),
+                "{broken",
+            )
+
+    def test_series_season_uses_smallest_arc_across_new_year(self):
+        observed = [
+            raw_event(day=value)
+            for value in (
+                "2024-11-25", "2025-01-06", "2025-11-24", "2026-01-05",
+            )
+        ]
+        _rows, [metadata], _ledger = series.enrich_events(
+            observed,
+            {"schema_version": 1, "series": {}},
+            today=date(2026, 2, 1),
+            generated_at="2026-02-01T00:00:00",
+        )
+        self.assertEqual(metadata["season_start_month"], 11)
+        self.assertEqual(metadata["season_end_month"], 1)
+
     def test_detached_executor_runs_tasks_on_daemon_threads(self):
         pool = runner._DetachedThreadPoolExecutor(max_workers=1)
         try:

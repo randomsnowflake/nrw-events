@@ -7,7 +7,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 SOURCE = "FedCon Events"
 URLS = ("https://www.magiccon.de/de/", "https://www.fedcon.de/de/")
 
@@ -42,7 +41,7 @@ def fetch() -> list:
                 events.append(event)
             elif metrics["out_of_window_count"] == 0:
                 common.log_source_error(SOURCE, rc.ParserEmptyError(f"parser returned no event record for {url}"))
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - organizer pages must fail independently
             common.log_source_error(f"{SOURCE} {url}", exc)
     common._record_endpoint(URLS[0], parser_type="organizer-homepages", parsed_event_count=len(events), parser_empty=successful_pages > 0 and not events)
     return rc.dedupe(events)

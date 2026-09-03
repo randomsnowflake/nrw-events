@@ -26,7 +26,6 @@ from .. import common
 from ..models import AdmissionDefault
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.marktcom.de"
 _SOURCE = "marktcom"
 _SOURCE_ID = "marktcom"
@@ -285,7 +284,7 @@ def fetch() -> list:
     for category_id in WANTED_CATEGORIES:
         try:
             events.extend(_fetch_category(category_id))
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - categories must fail independently
             common.log_source_error(
                 f"{_SOURCE} (category {category_id})",
                 exc,

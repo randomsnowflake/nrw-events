@@ -22,7 +22,13 @@ import time
 from datetime import datetime, timedelta
 from html import unescape
 
-from .. import category_taxonomy, common, detail_enrichment, richtext
+from .. import (
+    category_taxonomy,
+    common,
+    detail_enrichment,
+    reviewed_corrections,
+    richtext,
+)
 from . import regional_common as rc
 
 # Full official event calendar as structured JSON. This endpoint has repeatedly
@@ -173,16 +179,7 @@ def _venue_points() -> dict:
 
 def _parse_dt(value: str):
     """Parse the feed's 'YYYY-MM-DD HH:MM:SS' (or bare date) into a datetime."""
-    value = (value or "").strip()
-    if not value:
-        return None
-    try:
-        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        try:
-            return datetime.strptime(value[:10], "%Y-%m-%d")
-        except ValueError:
-            return None
+    return common.parse_iso_date((value or "").strip())
 
 
 def _concise_detail_description(value: str) -> str:
@@ -799,10 +796,6 @@ def fetch_events_json(
 _HTML_URL = "https://www.bonn.de/bonn-erleben/ausgehen-und-erleben/veranstaltungskalender.php"
 _SPORTS_URL = "https://www.bonn.de/bonn-erleben/aktiv-und-unterwegs/sportveranstaltungen.php"
 _RSS_URL = (_HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit")
-_BONNFEST_2026_DESCRIPTION = (
-    "Das BonnFest findet vom 25. bis 27. September 2026 in der "
-    "Bonner Innenstadt statt."
-)
 # Annual press release. The slug embeds the year; we build it dynamically so the
 # source keeps working in future years with no code change (no dates hardcoded).
 _PRESS_MONTH_PATHS = (
@@ -810,67 +803,11 @@ _PRESS_MONTH_PATHS = (
     "juli", "juni", "mai", "april", "maerz", "februar",
 )
 
-# The annual press release is a useful discovery fallback, but a reviewed
-# occurrence may have a dedicated page that Bonn's calendar search omits. Keep
-# these resolutions occurrence-specific: a recurring festival must not inherit
-# a stale detail URL in a later year.
-_PRESS_PRIMARY_DETAIL_URLS = {
-    (
-        "BonnFest 2026",
-        "2026-09-25",
-        "2026-09-27",
-    ): (
-        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
-        "hauptkalender/extern/BonnFest-2026.php"
-    ),
-    (
-        "Poppelsdorfer Straßenfest",
-        "2026-09-19",
-        "2026-09-19",
-    ): (
-        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
-        "hauptkalender/extern/Poppelsdorfer-Strassenfest-.php"
-    ),
-}
-
-_PRESS_PRIMARY_EVENT_OVERRIDES = {
-    (
-        "BonnFest 2026",
-        "2026-09-25",
-        "2026-09-27",
-    ): {
-        "venue": "Bonner Innenstadt",
-        "description": _BONNFEST_2026_DESCRIPTION,
-    },
-}
-
-# The city's annual overview still advertises this occurrence for 29–30 August.
-# The organiser's current page moved the joint Beuelfest/Promenadenfest programme
-# to 5–6 September. Keep the correction occurrence-specific so a later edition
-# cannot inherit the 2026 dates or the published URL alias.
-_PRESS_REVIEWED_OCCURRENCE_CORRECTIONS = {
-    (
-        "Fest der Beueler Vereine – Promenadenfest",
-        "2026-08-29",
-        "2026-08-30",
-    ): {
-        "start_date": "2026-09-05",
-        "end_date": "2026-09-06",
-        "link": (
-            "https://beuel.net/2026/06/18/"
-            "beuelfest-und-promenadenfest-finden-2026-gemeinsam-statt-jetzt-mitmachen/"
-        ),
-        "description": (
-            "Beuelfest und Promenadenfest finden am Samstag, 5. September 2026, "
-            "und Sonntag, 6. September 2026, am Möhneplatz und am Rheinufer in "
-            "Bonn-Beuel gemeinsam statt."
-        ),
-        "city": "Bonn-Beuel",
-        "previous_event_ids": [
-            "fest-der-beueler-vereine-promenadenfest-2026-08-29-5fa6836fc1"
-        ],
-    },
-}
+def _active_reviewed_map(group: str) -> dict[tuple[str, ...], object]:
+    return {
+        tuple(str(value) for value in entry["match"]): entry["value"]
+        for entry in reviewed_corrections.active_entries(group, common.TODAY)
+    }
 
 
 def _press_urls(year: int) -> tuple[str, ...]:
@@ -895,6 +832,20 @@ def _calendar_search_url(page: int = 1, *, free_only: bool = True) -> str:
     if page > 1:
         params.append(("sp:page[search-1.form][0]", str(page)))
     return _HTML_URL + "?" + common.urllib.parse.urlencode(params)
+
+
+def _clean_event_href(href: str) -> str:
+    """Remove Bonn's transient signature while preserving functional queries."""
+    parsed = common.urllib.parse.urlsplit(href)
+    query = common.urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query = [
+        (key, value)
+        for key, value in query
+        if not (key == "p" and value.casefold().startswith("sig:"))
+    ]
+    return common.urllib.parse.urlunsplit(
+        (*parsed[:3], common.urllib.parse.urlencode(query), parsed.fragment)
+    )
 
 
 def _pagination_max(html: str) -> int:
@@ -1011,7 +962,7 @@ def _listing_events_from_html(
         cat_m = re.search(r'<span[^>]+class="[^"]*SP-Kicker__text[^"]*"[^>]*>(.*?)</span>', body, re.S | re.I)
         if not (href and title_m):
             continue
-        href = href.split("?", 1)[0]
+        href = _clean_event_href(href)
         if "/veranstaltungskalender/veranstaltungen/" not in href:
             continue
 
@@ -1059,6 +1010,8 @@ def _listing_events_from_html(
         )
         for date_text, time_raw in date_matches:
             start = common.parse_date(date_text)
+            if not start:
+                continue
             time_text = common.clean_html(time_raw)
             time_match = re.search(r"(\d{1,2}):(\d{2})", time_text)
             if time_match and (int(time_match.group(1)), int(time_match.group(2))) != (0, 0):
@@ -1141,7 +1094,7 @@ def _fetch_calendar_listing_events(
                     fetch_details=False,
                 ),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: PERF203 - pagination failures are isolated per page
             common.log_source_error(f"{source} calendar listing fallback page {page}", e)
             continue
     return _enrich_listing_details(events) if enrich_details else events
@@ -1175,7 +1128,7 @@ def _fetch_free_calendar_events(
                     fetch_details=False,
                 ),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: PERF203 - pagination failures are isolated per page
             common.log_source_error(f"{source} free calendar fallback page {page}", e)
             continue
     return _enrich_listing_details(events) if enrich_details else events
@@ -1198,8 +1151,9 @@ def events_from_sport_teasers(html: str) -> list:
             continue
         title = common.clean_html(title_m.group(1))
         category = common.clean_html(cat_m.group(1) if cat_m else "Sport") or "Sport"
-        href = href.split("?", 1)[0]
-        link = common.urllib.parse.urljoin("https://www.bonn.de", href)
+        link = common.urllib.parse.urljoin(
+            "https://www.bonn.de", _clean_event_href(href),
+        )
         for date_text, time_raw in re.findall(
             r'<span[^>]+class="[^"]*SP-Scheduling__date[^"]*"[^>]*>\s*(\d{2}\.\d{2}\.\d{4})\s*</span>'
             r'(?:\s*<span[^>]+class="[^"]*SP-Scheduling__time[^"]*"[^>]*>\s*([^<]*?)\s*</span>)?',
@@ -1229,34 +1183,41 @@ def _apply_reviewed_sport_occurrence_corrections(events: list[dict]) -> list[dic
     """Collapse BonnFest teaser rows into the official 25–27 September range."""
     corrected: list[dict] = []
     seen: set[tuple[str, str, str, str]] = set()
-    bonnfest_start = datetime(2026, 9, 25)
-    bonnfest_end = datetime(2026, 9, 27)
+    primary_urls = _active_reviewed_map("bonn_press_primary_urls")
+    overrides = _active_reviewed_map("bonn_press_overrides")
+    bonnfest_key = next(
+        (key for key in primary_urls if key[0].casefold().startswith("bonnfest")),
+        None,
+    )
+    bonnfest_start = datetime.fromisoformat(bonnfest_key[1]) if bonnfest_key else None
+    bonnfest_end = datetime.fromisoformat(bonnfest_key[2]) if bonnfest_key else None
     for event in events:
         candidate = dict(event)
         event_date = common.parse_iso_date(str(candidate.get("start_date") or ""))
         detail_path = common.urllib.parse.urlparse(str(candidate.get("link") or "")).path
         if (
-            common.clean_html(str(candidate.get("title") or "")).casefold() == "bonnfest 2026"
+            bonnfest_key is not None
+            and common.clean_html(str(candidate.get("title") or "")) == bonnfest_key[0]
             and event_date
-            and event_date.date() in {
-                bonnfest_start.date(),
-                datetime(2026, 9, 26).date(),
-                bonnfest_end.date(),
-            }
-            and detail_path.endswith("/BonnFest-2026.php")
+            and bonnfest_start
+            and bonnfest_end
+            and bonnfest_start.date() <= event_date.date() <= bonnfest_end.date()
+            and detail_path == common.urllib.parse.urlparse(
+                str(primary_urls[bonnfest_key])
+            ).path
         ):
             candidate.update({
-                "date": "2026-09-25",
-                "start_date": "2026-09-25",
-                "end_date": "2026-09-27",
+                "date": bonnfest_key[1],
+                "start_date": bonnfest_key[1],
+                "end_date": bonnfest_key[2],
                 "time": "",
                 "start_at": "",
                 "end_at": "",
                 "all_day": True,
-                "description": _BONNFEST_2026_DESCRIPTION,
                 "description_html": "",
                 "description_source": "generated",
             })
+            candidate.update(overrides.get(bonnfest_key, {}))
         key = (
             common.clean_html(str(candidate.get("title") or "")).casefold(),
             str(candidate.get("start_date") or ""),
@@ -1590,6 +1551,11 @@ def fetch_press_festivals() -> list:
         years.append(common.TODAY.year + 1)
 
     events = []
+    occurrence_corrections = _active_reviewed_map(
+        "bonn_press_occurrence_corrections"
+    )
+    primary_detail_urls = _active_reviewed_map("bonn_press_primary_urls")
+    primary_event_overrides = _active_reviewed_map("bonn_press_overrides")
     for year in years:
         html = ""
         url = ""
@@ -1619,7 +1585,7 @@ def fetch_press_festivals() -> list:
                 continue
             reviewed_ranges = []
             for original_start, original_end in _press_date_ranges(text, year):
-                correction = _PRESS_REVIEWED_OCCURRENCE_CORRECTIONS.get((
+                correction = occurrence_corrections.get((
                     title,
                     original_start.strftime("%Y-%m-%d"),
                     original_end.strftime("%Y-%m-%d"),
@@ -1661,7 +1627,7 @@ def fetch_press_festivals() -> list:
                         start.strftime("%Y-%m-%d"),
                         end.strftime("%Y-%m-%d"),
                     )
-                    primary_url = _PRESS_PRIMARY_DETAIL_URLS.get(occurrence_key)
+                    primary_url = primary_detail_urls.get(occurrence_key)
                     if primary_url:
                         ev.update({
                             "link": primary_url,
@@ -1670,7 +1636,7 @@ def fetch_press_festivals() -> list:
                             "source_id": "bonn-de-events",
                             "discovered_via": ["bonn-district-festivals"],
                         })
-                        ev.update(_PRESS_PRIMARY_EVENT_OVERRIDES.get(occurrence_key, {}))
+                        ev.update(primary_event_overrides.get(occurrence_key, {}))
                     events.append(ev)
     deduped = []
     seen = set()

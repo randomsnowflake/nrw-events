@@ -4,8 +4,8 @@ from unittest import mock
 
 from nrw_events import common, config
 from nrw_events.source_specs import AdapterType
-from nrw_events.sources import SOURCE_SPECS
-from nrw_events.sources import regional_ionas4, regional_sitekit
+from nrw_events.sources import SOURCE_SPECS, regional_ionas4, regional_sitekit
+
 from tests.helpers import patch_window
 
 
@@ -147,6 +147,7 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
         detail_fetch.assert_not_called()
 
     def test_sitekit_pagination_metadata_and_url_are_supported(self):
+        patch_window(self, datetime(2026, 8, 14), datetime(2026, 8, 31))
         html = (
             '<div class="SP-Pagination" '
             'data-page="{&quot;min&quot;:1,&quot;max&quot;:11}"></div>'

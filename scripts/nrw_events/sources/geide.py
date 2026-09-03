@@ -7,7 +7,6 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _SOURCE = "Geide Märkte"
 _PAGES = {
     "https://www.geide-maerkte.de/bonn-nord.html": {
@@ -138,9 +137,9 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
         try:
             start = datetime(year, month, int(day_match.group(1)), start_hour)
             end = datetime(year, month, int(day_match.group(1)), end_hour)
-        except ValueError:
+        except ValueError as exc:
             if strict:
-                raise rc.ParserEmptyError("Geide date contract changed")
+                raise rc.ParserEmptyError("Geide date contract changed") from exc
             return []
         valid_cards += 1
         if not common.window_contains(start, end):

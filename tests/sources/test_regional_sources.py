@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from nrw_events import common, report, validation
 from nrw_events.sources import naturregion_sieg, regional_venues
+
 from tests.helpers import patch_window
 
 from .parser_cases import case_class
@@ -329,15 +330,15 @@ class NaturregionSiegParserTests(unittest.TestCase):
 </div>
 """
         detail_items = ",".join(
-            """{
+            f"""{{
               "@type": "Event",
               "name": "Erlebnis Besucherbergwerk Grube Bindweide",
               "description": "Einfahrt in das Erlebnisbergwerk im Westerwald.",
-              "startDate": "2026-07-15T%s:00+02:00",
-              "endDate": "2026-07-15T%s:00+02:00",
-              "location": {"@type": "Place", "name": "Besucherbergwerk Grube Bindweide",
-                "address": {"addressLocality": "Steinebach/Sieg"}}
-            }""" % (start, end)
+              "startDate": "2026-07-15T{start}:00+02:00",
+              "endDate": "2026-07-15T{end}:00+02:00",
+              "location": {{"@type": "Place", "name": "Besucherbergwerk Grube Bindweide",
+                "address": {{"addressLocality": "Steinebach/Sieg"}}}}
+            }}"""
             for start, end in (
                 ("13:00", "14:15"), ("13:30", "14:45"), ("14:30", "15:45"),
                 ("15:00", "16:15"), ("15:30", "16:45"),

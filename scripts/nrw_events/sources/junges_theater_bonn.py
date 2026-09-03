@@ -7,7 +7,6 @@ from urllib.parse import urlencode
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Junges Theater Bonn"
 _ROOT = "https://www.jt-bonn.de/"
 _CALENDAR = f"{_ROOT}termine-tickets/"
@@ -119,6 +118,6 @@ def fetch() -> list[dict]:
     for month in _months():
         try:
             events.extend(events_from_html(common.fetch_url(_url(month), timeout=25)))
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - monthly pages must fail independently
             common.log_source_error(f"{_SOURCE} {month:%Y-%m}", exc)
     return rc.dedupe_occurrences(events)

@@ -6,7 +6,6 @@ import urllib.parse
 from .. import common
 from . import regional_common as rc
 
-
 API_URL = "https://www.salsainbonn.de/wp-json/tribe/events/v1/events"
 SOURCE = "Salsa in Bonn"
 _DANCE_RE = re.compile(r"\b(?:salsa|bachata|kizomba|milonga|tanz(?:en|party)?)\b", re.I)

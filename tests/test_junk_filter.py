@@ -8,6 +8,7 @@ from nrw_events.quality import (
     quality_gate_warnings,
     summarize_event_quality,
 )
+
 from tests.helpers import patch_window
 
 
@@ -178,12 +179,15 @@ class JunkFilterTests(unittest.TestCase):
         for convened in (
             event("Sitzung des Seniorenbeirats", "Öffentliche Sitzung."),
             event("Ausschuss für Umwelt und Verkehr", "Öffentliche Beratung."),
-            {**event("Öffentliche Beratung"), "venue": "Ratssaal, Sitzungszimmer"},
         ):
             with self.subTest(title=convened["title"], venue=convened["venue"]):
                 decision = evaluate_event_quality(convened)
                 self.assertTrue(decision.should_drop)
                 self.assertEqual(decision.rule_id, "civic.governance")
+        self.assertFalse(evaluate_event_quality({
+            **event("Öffentliche Beratung"),
+            "venue": "Ratssaal, Sitzungszimmer",
+        }).should_drop)
 
     def test_quality_gates_warn_only_for_material_source_rates(self):
         metrics = summarize_event_quality([
@@ -395,6 +399,19 @@ class JunkFilterTests(unittest.TestCase):
         ]
 
         for title in allowed_titles:
+            with self.subTest(title=title):
+                self.assertFalse(common.is_junk_event(event(title)))
+
+    def test_navigation_terms_match_words_not_title_substrings(self):
+        self.assertFalse(common.is_junk_event(event("Contact Improvisation Jam")))
+        self.assertFalse(common.is_junk_event(event("Steve Jobs – Vortrag über Apple-Design")))
+        self.assertTrue(common.is_junk_event(event("Kontakt")))
+
+    def test_conditional_cancellation_does_not_cancel_the_occurrence(self):
+        self.assertFalse(common.is_junk_event(event("Open-Air-Konzert", description="Das Konzert entfällt bei Regen.")))
+
+    def test_destination_club_and_annual_markets_are_not_routine_services(self):
+        for title in ("Clubabend mit DJ Hell", "Abendmarkt Altstadt", "Zwiebelmarkt Festival"):
             with self.subTest(title=title):
                 self.assertFalse(common.is_junk_event(event(title)))
 
@@ -694,6 +711,10 @@ class JunkFilterTests(unittest.TestCase):
             "link": "https://example.test/museum/ratssitzung",
         }))
         self.assertFalse(common.is_junk_event(event("Tag der offenen Tür im Stadtratssaal")))
+        self.assertFalse(common.is_junk_event({
+            **event("Vortrag über Architektur"),
+            "venue": "Sitzungssaal",
+        }))
         self.assertFalse(common.is_junk_event(event(
             "Ausstellung: Geschichte des Stadtrats",
             description="Museumsausstellung über Ratssitzung und Stadtverordnete",

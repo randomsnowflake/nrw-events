@@ -3,10 +3,10 @@ import unittest
 from dataclasses import replace
 from datetime import datetime
 
-from nrw_events import common, early_publication, runner
-from nrw_events import report
+from nrw_events import common, early_publication, report, runner
 from nrw_events.runtime import EventWindow
 from nrw_events.sources import tourismus_nrw_featured
+
 from tests.helpers import make_runner_env, patch_window
 
 

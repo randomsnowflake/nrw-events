@@ -1,6 +1,5 @@
 from .parser_cases import case_class
 
-
 PIPELINE_MARKERS = ("make_event", "search_fallback", "date_for_window", "ical_")
 BONN_MARKERS = (
     "bonn", "brotfabrik", "pantheon", "kult41", "kunstmuseum",

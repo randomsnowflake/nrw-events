@@ -11,6 +11,7 @@ from nrw_events.sources import (
     regional_common,
     rheinbach_flohmarkt,
 )
+
 from tests.helpers import patch_window
 
 

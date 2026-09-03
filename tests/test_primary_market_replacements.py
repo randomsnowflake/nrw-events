@@ -15,6 +15,7 @@ from nrw_events.sources import (
     schmitt_markets,
 )
 from nrw_events.validation import validate_event
+
 from tests.helpers import patch_window
 
 

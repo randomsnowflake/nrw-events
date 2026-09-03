@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import calendar
+import contextlib
+import itertools
+import json
+import re
+import shutil
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from datetime import date, timedelta
 from hashlib import sha256
-import json
 from pathlib import Path
-import re
 from statistics import median
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .identity import event_id
 from .normalization import comparison_text
-
 
 LEDGER_SCHEMA_VERSION = 1
 LEDGER_RETENTION_DAYS = 400
@@ -170,9 +173,18 @@ def _is_retained(record: Mapping[str, Any], today: date) -> bool:
 
 
 def load_ledger(path: str) -> dict[str, Any]:
+    ledger_path = Path(path).expanduser()
     try:
-        payload = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
+        payload = json.loads(ledger_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {"schema_version": LEDGER_SCHEMA_VERSION, "series": {}}
     except (OSError, ValueError, TypeError):
+        # Preserve the last unreadable payload for diagnosis.  The runner may
+        # subsequently publish a fresh ledger, but it must not erase the only
+        # copy of the corrupt input first.
+        if ledger_path.is_file():
+            with contextlib.suppress(OSError):
+                shutil.copy2(ledger_path, ledger_path.with_name(f"{ledger_path.name}.bak"))
         return {"schema_version": LEDGER_SCHEMA_VERSION, "series": {}}
     if payload.get("schema_version") != LEDGER_SCHEMA_VERSION or not isinstance(payload.get("series"), dict):
         return {"schema_version": LEDGER_SCHEMA_VERSION, "series": {}}
@@ -184,7 +196,7 @@ def _parse_dates(values: Iterable[str]) -> list[date]:
     for value in values:
         try:
             parsed.append(date.fromisoformat(value))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError):  # noqa: PERF203 - malformed ledger dates are isolated
             continue
     return sorted(set(parsed))
 
@@ -192,7 +204,7 @@ def _parse_dates(values: Iterable[str]) -> list[date]:
 def _cadence(dates: list[date]) -> tuple[str, str, int | None]:
     if len(dates) < 3:
         return "irregular", "", None
-    gaps = [(right - left).days for left, right in zip(dates, dates[1:])]
+    gaps = [(right - left).days for left, right in itertools.pairwise(dates)]
     typical = round(median(gaps))
     cadence = (
         "weekly" if 6 <= typical <= 8 else
@@ -239,10 +251,24 @@ def _season(dates: list[date]) -> tuple[int | None, int | None, str, set[int]]:
     years = {value.year for value in dates}
     counts = Counter(value.month for value in dates)
     ordered = sorted(counts)
-    if not ordered or ordered[-1] - ordered[0] >= 11:
+    if not ordered:
         return None, None, "low" if len(years) < 2 else "medium", years
+    if len(ordered) == 12:
+        return None, None, "low" if len(years) < 2 else "medium", years
+    # A season is the smallest circular month arc containing all observations.
+    # Cut the circle at its largest empty gap, so Nov-Jan becomes 11..1 rather
+    # than the misleading 1..11.
+    gaps = [
+        ((right - left - 1) % 12, left, right)
+        for left, right in zip(ordered, [*ordered[1:], ordered[0] + 12], strict=False)
+    ]
+    empty_months, gap_left, gap_right = max(gaps)
+    if empty_months == 0:
+        return None, None, "low" if len(years) < 2 else "medium", years
+    season_start = ((gap_right - 1) % 12) + 1
+    season_end = gap_left
     confidence = "high" if len(years) >= 3 else "medium" if len(years) == 2 else "low"
-    return ordered[0], ordered[-1], confidence, years
+    return season_start, season_end, confidence, years
 
 
 def enrich_events(
@@ -297,10 +323,10 @@ def enrich_events(
             continue
         series_id = _identifier(key)
         cancelled_announcements.add((series_id, announced_date))
-        record = stored.get(series_id)
-        if record is not None:
-            record["announced_dates"] = [
-                value for value in record.get("announced_dates") or []
+        stored_record = stored.get(series_id)
+        if stored_record is not None:
+            stored_record["announced_dates"] = [
+                value for value in stored_record.get("announced_dates") or []
                 if value != announced_date
             ]
 
@@ -396,11 +422,11 @@ def enrich_events(
         if not key:
             continue
         series_id = _identifier(key)
-        item = known_series.get(series_id)
-        if not item:
+        known_item = known_series.get(series_id)
+        if not known_item:
             continue
         event["series_id"] = series_id
-        event["series_title"] = item["title"]
+        event["series_title"] = known_item["title"]
         event["run_id"] = event_to_run.get((series_id, str(event.get("start_date") or "")), "")
 
     updated = {"schema_version": LEDGER_SCHEMA_VERSION, "updated_at": generated_at, "series": stored}

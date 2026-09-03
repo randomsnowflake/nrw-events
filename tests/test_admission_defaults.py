@@ -6,6 +6,7 @@ from nrw_events import common, report
 from nrw_events.models import AdmissionDefault
 from nrw_events.source_specs import AdapterType, SourceSpec, adapter_for
 from nrw_events.validation import canonicalize_event
+
 from tests.helpers import patch_window
 
 

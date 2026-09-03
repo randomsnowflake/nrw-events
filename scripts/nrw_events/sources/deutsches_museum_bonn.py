@@ -111,7 +111,9 @@ def _enrich_details(events: list) -> list:
         needs_enrichment=lambda _event: True,
     )
     for event in events:
-        event["price"] = common.infer_free_admission_price(event["title"], event["description"])
+        event["price"], event["admission_basis"] = common.infer_admission(
+            event["title"], event["description"], event.get("price", "")
+        )
     return events
 
 

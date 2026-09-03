@@ -9,7 +9,6 @@ from typing import TypeVar
 from .identity import event_id
 from .models import CanonicalEvent, normalize_source_id
 
-
 EventT = TypeVar("EventT", bound=CanonicalEvent)
 _MARKTCOM_SOURCE_ID = "marktcom"
 
@@ -56,6 +55,22 @@ def _occurrence_key(event: CanonicalEvent) -> tuple[str, str]:
     return event.start_date, _identity_text(event.city)
 
 
+_GENERIC_MARKET_TOKENS = frozenset({
+    "flohmarkt", "trödelmarkt", "trodelmarkt", "markt", "veranstaltung",
+})
+
+
+def _market_tokens(event: CanonicalEvent) -> set[str]:
+    city_tokens = set(_identity_text(event.city).split())
+    return {
+        token
+        for token in _identity_text(f"{event.title} {event.venue}").split()
+        if token not in _GENERIC_MARKET_TOKENS
+        and token not in city_tokens
+        and not token.isdigit()
+    }
+
+
 def _matching_rule(event: CanonicalEvent) -> MarketReplacement | None:
     if normalize_source_id(event.source_id or event.source) != _MARKTCOM_SOURCE_ID:
         return None
@@ -85,6 +100,18 @@ def _primary_matches_rule(event: CanonicalEvent, rule: MarketReplacement) -> boo
     return marker_tokens <= identity_tokens
 
 
+def _same_market(
+    fallback: CanonicalEvent,
+    primary: CanonicalEvent,
+    rule: MarketReplacement,
+) -> bool:
+    if rule.title_marker:
+        return _primary_matches_rule(primary, rule)
+    # Organizer-only replacement rules can cover several markets on one day in
+    # one city. Require a real venue/title token shared by both occurrences.
+    return bool(_market_tokens(fallback) & _market_tokens(primary))
+
+
 def partition_directory_fallbacks(
     events: list[EventT],
 ) -> tuple[list[EventT], list[EventT]]:
@@ -108,7 +135,7 @@ def partition_directory_fallbacks(
         matching_primaries = [
             (primary_index, primary)
             for primary_index, primary in primary_by_occurrence.get(primary_key, [])
-            if _primary_matches_rule(primary, rule)
+            if _same_market(event, primary, rule)
         ]
         if len(matching_primaries) != 1:
             continue
@@ -135,12 +162,13 @@ def partition_directory_fallbacks(
         if index in replaced_indices:
             continue
         aliases = aliases_by_primary_index.get(index, [])
+        kept_event = event
         if aliases:
-            event = replace(
+            kept_event = replace(
                 event,
                 previous_event_ids=[
                     *dict.fromkeys([*event.previous_event_ids, *aliases]),
                 ][:20],
             )
-        kept.append(event)
+        kept.append(kept_event)
     return kept, replaced_events

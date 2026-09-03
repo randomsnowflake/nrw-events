@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from nrw_events import common, detail_enrichment
 from nrw_events.sources import kihapp
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LISTING_PAGE_1 = """
 <table>

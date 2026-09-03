@@ -6,6 +6,7 @@ from nrw_events import report
 from nrw_events.identity import event_id
 from nrw_events.sources import coelln_konzept, harmonie, regional_html
 from nrw_events.validation import canonicalize_event
+
 from tests.helpers import patch_window
 
 

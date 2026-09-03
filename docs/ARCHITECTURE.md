@@ -31,9 +31,10 @@ in the run result; one adapter must not terminate unrelated adapters.
 3. **Shared ingestion implementation** — `core.py` contains the historical
    implementation for HTTP, parsing, event construction, and compatibility
    runtime state. It is intentionally visible in the architecture: at roughly
-   2,700 lines it remains the largest migration boundary, not a small helper.
-   New callers should use the focused `http.py`, `text.py`, `event_builder.py`,
-   `ical.py`, and `jsonld.py` APIs.
+   3,200 lines it remains the largest migration boundary, not a small helper.
+   The focused `http.py`, `text.py`, `event_builder.py`, `ical.py`, and
+   `jsonld.py` modules are currently compatibility re-export shims; migration
+   has not yet separated their implementations from `core.py`.
 4. **Compatibility facade** — `common.py` exposes legacy names and mutable window
    compatibility while adapters migrate to focused modules and `RunContext`.
    It must not acquire new source-specific policy.

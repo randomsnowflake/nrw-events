@@ -95,6 +95,28 @@ class DetailPageCacheTests(unittest.TestCase):
         persisted = json.loads(path.read_text(encoding="utf-8"))["entries"]
         self.assertEqual(set(persisted), {"https://example.org/fresh", "https://example.org/new"})
 
+    def test_corrupt_non_mapping_entries_are_replaced(self):
+        namespace = "corrupt-entries"
+        path = common._detail_page_cache_path(namespace)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "version": common._DETAIL_PAGE_CACHE_VERSION,
+            "namespace": namespace,
+            "entries": [1],
+        }), encoding="utf-8")
+
+        with patch.object(common, "fetch_url", return_value="recovered"):
+            self.assertEqual(
+                common.fetch_detail_url(
+                    "https://example.org/recovered", cache_namespace=namespace,
+                ),
+                "recovered",
+            )
+        common.flush_detail_page_caches(namespace)
+
+        persisted = json.loads(path.read_text(encoding="utf-8"))
+        self.assertIsInstance(persisted["entries"], dict)
+
     def test_persist_enforces_entry_and_byte_caps_with_lru_eviction(self):
         namespace = "bounded"
         urls = [f"https://example.org/{name}" for name in ("first", "second", "third")]

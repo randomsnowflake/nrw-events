@@ -1,9 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from nrw_events.sources import siegburg
-from nrw_events.sources import SOURCES
-
+from nrw_events.sources import SOURCES, siegburg
 
 DETAIL_LINK = (
     "https://events.siegburg.de/Veranstaltungen/"

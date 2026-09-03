@@ -9,7 +9,6 @@ import urllib.parse
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://tickets.kunstrasen-bonn.de/"
 SOURCE = "KUNST!RASEN Bonn"
 

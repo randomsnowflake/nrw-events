@@ -228,8 +228,8 @@ def _events_from_html(html: str) -> list:
 
     events = []
     for raw_title, raw_desc in blocks:
-        raw_title = unescape(raw_title)
-        title, start_dt, end_dt = _split_title_dates(raw_title)
+        decoded_title = unescape(raw_title)
+        title, start_dt, end_dt = _split_title_dates(decoded_title)
         if not start_dt:
             continue
         desc = common.clean_html(raw_desc)

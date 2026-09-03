@@ -11,7 +11,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 def default_state_dir() -> Path:
@@ -53,7 +52,7 @@ class RuntimeConfig:
     json_log_file: str = ""
 
 
-def load_env_file() -> Optional[str]:
+def load_env_file() -> str | None:
     """Load the first configured env file while preserving real environment values."""
     repo_root = Path(__file__).resolve().parents[2]
     for candidate in (os.environ.get("NRW_EVENTS_ENV_FILE", ""), repo_root / ".env"):
@@ -78,7 +77,7 @@ def load_env_file() -> Optional[str]:
 
 
 def _int(name: str, default: int, minimum: int, maximum: int) -> int:
-    raw = os.environ.get(name, str(default))
+    raw = os.environ.get(name, "").strip() or str(default)
     try:
         value = int(raw)
     except ValueError as exc:
@@ -89,7 +88,7 @@ def _int(name: str, default: int, minimum: int, maximum: int) -> int:
 
 
 def _float(name: str, default: float, minimum: float, maximum: float) -> float:
-    raw = os.environ.get(name, str(default))
+    raw = os.environ.get(name, "").strip() or str(default)
     try:
         value = float(raw)
     except ValueError as exc:
@@ -115,7 +114,7 @@ def _categories(name: str) -> tuple[str, ...]:
     return tuple(bit.strip().casefold() for bit in os.environ.get(name, "").split(",") if bit.strip())
 
 
-def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
+def runtime_config(days_ahead: int | None = None) -> RuntimeConfig:
     """Return validated settings after :func:`load_env_file` has run."""
     configured_days = _int("NRW_EVENTS_DAYS_AHEAD", 3, 1, 90)
     if days_ahead is not None:
@@ -149,9 +148,17 @@ def runtime_config(days_ahead: Optional[int] = None) -> RuntimeConfig:
         # documented runtime default so slow endpoints overlap instead of
         # leaving the 84-source queue behind four workers.
         source_workers=_int("NRW_EVENTS_SOURCE_WORKERS", 12, 1, 64),
-        source_timeout_seconds=_float("NRW_EVENTS_SOURCE_TIMEOUT_SECONDS", 600.0, 5.0, 1800.0),
+        source_timeout_seconds=_float(
+            "NRW_EVENTS_SOURCE_TIMEOUT_SECONDS",
+            RuntimeConfig.source_timeout_seconds,
+            5.0,
+            1800.0,
+        ),
         source_processing_grace_seconds=_float(
-            "NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS", 180.0, 0.0, 900.0
+            "NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS",
+            RuntimeConfig.source_processing_grace_seconds,
+            0.0,
+            900.0,
         ),
         source_baseline_min_count=_int("NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT", 10, 1, 10_000),
         json_out=os.environ.get(

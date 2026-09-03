@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .health import diagnostic_warning
 from .identity import event_id
 from .models import CanonicalEvent, normalize_source_id
-
 
 ENV_NAME = "NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH"
 _ROOT_KEYS = {"version", "rules"}

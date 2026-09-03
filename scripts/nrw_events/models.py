@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-import re
-from typing import Any, Iterator, Mapping, Optional, TypedDict
-
+from typing import Any, TypedDict
 
 MAX_DISCOVERY_PROVENANCE_SOURCES = 20
 
@@ -45,8 +45,8 @@ class RawEvent(TypedDict, total=False):
     venue_address: str
     venue_district: str
     venue_type: str
-    venue_latitude: Optional[float]
-    venue_longitude: Optional[float]
+    venue_latitude: float | None
+    venue_longitude: float | None
     city: str
     link: str
     link_kind: str
@@ -67,7 +67,7 @@ class RawEvent(TypedDict, total=False):
     category_label: str
     category_confidence: float
     category_reason: str
-    distance_km: Optional[float]
+    distance_km: float | None
     location_confidence: str
     location_source: str
     score: float
@@ -92,8 +92,8 @@ class EventDraft:
     """Source facts required to construct one normalized raw event."""
 
     title: str
-    start: Optional[datetime]
-    end: Optional[datetime]
+    start: datetime | None
+    end: datetime | None
     venue: str
     city: str
     description: str
@@ -102,8 +102,8 @@ class EventDraft:
     category: str
     trust: float = 1.0
     time_text: str = ""
-    coords: Optional[tuple] = None
-    all_day: Optional[bool] = None
+    coords: tuple | None = None
+    all_day: bool | None = None
     timezone_name: str = "Europe/Berlin"
     source_id: str = ""
     source_role: str = "primary"
@@ -178,8 +178,8 @@ class CanonicalEvent(Mapping[str, Any]):
     venue_address: str = ""
     venue_district: str = ""
     venue_type: str = ""
-    venue_latitude: Optional[float] = None
-    venue_longitude: Optional[float] = None
+    venue_latitude: float | None = None
+    venue_longitude: float | None = None
     city: str = ""
     link: str = ""
     link_kind: str = ""
@@ -201,10 +201,10 @@ class CanonicalEvent(Mapping[str, Any]):
     category_label: str = "Other"
     category_confidence: float = 0.0
     category_reason: str = ""
-    distance_km: Optional[float] = None
+    distance_km: float | None = None
     location_confidence: str = "unresolved"
     location_source: str = ""
-    ranking_features: Optional[dict[str, float]] = None
+    ranking_features: dict[str, float] | None = None
     event_types: list[str] = field(default_factory=list)
     priority_bonus: float = 0.0
     cancelled_at: str = ""

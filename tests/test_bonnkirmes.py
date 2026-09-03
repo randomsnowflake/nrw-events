@@ -7,7 +7,6 @@ from nrw_events.sources import SOURCES, bonnkirmes
 from nrw_events.sources import regional_common as rc
 from nrw_events.validation import canonicalize_event
 
-
 PAGE_HTML = """
 <html><body>
   <h2>Unsere Volksfeste</h2>

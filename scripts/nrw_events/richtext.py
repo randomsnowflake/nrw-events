@@ -102,6 +102,8 @@ class _RichTextBuilder(HTMLParser):
         """Close blocks that cannot contain the one starting now."""
         while self._open:
             current = self._open[-1]
+            if current == "li" and mapped in {"p", "h3", "h4", "ul", "ol"}:
+                return
             if mapped == "li" and current in _CONTAINER:
                 return
             if current in _CONTAINER and mapped in _CONTAINER:
@@ -132,7 +134,9 @@ def _tidy(html: str) -> str:
     return html.strip()
 
 
-_BOLD_ONLY_PARAGRAPH = re.compile(r"<p><strong>([^<]{1,%d})</strong></p>" % _PSEUDO_HEADING_MAX_CHARS)
+_BOLD_ONLY_PARAGRAPH = re.compile(
+    rf"<p><strong>([^<]{{1,{_PSEUDO_HEADING_MAX_CHARS}}})</strong></p>"
+)
 
 
 def _promote_pseudo_headings(html: str) -> str:

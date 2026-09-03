@@ -11,10 +11,10 @@ from __future__ import annotations
 import json
 import re
 from collections import Counter
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
-from typing import Callable, Iterable, Mapping, Sequence
 from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
@@ -27,7 +27,6 @@ from .models import (
 )
 from .normalization import comparison_text
 from .validation import EventValidationError, validate_event
-
 
 RADIO_SOURCE_ID = "radio-bonn-rhein-sieg"
 MANIFEST_PATH = Path(__file__).with_name("sources") / "radio_primary_sources.json"
@@ -335,7 +334,9 @@ def _url_host(value: str) -> str:
 def _title_tokens(value: str) -> set[str]:
     return {
         token for token in comparison_text(value).split()
-        if len(token) >= 3 and token not in {"der", "die", "das", "und", "beim", "2026"}
+        if len(token) >= 3
+        and token not in {"der", "die", "das", "und", "beim"}
+        and not re.fullmatch(r"(?:19|20)\d{2}", token)
     }
 
 
@@ -391,7 +392,7 @@ def _candidate_matches(
         return False
     if entry.resolution_mode == "match_existing_primary":
         if entry.match_strategy == "series_source_date_range":
-            return exact_url or exact_source or same_host
+            return exact_url or exact_source or (same_host and _series_matches(entry, event))
         return _series_matches(entry, event)
     if entry.match_strategy == "exact_detail_url" and exact_url:
         return True
@@ -555,10 +556,10 @@ def resolve_radio_leads(
                 matched_indexes = []
             else:
                 provenance = lead.get("discovered_via")
-                discovered_via = (
+                provenance_values = (
                     value for value in provenance if isinstance(value, str)
                 ) if isinstance(provenance, list) else (RADIO_SOURCE_ID,)
-                discovered_via = tuple(discovered_via) or (RADIO_SOURCE_ID,)
+                discovered_via = tuple(provenance_values) or (RADIO_SOURCE_ID,)
                 for index in matched_indexes:
                     if len(matched_indexes) == 1:
                         events[index] = _apply_single_match_corrections(events[index], entry)
@@ -607,9 +608,11 @@ def resolve_radio_leads(
                 continue
             events.extend(accepted_promotions)
             promoted_fallback_event_ids.update(event_id(event) for event in accepted_promotions)
-            for promoted in accepted_promotions:
-                if promoted.status in {"cancelled", "postponed"}:
-                    cancellations.append(promoted.to_dict())
+            cancellations.extend(
+                promoted.to_dict()
+                for promoted in accepted_promotions
+                if promoted.status in {"cancelled", "postponed"}
+            )
             dispositions[key] = "promoted_fallback"
             continue
 

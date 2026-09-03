@@ -3,7 +3,6 @@ import unittest
 from nrw_events import common
 from nrw_events.validation import canonicalize_event
 
-
 infer_free_admission_price = common.infer_free_admission_price
 
 

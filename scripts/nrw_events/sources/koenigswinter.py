@@ -13,7 +13,6 @@ from datetime import timedelta
 from .. import common
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.koenigswinter.de/"
 _CALENDAR_URL = f"{_BASE_URL}de/veranstaltungskalender.html"
 _CARD_START_RE = re.compile(r'(?=<li[^>]*class="[^"]*\bmedia\b[^"]*"[^>]*>)', re.I)

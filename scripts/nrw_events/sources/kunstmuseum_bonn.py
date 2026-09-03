@@ -5,7 +5,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _URL = "https://www.kunstmuseum-bonn.de/de/besuch/kalender/"
 _SOURCE = "Kunstmuseum Bonn"
 _SOURCE_ID = "kunstmuseum-bonn"

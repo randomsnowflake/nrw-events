@@ -108,7 +108,7 @@ def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
             venue,
             categories,
         )
-        category_text = " ".join(categories + ["rheinbach", "lokal"])
+        category_text = " ".join([*categories, "rheinbach", "lokal"])
         ev = common.make_event(
             title,
             start,

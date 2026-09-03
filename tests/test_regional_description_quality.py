@@ -7,14 +7,15 @@ from unittest.mock import patch
 from nrw_events import http, report
 from nrw_events.sources import (
     bonn_venues,
+    kunstmuseum_bonn,
     regional_feeds,
     regional_html,
     regional_ionas4,
     regional_tourism,
-    kunstmuseum_bonn,
     requested_venues,
     ruhrguide,
 )
+
 from tests.helpers import patch_window
 
 
@@ -32,7 +33,7 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
 
         self.assertEqual(events, [])
         self.assertEqual(fetcher.call_count, len(regional_ionas4._CALENDARS))
-        for call, (_, url, _, _) in zip(fetcher.call_args_list, regional_ionas4._CALENDARS):
+        for call, (_, url, _, _) in zip(fetcher.call_args_list, regional_ionas4._CALENDARS, strict=False):
             self.assertEqual(call.args, (url,))
             self.assertEqual(
                 call.kwargs["allowed_hosts"],

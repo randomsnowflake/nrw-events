@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
-from enum import Enum
 import importlib
 import inspect
 import json
-from pathlib import Path
 import re
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import date, datetime
+from enum import Enum
+from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from . import common
-from .models import AdmissionDefault, RawEvent, normalize_source_id
 from .health import SourceFetchResult
+from .models import AdmissionDefault, RawEvent, normalize_source_id
 
 
 class AdapterType(str, Enum):
@@ -65,7 +65,7 @@ class CardSpec:
     date_parser: Callable[[str], object] = common.parse_date
 
     @classmethod
-    def from_source_spec(cls, spec: SourceSpec, source_url: str) -> "CardSpec":
+    def from_source_spec(cls, spec: SourceSpec, source_url: str) -> CardSpec:
         selectors = dict(spec.selectors)
         item = selectors.pop("item", "")
         if not item:

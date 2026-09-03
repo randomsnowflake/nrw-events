@@ -9,15 +9,15 @@ second, an identifying User-Agent, and a persistent local cache.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
-from pathlib import Path
 import re
 import time
 import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
 
 USER_AGENT = "veranstaltungen-bonn-venue-research/1.0 (https://www.veranstaltungen-bonn.de/kontakt/)"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
@@ -266,7 +266,7 @@ def fetch_with_backoff(fetcher, query: str):
     for attempt in range(TRANSIENT_RETRY_ATTEMPTS):
         try:
             return fetcher(query)
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError):  # noqa: PERF203 - bounded retry loop
             if attempt + 1 >= TRANSIENT_RETRY_ATTEMPTS:
                 raise
             time.sleep(TRANSIENT_RETRY_BASE_SECONDS * (2 ** attempt))

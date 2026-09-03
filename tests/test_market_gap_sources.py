@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import bonner_weihnachtsmarkt, katharinenhof
+
 from tests.helpers import patch_window
 
 

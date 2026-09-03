@@ -431,6 +431,8 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         raise EventValidationError("start_date_invalid")
     if end_date and not common.parse_iso_date(end_date):
         raise EventValidationError("end_date_invalid")
+    if end_date and end_date < start_date:
+        raise EventValidationError("end_before_start")
     event["start_date"] = start_date
     event["end_date"] = end_date or start_date
     event["date"] = start_date
@@ -440,12 +442,26 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         not event.get("start_at") and not event.get("time") and not event.get("time_note"),
     ))
     event["timezone"] = _text(event, "timezone", 64) or "Europe/Berlin"
+    try:
+        event_zone = ZoneInfo(event["timezone"])
+    except (KeyError, ZoneInfoNotFoundError) as exc:
+        raise EventValidationError("timezone_invalid") from exc
     _canonical_daily_schedule(event)
 
     raw_start_at = str(event.get("start_at") or "").strip()
     raw_end_at = str(event.get("end_at") or "").strip()
     start_at = _iso_datetime(raw_start_at)
     end_at = _iso_datetime(raw_end_at)
+    if raw_start_at and start_at is None:
+        raise EventValidationError("start_at_invalid")
+    if raw_end_at and end_at is None:
+        raise EventValidationError("end_at_invalid")
+    if start_at and start_at.astimezone(event_zone).date().isoformat() != start_date:
+        raise EventValidationError("start_at_date_mismatch")
+    if end_at and not (
+        start_date <= end_at.astimezone(event_zone).date().isoformat() <= event["end_date"]
+    ):
+        raise EventValidationError("end_at_date_mismatch")
     clock_range = _clock_range_datetimes(start_date, str(event.get("time") or ""), event["timezone"])
     if start_at and end_at and end_at <= start_at:
         if clock_range:
@@ -640,7 +656,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         raise EventValidationError("link_kind_invalid")
     event["link_kind"] = link_kind
     source_links = event.get("source_links") or []
-    if not isinstance(source_links, (list, tuple)):
+    if not isinstance(source_links, list | tuple):
         raise EventValidationError("source_links_invalid")
     validated_source_links: list[str] = []
     for value in source_links:
@@ -654,7 +670,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         validated_source_links.append(event["link"])
     event["source_links"] = validated_source_links[:20]
     previous_event_ids = event.get("previous_event_ids") or []
-    if not isinstance(previous_event_ids, (list, tuple)):
+    if not isinstance(previous_event_ids, list | tuple):
         raise EventValidationError("previous_event_ids_invalid")
     event["previous_event_ids"] = list(dict.fromkeys(
         str(value or "").strip() for value in previous_event_ids
@@ -667,12 +683,18 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         end=common.parse_iso_date(event["end_date"]),
         source=event["source"],
     )
+    if (
+        category_taxonomy.comparison_text(event["title"]) == "veranstaltung"
+        and not event["city"]
+        and not event["link"]
+    ):
+        raise EventValidationError("generic_event_without_provenance")
     if (event["venue_latitude"] is None) != (event["venue_longitude"] is None):
         raise EventValidationError("venue_coordinates_incomplete")
     if event["venue_latitude"] is not None:
         latitude = float(event["venue_latitude"])
         longitude = float(event["venue_longitude"])
-        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        if not (47 <= latitude <= 56 and 5 <= longitude <= 16):
             raise EventValidationError("venue_coordinates_invalid")
         event["venue_latitude"] = latitude
         event["venue_longitude"] = longitude

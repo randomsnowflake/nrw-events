@@ -42,6 +42,20 @@ class HttpHeaderTests(unittest.TestCase):
                 ChunkedResponse(), 10, deadline=time.perf_counter() + 10,
             )
 
+    def test_incremental_response_body_rejects_truncated_content_length(self):
+        class TruncatedResponse:
+            def __init__(self):
+                self.chunks = iter((b"partial", b""))
+                self.length = 593
+
+            def read1(self, _size):
+                return next(self.chunks)
+
+        with self.assertRaisesRegex(ConnectionError, "593 bytes missing"):
+            core._read_response_body(
+                TruncatedResponse(), 10_000_000, deadline=time.perf_counter() + 10,
+            )
+
     def test_response_body_read_honors_source_cancellation(self):
         cancel_event = threading.Event()
 
@@ -84,7 +98,7 @@ class HttpHeaderTests(unittest.TestCase):
 
     def test_fetch_url_preserves_mixed_utf8_and_windows_1252_characters(self):
         response = Mock()
-        response.read.return_value = "Kölner ".encode("utf-8") + b"Flohm\xe4rkte"
+        response.read.return_value = "Kölner ".encode() + b"Flohm\xe4rkte"
         headers = Message()
         headers["Content-Type"] = "text/html; charset=UTF-8"
         response.headers = headers
@@ -93,6 +107,30 @@ class HttpHeaderTests(unittest.TestCase):
             text = common.fetch_url("https://example.org/legacy-events")
 
         self.assertEqual(text, "Kölner Flohmärkte")
+
+    def test_fetch_url_decodes_utf8_bom_when_charset_is_unspecified(self):
+        response = Mock()
+        response.read.return_value = b"\xef\xbb\xbf{\"items\": []}"
+        headers = Message()
+        headers["Content-Type"] = "application/json"
+        response.headers = headers
+
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
+            text = common.fetch_url("https://example.org/events.json")
+
+        self.assertEqual(text, '{"items": []}')
+
+    def test_fetch_url_falls_back_when_header_charset_is_unknown(self):
+        response = Mock()
+        response.read.return_value = "Kölner Kalender".encode()
+        headers = Message()
+        headers["Content-Type"] = "text/html; charset=made-up-charset"
+        response.headers = headers
+
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response):
+            text = common.fetch_url("https://example.org/events")
+
+        self.assertEqual(text, "Kölner Kalender")
 
     def test_fetch_url_rejects_oversized_responses(self):
         response = Mock()
@@ -259,9 +297,8 @@ class HttpHeaderTests(unittest.TestCase):
         self.addCleanup(transient.close)
 
         with patch("nrw_events.common.urllib.request.urlopen", side_effect=transient) as urlopen, \
-             patch("nrw_events.common.time.sleep") as sleep:
-            with self.assertRaises(urllib.error.HTTPError):
-                common.fetch_url("https://example.org/detail", retry_attempts=1)
+             patch("nrw_events.common.time.sleep") as sleep, self.assertRaises(urllib.error.HTTPError):
+            common.fetch_url("https://example.org/detail", retry_attempts=1)
 
         self.assertEqual(urlopen.call_count, 1)
         sleep.assert_not_called()
@@ -272,9 +309,8 @@ class HttpHeaderTests(unittest.TestCase):
         self.addCleanup(not_found.close)
 
         with patch("nrw_events.common.urllib.request.urlopen", side_effect=not_found) as urlopen, \
-             patch("nrw_events.common.time.sleep") as sleep:
-            with self.assertRaises(urllib.error.HTTPError):
-                common.fetch_url("https://example.org/missing")
+             patch("nrw_events.common.time.sleep") as sleep, self.assertRaises(urllib.error.HTTPError):
+            common.fetch_url("https://example.org/missing")
 
         self.assertEqual(urlopen.call_count, 1)
         sleep.assert_not_called()
@@ -440,12 +476,11 @@ class HttpHeaderTests(unittest.TestCase):
             }), patch(
                 "nrw_events.common.urllib.request.urlopen",
                 side_effect=TimeoutError("timed out"),
-            ) as urlopen:
-                with self.assertRaises(TimeoutError):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+            ) as urlopen, self.assertRaises(TimeoutError):
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -486,12 +521,11 @@ class HttpHeaderTests(unittest.TestCase):
             "BRIGHT_DATA_ZONE": "",
         }, clear=False), patch(
             "nrw_events.common.urllib.request.urlopen",
-        ) as urlopen:
-            with self.assertRaisesRegex(RuntimeError, "credentials are required"):
-                common.fetch_url_with_brightdata(
-                    "https://www.vomfass.de/pages/tastings",
-                    allowed_hosts=("www.vomfass.de",),
-                )
+        ) as urlopen, self.assertRaisesRegex(RuntimeError, "credentials are required"):
+            common.fetch_url_with_brightdata(
+                "https://www.vomfass.de/pages/tastings",
+                allowed_hosts=("www.vomfass.de",),
+            )
 
         urlopen.assert_not_called()
 
@@ -513,12 +547,11 @@ class HttpHeaderTests(unittest.TestCase):
             }, clear=False), patch(
                 "nrw_events.common.urllib.request.urlopen",
                 side_effect=rate_limited,
-            ) as urlopen:
-                with self.assertRaises(urllib.error.HTTPError):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+            ) as urlopen, self.assertRaises(urllib.error.HTTPError):
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -543,12 +576,11 @@ class HttpHeaderTests(unittest.TestCase):
             }), patch(
                 "nrw_events.common.urllib.request.urlopen",
                 side_effect=rate_limited,
-            ) as urlopen:
-                with self.assertRaises(urllib.error.HTTPError):
-                    common.fetch_url_with_brightdata_fallback(
-                        metadata_url,
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+            ) as urlopen, self.assertRaises(urllib.error.HTTPError):
+                common.fetch_url_with_brightdata_fallback(
+                    metadata_url,
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -578,12 +610,11 @@ class HttpHeaderTests(unittest.TestCase):
             }), patch(
                 "nrw_events.common.urllib.request.urlopen",
                 side_effect=[rate_limited, bright_response],
-            ):
-                with self.assertRaisesRegex(RuntimeError, "target returned HTTP 429"):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                    )
+            ), self.assertRaisesRegex(RuntimeError, "target returned HTTP 429"):
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -611,13 +642,12 @@ class HttpHeaderTests(unittest.TestCase):
             }), patch(
                 "nrw_events.common.urllib.request.urlopen",
                 side_effect=[rate_limited, bright_response],
-            ):
-                with self.assertRaisesRegex(RuntimeError, "failed source validation"):
-                    common.fetch_url_with_brightdata_fallback(
-                        "https://www.vomfass.de/pages/tastings",
-                        allowed_hosts=("www.vomfass.de",),
-                        required_body_markers=("data-event-card",),
-                    )
+            ), self.assertRaisesRegex(RuntimeError, "failed source validation"):
+                common.fetch_url_with_brightdata_fallback(
+                    "https://www.vomfass.de/pages/tastings",
+                    allowed_hosts=("www.vomfass.de",),
+                    required_body_markers=("data-event-card",),
+                )
         finally:
             common._HTTP_RETRY_ATTEMPTS = old_attempts
 
@@ -684,9 +714,8 @@ class HttpHeaderTests(unittest.TestCase):
         self.addCleanup(transient.close)
         with patch(
             "nrw_events.common.urllib.request.urlopen", side_effect=transient
-        ) as urlopen, patch("nrw_events.common.time.sleep") as sleep:
-            with self.assertRaises(urllib.error.HTTPError):
-                common.post_form("https://example.org/events-api", {"query": "events"})
+        ) as urlopen, patch("nrw_events.common.time.sleep") as sleep, self.assertRaises(urllib.error.HTTPError):
+            common.post_form("https://example.org/events-api", {"query": "events"})
 
         self.assertEqual(urlopen.call_count, 1)
         sleep.assert_not_called()

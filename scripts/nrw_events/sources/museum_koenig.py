@@ -18,7 +18,7 @@ def _card_blocks(html: str) -> list[str]:
         html or "",
         re.I,
     )]
-    return [html[start:end] for start, end in zip(starts, starts[1:] + [len(html)])]
+    return [html[start:end] for start, end in zip(starts, [*starts[1:], len(html)], strict=False)]
 
 
 def _detail_description(html: str, _event: dict) -> dict:
@@ -87,7 +87,7 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
             card,
             re.S | re.I,
         )]
-        free = bool(re.search(r'kostenfrei|kostenlos', card, re.I))
+        free = bool(re.search(r"\bkosten(?:los|frei)\b", card, re.I))
         description_parts = [tag for tag in tags if tag]
         if location:
             description_parts.append(f"Treffpunkt: {location}.")
@@ -134,7 +134,9 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
             ):
                 event["price"] = ""
             else:
-                event["price"] = common.infer_free_admission_price(event["title"], event["description"])
+                event["price"], event["admission_basis"] = common.infer_admission(
+                    event["title"], event["description"], event.get("price", "")
+                )
     return events
 
 

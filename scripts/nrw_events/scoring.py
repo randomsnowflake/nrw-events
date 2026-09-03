@@ -41,7 +41,9 @@ _COMPOUND = frozenset({
 _CUSTOM_PATTERN_BODIES = {
     # Preserve ordinary compounds/inflections without restoring the raw
     # substring false positives this matcher replaces.
-    "kunst": r"\w*kunst\w*",
+    "kunst": r"(?:klein)?kunst(?!stoff)\w*",
+    "wein": r"wein(?!en\b)\w*",
+    "viertel": r"viertel",
     "workshop": r"\w*workshops?\w*",
     "techno": r"(?:techno(?:party|nacht|club|festival|event|musik|set|abend)?s?|(?:hard|acid|melodic|industrial|minimal|dark)techno)",
     "sport": r"(?:sport\w*|(?:rad|motor|wasser|winter|breiten|leistung|freizeit|tanz|kampf|team|e|reit|ball|renn|schul|hochschul)sport\w*)",
@@ -72,8 +74,8 @@ def category_score(text: str) -> float:
     """Combine the strongest configured boost and demotion for event text."""
     normalized = text.casefold()
     kids_only = (
-        any(word in normalized for word in _NEGATIVE_KEYWORDS)
-        and not any(word in normalized for word in _ADULT_OUTDOOR_SIGNALS)
+        any(_keyword_pattern(word).search(normalized) for word in _NEGATIVE_KEYWORDS)
+        and not any(_keyword_pattern(word).search(normalized) for word in _ADULT_OUTDOOR_SIGNALS)
     )
     matched = [
         (keyword, weight)

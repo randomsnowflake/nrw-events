@@ -6,7 +6,6 @@ from datetime import datetime
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Schmitt Veranstaltungen"
 _SOURCE_ID = "schmitt-veranstaltungen"
 _URL = "https://fmarkt.de/"

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from scripts.check_canary import canary_problems, report_markdown
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -52,7 +51,7 @@ class CanaryToolingTests(unittest.TestCase):
 
             result = subprocess.run(
                 [sys.executable, "scripts/check_canary.py", str(metadata), "--report", str(report)],
-                cwd=ROOT, capture_output=True, text=True,
+                check=False, cwd=ROOT, capture_output=True, text=True,
             )
 
             self.assertEqual(result.returncode, 1)

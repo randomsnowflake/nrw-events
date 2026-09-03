@@ -13,7 +13,6 @@ from zoneinfo import ZoneInfo
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://www.bonn-live.com/events"
 TICKET_URL = "https://rheinaue-konzerte-gmbh-7eap.vivenushop.com/"
 SOURCE = "BonnLive"
@@ -90,7 +89,7 @@ def _field(block: str, class_name: str, *, occurrence: int = 0) -> str:
 
 
 def _price_number(value) -> float | None:
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     match = re.fullmatch(
         r"\s*(?:tickets?\s+)?(?:ab\s+)?€?\s*(\d+(?:[.,]\d{1,2})?)\s*€?\s*",

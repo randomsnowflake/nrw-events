@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-
 BAD_SOURCE_STATUSES = {"degraded", "failed", "parser_empty"}
 
 

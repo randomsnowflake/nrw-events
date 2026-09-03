@@ -10,6 +10,7 @@ from nrw_events.sources import (
     regional_tourism,
     regional_venues,
 )
+
 from tests.helpers import patch_window
 
 

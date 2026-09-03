@@ -7,9 +7,9 @@ venue, room, and price fields. Detail responses use the shared persistent TTL
 cache and failures degrade to the still-useful iCal record.
 """
 
+import re
 from datetime import timedelta
 from html.parser import HTMLParser
-import re
 
 from .. import category_taxonomy, common
 from . import regional_common as rc

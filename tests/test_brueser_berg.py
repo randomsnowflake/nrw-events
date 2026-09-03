@@ -6,7 +6,6 @@ from unittest.mock import patch
 from nrw_events import common, normalization
 from nrw_events.sources import SOURCES, bonn_districts
 
-
 PAYLOAD = json.dumps([
     {
         "id": "local-1",

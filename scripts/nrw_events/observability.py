@@ -9,7 +9,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 LOGGER_NAME = "nrw_events"
 _SENSITIVE = re.compile(r"([?&](?:api[_-]?key|token|key|authorization)=)[^&\s]+", re.IGNORECASE)
 

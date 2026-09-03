@@ -5,7 +5,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "HofFloh Bonn"
 _SOURCE_ID = "hoffloh-bonn"
 _API_URL = (

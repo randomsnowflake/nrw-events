@@ -3,24 +3,23 @@ import json
 import os
 import sys
 import tempfile
-import time
 import unittest
 from dataclasses import replace
 from datetime import datetime
 from unittest import mock
 
-from nrw_events import common, core, report, runner
-from nrw_events.identity import content_hash, event_id
+from nrw_events import common, config, core, report, runner
 from nrw_events.health import (
     MAX_REJECTION_SAMPLE_JSON_LENGTH,
     SourceFetchResult,
     SourceResult,
     SourceStatus,
 )
-from nrw_events import config
+from nrw_events.identity import content_hash, event_id
 from nrw_events.observability import configure_logging, log
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.sources import bonn_districts, regional_sitekit
+
 from tests.helpers import default_window, make_runner_env, patch_window
 
 
@@ -427,11 +426,10 @@ class RunnerOutputTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"NRW_EVENTS_AI_WORKERS": "0"}), \
              mock.patch.object(
                  runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
-             ), mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich:
-            with self.assertRaisesRegex(
-                ValueError, "NRW_EVENTS_AI_WORKERS must be between 1 and 16",
-            ):
-                runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
+             ), mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich, self.assertRaisesRegex(
+            ValueError, "NRW_EVENTS_AI_WORKERS must be between 1 and 16",
+        ):
+            runner.run_import(context, {"Bonn.de Events": lambda: [raw]})
 
         enrich.assert_not_called()
 
@@ -1197,6 +1195,21 @@ class SourceHealthTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(result.status, SourceStatus.PARSER_EMPTY)
 
+    def test_legacy_adapter_gets_source_level_parser_metrics(self):
+        raw = {
+            "title": "Event", "source": "Legacy direct fetch",
+            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+            "city": "Bonn",
+        }
+
+        result, events = runner._run_source("Legacy direct fetch", lambda: [raw])
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            result.endpoints["adapter://legacy-direct-fetch"]["parsed_event_count"],
+            1,
+        )
+
     def test_typed_authoritative_empty_result_stays_healthy_empty(self):
         result, events = runner._run_source(
             "Typed empty", lambda: SourceFetchResult.success([]),
@@ -1215,6 +1228,18 @@ class SourceHealthTests(unittest.TestCase):
         self.assertEqual(events, [])
         self.assertEqual(result.status, SourceStatus.DEGRADED)
         self.assertEqual(len(result.warnings), 1)
+
+    def test_typed_empty_with_recorded_endpoint_error_is_degraded(self):
+        def transport_failed():
+            common._record_endpoint(
+                "https://example.test/feed", error_type="URLError", error="boom",
+            )
+            return SourceFetchResult.success([])
+
+        result, events = runner._run_source("Transport failed", transport_failed)
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
 
     def test_typed_empty_does_not_override_explicit_parser_failure(self):
         def parser_drift():
@@ -1493,7 +1518,7 @@ class CrossRunRetentionTests(unittest.TestCase):
             metadata = runner.build_snapshot(result, context).metadata
 
         self.assertEqual([event.title for event in result.events], ["Upcoming Tasting"])
-        self.assertEqual(result.run_status, "healthy")
+        self.assertEqual(result.run_status, "failed")
         self.assertEqual(metadata["import_issues"], [])
         self.assertEqual(
             metadata["source_results"]["vomFASS Bonn"]["status"],
@@ -2200,16 +2225,17 @@ class SnapshotPublicationTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {
                 "NRW_EVENTS_JSON_OUT": json_out,
                 "NRW_EVENTS_META_JSON_OUT": meta_out,
-            }, clear=False):
-                with mock.patch.object(runner, "SOURCES", {"Test": fetch_event}):
-                    with mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""):
-                        with mock.patch.object(sys, "argv", ["runner"]):
-                            runner.main()
+            }, clear=False), mock.patch.object(runner, "SOURCES", {"Test": fetch_event}):
+                with mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""):
+                    with mock.patch.object(sys, "argv", ["runner"]):
+                        runner.main()
 
             with open(json_out) as f:
                 events_payload = json.load(f)
             with open(meta_out) as f:
                 meta_payload = json.load(f)
+
+            self.assertTrue(os.path.isfile(meta_payload["events_path"]))
 
         self.assertIsInstance(events_payload, list)
         self.assertEqual(events_payload[0]["title"], "Concert")
@@ -2219,7 +2245,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         self.assertIn("concert", events_payload[0]["category_reason"])
         self.assertIsInstance(meta_payload, dict)
         self.assertNotIn("events", meta_payload)
-        self.assertEqual(meta_payload["events_path"], json_out)
+        self.assertNotEqual(meta_payload["events_path"], json_out)
         self.assertGreaterEqual(len(meta_payload["categories"]), 12)
         self.assertIn({"key": "concert", "label": "Konzert"}, meta_payload["categories"])
         self.assertEqual(meta_payload["event_count"], 1)
@@ -2251,14 +2277,12 @@ class SnapshotPublicationTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {
                 "NRW_EVENTS_JSON_OUT": json_out,
                 "NRW_EVENTS_META_JSON_OUT": meta_out,
-            }, clear=False):
-                with mock.patch.object(runner, "SOURCES", {
-                    "Fragile Source": fetch_with_warning,
-                    "Healthy Source": fetch_event,
-                }):
-                    with mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""):
-                        with mock.patch.object(sys, "argv", ["runner"]):
-                            runner.main()
+            }, clear=False), mock.patch.object(runner, "SOURCES", {
+                "Fragile Source": fetch_with_warning,
+                "Healthy Source": fetch_event,
+            }), mock.patch.object(runner.report, "format_report", lambda events, **kwargs: ""):
+                with mock.patch.object(sys, "argv", ["runner"]):
+                    runner.main()
 
             with open(meta_out) as f:
                 meta_payload = json.load(f)
@@ -2405,6 +2429,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         self.assertEqual(manifest["event_count"], 1)
         self.assertEqual(immutable_events, [{"title": "Event"}])
         self.assertEqual(immutable_metadata["run_id"], "run-1")
+        self.assertEqual(immutable_metadata["events_path"], manifest["events_path"])
         self.assertEqual(immutable_highlights["run_id"], "run-1")
         self.assertEqual(published_ledger, ledger)
         self.assertNotEqual(manifest["events_path"], paths["events"])
@@ -2475,6 +2500,13 @@ class SnapshotPublicationTests(unittest.TestCase):
         result = runner.SourceResult(source="Source", raw_event_count=0)
         runner._attach_baselines({"Source": result}, {"Source": {"raw_event_count": 12}}, 10)
         self.assertEqual(result.anomalies, ["zero_after_recent_nonempty"])
+
+    def test_large_partial_source_drop_is_recorded_as_baseline_anomaly(self):
+        result = runner.SourceResult(source="Source", raw_event_count=4)
+        runner._attach_baselines(
+            {"Source": result}, {"Source": {"raw_event_count": 12}}, 10,
+        )
+        self.assertEqual(result.anomalies, ["large_drop_after_recent_nonempty"])
 
     def test_baseline_anomaly_is_included_in_import_issues(self):
         result = runner.SourceResult(source="Source", raw_event_count=0)

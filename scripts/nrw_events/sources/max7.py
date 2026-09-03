@@ -6,7 +6,6 @@ import urllib.parse
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://www.max7.de/tanzkurse-bonn?view=kurse&tab=2&task=display&day=0"
 SOURCE = "Tanzschule Max7"
 

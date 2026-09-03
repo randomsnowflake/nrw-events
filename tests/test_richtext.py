@@ -12,7 +12,6 @@ class RichTextStructureTests(unittest.TestCase):
             "<ul><li>Neugier</li><li>Taschenlampe</li></ul>"
             "<ol><li>Anmelden</li></ol></div>"
         )
-
         self.assertEqual(
             richtext.sanitize_rich_text(source),
             "<p>Ein Escape Game im Museum.</p>"
@@ -21,6 +20,16 @@ class RichTextStructureTests(unittest.TestCase):
             "<ul><li>Neugier</li><li>Taschenlampe</li></ul>"
             "<ol><li>Anmelden</li></ol>",
         )
+
+    def test_paragraphs_and_nested_lists_remain_inside_list_items(self):
+        source = (
+            "<ul><li><p>Erster Absatz</p><p>Zweiter Absatz</p>"
+            "<ul><li>Unterpunkt</li></ul></li></ul>"
+        )
+        rendered = richtext.sanitize_rich_text(source)
+
+        self.assertIn("<li><p>Erster Absatz</p><p>Zweiter Absatz</p>", rendered)
+        self.assertIn("<ul><li>Unterpunkt</li></ul>", rendered)
 
     def test_source_headings_never_compete_with_the_page_outline(self):
         """h1/h2 belong to the page; event copy starts at h3."""

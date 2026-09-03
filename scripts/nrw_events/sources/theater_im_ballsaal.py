@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Theater im Ballsaal"
 _CALENDAR = "https://theater-im-ballsaal.de/spielplan/"
 _CATEGORY = "theater bühne performance tanz"

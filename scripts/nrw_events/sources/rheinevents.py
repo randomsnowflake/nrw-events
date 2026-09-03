@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://tickets.rheinevents.de/"
 API_URL = "https://vivenu.com/api/events/public/listings"
 SOURCE = "RheinEvents"

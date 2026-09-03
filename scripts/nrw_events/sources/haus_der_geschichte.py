@@ -28,7 +28,7 @@ def _text(value: str) -> str:
 
 def _panel_blocks(html: str) -> list[str]:
     starts = [match.start() for match in re.finditer(r'<div class="panel\s+bonn"', html or "", re.I)]
-    return [html[start:end] for start, end in zip(starts, starts[1:] + [len(html)])]
+    return [html[start:end] for start, end in zip(starts, [*starts[1:], len(html)], strict=False)]
 
 
 def _embedded_family_tours(panel: str, date_text: str, link: str) -> list:

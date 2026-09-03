@@ -12,6 +12,7 @@ from nrw_events.sources import (
     kinderflohmarkt,
 )
 from nrw_events.validation import canonicalize_event
+
 from tests.helpers import patch_window
 
 

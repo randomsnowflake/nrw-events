@@ -7,7 +7,6 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _SOURCE = "Bonner Weihnachtsmarkt"
 _MAIN_URL = "https://bonnerweihnachtsmarkt.de/view/all/"
 _DATES_URL = "https://bonnerweihnachtsmarkt.de/termine/"

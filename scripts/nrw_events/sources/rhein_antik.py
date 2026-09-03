@@ -20,7 +20,6 @@ from .. import common
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _URL = "https://rhein-antik.de/termine/"
 _SOURCE = "Rhein Antik"
 _SOURCE_ID = "rhein-antik"

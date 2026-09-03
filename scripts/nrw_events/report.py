@@ -16,7 +16,6 @@ from .identity import event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent
 from .normalization import comparison_text
 
-
 # Kept separate from ``score``: score includes distance and topical relevance,
 # while authority decides which publisher owns the canonical record.
 _AGGREGATOR_SOURCE_MARKERS = (
@@ -42,6 +41,8 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
 _CIVIC_AGGREGATOR_SOURCE_EXACT = frozenset({"ahrtal"})
 _BONN_FALLBACK_SOURCE_IDS = frozenset({"bonn-de-events", "bonn-de-sports"})
 _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
+    ("marktcom", "familienferienflohmarktbonn"):
+        "bonn-rigalsche-wiese-flohmarkt",
     ("beuel-net", "festderbeuelervereinepromenadenfest"):
         "beuel-2026-beuelfest-promenadenfest",
     ("beuel-net", "promenadenfestundbeuelfest"):
@@ -196,7 +197,12 @@ def normalize_title(title: str) -> str:
         "",
         t,
     )
-    t = re.sub(r"^(ausstellung[:\s]*|exhibition[:\s]*|konzert[:\s]*|concert[:\s]*|kostenloser\s+eintritt[:\s]*|eintritt\s+frei[:\s]*|tickets?\s+für\s+)", "", t)
+    t = re.sub(
+        r"^(?:(?:ausstellung|exhibition|konzert|concert)\b[:\s]*|"
+        r"kostenloser\s+eintritt\b[:\s]*|eintritt\s+frei\b[:\s]*|tickets?\s+für\s+)",
+        "",
+        t,
+    )
     t = re.sub(
         r"\bfloh\s*[-/&]?\s*und\s+trödelmarkt\s+am\b",
         "flohmarkt ",
@@ -383,6 +389,11 @@ def _reviewed_occurrence_alias_family(event: dict) -> str:
     source_id = str(event.get("source_id") or "").strip()
     title = normalize_title(event.get("title", ""))
     venue = _venue_comparison_text(event)
+    place_copy = comparison_text(
+        f"{event.get('venue', '')} {event.get('description', '')}"
+    )
+    if "rigal" in place_copy and "flohmarkt" in comparison_text(event.get("title", "")):
+        return "bonn-rigalsche-wiese-flohmarkt"
     source_title_alias = _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES.get(
         (source_id, title), ""
     )
@@ -487,19 +498,40 @@ def _locations_compatible(left: dict, right: dict) -> bool:
             and left_venue_numbers.isdisjoint(right_venue_numbers)
         ):
             return False
-        if _reviewed_occurrence_alias_matches(left, right):
+        # A stable detail URL is stronger continuity evidence than a changed
+        # venue label on a retained record from the same publisher.
+        left_link = _normalized_link_key(left.get("link", ""))
+        right_link = _normalized_link_key(right.get("link", ""))
+        if (
+            left_link
+            and left_link == right_link
+            and left.get("source") == right.get("source")
+        ):
             return True
-        if left.get("source") and left.get("source") == right.get("source"):
+        if _reviewed_occurrence_alias_matches(left, right):
             return True
         left_title = normalize_title(left.get("title", ""))
         right_title = normalize_title(right.get("title", ""))
+        left_place_copy = comparison_text(
+            f"{left.get('venue', '')} {left.get('description', '')}"
+        )
+        right_place_copy = comparison_text(
+            f"{right.get('venue', '')} {right.get('description', '')}"
+        )
+        if (
+            "rigal" in left_place_copy
+            and "rigal" in right_place_copy
+            and "flohmarkt" in comparison_text(left.get("title", ""))
+            and "flohmarkt" in comparison_text(right.get("title", ""))
+        ):
+            return True
         if (
             left_title == right_title
-            and any(
-                marker in left_title
-                for marker in ("flohmarkt", "trödelmarkt", "antikmarkt")
-            )
+            and left.get("source") != right.get("source")
+            and re.search(r"(?:floh|troedel|trödel|antik|kunst|abend)?markt", left_venue_text + " " + str(left.get("title", "")), re.I)
         ):
+            return True
+        if left_title == right_title and (not left_venue or not right_venue):
             return True
         left_citywide_family = _citywide_title_family(left.get("title", ""))
         right_citywide_family = _citywide_title_family(right.get("title", ""))
@@ -519,7 +551,7 @@ def _locations_compatible(left: dict, right: dict) -> bool:
             return True
         if not left_venue or not right_venue:
             return True
-        if (
+        return bool(
             left_venue == right_venue
             or left_venue in right_venue
             or right_venue in left_venue
@@ -531,11 +563,7 @@ def _locations_compatible(left: dict, right: dict) -> bool:
                     or right_venue_tokens <= left_venue_tokens
                 )
             )
-        ):
-            return True
-        # A production detail URL can be reused for performances at multiple
-        # venues, so it is not enough to override a concrete venue conflict.
-        return False
+        )
     if left_venue and left_venue == right_venue:
         return True
     left_title = normalize_title(left.get("title", ""))
@@ -577,7 +605,8 @@ def _same_occurrence(left: dict, right: dict) -> bool:
     # A first-party calendar may offer the same programme several times on one
     # day.  Those are separate bookable occurrences, not duplicate metadata.
     if (
-        left.get("source") == right.get("source")
+        str(left.get("start_at") or "")[:10]
+        == str(right.get("start_at") or "")[:10]
         and left.get("start_at")
         and right.get("start_at")
         and not _same_explicit_start(left["start_at"], right["start_at"])
@@ -647,9 +676,46 @@ def _titles_match(left: dict, right: dict) -> bool:
     right_funfair = _funfair_title_identity(right)
     if left_funfair and left_funfair == right_funfair:
         return True
-    if min(len(left_title), len(right_title)) >= 12 and (
-        left_title in right_title or right_title in left_title
+    left_without_year = tuple(
+        word for word in comparison_text(left.get("title", "")).split()
+        if not re.fullmatch(r"(?:19|20)\d{2}", word)
+    )
+    right_without_year = tuple(
+        word for word in comparison_text(right.get("title", "")).split()
+        if not re.fullmatch(r"(?:19|20)\d{2}", word)
+    )
+    recurring_title = " ".join(left_without_year)
+    if (
+        left_without_year
+        and left_without_year == right_without_year
+        and re.search(r"(?:sommer|stadtteil|strassen|straßen|dorf|wein|kunst|abend)fest$", recurring_title)
     ):
+        return True
+    left_words = tuple(comparison_text(left.get("title", "")).split())
+    right_words = tuple(comparison_text(right.get("title", "")).split())
+    shorter, longer = (
+        (left_words, right_words) if len(left_words) <= len(right_words)
+        else (right_words, left_words)
+    )
+    word_containment = bool(shorter) and any(
+        longer[index:index + len(shorter)] == shorter
+        for index in range(len(longer) - len(shorter) + 1)
+    )
+    if not word_containment:
+        shorter_flat = "".join(shorter)
+        longer_flat = "".join(longer)
+        start = longer_flat.find(shorter_flat)
+        boundaries = {0}
+        total = 0
+        for word in longer:
+            total += len(word)
+            boundaries.add(total)
+        word_containment = (
+            start >= 0
+            and start in boundaries
+            and start + len(shorter_flat) in boundaries
+        )
+    if min(len(left_title), len(right_title)) >= 12 and word_containment:
         return True
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
 
@@ -746,7 +812,10 @@ def _venue_qualified_aggregator_title_matches(left: dict, right: dict) -> bool:
 def _series_tokens(title: str) -> tuple[str, ...]:
     """Return numeric and explicit Roman-numeral episode markers in a title."""
     words = comparison_text(title)
-    numbers = re.findall(r"\b\d+\b", words)
+    numbers = [
+        token for token in re.findall(r"\b\d+\b", words)
+        if not re.fullmatch(r"(?:19|20)\d{2}", token)
+    ]
     roman_episodes = re.findall(
         r"\b(?:teil|folge|part|episode|band|kapitel)\s+([ivxlcdm]+)\b",
         words,
@@ -1037,15 +1106,12 @@ def _merge_duplicate_metadata(
         duplicate.get("source_id") in _BONN_FALLBACK_SOURCE_IDS
         and winner.get("source_id") not in _BONN_FALLBACK_SOURCE_IDS
     )
-    if not duplicate_is_bonn_fallback:
-        if duplicate_has_charge and not winner_has_charge:
-            updates.update(_adopted_description(duplicate))
-        elif (
-            len(duplicate.get("description", "").strip())
-            > len(winner.get("description", "").strip())
-            and not (winner_has_charge and not duplicate_has_charge)
-        ):
-            updates.update(_adopted_description(duplicate))
+    if not duplicate_is_bonn_fallback and ((duplicate_has_charge and not winner_has_charge) or (
+        len(duplicate.get("description", "").strip())
+        > len(winner.get("description", "").strip())
+        and not (winner_has_charge and not duplicate_has_charge)
+    )):
+        updates.update(_adopted_description(duplicate))
 
     # AI copy is generated independently of the source record that wins
     # canonical identity. A higher-authority duplicate must not discard a
@@ -1103,6 +1169,33 @@ def _is_radio_aggregation_link(link: str) -> bool:
 
 def events_are_duplicates(left, right) -> bool:
     """Return whether two canonical records represent the same occurrence."""
+    left_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(left.get("title", ""))))
+    right_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(right.get("title", ""))))
+    left_without_year = tuple(
+        token for token in comparison_text(left.get("title", "")).split()
+        if not re.fullmatch(r"(?:19|20)\d{2}", token)
+    )
+    right_without_year = tuple(
+        token for token in comparison_text(right.get("title", "")).split()
+        if not re.fullmatch(r"(?:19|20)\d{2}", token)
+    )
+    same_yearless_title = bool(
+        left_without_year and left_without_year == right_without_year
+    )
+    recurring_edition = bool(
+        same_yearless_title
+        and re.search(
+            r"(?:sommer|stadtteil|strassen|straßen|dorf|wein|kunst|abend)fest$",
+            " ".join(left_without_year),
+        )
+    )
+    if (
+        same_yearless_title
+        and left_years != right_years
+        and not recurring_edition
+        and not _same_funfair_title_identity(left, right)
+    ):
+        return False
     if (
         _series_tokens(left.get("title", ""))
         != _series_tokens(right.get("title", ""))
@@ -1349,7 +1442,7 @@ def _priority_bonus(ev: dict) -> float:
     stored = ev.get("priority_bonus")
     if (
         isinstance(ev.get("ranking_features"), dict)
-        and isinstance(stored, (int, float))
+        and isinstance(stored, int | float)
         and not isinstance(stored, bool)
     ):
         return float(stored)
@@ -1368,8 +1461,8 @@ PREFERRED_ORDER = [
 
 def _escape_markdown(value: object) -> str:
     """Escape untrusted text for the inline Markdown contexts used below."""
-    text = str(value)
-    for character in ("\\", "*", "_", "`", "[", "]", "#"):
+    text = " ".join(str(value).split())
+    for character in ("\\", "*", "_", "`", "[", "]", "#", "<", ">"):
         text = text.replace(character, f"\\{character}")
     return text
 
@@ -1398,7 +1491,7 @@ def format_report(events: list, *, window_start: datetime | None = None,
         "# 🗓 Weekend Event Report",
         f"**{start.strftime('%A %d %b')} → {end.strftime('%A %d %b %Y')}**",
         f"**Radius:** {common.runtime_radius_km() if radius_km is None else radius_km}km from Bonn",
-        f"**Sources:** {len(set(e['source'] for e in events))} active",
+        f"**Sources:** {len({e['source'] for e in events})} active",
         f"**Relevant events after cleanup:** {len(events)}",
         "",
     ]
@@ -1430,7 +1523,7 @@ def format_report(events: list, *, window_start: datetime | None = None,
             dist_tag = f"{distance}km" if distance and distance > 0 else (
                 "Bonn" if distance == 0 else "Ort nicht aufgelöst"
             )
-            score_bar = "★" * max(1, min(5, int(round(ev["score"] * 3))))
+            score_bar = "★" * max(1, min(5, round(ev["score"] * 3)))
             meta = []
             if when:
                 meta.append(when)

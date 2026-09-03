@@ -5,6 +5,7 @@ from unittest import mock
 
 from nrw_events import common
 from nrw_events.sources import flohmarkt
+
 from tests.helpers import patch_window
 
 

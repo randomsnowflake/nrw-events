@@ -2,11 +2,11 @@ import ast
 import importlib
 import json
 import os
-import sys
-from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common, dates, location, scoring
@@ -14,11 +14,33 @@ from nrw_events.health import SourceStatus
 from nrw_events.models import CanonicalEvent, RawEvent
 from nrw_events.source_specs import load_source_specs
 from nrw_events.source_types import SourceFetcher, TextParser
+from nrw_events.sources import SOURCE_FETCHERS, SOURCE_IDS, SOURCE_SPECS, SOURCES, harmonie
 from nrw_events.validation import canonicalize_event
-from nrw_events.sources import SOURCES, SOURCE_FETCHERS, SOURCE_IDS, SOURCE_SPECS, harmonie
 
 
 class ModuleBoundaryTests(unittest.TestCase):
+    def test_domain_modules_do_not_import_source_adapters(self):
+        package = Path(__file__).resolve().parents[1] / "scripts/nrw_events"
+        domain_modules = (
+            "category_taxonomy.py", "dates.py", "identity.py", "location.py",
+            "normalization.py", "quality.py", "richtext.py", "scoring.py",
+            "series.py", "title_normalization.py", "validation.py",
+        )
+        violations = []
+        for filename in domain_modules:
+            tree = ast.parse((package / filename).read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module.startswith(("nrw_events.sources", ".sources", "sources")):
+                        violations.append(f"{filename}:{node.lineno}")
+                elif isinstance(node, ast.Import):
+                    violations.extend(
+                        f"{filename}:{node.lineno}"
+                        for alias in node.names
+                        if alias.name.startswith("nrw_events.sources")
+                    )
+        self.assertEqual(violations, [])
+
     def test_quality_import_does_not_load_core(self):
         scripts = Path(__file__).resolve().parents[1] / "scripts"
         environment = {**os.environ, "PYTHONPATH": str(scripts)}

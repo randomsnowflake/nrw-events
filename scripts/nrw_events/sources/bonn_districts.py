@@ -1,14 +1,14 @@
 """Local event calendars for Bonn districts and neighbourhood associations."""
 
+import calendar
 import json
 import re
 import urllib.parse
 from datetime import datetime
 from html.parser import HTMLParser
 
-from .. import common, normalization, richtext
+from .. import common, normalization, reviewed_corrections, richtext
 from . import regional_common
-
 
 VILICH_MUELDORF_ICAL = "https://www.bv-vilich-mueldorf.de/events/?ical=1"
 BEUEL_URL = "https://beuel.net/events/"
@@ -35,26 +35,13 @@ _BRUESER_BERG_LOCAL_VENUES = (
     "telekom dome",
 )
 _JMJ_HOST = "jmj-online.de"
-_BEUEL_PRIMARY_URL_REPLACEMENTS = {
-    (
-        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
-        "hauptkalender/Nikolausmarkt-in-Beuel.php",
-        "2026-11-27",
-        "2026-11-29",
-    ): (
-        "https://www.bonn.de/pressemitteilungen/dezember/"
-        "abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
-    ),
-}
-_BEUEL_CIVIC_AGGREGATOR_URLS = frozenset(_BEUEL_PRIMARY_URL_REPLACEMENTS.values())
-_BEUEL_MIRECOURTPLATZ_PROGRAMME_URL = (
-    "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/"
-)
-_BEUEL_MIRECOURTPLATZ_PROGRAMME_DATES = frozenset({
-    "2026-07-29", "2026-08-05", "2026-08-12",
-    "2026-08-19", "2026-08-26", "2026-09-02",
-})
-_BURG_LEDE_PRIMARY_URL = "https://www.burglede.de/veranstaltungen-2026/"
+
+
+def _active_reviewed_map(group: str) -> dict[tuple[str, ...], object]:
+    return {
+        tuple(str(value) for value in entry["match"]): entry["value"]
+        for entry in reviewed_corrections.active_entries(group, common.TODAY)
+    }
 
 
 def _ensure_descriptions(events: list) -> list:
@@ -521,13 +508,18 @@ def _primary_description(event: dict, html: str, source: str) -> str:
 
 def _reviewed_beuel_primary_link(event: dict, link: str) -> str:
     normalized_link = link.rstrip("/")
+    programme_entries = reviewed_corrections.active_entries(
+        "beuel_mirecourtplatz_programme", common.TODAY,
+    )
+    programme = programme_entries[0] if programme_entries else None
     if (
-        normalized_link == "https://dein-phonzimmer.de"
+        programme is not None
+        and normalized_link == "https://dein-phonzimmer.de"
         and event.get("title") == "Mitsingkonzert Französisch und Kölsch"
         and event.get("venue") == "Mirecourtplatz"
-        and event.get("start_date") in _BEUEL_MIRECOURTPLATZ_PROGRAMME_DATES
+        and event.get("start_date") in programme["match"]
     ):
-        return _BEUEL_MIRECOURTPLATZ_PROGRAMME_URL
+        return str(programme["value"])
     return link
 
 
@@ -536,6 +528,8 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
     confirmed = []
     primary_pages: dict[str, str] = {}
     failed_primary_pages: set[str] = set()
+    replacements = _active_reviewed_map("beuel_primary_url_replacements")
+    civic_aggregator_urls = frozenset(str(value) for value in replacements.values())
     for event in events:
         link = str(event.get("link") or "")
         replacement_key = (
@@ -543,7 +537,7 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
             event.get("start_date", ""),
             event.get("end_date", ""),
         )
-        link = _BEUEL_PRIMARY_URL_REPLACEMENTS.get(replacement_key, link)
+        link = str(replacements.get(replacement_key, link))
         link = _reviewed_beuel_primary_link(event, link)
         event["link"] = link
         hostname = (urllib.parse.urlsplit(link).hostname or "").casefold()
@@ -569,7 +563,7 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
             primary_pages[link] = primary_html
         event["source"] = (
             "Bonn district festivals (Beuel.net discovery)"
-            if link in _BEUEL_CIVIC_AGGREGATOR_URLS
+            if link in civic_aggregator_urls
             else source
         )
         event["source_id"] = "beuel-net"
@@ -588,7 +582,11 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
 
 def _fetch_beuel_primary(url: str) -> str:
     kwargs = {}
-    if url.rstrip("/") == _BURG_LEDE_PRIMARY_URL.rstrip("/"):
+    burg_entries = reviewed_corrections.active_entries(
+        "burg_lede_programme", common.TODAY,
+    )
+    burg_url = str(burg_entries[0]["value"]) if burg_entries else ""
+    if burg_url and url.rstrip("/") == burg_url.rstrip("/"):
         kwargs = {
             "brightdata_fallback": True,
             "allowed_hosts": ("www.burglede.de",),
@@ -666,7 +664,7 @@ def _english_date(value: str) -> datetime | None:
     for pattern in ("%d %B %Y", "%d %b %Y"):
         try:
             return datetime.strptime(cleaned, pattern)
-        except ValueError:
+        except ValueError:  # noqa: PERF203 - try the maintained date formats in order
             pass
     return regional_common.parse_dt(cleaned)
 
@@ -881,7 +879,10 @@ def _holzlar_dates(day_text: str, month: str, year: str) -> tuple:
         try:
             start = start.replace(year=year_number, month=month_number)
         except ValueError:
-            return end, end
+            last_day = calendar.monthrange(year_number, month_number)[1]
+            start = start.replace(
+                year=year_number, month=month_number, day=last_day,
+            )
     return start, end
 
 

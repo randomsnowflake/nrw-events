@@ -3,11 +3,21 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import common
-from nrw_events.sources import SOURCES
 from nrw_events.sources import (
-    bonn, bonn_venues, bonnjetzt, bundeskunsthalle, haus_der_geschichte, koeln,
-    kunstmuseum_bonn, regional_feeds, regional_ionas4, regional_tourism, requested_venues,
+    SOURCES,
+    bonn,
+    bonn_venues,
+    bonnjetzt,
+    bundeskunsthalle,
+    haus_der_geschichte,
+    koeln,
+    kunstmuseum_bonn,
+    regional_feeds,
+    regional_ionas4,
+    regional_tourism,
+    requested_venues,
 )
+
 from tests.helpers import patch_window
 
 
@@ -382,8 +392,14 @@ class SourceParserTests(unittest.TestCase):
 
         events = bonn_venues.events_from_brotfabrik(html)
 
-        self.assertEqual([event["title"] for event in events], ["LaClinicA: Sin cepillo de dientes"])
-        self.assertEqual(events[0]["time"], "20:00")
+        self.assertEqual(
+            [event["title"] for event in events],
+            [
+                "Kontaktimprovisation / Kommunikation durch Berührung",
+                "LaClinicA: Sin cepillo de dientes",
+            ],
+        )
+        self.assertEqual([event["time"] for event in events], ["14:00", "20:00"])
 
     def test_brotfabrik_api_items_create_events_and_preserve_cancelled(self):
         patch_window(self, datetime(2026, 7, 4), datetime(2026, 7, 6))
@@ -757,6 +773,23 @@ END:VCALENDAR
         self.assertEqual(start, datetime(2026, 7, 6))
         self.assertEqual(end, datetime(2026, 7, 10))
 
+    def test_numeric_yearless_dates_and_ranges_use_the_report_window(self):
+        from nrw_events.sources import regional_common as rc
+
+        patch_window(self, datetime(2026, 2, 1), datetime(2026, 9, 30))
+        self.assertEqual(
+            common.parse_date("12.03.", reference_date=common.TODAY),
+            datetime(2026, 3, 12),
+        )
+        self.assertEqual(
+            rc.range_dates("12. – 14.03.2026"),
+            (datetime(2026, 3, 12), datetime(2026, 3, 14)),
+        )
+        self.assertEqual(
+            rc.range_dates("12.–14.09."),
+            (datetime(2026, 9, 12), datetime(2026, 9, 14)),
+        )
+
     def test_ionas4_uses_public_calendar_when_item_has_no_detail_website(self):
         events = regional_ionas4._events_from_items(
             [
@@ -987,6 +1020,12 @@ END:VCALENDAR
             "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Fahrradexkursion-durch-das-Klimaviertel-Bonn.php",
         )
         self.assertEqual(events[0]["source"], "Bonn.de Sports")
+        self.assertEqual(
+            bonn._clean_event_href(
+                "/event.php?occurrence=42&p=sig%3Atemporary&language=de"
+            ),
+            "/event.php?occurrence=42&language=de",
+        )
 
     def test_bonnjetzt_skips_gruene_jugend_events(self):
         html = """

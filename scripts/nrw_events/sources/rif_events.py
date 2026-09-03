@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://ticketshop.rif-bonn.de/"
 SOURCE = "RiF Events"
 _BERLIN = ZoneInfo("Europe/Berlin")

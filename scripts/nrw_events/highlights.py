@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Iterable, Mapping
-
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 SCHEMA_VERSION = "1.0"
 MAX_PER_VENUE = 2

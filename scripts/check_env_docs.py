@@ -7,7 +7,6 @@ import ast
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PATTERN = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
 SYSTEM_ALLOWLIST = {"HOME", "PATH", "PYTHONPATH"}

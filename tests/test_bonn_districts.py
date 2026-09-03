@@ -8,7 +8,6 @@ from unittest.mock import Mock, patch
 from nrw_events import common, report, validation
 from nrw_events.sources import SOURCES, bonn, bonn_districts
 
-
 BEUEL_HTML = """
 <div class="yel"><a href="/events/#31.07.2026"><span class="title">Green Juice Festival 2026</span><br>
 <b>Fr. 31.07. – 01.08. 23:59</b> | in 17 Tagen | <a href="/map/?q=Park Neu-Vilich">Park Neu-Vilich</a><br>

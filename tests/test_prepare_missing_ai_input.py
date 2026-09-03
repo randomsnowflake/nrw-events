@@ -1,9 +1,8 @@
 import importlib.util
 import json
-from pathlib import Path
 import tempfile
 import unittest
-
+from pathlib import Path
 
 MODULE_PATH = Path(__file__).parents[1] / "scripts" / "prepare_missing_ai_input.py"
 SPEC = importlib.util.spec_from_file_location("prepare_missing_ai_input", MODULE_PATH)

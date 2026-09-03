@@ -19,7 +19,6 @@ from ..dates import resolve_yearless_date
 from ..models import AdmissionDefault
 from . import regional_common as rc
 
-
 _BONNER_KINEMATHEK_URL = "https://www.bonnerkinemathek.de/programm/"
 _STUMMFILMTAGE_URL = "https://www.internationale-stummfilmtage.de/"
 _REX_FILMBUEHNE_URL = "https://www.rex-filmbuehne.de/inhalt/vorschau"
@@ -517,15 +516,7 @@ def _events_from_filmhaus_json(raw: str) -> list:
 
 
 def _filmhaus_datetime(value: str):
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return None
-    if parsed.tzinfo is None:
-        return parsed
-    return parsed.astimezone(ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
+    return common.parse_iso_date(str(value or ""))
 
 
 def _events_from_kurzfilmwanderung(html: str) -> list:

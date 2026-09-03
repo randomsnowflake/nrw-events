@@ -1,6 +1,5 @@
 from .parser_cases import case_class
 
-
 BONN_MARKERS = (
     "bonn", "brotfabrik", "pantheon", "kult41", "kunstmuseum",
     "bundeskunsthalle", "botanical", "springmaus", "repair_cafes",

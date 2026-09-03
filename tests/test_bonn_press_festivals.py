@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from nrw_events import common, report
 from nrw_events.sources import bonn, bonn_districts
+
 from tests.helpers import patch_window
 
 

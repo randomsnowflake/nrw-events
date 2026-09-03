@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
+from collections.abc import Mapping
 from dataclasses import dataclass
 from html import unescape
-import json
 from pathlib import Path
-from typing import Mapping
 
 _GERMAN_TRANSLITERATION = str.maketrans({
     "ä": "ae",
@@ -230,8 +230,11 @@ def _record_for(value: str, city: str, explicit_id: str = "") -> VenueRecord | N
     if first_segment and first_segment != value:
         candidates.append(first_segment)
     for candidate in candidates:
-        record = _VENUE_BY_ALIAS.get(comparison_text(candidate))
+        candidate_key = comparison_text(candidate)
+        record = _VENUE_BY_ALIAS.get(candidate_key)
         if not record:
+            continue
+        if not city and candidate_key in {"marktplatz"}:
             continue
         if (not city or not record.city or _compatible_city(record.city, city)
                 or _same_place(candidate, city)):
@@ -413,11 +416,7 @@ def canonical_venue_id(event: Mapping[str, object]) -> str:
         str(event.get("venue_address") or ""), separator=""
     )
     city = comparison_text(str(event.get("city") or ""), separator="")
-    description = comparison_text(
-        str(event.get("description") or ""),
-        separator="",
-    )
-    text = f"{title}{venue}{venue_address}{city}{description}"
+    text = f"{title}{venue}{venue_address}{city}"
 
     # The Rigal'sche Wiese is inside Bad Godesberg, but it is not the generic
     # Innenstadt market area and therefore must be resolved first.

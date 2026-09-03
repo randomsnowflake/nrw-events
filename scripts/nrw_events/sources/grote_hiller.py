@@ -7,7 +7,6 @@ import time
 from .. import common
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.grote-hiller.de"
 _URLS = (
     f"{_BASE_URL}/troedelmaerkte/",
@@ -139,6 +138,6 @@ def fetch() -> list:
                 parser_empty=not bool(parsed),
             )
             events.extend(parsed)
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - market endpoints must fail independently
             common.log_source_error("Grote & Hiller", exc)
     return rc.dedupe(_enrich_visitor_admission(events))

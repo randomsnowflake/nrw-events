@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from enum import Enum
 import json
 import re
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
 
 from .models import RawEvent, normalize_source_id
-
 
 _NO_REJECTION_SAMPLE = object()
 _DIAGNOSTIC_CONTROLS = re.compile(r"[\x00-\x1f\x7f-\x9f]+")
@@ -95,7 +95,7 @@ class SourceStatus(str, Enum):
 @dataclass(frozen=True, slots=True)
 class EndpointOutcome:
     url: str
-    status: Optional[int] = None
+    status: int | None = None
     error_type: str = ""
     error: str = ""
 
@@ -111,24 +111,24 @@ class SourceFetchResult:
     endpoints: tuple[EndpointOutcome, ...] = ()
 
     @classmethod
-    def success(cls, events: list[RawEvent]) -> "SourceFetchResult":
+    def success(cls, events: list[RawEvent]) -> SourceFetchResult:
         return cls(tuple(events), SourceStatus.HEALTHY if events else SourceStatus.HEALTHY_EMPTY)
 
     @classmethod
     def partial(cls, events: list[RawEvent], *warnings: str,
-                endpoints: tuple[EndpointOutcome, ...] = ()) -> "SourceFetchResult":
+                endpoints: tuple[EndpointOutcome, ...] = ()) -> SourceFetchResult:
         return cls(tuple(events), SourceStatus.DEGRADED, warnings=warnings, endpoints=endpoints)
 
     @classmethod
-    def disabled(cls, reason: str) -> "SourceFetchResult":
+    def disabled(cls, reason: str) -> SourceFetchResult:
         return cls(status=SourceStatus.DISABLED, disabled_reason=reason)
 
     @classmethod
-    def scheduled_skip(cls, reason: str) -> "SourceFetchResult":
+    def scheduled_skip(cls, reason: str) -> SourceFetchResult:
         return cls(status=SourceStatus.SCHEDULED_SKIP, disabled_reason=reason)
 
     @classmethod
-    def parser_empty(cls, warning: str = "parser returned no records") -> "SourceFetchResult":
+    def parser_empty(cls, warning: str = "parser returned no records") -> SourceFetchResult:
         return cls(status=SourceStatus.PARSER_EMPTY, warnings=(warning,))
 
 
@@ -155,6 +155,7 @@ class SourceResult:
     ai_skipped_event_count: int = 0
     # Skipped target events for which no cached summary could be restored.
     ai_skipped_without_summary_event_count: int = 0
+    detail_deadline_skipped_event_count: int = 0
     event_sources: list[str] = field(default_factory=list)
     event_source_ids: list[str] = field(default_factory=list)
     cancelled_events: list[dict[str, Any]] = field(default_factory=list)
@@ -163,7 +164,7 @@ class SourceResult:
     research_lead_count: int = 0
     research_lead_reasons: dict[str, int] = field(default_factory=dict)
     warnings: list[dict[str, str]] = field(default_factory=list)
-    error: Optional[dict[str, str]] = None
+    error: dict[str, str] | None = None
     status_reason: str = ""
     source_id: str = ""
     # Private source prose carried only in memory to the publication-stage AI
@@ -190,7 +191,7 @@ class SourceResult:
         reason: str,
         event: Any = _NO_REJECTION_SAMPLE,
         *,
-        in_window: Optional[bool] = None,
+        in_window: bool | None = None,
     ) -> None:
         reason = bounded_diagnostic_text(reason, 160) or "unknown_rejection"
         self.rejected_event_count += 1
@@ -206,7 +207,7 @@ class SourceResult:
         if isinstance(event, dict):
             for key in ("title", "date", "start_date", "end_date"):
                 value = event.get(key)
-                if isinstance(value, (str, int, float, bool)) and value != "":
+                if isinstance(value, str | int | float | bool) and value != "":
                     sample[key] = bounded_diagnostic_text(value, _REJECTION_FIELD_LIMITS[key])
         else:
             sample["record_type"] = bounded_diagnostic_text(
@@ -278,6 +279,7 @@ class SourceResult:
             "ai_enriched_event_count": self.ai_enriched_event_count,
             "ai_skipped_event_count": self.ai_skipped_event_count,
             "ai_skipped_without_summary_event_count": self.ai_skipped_without_summary_event_count,
+            "detail_deadline_skipped_event_count": self.detail_deadline_skipped_event_count,
             "event_sources": self.event_sources,
             "event_source_ids": self.event_source_ids,
             "cancelled_event_count": len(self.cancelled_events),

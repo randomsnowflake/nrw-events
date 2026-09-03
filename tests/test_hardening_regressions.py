@@ -1,5 +1,5 @@
-import json
 import inspect
+import json
 import logging
 import os
 import socket
@@ -104,7 +104,12 @@ class HardeningRegressionTests(unittest.TestCase):
             common.clean_html("Vorher<!-- internal > metadata -->Nachher"),
             "Vorher Nachher",
         )
-        self.assertEqual(common.clean_html("&lt;b&gt;fett&lt;/b&gt;"), "fett")
+        self.assertEqual(common.clean_html("&lt;b&gt;fett&lt;/b&gt;"), "<b>fett</b>")
+        self.assertEqual(common.clean_html("Kinder < 6 Jahre > frei"), "Kinder < 6 Jahre > frei")
+        self.assertEqual(
+            common.clean_html("Alter &lt; 12 Jahre, Preis &gt; 5 €"),
+            "Alter < 12 Jahre, Preis > 5 €",
+        )
 
     def test_aware_timestamps_are_normalized_to_berlin_before_becoming_naive(self):
         self.assertEqual(
@@ -481,11 +486,14 @@ END:VCALENDAR"""
             (None, "unresolved", "unknown_city"),
         )
         self.assertIsNone(dates.parse_date("not a date"))
+        self.assertEqual(
+            location.resolve_location("Bonn", (7.0982, 50.7374)),
+            (None, "unresolved", "invalid_explicit_coordinates"),
+        )
 
     def test_offline_suite_blocks_direct_socket_connections(self):
-        with socket.socket() as candidate:
-            with self.assertRaisesRegex(AssertionError, "offline test suite"):
-                candidate.connect(("127.0.0.1", 9))
+        with socket.socket() as candidate, self.assertRaisesRegex(AssertionError, "offline test suite"):
+            candidate.connect(("127.0.0.1", 9))
 
 
 if __name__ == "__main__":

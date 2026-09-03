@@ -1,14 +1,14 @@
 import json
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
+from unittest import mock
 
 from nrw_events import category_taxonomy as taxonomy
 from nrw_events.category_taxonomy import (
     CATEGORIES,
-    category_cache_key,
     categorize_event,
+    category_cache_key,
     configure_fallback_cache,
 )
 from nrw_events.event_vocabulary import (
@@ -148,6 +148,19 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
         self.assertEqual(result["key"], "cinema")
         self.assertNotEqual(result["reason"], "forced:outdoor-title-format")
+
+    def test_performance_compounds_are_not_forced_to_outdoor(self):
+        cases = {
+            "Theateraufführung: Faust": "stage",
+            "Filmvorführung: Casablanca": "cinema",
+            "Uraufführung: Neues Stück": "stage",
+            "Stadtführung Altstadt": "outdoor",
+            "Führung durch das Kunstmuseum Bonn": "exhibition",
+        }
+        for title, expected in cases.items():
+            with self.subTest(title=title):
+                result = categorize_event("", title, "")
+                self.assertEqual(result["key"], expected)
 
     def test_reviewed_cache_resolves_unknown_series_without_an_external_classifier(self):
         cache_key = category_cache_key("example-source", "Jeden Dienstag: Sondertermin")

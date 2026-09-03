@@ -36,6 +36,9 @@ class CategoryScoreTests(unittest.TestCase):
         self.assertEqual(category_score("Tourismusbüro informiert"), 1.0)
         # "wein" must not fire inside "Schweinfurt"
         self.assertEqual(category_score("Busfahrt nach Schweinfurt"), 1.0)
+        self.assertEqual(category_score("Kunststoff-Recycling"), 1.0)
+        self.assertEqual(category_score("Weinen und Lachen: Kindertheater"), 0.2)
+        self.assertEqual(category_score("Viertelfinale für Kinder"), 0.2)
 
     def test_exact_words_still_score(self):
         self.assertEqual(category_score("Sport im Verein"), 0.5)

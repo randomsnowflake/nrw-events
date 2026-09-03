@@ -4,6 +4,7 @@ from datetime import datetime
 
 from nrw_events import common, report
 from nrw_events.validation import canonicalize_event
+
 from tests.helpers import patch_window
 
 
@@ -105,6 +106,48 @@ class JsonLdScheduleTests(unittest.TestCase):
         self.assertEqual(current["organizer"], "Stadt Bonn")
         self.assertEqual(current["availability"], "InStock")
         self.assertNotIn("2026-04-18–2026-10-17", [ev["date"] for ev in events])
+
+    def test_list_valued_jsonld_fields_do_not_drop_other_events(self):
+        payload = [
+            {
+                "@type": "Event",
+                "name": ["First event"],
+                "startDate": ["2026-06-12T19:00:00+02:00"],
+                "description": ["First description"],
+                "url": ["https://example.test/first"],
+            },
+            {
+                "@type": "Event",
+                "name": "Second event",
+                "startDate": "2026-06-13T20:00:00+02:00",
+            },
+        ]
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+
+        events = common.events_from_jsonld(
+            html, "Test source", "Bonn", "konzert", 1.0, "https://example.test",
+        )
+
+        self.assertEqual([event["title"] for event in events], ["First event", "Second event"])
+
+    def test_jsonld_cancelled_and_postponed_statuses_are_preserved(self):
+        payload = [
+            {"@type": "Event", "name": "Cancelled", "startDate": "2026-06-12", "eventStatus": "https://schema.org/EventCancelled"},
+            {"@type": "Event", "name": "Postponed", "startDate": "2026-06-13", "eventStatus": "EventPostponed"},
+        ]
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+        events = common.events_from_jsonld(html, "Test", "Bonn", "concert", 1, "https://example.test")
+        self.assertEqual([event["status"] for event in events], ["cancelled", "postponed"])
+
+    def test_jsonld_string_and_postal_address_locations_are_supported(self):
+        payload = [
+            {"@type": "Event", "name": "String place", "startDate": "2026-06-12", "location": "Marktplatz"},
+            {"@type": "Event", "name": "Bare address", "startDate": "2026-06-13", "location": {"@type": "PostalAddress", "addressLocality": "Siegburg"}},
+        ]
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+        events = common.events_from_jsonld(html, "Test", "Bonn", "concert", 1, "https://example.test")
+        self.assertEqual(events[0]["venue"], "Marktplatz")
+        self.assertEqual(events[1]["city"], "Siegburg")
 
     def test_jsonld_organizer_survives_the_canonical_public_contract(self):
         payload = {

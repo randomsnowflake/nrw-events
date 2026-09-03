@@ -4,8 +4,9 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import common, report
-from nrw_events.validation import canonicalize_event
 from nrw_events.sources import SOURCES, geide, grote_hiller, hoffloh_bonn, okken
+from nrw_events.validation import canonicalize_event
+
 from tests.helpers import patch_window
 
 

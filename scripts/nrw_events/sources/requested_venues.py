@@ -3,7 +3,7 @@
 import re
 from datetime import datetime
 
-from .. import common, richtext
+from .. import common, reviewed_corrections, richtext
 from . import regional_common as rc
 
 
@@ -125,6 +125,16 @@ def _events_from_pantheon(html: str) -> list:
 
 def _events_from_rathausmusik(html: str) -> list:
     """Read the visually positioned band schedule without mixing neighbours."""
+    schedules = reviewed_corrections.active_entries(
+        "rathausmusik_schedule", common.TODAY,
+    )
+    if not schedules:
+        return []
+    schedule = schedules[0]
+    months = "|".join(re.escape(str(value)) for value in schedule["match"])
+    schedule_value = schedule["value"]
+    start_hour, start_minute = map(int, schedule_value["start_time"].split(":"))
+    end_hour, end_minute = map(int, schedule_value["end_time"].split(":"))
     blocks: list[tuple[int, str]] = []
     for match in re.finditer(
         r'<div\b[^>]*class=["\'][^"\']*\bxr_txt\b[^"\']*["\'][^>]*style=["\']'
@@ -139,7 +149,7 @@ def _events_from_rathausmusik(html: str) -> list:
     seen: set[tuple[str, str]] = set()
     for top, text in blocks:
         heading = re.fullmatch(
-            r"(\d{1,2})\.\s*(Juli|August|September)\s+(.+)", text, re.I,
+            rf"(\d{{1,2}})\.\s*({months})\s+(.+)", text, re.I,
         )
         if not heading:
             continue
@@ -152,8 +162,8 @@ def _events_from_rathausmusik(html: str) -> list:
         if identity in seen:
             continue
         seen.add(identity)
-        start = start.replace(hour=18, minute=0)
-        end = start.replace(hour=20, minute=0)
+        start = start.replace(hour=start_hour, minute=start_minute)
+        end = start.replace(hour=end_hour, minute=end_minute)
         descriptions = [
             (candidate_top, candidate)
             for candidate_top, candidate in blocks
@@ -167,11 +177,11 @@ def _events_from_rathausmusik(html: str) -> list:
             "Beueler Rathausplatz",
             "Bonn-Beuel",
             description,
-            "http://www.rathausmusik.com/",
+            schedule_value["url"],
             "Musik auf der Rathaustreppe",
             "konzert live musik stadtteil",
             1.0,
-            "18:00–20:00",
+            f"{schedule_value['start_time']}–{schedule_value['end_time']}",
             source_id="rathausmusik",
         )
         if event:
@@ -394,10 +404,7 @@ def _date_from_occurrence_or_label(occurrence: str, label: str):
 
 
 def _parse_slash_date(text: str):
-    try:
-        return datetime.strptime(text, "%d/%m/%Y")
-    except ValueError:
-        return None
+    return common.parse_date((text or "").replace("/", "."))
 
 
 def _parse_springmaus_dt(text: str):

@@ -9,7 +9,6 @@ from datetime import timedelta
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://www.b-future.org/2026/programm"
 SOURCE = "b° future festival"
 
@@ -102,8 +101,8 @@ def _events_from_program(html: str) -> list:
             if "festivalticket" in ticket.casefold():
                 event["price"] = "Festivalticket erforderlich"
                 event["admission_basis"] = "explicit"
-            elif re.search(r"\b(?:freier\s+eintritt|eintritt\s+frei)\b", ticket, re.I):
-                event["price"] = "kostenlos"
+            elif free_price := common.infer_free_admission_price(title, ticket):
+                event["price"] = free_price
                 event["admission_basis"] = "explicit"
             events.append(event)
     return rc.dedupe(events)

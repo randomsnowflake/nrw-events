@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import timedelta
-from typing import Mapping
 from urllib.parse import urlsplit, urlunsplit
 
 from . import common
 from .normalization import comparison_text
-
 
 PUETZCHENS_MARKT_SOURCE_ID = "tourismus-nrw-puetzchens-markt"
 PUETZCHENS_MARKT_URL = "https://www.nrw-tourismus.de/events/puetzchens-markt"

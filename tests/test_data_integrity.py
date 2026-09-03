@@ -4,10 +4,18 @@ from unittest import mock
 
 from nrw_events import common, report
 from nrw_events.validation import EventValidationError, validate_event
+
 from tests.helpers import patch_window
 
 
 class DataIntegrityTests(unittest.TestCase):
+    def test_validation_rejects_inverted_date_ranges(self):
+        with self.assertRaisesRegex(EventValidationError, "end_before_start"):
+            validate_event({
+                "title": "Broken range", "source": "Test", "city": "Bonn",
+                "start_date": "2026-06-14", "end_date": "2026-06-12", "score": 1,
+            })
+
     def test_validation_moves_complex_time_copy_to_note(self):
         event = validate_event({
             "title": "Ausstellung mit Öffnungszeiten",
@@ -314,6 +322,64 @@ END:VCALENDAR"""
             events = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
         self.assertEqual(events[0]["end_date"], "2026-06-14")
         self.assertTrue(events[0]["all_day"])
+
+    def test_ical_duration_expands_an_all_day_event(self):
+        ical = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Three day festival
+DTSTART;VALUE=DATE:20260612
+DURATION:P3D
+END:VEVENT
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical):
+            [event] = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
+        self.assertEqual(event["end_date"], "2026-06-14")
+
+    def test_ical_cancelled_status_is_preserved(self):
+        ical = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Cancelled concert
+DTSTART:20260612T190000
+STATUS:CANCELLED
+END:VEVENT
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical):
+            [event] = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
+        self.assertEqual(event["status"], "cancelled")
+
+    def test_ical_recurrence_override_replaces_the_master_occurrence(self):
+        ical = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:series-1
+SUMMARY:Weekly concert
+DTSTART:20260612T190000
+RRULE:FREQ=WEEKLY;COUNT=2
+END:VEVENT
+BEGIN:VEVENT
+UID:series-1
+RECURRENCE-ID:20260619T190000
+SUMMARY:Weekly concert
+DTSTART:20260619T210000
+END:VEVENT
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical):
+            events = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
+        self.assertEqual([event["time"] for event in events], ["19:00", "21:00"])
+
+    def test_ical_alarm_description_does_not_replace_event_copy(self):
+        ical = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Concert
+DTSTART:20260612T190000
+DESCRIPTION:Public programme
+BEGIN:VALARM
+DESCRIPTION:Private reminder
+END:VALARM
+END:VEVENT
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical):
+            [event] = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
+        self.assertEqual(event["description"], "Public programme")
 
     def test_valid_empty_ical_can_be_healthy_for_inactive_calendars(self):
         ical = """BEGIN:VCALENDAR

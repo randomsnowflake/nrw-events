@@ -7,7 +7,6 @@ from email.utils import parsedate_to_datetime
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "TiK Theater im Keller"
 _FEED = "https://tik-bonn.de/feed/"
 _CATEGORY = "theater bühne komödie schauspiel"

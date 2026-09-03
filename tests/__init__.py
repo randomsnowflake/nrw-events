@@ -6,7 +6,6 @@ import shutil
 import socket
 import tempfile
 
-
 _TEST_CACHE_DIR = tempfile.mkdtemp(prefix="nrw-events-tests-")
 atexit.register(shutil.rmtree, _TEST_CACHE_DIR, ignore_errors=True)
 os.environ.setdefault("NRW_EVENTS_CACHE_DIR", _TEST_CACHE_DIR)

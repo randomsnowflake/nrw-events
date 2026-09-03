@@ -14,47 +14,47 @@ prefer the focused HTTP, text, event-builder, JSON-LD, and iCal modules.
 
 from __future__ import annotations
 
-import json
-from hashlib import sha256
 import inspect
+import json
 import logging
 import os
 import random
 import re
 import threading
 import time
-import urllib.request
-import urllib.parse  # noqa: F401  (re-exported for sources that build URLs)
 import urllib.error
-from contextlib import closing, contextmanager
-from contextvars import ContextVar
+import urllib.parse
+import urllib.request
+from collections.abc import Callable, Iterator
+from contextlib import closing, contextmanager, suppress
+from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from hashlib import sha256
 from html import unescape
 from pathlib import Path
-from typing import Any, Callable, Iterator, NoReturn, Optional, TypedDict
+from typing import Any, NoReturn, TypedDict
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import category_taxonomy, config, richtext
-from .health import SourceResult, SourceStatus
-from .location import canonicalize_city as canonicalize_city
-from .location import coords_for_city as coords_for_city
-from .location import refine_city_from_text as refine_city_from_text
-from .junk_rules import legacy_junk_decision
-from .quality import evaluate_event_quality
-from .location import refine_bonn_location as refine_bonn_location
-from .location import guess_city_from_text, haversine, resolve_location
-from .models import AdmissionDefault, EventDraft, RawEvent, normalize_source_id
-from .normalization import resolve_venue
-from .observability import LOGGER_NAME, log, redact
-from .scoring import category_score, distance_score
-from .runtime import RunContext
-from .title_normalization import normalize_event_title
-from .dates import configure_reference_date as _configure_date_reference
 from .dates import MONTH_DE as MONTH_DE
 from .dates import MONTH_EN as MONTH_EN
-from .dates import parse_date
-from .dates import parse_iso_date
+from .dates import configure_reference_date as _configure_date_reference
+from .dates import parse_date, parse_iso_date
+from .health import SourceResult, SourceStatus
+from .junk_rules import legacy_junk_decision
+from .location import canonicalize_city as canonicalize_city
+from .location import coords_for_city as coords_for_city
+from .location import guess_city_from_text, haversine, resolve_location
+from .location import refine_bonn_location as refine_bonn_location
+from .location import refine_city_from_text as refine_city_from_text
+from .models import AdmissionDefault, EventDraft, RawEvent, normalize_source_id
+from .normalization import VenueResolution, resolve_venue
+from .observability import LOGGER_NAME, log, redact
+from .quality import evaluate_event_quality
+from .runtime import RunContext
+from .scoring import category_score, distance_score
+from .title_normalization import normalize_event_title
 
 # ── Report window (set by the runner at startup) ────────────────────
 DAYS_AHEAD = 3
@@ -167,18 +167,20 @@ _HOST_SLOT_LOCK = threading.Lock()
 _HOST_SLOTS: dict[str, threading.Lock] = {}
 
 
-def configure_runtime(settings: config.RuntimeConfig, run_id: str, logger: logging.Logger):
+def configure_runtime(
+    settings: config.RuntimeConfig, run_id: str, logger: logging.Logger,
+) -> Token[_RuntimeState | None]:
     """Apply validated settings after the optional env file has been loaded."""
     category_taxonomy.configure_fallback_cache(settings.category_fallback_cache)
     return _RUNTIME_STATE.set(_RuntimeState(settings, run_id, logger))
 
 
-def reset_runtime(token) -> None:
+def reset_runtime(token: Token[_RuntimeState | None]) -> None:
     """Restore the caller's runtime context after an isolated import."""
     _RUNTIME_STATE.reset(token)
 
 
-def configure_context(context: RunContext):
+def configure_context(context: RunContext) -> Token[_RuntimeState | None]:
     """Compatibility composition hook while source adapters migrate to context."""
     token = configure_runtime(context.settings, context.run_id, context.logger)
     global DAYS_AHEAD, TODAY, END_DATE
@@ -190,7 +192,7 @@ def configure_context(context: RunContext):
 
 
 def set_source_context(
-    result: Optional[SourceResult],
+    result: SourceResult | None,
     timeout_seconds: float | None = None,
     cancel_event: threading.Event | None = None,
 ) -> None:
@@ -216,6 +218,9 @@ def capture_parser_metrics() -> Iterator[dict[str, int]]:
     try:
         yield metrics
     finally:
+        if previous is not None:
+            previous["candidate_count"] += metrics["candidate_count"]
+            previous["out_of_window_count"] += metrics["out_of_window_count"]
         if previous is None:
             delattr(_SOURCE_CONTEXT, "parser_metrics")
         else:
@@ -300,12 +305,15 @@ def _read_response_body(response: Any, max_bytes: int, *, deadline: float) -> by
         chunk = read1(read_size)
         if not chunk:
             break
-        if not isinstance(chunk, (bytes, bytearray)):
+        if not isinstance(chunk, bytes | bytearray):
             raise TypeError("HTTP response body reader returned non-bytes data")
         body.extend(chunk)
         if len(body) > max_bytes > 0:
             raise ResponseTooLargeError(f"response exceeds {max_bytes} bytes")
     _response_read_timeout(deadline)
+    missing_bytes = getattr(response, "length", None)
+    if isinstance(missing_bytes, int) and missing_bytes > 0:
+        raise ConnectionError(f"response truncated, {missing_bytes} bytes missing")
     return bytes(body)
 
 
@@ -412,7 +420,7 @@ def _retry_delay(exc: Exception, attempt_index: int) -> float:
 def _is_retryable_fetch_error(exc: Exception) -> bool:
     if isinstance(exc, urllib.error.HTTPError):
         return exc.code in _TRANSIENT_HTTP_STATUSES
-    return isinstance(exc, (urllib.error.URLError, TimeoutError, ConnectionError))
+    return isinstance(exc, urllib.error.URLError | TimeoutError | ConnectionError)
 
 
 def _close_http_error(exc: Exception) -> None:
@@ -426,7 +434,7 @@ def browser_headers(
     accept: str,
     sec_fetch_mode: str,
     sec_fetch_dest: str,
-    extra: Optional[dict] = None,
+    extra: dict | None = None,
 ) -> dict:
     """Return realistic browser request headers for public event-source fetches.
 
@@ -458,12 +466,12 @@ def browser_headers(
 def fetch_url(
     url: str,
     timeout: int = 15,
-    headers: Optional[dict] = None,
+    headers: dict | None = None,
     accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     sec_fetch_mode: str = "navigate",
     sec_fetch_dest: str = "document",
-    expected_content_types: Optional[tuple] = None,
-    retry_attempts: Optional[int] = None,
+    expected_content_types: tuple | None = None,
+    retry_attempts: int | None = None,
     accepted_http_statuses: tuple[int, ...] = (),
 ) -> str:
     """GET a URL and return decoded text. Raises on network/HTTP error.
@@ -491,8 +499,9 @@ def fetch_url(
         try:
             started = time.perf_counter()
             req = urllib.request.Request(url, headers=hdrs)
-            with _host_request_slot(url, deadline):
-                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
+            with _host_request_slot(url, deadline), closing(
+                urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))
+            ) as resp:
                     headers_obj = getattr(resp, "headers", None)
                     content_type = (
                         headers_obj.get_content_type()
@@ -516,8 +525,9 @@ def fetch_url(
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             try:
-                return body.decode(charset or "utf-8")
-            except UnicodeDecodeError:
+                encoding = "utf-8-sig" if not charset or charset.casefold() == "utf-8" else charset
+                return body.decode(encoding)
+            except (UnicodeDecodeError, LookupError):
                 # A few long-running regional calendars advertise UTF-8 while
                 # still mixing in individual Windows-1252 bytes. Preserve both
                 # valid UTF-8 and those legacy characters instead of corrupting
@@ -528,7 +538,7 @@ def fetch_url(
                     if 0xDC80 <= ord(char) <= 0xDCFF else char
                     for char in decoded
                 )
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - retry attempts must isolate transport failures
             if isinstance(exc, urllib.error.HTTPError) and exc.code in accepted_http_statuses:
                 headers_obj = exc.headers
                 content_type = (
@@ -575,7 +585,7 @@ def fetch_url(
     raise RuntimeError("fetch_url retry loop exhausted unexpectedly")  # pragma: no cover
 
 
-def fetch_json(url: str, timeout: int = 15, headers: Optional[dict] = None):
+def fetch_json(url: str, timeout: int = 15, headers: dict | None = None) -> Any:
     """Fetch and decode a JSON API response with a strict content-type guard."""
     return json.loads(fetch_url(
         url, timeout=timeout, headers=headers,
@@ -642,15 +652,14 @@ def fetch_url_with_brightdata(
     )
     settings = _runtime_state().settings
     try:
-        with _host_request_slot(_BRIGHT_DATA_API_URL, deadline):
-            with closing(urllib.request.urlopen(
-                request,
-                timeout=_remaining_timeout(deadline, max(timeout, 120)),
-            )) as response:
-                raw = _read_response_body(
-                    response, settings.http_max_response_bytes, deadline=deadline,
-                )
-                api_status = getattr(response, "status", 200)
+        with _host_request_slot(_BRIGHT_DATA_API_URL, deadline), closing(urllib.request.urlopen(
+            request,
+            timeout=_remaining_timeout(deadline, max(timeout, 120)),
+        )) as response:
+            raw = _read_response_body(
+                response, settings.http_max_response_bytes, deadline=deadline,
+            )
+            api_status = getattr(response, "status", 200)
     except Exception as exc:
         _raise_brightdata_failure(url, started, exc)
 
@@ -671,7 +680,7 @@ def fetch_url_with_brightdata(
             target_status = api_status
             body = decoded
 
-    if not isinstance(target_status, (int, str)):
+    if not isinstance(target_status, int | str):
         _raise_brightdata_failure(
             url, started, RuntimeError("Bright Data response omitted the target status"))
     try:
@@ -725,6 +734,14 @@ def fetch_url_with_brightdata_fallback(
         cancel_event = getattr(_SOURCE_CONTEXT, "cancel_event", None)
         if cancel_event is not None and cancel_event.is_set():
             raise
+        # A proxy fallback is a fresh network request. Never begin it after the
+        # source's hard deadline merely because the watchdog has not set its
+        # cooperative cancellation flag yet.
+        hard_deadline = getattr(_SOURCE_CONTEXT, "hard_deadline", None)
+        _remaining_timeout(
+            hard_deadline if hard_deadline is not None else _request_deadline(),
+            timeout,
+        )
         api_key = os.environ.get("BRIGHT_DATA_API_KEY", "").strip()
         zone = os.environ.get("BRIGHT_DATA_ZONE", "").strip()
         hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
@@ -813,14 +830,14 @@ def _detail_page_cache_max_bytes(namespace: str) -> int:
 
 
 def _prune_detail_page_cache_entries(
-    entries: dict,
+    entries: dict[str, Any],
     *,
     namespace: str,
     ttl_seconds: float,
     now: float,
-) -> dict[str, dict]:
+) -> dict[str, DetailCacheEntry]:
     """Drop expired entries, then retain the newest entries within both caps."""
-    valid: list[tuple[str, dict]] = []
+    valid: list[tuple[str, DetailCacheEntry]] = []
     for url, entry in entries.items():
         if not isinstance(url, str) or not isinstance(entry, dict):
             continue
@@ -847,7 +864,7 @@ def _prune_detail_page_cache_entries(
         {"version": _DETAIL_PAGE_CACHE_VERSION, "namespace": namespace, "entries": {}},
         ensure_ascii=False, separators=(",", ":"),
     ).encode("utf-8"))
-    retained: dict[str, dict] = {}
+    retained: dict[str, DetailCacheEntry] = {}
     serialized_size = empty_payload_size
     for url, entry in valid:
         if len(retained) >= max_entries:
@@ -899,8 +916,11 @@ def _load_detail_page_cache(namespace: str, ttl_seconds: float) -> DetailCacheSt
     if (isinstance(payload, dict)
             and payload.get("version") == _DETAIL_PAGE_CACHE_VERSION
             and payload.get("namespace") == slug):
+        raw_entries = payload.get("entries") or {}
+        if not isinstance(raw_entries, dict):
+            raw_entries = {}
         entries = _prune_detail_page_cache_entries(
-            payload.get("entries") or {}, namespace=slug,
+            raw_entries, namespace=slug,
             ttl_seconds=ttl_seconds, now=time.time(),
         )
 
@@ -956,10 +976,8 @@ def _persist_detail_page_cache(state: DetailCacheState) -> dict[str, str] | None
         return None
     except OSError as exc:
         log_source_error(f"{state['namespace']} detail cache", exc)
-        try:
+        with suppress(OSError):
             temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
         return {
             "source": "detail-cache",
             "error_type": type(exc).__name__,
@@ -973,9 +991,12 @@ def flush_detail_page_caches(namespace: str | None = None) -> list[dict[str, str
     with _DETAIL_PAGE_CACHE_LOCK:
         slug = _detail_page_cache_slug(namespace) if namespace else None
         for key, state in list(_DETAIL_PAGE_CACHE_STATES.items()):
-            if state.get("dirty") and (slug is None or key == slug):
-                if warning := _persist_detail_page_cache(state):
-                    warnings.append(warning)
+            if (
+                state.get("dirty")
+                and (slug is None or key == slug)
+                and (warning := _persist_detail_page_cache(state))
+            ):
+                warnings.append(warning)
     return warnings
 
 
@@ -987,7 +1008,7 @@ def fetch_detail_url(
     brightdata_fallback: bool = False,
     brightdata: bool = False,
     cache_failures: bool = False,
-    retry_attempts: Optional[int] = None,
+    retry_attempts: int | None = None,
     **fetch_kwargs: Any,
 ) -> str:
     """Fetch a public event detail page through the persistent TTL cache.
@@ -1078,7 +1099,7 @@ def parse_float(value: Any, default: float = 0.0) -> float:
 
 
 def post_json(url: str, payload: dict[str, Any], timeout: int = 45,
-              headers: Optional[dict[str, str]] = None,
+              headers: dict[str, str] | None = None,
               retry_safe: bool = False) -> dict[str, Any]:
     """POST JSON and parse JSON; callers opt into retries for idempotent APIs."""
     hdrs = browser_headers(
@@ -1095,15 +1116,16 @@ def post_json(url: str, payload: dict[str, Any], timeout: int = 45,
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
-            with _host_request_slot(url, deadline):
-                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
+            with _host_request_slot(url, deadline), closing(
+                urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))
+            ) as resp:
                     body = _read_response_body(
                         resp, settings.http_max_response_bytes, deadline=deadline,
                     )
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - retry attempts must isolate transport failures
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
             delay = _retry_delay(exc, attempt) if retry else 0
@@ -1115,7 +1137,7 @@ def post_json(url: str, payload: dict[str, Any], timeout: int = 45,
 
 
 def post_form(url: str, fields: Any, timeout: int = 45,
-              headers: Optional[dict[str, str]] = None,
+              headers: dict[str, str] | None = None,
               retry_safe: bool = False) -> dict[str, Any]:
     """POST URL-encoded form fields and parse a JSON response."""
     hdrs = browser_headers(
@@ -1132,15 +1154,16 @@ def post_form(url: str, fields: Any, timeout: int = 45,
     for attempt in range(attempts):
         try:
             started = time.perf_counter()
-            with _host_request_slot(url, deadline):
-                with closing(urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))) as resp:
+            with _host_request_slot(url, deadline), closing(
+                urllib.request.urlopen(req, timeout=_remaining_timeout(deadline, timeout))
+            ) as resp:
                     body = _read_response_body(
                         resp, settings.http_max_response_bytes, deadline=deadline,
                     )
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
             return json.loads(body.decode("utf-8"))
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - retry attempts must isolate transport failures
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
             delay = _retry_delay(exc, attempt) if retry else 0
@@ -1156,8 +1179,7 @@ def extract_json_array(text: str) -> list:
     if not text:
         return []
     candidates = [text]
-    for m in re.finditer(r"```(?:json)?\s*(.*?)```", text, re.S | re.I):
-        candidates.append(m.group(1))
+    candidates.extend(m.group(1) for m in re.finditer(r"```(?:json)?\s*(.*?)```", text, re.S | re.I))
     arr_match = re.search(r"\[[\s\S]*\]", text)
     if arr_match:
         candidates.append(arr_match.group(0))
@@ -1166,7 +1188,7 @@ def extract_json_array(text: str) -> list:
         try:
             parsed = json.loads(candidate.strip())
             return parsed if isinstance(parsed, list) else []
-        except json.JSONDecodeError as exc:
+        except json.JSONDecodeError as exc:  # noqa: PERF203 - candidates are independent JSON envelopes
             last_error = exc
             continue
     if last_error is not None:
@@ -1178,10 +1200,11 @@ def extract_json_array(text: str) -> list:
 
 def clean_html(text: str) -> str:
     """Strip tags/entities and collapse whitespace."""
-    text = unescape(text or "")
+    text = text or ""
     text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
     text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.S | re.I)
-    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"</?[A-Za-z][^>]*>", " ", text)
+    text = unescape(text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -1209,14 +1232,15 @@ def clean_html_blocks(text: str) -> str:
     detail page. Block boundaries become a blank line, ``<br>`` a single one,
     and only horizontal whitespace is collapsed.
     """
-    text = unescape(text or "")
+    text = text or ""
     text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
     text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.S | re.I)
     text = _LINE_BREAK_TAG_PATTERN.sub("\n", text)
     text = _LIST_ITEM_CLOSE_PATTERN.sub("", text)
     text = _LIST_ITEM_OPEN_PATTERN.sub("\n", text)
     text = _BLOCK_TAG_PATTERN.sub("\n\n", text)
-    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"</?[A-Za-z][^>]*>", " ", text)
+    text = unescape(text)
     return normalize_block_text(text)
 
 
@@ -1274,9 +1298,7 @@ def is_raw_api_url(url: str) -> bool:
         return True
     if "/api/" in path or path.startswith("/api"):
         return True
-    if path in {"", "/"} and query and any(bit in query for bit in ("format=json", "output=json", "type=json", "eventid=")):
-        return True
-    return False
+    return bool(path in {"", "/"} and query and any(bit in query for bit in ("format=json", "output=json", "type=json", "eventid=")))
 
 
 def normalize_venue_name(value: str, city: str = "") -> str:
@@ -1524,7 +1546,7 @@ def in_date_range(date_str: str) -> bool:
     return window_contains(dt)
 
 
-def window_contains(start_dt: Optional[datetime], end_dt: Optional[datetime] = None) -> bool:
+def window_contains(start_dt: datetime | None, end_dt: datetime | None = None) -> bool:
     """Return whether a dated event overlaps the inclusive report window."""
     if start_dt is None:
         return False
@@ -1549,8 +1571,8 @@ def event_in_window(event: dict) -> bool:
 
 
 def event_in_window_and_radius(
-    start_dt: Optional[datetime], end_dt: Optional[datetime], city: str,
-    coords: Optional[tuple] = None,
+    start_dt: datetime | None, end_dt: datetime | None, city: str,
+    coords: tuple | None = None,
 ) -> bool:
     """Cheap preflight for detail-page fan-out before full event construction."""
     if not window_contains(start_dt, end_dt):
@@ -2093,7 +2115,9 @@ def _structured_event_times(
     return structured_start, structured_end
 
 
-def _event_location(city: str, venue: str, coords: tuple | None):
+def _event_location(
+    city: str, venue: str, coords: tuple | None,
+) -> tuple[VenueResolution, float | None, str, str]:
     canonical_venue = resolve_venue(venue, city)
     registry_coords = (
         (canonical_venue.venue_latitude, canonical_venue.venue_longitude)
@@ -2246,10 +2270,10 @@ def build_event(draft: EventDraft) -> RawEvent | None:
     return ev
 
 
-def make_event(title: str, start_dt: Optional[datetime], end_dt: Optional[datetime],
+def make_event(title: str, start_dt: datetime | None, end_dt: datetime | None,
                venue: str, city: str, description: str, link: str, source: str,
                category: str, trust: float = 1.0, time_text: str = "",
-               coords: Optional[tuple] = None, all_day: Optional[bool] = None,
+               coords: tuple | None = None, all_day: bool | None = None,
                timezone_name: str = "Europe/Berlin", source_id: str = "",
                description_source: str = "",
                admission: AdmissionDefault | None = None,
@@ -2287,19 +2311,25 @@ def is_junk_event(ev: dict) -> bool:
 def jsonld_event_items(html: str) -> list[dict[str, Any]]:
     """Extract schema.org Event objects from JSON-LD blobs."""
     items: list[dict[str, Any]] = []
+    seen: set[int] = set()
 
     def walk(obj: Any) -> None:
         if isinstance(obj, list):
             for x in obj:
                 walk(x)
         elif isinstance(obj, dict):
+            if id(obj) in seen:
+                return
+            seen.add(id(obj))
             typ = obj.get("@type")
             types = typ if isinstance(typ, list) else [typ]
-            if any(t and "Event" in str(t) for t in types):
+            if any(
+                str(t or "").strip().rstrip("/").rsplit("/", 1)[-1].endswith("Event")
+                for t in types
+            ):
                 items.append(obj)
-            for key in ("@graph", "itemListElement", "item"):
-                if key in obj:
-                    walk(obj[key])
+            for value in obj.values():
+                walk(value)
 
     for m in re.finditer(r"<script[^>]+application/ld\+json[^>]*>(.*?)</script>", html, re.S | re.I):
         raw = m.group(1).strip()
@@ -2322,14 +2352,19 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
 def _jsonld_location(loc: Any) -> tuple[str, str]:
     """Return (venue_name, city) from a schema.org location that may be a dict or list."""
     if isinstance(loc, list):
-        loc = loc[0] if loc else {}
+        loc = next((item for item in loc if isinstance(item, dict | str)), {})
+    if isinstance(loc, str):
+        return clean_html(loc), ""
     if not isinstance(loc, dict):
         return "", ""
-    venue = loc.get("name", "") or ""
-    address = loc.get("address", {})
+    location_type = str(loc.get("@type") or "").strip().rstrip("/").rsplit("/", 1)[-1]
+    venue = "" if location_type == "PostalAddress" else _jsonld_text(loc.get("name"))
+    address = loc if location_type == "PostalAddress" else loc.get("address", {})
     city = ""
     if isinstance(address, dict):
         city = address.get("addressLocality") or ""
+    elif isinstance(address, str):
+        city = guess_city_from_text(address) or ""
     city = re.sub(r"^\d{5}\s+", "", str(city)).strip()
     return venue, city
 
@@ -2354,6 +2389,7 @@ def _jsonld_entity_names(value: Any, *, max_length: int = 500) -> str:
     candidates = value if isinstance(value, list) else [value]
     names: list[str] = []
     for candidate in candidates:
+        candidate_name = candidate
         if isinstance(candidate, dict):
             entity_type = candidate.get("@type")
             entity_types = entity_type if isinstance(entity_type, list) else [entity_type]
@@ -2363,10 +2399,10 @@ def _jsonld_entity_names(value: Any, *, max_length: int = 500) -> str:
                 for value in explicit_types
             ):
                 continue
-            candidate = candidate.get("name", "")
-        if not isinstance(candidate, str):
+            candidate_name = candidate.get("name", "")
+        if not isinstance(candidate_name, str):
             continue
-        name = clean_html(candidate).strip()
+        name = clean_html(candidate_name).strip()
         if not name or name in names:
             continue
         joined_length = sum(map(len, names)) + 2 * len(names) + len(name)
@@ -2376,7 +2412,7 @@ def _jsonld_entity_names(value: Any, *, max_length: int = 500) -> str:
 
 
 def _apply_jsonld_provenance(
-    event: RawEvent, *, organizer: str, admission_price: Optional[str], availability: str,
+    event: RawEvent, *, organizer: str, admission_price: str | None, availability: str,
 ) -> None:
     """Attach optional source evidence without duplicating occurrence paths."""
     if organizer:
@@ -2397,7 +2433,7 @@ def _jsonld_schedule_items(schedule: Any) -> list[dict[str, Any]]:
     return []
 
 
-def _jsonld_schedule_dt(schedule: dict, date_key: str, time_key: str = "") -> Optional[datetime]:
+def _jsonld_schedule_dt(schedule: dict, date_key: str, time_key: str = "") -> datetime | None:
     """Parse a Schedule date and optional time into a naive datetime."""
     dt = parse_iso_date(schedule.get(date_key, ""))
     if not dt:
@@ -2419,7 +2455,7 @@ def _jsonld_schedule_time_text(schedule: dict) -> str:
     return start or end
 
 
-def _jsonld_accessible_for_free(value: Any) -> Optional[bool]:
+def _jsonld_accessible_for_free(value: Any) -> bool | None:
     """Parse schema.org Boolean values without treating arbitrary strings as true."""
     if isinstance(value, bool):
         return value
@@ -2432,7 +2468,7 @@ def _jsonld_accessible_for_free(value: Any) -> Optional[bool]:
     return None
 
 
-def _jsonld_offer_price(offers: Any) -> Optional[str]:
+def _jsonld_offer_price(offers: Any) -> str | None:
     """Return a conservative schema.org Offer price as the legacy display string."""
     if isinstance(offers, dict):
         candidates = [offers]
@@ -2443,14 +2479,14 @@ def _jsonld_offer_price(offers: Any) -> Optional[str]:
     has_explicitly_free_offer = False
     for offer in candidates:
         amount = offer.get("price")
-        if amount in (None, "") or isinstance(amount, (dict, list, bool)):
+        if amount in (None, "") or isinstance(amount, dict | list | bool):
             continue
         amount_text = clean_html(str(amount)).strip()
         if not amount_text:
             continue
         currency = offer.get("priceCurrency")
         currency_text = (
-            "" if isinstance(currency, (dict, list)) else clean_html(str(currency or "")).strip()
+            "" if isinstance(currency, dict | list) else clean_html(str(currency or "")).strip()
         )
         if _FREE_PRICE_PATTERN.fullmatch(amount_text):
             has_explicitly_free_offer = True
@@ -2483,7 +2519,24 @@ def _jsonld_offer_availability(offers: Any) -> str:
     return ""
 
 
-def _jsonld_admission_price(item: dict) -> Optional[str]:
+def _jsonld_text(value: Any) -> str:
+    """Return the first textual JSON-LD value without guessing from objects."""
+    if isinstance(value, list):
+        value = next((item for item in value if isinstance(item, str)), "")
+    return value if isinstance(value, str) else ""
+
+
+def jsonld_event_status(value: object) -> str:
+    """Map a schema.org eventStatus value to the canonical publication status."""
+    token = _jsonld_schema_token(value, ("EventCancelled", "EventPostponed"))
+    if token == "EventCancelled":
+        return "cancelled"
+    if token == "EventPostponed":
+        return "postponed"
+    return ""
+
+
+def _jsonld_admission_price(item: dict) -> str | None:
     """Resolve structured admission, with the direct free-access flag authoritative."""
     accessible_for_free = _jsonld_accessible_for_free(item.get("isAccessibleForFree"))
     offer_price = _jsonld_offer_price(item.get("offers"))
@@ -2502,7 +2555,7 @@ _VISIBLE_PAID_ADMISSION_RE = re.compile(
 )
 
 
-def _visible_paid_admission_price(text: str) -> Optional[str]:
+def _visible_paid_admission_price(text: str) -> str | None:
     """Return an explicit visitor price from prose, without guessing fees."""
     match = _VISIBLE_PAID_ADMISSION_RE.search(text or "")
     if not match:
@@ -2521,14 +2574,18 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
     """Build events from every schema.org Event in a page's JSON-LD."""
     events = []
     for item in jsonld_event_items(html):
-        title = item.get("name", "")
-        start_dt = parse_iso_date(item.get("startDate", ""))
-        end_dt = parse_iso_date(item.get("endDate", "")) or start_dt
-        venue, city = _jsonld_location(item.get("location"))
-        city = city or default_city
-        desc = item.get("description", "")
-        link = item.get("url") or default_link
-        admission_price = _jsonld_admission_price(item)
+        try:
+            title = _jsonld_text(item.get("name"))
+            start_dt = parse_iso_date(_jsonld_text(item.get("startDate")))
+            end_dt = parse_iso_date(_jsonld_text(item.get("endDate"))) or start_dt
+            venue, city = _jsonld_location(item.get("location"))
+            city = city or default_city
+            desc = _jsonld_text(item.get("description"))
+            link = _jsonld_text(item.get("url")) or default_link
+            admission_price = _jsonld_admission_price(item)
+        except (TypeError, AttributeError, ValueError) as exc:
+            log_source_error("JSON-LD event", exc)
+            continue
         # Calendar plugins often publish a default ``price: 0`` even when the
         # visible event copy names a visitor fee. A narrowly phrased amount in
         # that copy is stronger evidence than this structured placeholder.
@@ -2539,6 +2596,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             admission_price = _visible_paid_admission_price(desc) or admission_price
         organizer = _jsonld_entity_names(item.get("organizer"))
         availability = _jsonld_offer_availability(item.get("offers"))
+        event_status = jsonld_event_status(item.get("eventStatus"))
 
         schedules = _jsonld_schedule_items(item.get("eventSchedule"))
         if schedules:
@@ -2553,6 +2611,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                     category_locked=category_locked,
                 )
                 if ev:
+                    if event_status:
+                        ev["status"] = event_status
                     _apply_jsonld_provenance(
                         ev,
                         organizer=organizer,
@@ -2572,6 +2632,8 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             category_locked=category_locked,
         )
         if ev:
+            if event_status:
+                ev["status"] = event_status
             _apply_jsonld_provenance(
                 ev,
                 organizer=organizer,
@@ -2598,14 +2660,20 @@ def _ical_unescape(text: str, *, preserve_breaks: bool = False) -> str:
     keeps it; a SUMMARY or URL stays on one line.
     """
     break_replacement = "\n" if preserve_breaks else " "
-    return (text.replace("\\n", break_replacement).replace("\\N", break_replacement)
-                .replace('\\"', '"')
-                .replace("\\,", ",").replace("\\;", ";").replace("\\\\", "\\")).strip()
+    replacements = {
+        "n": break_replacement, "N": break_replacement, '"': '"',
+        ",": ",", ";": ";", "\\": "\\",
+    }
+    return re.sub(
+        r'\\([\\;,nN"])',
+        lambda match: replacements[match.group(1)],
+        text,
+    ).strip()
 
 
 def events_from_time_listing(html: str, source: str, default_city: str, category: str,
                              trust: float, base_url: str, min_title: int = 6,
-                             max_chars: int = 900, anchor_pattern: Optional[str] = None) -> list:
+                             max_chars: int = 900, anchor_pattern: str | None = None) -> list:
     """Scrape a server-rendered listing that pairs ``<time datetime="…">`` tags with
     nearby title links — common in TYPO3 ``tx_news`` / municipal calendars that
     expose no iCal or JSON-LD feed. Each ``<time>`` is matched to the closest
@@ -2618,7 +2686,7 @@ def events_from_time_listing(html: str, source: str, default_city: str, category
     markup (returns the events it could pair, or []).
     """
     times = [(m.start(), m.group(1)) for m in re.finditer(r'<time[^>]*datetime="([^"]+)"', html)]
-    pattern = anchor_pattern or r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>'
+    pattern = anchor_pattern or r'<a[^>]+href="([^"]+)"[^>]*>(.{0,2000}?)</a>'
     anchors = [(m.start(), m.group(1), clean_html(m.group(2)))
                for m in re.finditer(pattern, html, re.S | re.I)]
     # A scoped title pattern already excludes nav links; only the broad default
@@ -2661,7 +2729,7 @@ def events_from_ecmaps_tiles(html: str, source: str, default_city: str, category
     tile anchor instead of relying on line structure.
     """
     events, seen = [], set()
-    for m in re.finditer(r'<a[^>]+href="(?P<href>[^"]+)"[^>]*class="[^"]*tile__link[^"]*"[^>]*>(?P<body>.*?)</a>',
+    for m in re.finditer(r'<a[^>]+href="(?P<href>[^"]+)"[^>]*class="[^"]*tile__link[^"]*"[^>]*>(?P<body>.{0,2000}?)</a>',
                          html, re.S | re.I):
         href = m.group("href")
         body = m.group("body")
@@ -2715,7 +2783,7 @@ def _wp_event_manager_datetimes(text: str) -> tuple:
 def events_from_wp_event_manager_listing(html: str, source: str, category: str, trust: float) -> list:
     """Parse WP Event Manager list cards, skipping locations outside known towns."""
     events, seen = [], set()
-    for m in re.finditer(r'<div class="event_listing\b(?P<body>.*?)</a>', html, re.S | re.I):
+    for m in re.finditer(r'<div class="event_listing\b(?P<body>.{0,2000}?)</a>', html, re.S | re.I):
         body = m.group("body")
         href_m = re.search(r'<a[^>]+href="([^"]+)"', body, re.S | re.I)
         title_m = re.search(r'wpem-event-title.*?<h3[^>]*>(.*?)</h3>', body, re.S | re.I)
@@ -2753,7 +2821,7 @@ def _ical_content_line(line: str) -> tuple:
     return line, ""
 
 
-def _ical_parse_dt(value: str, property_key: str = "") -> Optional[datetime]:
+def _ical_parse_dt(value: str, property_key: str = "") -> datetime | None:
     v = (value or "").strip()
     is_utc = v.endswith("Z")
     if re.match(r"^\d{8}T\d{6}Z?$", v):
@@ -2768,7 +2836,8 @@ def _ical_parse_dt(value: str, property_key: str = "") -> Optional[datetime]:
         tzid = re.search(r"(?:^|;)TZID=([^;:]+)", property_key, re.IGNORECASE)
         if tzid:
             try:
-                return parsed.replace(tzinfo=ZoneInfo(tzid.group(1))).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
+                timezone_name = tzid.group(1).strip().strip('"')
+                return parsed.replace(tzinfo=ZoneInfo(timezone_name)).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
             except (ValueError, ZoneInfoNotFoundError) as exc:
                 log_source_error("iCal timezone", exc)
         return parsed
@@ -2849,6 +2918,24 @@ def _ical_date_only_days(values: list[tuple[str, str]]) -> set[date]:
     }
 
 
+def _ical_duration(value: str) -> timedelta | None:
+    """Parse the bounded RFC 5545 duration subset used by event feeds."""
+    match = re.fullmatch(
+        r"P(?:(?P<weeks>\d+)W)?(?:(?P<days>\d+)D)?"
+        r"(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)?",
+        (value or "").strip().upper(),
+    )
+    if not match or not any(match.groupdict().values()):
+        return None
+    return timedelta(
+        weeks=int(match.group("weeks") or 0),
+        days=int(match.group("days") or 0),
+        hours=int(match.group("hours") or 0),
+        minutes=int(match.group("minutes") or 0),
+        seconds=int(match.group("seconds") or 0),
+    )
+
+
 def _ical_recurrence_starts(
     start: datetime,
     rrule: str,
@@ -2884,7 +2971,10 @@ def _ical_recurrence_starts(
         count = int(parts["COUNT"]) if "COUNT" in parts else None
     except ValueError:
         return [start], "invalid RRULE INTERVAL or COUNT"
-    until = _ical_parse_dt(parts.get("UNTIL", "")) if parts.get("UNTIL") else None
+    until_value = parts.get("UNTIL", "")
+    until = _ical_parse_dt(until_value) if until_value else None
+    if until is not None and re.fullmatch(r"\d{8}", until_value):
+        until = until.replace(hour=23, minute=59, second=59)
     byday_tokens = [token for token in parts.get("BYDAY", "").split(",") if token]
     if any(token not in _ICAL_WEEKDAYS for token in byday_tokens):
         return [start], "unsupported ordinal or invalid RRULE BYDAY"
@@ -2951,13 +3041,27 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         sec_fetch_mode="no-cors",
         sec_fetch_dest="empty",
     ))
+    raw = re.sub(r"BEGIN:VALARM.*?END:VALARM", "", raw, flags=re.S | re.I)
     events: list[RawEvent] = []
     blocks = re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", raw, re.S)
+    recurrence_overrides: set[tuple[str, datetime]] = set()
+    for block in blocks:
+        uid = ""
+        recurrence_id: datetime | None = None
+        for line in re.split(r"\r?\n", block):
+            key, val = _ical_content_line(line)
+            name = key.split(";", 1)[0].strip().upper()
+            if name == "UID":
+                uid = _ical_unescape(val)
+            elif name == "RECURRENCE-ID":
+                recurrence_id = _ical_parse_dt(val, key)
+        if uid and recurrence_id is not None:
+            recurrence_overrides.add((uid, recurrence_id))
     for block in blocks:
         props: dict[str, str] = {}
         property_keys: dict[str, str] = {}
         multi_props: dict[str, list[tuple[str, str]]] = {}
-        for line in block.splitlines():
+        for line in re.split(r"\r?\n", block):
             if ":" not in line:
                 continue
             key, val = _ical_content_line(line)
@@ -2967,6 +3071,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
             if name in (
                 "SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL",
                 "CATEGORIES", "ATTACH", "RRULE", "RDATE", "EXDATE",
+                "STATUS", "UID", "RECURRENCE-ID", "DURATION",
             ):
                 props.setdefault(name, val)
                 property_keys.setdefault(name, key)
@@ -2974,12 +3079,15 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         if not props.get("SUMMARY"):
             continue
         start_dt = _ical_parse_dt(props.get("DTSTART", ""), property_keys.get("DTSTART", ""))
-        raw_end_dt = _ical_parse_dt(
-            props.get("DTEND", ""), property_keys.get("DTEND", "")
-        ) or start_dt
-        all_day = bool(re.match(r"^\d{8}$", props.get("DTSTART", "").strip()))
         if start_dt is None:
             continue
+        raw_end_dt = _ical_parse_dt(
+            props.get("DTEND", ""), property_keys.get("DTEND", "")
+        )
+        if raw_end_dt is None:
+            parsed_duration = _ical_duration(props.get("DURATION", ""))
+            raw_end_dt = start_dt + parsed_duration if parsed_duration else start_dt
+        all_day = bool(re.match(r"^\d{8}$", props.get("DTSTART", "").strip()))
         duration = (raw_end_dt - start_dt) if raw_end_dt else timedelta(0)
         starts, recurrence_warning = _ical_recurrence_starts(
             start_dt,
@@ -2998,6 +3106,12 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         event_categories = _ical_unescape(props.get("CATEGORIES", "")).strip()
         cat = event_categories or (category or "").strip()
         for occurrence_start in starts:
+            if (
+                not props.get("RECURRENCE-ID")
+                and props.get("UID")
+                and (props["UID"], occurrence_start) in recurrence_overrides
+            ):
+                continue
             occurrence_end = occurrence_start + duration
             # RFC 5545 all-day DTEND is exclusive. Present the inclusive last day.
             if all_day and duration > timedelta(0):
@@ -3026,6 +3140,8 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                 category_locked=category_locked,
             )
             if ev:
+                if props.get("STATUS", "").strip().upper() == "CANCELLED":
+                    ev["status"] = "cancelled"
                 if description_max_chars is not None:
                     ev["description"] = concise_description(
                         full_description, max_chars=description_max_chars

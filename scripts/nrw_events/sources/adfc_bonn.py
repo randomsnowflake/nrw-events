@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 from .. import common, richtext
 from . import regional_common as rc
 
-
 SOURCE = "ADFC Bonn/Rhein-Sieg"
 SOURCE_ID = "adfc-bonn"
 SEARCH_URL = "https://api-touren-termine.adfc.de/api/eventItems/search"
@@ -33,7 +32,7 @@ def _clean(value: object) -> str:
 
 
 def _number(value: object) -> str:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, int | float):
         return ""
     number = float(value)
     if number.is_integer():
@@ -74,7 +73,7 @@ def _location_parts(payload: dict, listing: dict) -> tuple[str, str, str, tuple 
     coords = None
     latitude = location.get("latitude", listing.get("latitude"))
     longitude = location.get("longitude", listing.get("longitude"))
-    if isinstance(latitude, (int, float)) and isinstance(longitude, (int, float)):
+    if isinstance(latitude, int | float) and isinstance(longitude, int | float):
         coords = (float(latitude), float(longitude))
 
     if not name and not street:

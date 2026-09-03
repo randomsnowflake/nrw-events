@@ -15,24 +15,35 @@ import time
 import uuid
 import weakref
 from collections import Counter
-from collections.abc import Mapping, Sequence
-from contextvars import copy_context
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from concurrent.futures import thread as futures_thread
+from contextvars import copy_context
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable, Optional, cast
+from typing import Any, cast
 
-from . import ai_enrichment, common, config, detail_enrichment, early_publication, highlights as highlight_selection, radio_primary_resolution, report, reviewed_summaries, series as series_entities
+from . import (
+    ai_enrichment,
+    common,
+    config,
+    detail_enrichment,
+    early_publication,
+    radio_primary_resolution,
+    report,
+    reviewed_summaries,
+)
+from . import highlights as highlight_selection
+from . import series as series_entities
 from .category_taxonomy import CATEGORIES
 from .health import (
-    bounded_diagnostic_text,
-    diagnostic_warning,
-    sanitized_warning,
     SourceFetchResult,
     SourceResult,
     SourceStatus,
+    bounded_diagnostic_text,
+    diagnostic_warning,
+    sanitized_warning,
 )
 from .identity import assign_event_ids, content_hash, event_id
 from .market_source_fallbacks import partition_directory_fallbacks
@@ -44,7 +55,6 @@ from .runtime import EventWindow, RunContext
 from .sources import SOURCE_FETCHERS, SOURCE_IDS
 from .title_normalization import normalize_event_title, title_looks_truncated
 from .validation import EventValidationError, validate_event
-
 
 # Keep the historical module-level name as the injection seam used by callers
 # and tests, while making the typed facade the production default.
@@ -140,6 +150,7 @@ class ImportResult:
     warnings: tuple[dict[str, str], ...] = ()
     timings: dict[str, int] = field(default_factory=dict)
     early_announcements: tuple[CanonicalEvent, ...] = ()
+    generated_at: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,7 +185,8 @@ def _run_source(
     started = time.monotonic()
     common.set_source_context(result, timeout_seconds, cancel_event)
     try:
-        fetched = fetch()
+        with common.capture_parser_metrics() as adapter_metrics:
+            fetched = fetch()
         if isinstance(fetched, SourceFetchResult):
             events = list(fetched.events)
             result.status = fetched.status
@@ -191,6 +203,27 @@ def _run_source(
             events = fetched
         if not isinstance(events, list):
             raise TypeError(f"source returned {type(events).__name__}, expected list")
+        if not any(
+            endpoint.get("parser_type")
+            for endpoint in result.endpoints.values()
+        ):
+            result.endpoint(
+                f"adapter://{result.source_id}",
+                parser_type="adapter",
+                candidate_count=max(adapter_metrics["candidate_count"], len(events)),
+                out_of_window_count=adapter_metrics["out_of_window_count"],
+                parsed_event_count=len(events),
+                parser_empty=(
+                    not isinstance(fetched, SourceFetchResult)
+                    and not events
+                    and adapter_metrics["out_of_window_count"] == 0
+                    and not result.warnings
+                    and not any(
+                        "error_type" in endpoint
+                        for endpoint in result.endpoints.values()
+                    )
+                ),
+            )
         health_events = events
         discovery_events = [
             event for event in events
@@ -225,10 +258,18 @@ def _run_source(
             endpoint.get("parser_empty") is True
             for endpoint in result.endpoints.values()
         )
+        endpoint_errors = any(
+            "error_type" in endpoint
+            for endpoint in result.endpoints.values()
+        )
         if typed_status in {
             SourceStatus.DISABLED, SourceStatus.SCHEDULED_SKIP,
             SourceStatus.PARSER_EMPTY, SourceStatus.DEGRADED,
-        } or (typed_status == SourceStatus.HEALTHY_EMPTY and not explicit_parser_empty):
+        } or (
+            typed_status == SourceStatus.HEALTHY_EMPTY
+            and not explicit_parser_empty
+            and not endpoint_errors
+        ):
             result.status = typed_status
         # A warning means an authoritative empty result is not trustworthy. Keep
         # the source degraded so cross-run retention protects prior records.
@@ -331,6 +372,8 @@ def _run_source(
 
 def _run_status(results: dict[str, SourceResult], event_count: int) -> str:
     if event_count <= 0:
+        return "failed"
+    if results and not any(result.event_source_ids for result in results.values()):
         return "failed"
     if any(result.status in {SourceStatus.FAILED, SourceStatus.DEGRADED, SourceStatus.PARSER_EMPTY}
            for result in results.values()):
@@ -640,8 +683,8 @@ def _retain_previous_events(
     for label in unpublished_fallback_source_ids & labels:
         runner_sources.setdefault(label, _RADIO_RUNNER_SOURCE)
     retained: list[CanonicalEvent] = []
-    expired_counts = {label: 0 for label in labels}
-    candidate_counts = {label: 0 for label in labels}
+    expired_counts = dict.fromkeys(labels, 0)
+    candidate_counts = dict.fromkeys(labels, 0)
     window_start = context.window.start.strftime("%Y-%m-%d")
     window_end = context.window.end.strftime("%Y-%m-%d")
     for raw_event in previous.get("events") or []:
@@ -720,6 +763,8 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
         result.baseline = {"previous_raw_event_count": prior_count}
         if prior_count >= minimum_count and result.raw_event_count == 0:
             result.anomalies.append("zero_after_recent_nonempty")
+        elif prior_count >= minimum_count and result.raw_event_count * 2 < prior_count:
+            result.anomalies.append("large_drop_after_recent_nonempty")
 
 
 def _source_result_for_identity(
@@ -872,13 +917,14 @@ def _attach_cross_run_fields(
     }
     enriched: list[CanonicalEvent] = []
     for event in events:
+        canonical_event = event
         if isinstance(event, dict):
-            event = CanonicalEvent(**{
+            canonical_event = CanonicalEvent(**{
                 name: event[name]
                 for name in CanonicalEvent.__dataclass_fields__
                 if name in event
             })
-        identifier = event_id(event)
+        identifier = event_id(canonical_event)
         prior = previous_by_id.get(identifier, {})
         first_seen = str(
             prior.get("first_seen_at")
@@ -886,16 +932,21 @@ def _attach_cross_run_fields(
             or previous.get("generated_at")
             or generated_at
         )
-        cancelled_at = event.cancelled_at
-        if event.status == "cancelled":
+        current_event = canonical_event
+        cancelled_at = current_event.cancelled_at
+        if current_event.status == "cancelled":
             cancelled_at = str(prior.get("cancelled_at") or cancelled_at or generated_at)
         candidate = replace(
-            event,
+            current_event,
             first_seen_at=first_seen,
             cancelled_at=cancelled_at,
             cancellation_source=(
-                event.cancellation_source
-                or (event.source if event.status in {"cancelled", "postponed"} else "")
+                current_event.cancellation_source
+                or (
+                    current_event.source
+                    if current_event.status in {"cancelled", "postponed"}
+                    else ""
+                )
             ),
         )
         enriched.append(replace(candidate, content_hash=content_hash(candidate)))
@@ -987,12 +1038,7 @@ def _uniquely_disambiguates_occurrence(
         ):
             return True
     shared_source_links = normalized_source_links(current) & normalized_source_links(prior)
-    if shared_source_links and any(
-        sum(link in normalized_source_links(event) for event in prior_group) == 1
-        for link in shared_source_links
-    ):
-        return True
-    return False
+    return bool(shared_source_links and any(sum(link in normalized_source_links(event) for event in prior_group) == 1 for link in shared_source_links))
 
 
 def _uniquely_matches_renamed_occurrence(
@@ -1123,17 +1169,19 @@ def _reconcile_published_ids(
 
 def _atomic_json(path: Path, payload: object) -> None:
     """Write a complete JSON document before atomically replacing its target."""
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent,
-                                     prefix=f".{path.name}.", suffix=".tmp") as handle:
-        json.dump(payload, handle, ensure_ascii=False, indent=2)
-        handle.write("\n")
-        handle.flush()
-        os.fsync(handle.fileno())
-        temp_name = handle.name
+    temp_name: str | None = None
     try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent,
+                                         prefix=f".{path.name}.", suffix=".tmp") as handle:
+            temp_name = handle.name
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(temp_name, path)
     except Exception:
-        Path(temp_name).unlink(missing_ok=True)
+        if temp_name is not None:
+            Path(temp_name).unlink(missing_ok=True)
         raise
 
 
@@ -1170,6 +1218,7 @@ def _publish_snapshots(
         immutable_metadata = generation_dir / "metadata.json"
         immutable_highlights = generation_dir / "highlights.json"
 
+        metadata["events_path"] = str(immutable_events)
         _atomic_json(immutable_events, events)
         _atomic_json(immutable_metadata, metadata)
         _atomic_json(immutable_highlights, highlights or {})
@@ -1277,11 +1326,11 @@ def _weekend_bounds(today: datetime) -> tuple[datetime, datetime]:
     return start, end
 
 
-def _parse_cli(argv: list[str], now: datetime | None = None) -> tuple[Optional[int], CliQuery, dict[str, object]]:
+def _parse_cli(argv: list[str], now: datetime | None = None) -> tuple[int | None, CliQuery, dict[str, object]]:
     args = _parser().parse_args(argv[1:])
     target = args.target or ""
     verb = target if target in VERBS else ""
-    positional_days: Optional[int] = None
+    positional_days: int | None = None
     if target and not verb:
         try:
             positional_days = int(target)
@@ -1440,6 +1489,25 @@ def _retained_events_without_fresh_duplicate(
             == comparison_text(match.group(1))
         )
 
+    def is_same_source_refresh(fresh: CanonicalEvent, retained: CanonicalEvent) -> bool:
+        """Match a retained occurrence even when its source corrected the venue."""
+        return bool(
+            _event_source_id(fresh) == _event_source_id(retained)
+            and comparison_text(str(fresh.get("title") or ""))
+            == comparison_text(str(retained.get("title") or ""))
+            and str(fresh.get("start_date") or "")
+            == str(retained.get("start_date") or "")
+            and comparison_text(str(fresh.get("city") or ""))
+            == comparison_text(str(retained.get("city") or ""))
+            and (
+                not fresh.get("start_at")
+                or not retained.get("start_at")
+                or report._same_explicit_start(
+                    str(fresh.get("start_at")), str(retained.get("start_at"))
+                )
+            )
+        )
+
     return [
         candidate
         for candidate in retained_events
@@ -1447,6 +1515,7 @@ def _retained_events_without_fresh_duplicate(
         and not any(
             report.events_are_duplicates(fresh_events[index], candidate)
             or is_legacy_dated_title_twin(fresh_events[index], candidate)
+            or is_same_source_refresh(fresh_events[index], candidate)
             for index in report._blocking_candidates(
                 candidate, candidate_index, blocking_frequencies
             )
@@ -1498,10 +1567,10 @@ def _enrich_promoted_fallbacks(
         )[0]
         for draft in drafts
     ]
-    for index, draft in zip(indexes, enriched_drafts):
+    for index, draft in zip(indexes, enriched_drafts, strict=False):
         try:
             resolved[index] = validate_event(draft)
-        except EventValidationError as exc:
+        except EventValidationError as exc:  # noqa: PERF203 - each optional detail result fails soft
             # Enrichment is optional. A page that pushes the record past a
             # quality rule leaves the audited fallback exactly as it was.
             common.log_source_error(
@@ -1711,7 +1780,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             if unstarted_names:
                 with started_condition:
                     started_condition.wait_for(
-                        lambda: any(name in started for name in unstarted_names),
+                        lambda names=unstarted_names: any(name in started for name in names),
                         timeout=0.05,
                     )
             now = time.monotonic()
@@ -1732,8 +1801,15 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 pending, timeout=wait_timeout, return_when=FIRST_COMPLETED
             )
             for future in completed:
+                name = futures[future]
+                if (
+                    name in started
+                    and time.monotonic() - started[name][0] >= started[name][3]
+                    and future.result()[0].duration_ms > started[name][3] * 1000
+                ):
+                    continue
                 pending.remove(future)
-                accept_result(futures[future], future)
+                accept_result(name, future)
 
             now = time.monotonic()
             timed_out = [
@@ -1744,7 +1820,10 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             for future in timed_out:
                 pending.remove(future)
                 name = futures[future]
-                if future.done():
+                if (
+                    future.done()
+                    and future.result()[0].duration_ms <= started[name][3] * 1000
+                ):
                     accept_result(name, future)
                     continue
                 worker = started[name][1]
@@ -1774,6 +1853,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         # once after all workers finish instead of serializing every source at
         # its boundary while other workers still need cache lookups.
         cache_warnings.extend(common.flush_detail_page_caches())
+    source_results = {
+        name: source_results[name]
+        for name in sources
+        if name in source_results
+    }
     source_import_duration_ms = round((time.monotonic() - import_started) * 1000)
     radio_result = source_results.get(_RADIO_RUNNER_SOURCE)
     promoted_fallback_event_ids: frozenset[str] = frozenset()
@@ -1795,9 +1879,13 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         unpublished_fallback_source_ids = resolution.unpublished_fallback_source_ids
         # The audited primary URL is only known now, so the promoted fallbacks
         # get their detail pass here rather than during the source import.
-        resolved_events = _enrich_promoted_fallbacks(
-            resolution.events, promoted_fallback_event_ids,
-        )
+        common.set_source_context(radio_result, settings.source_timeout_seconds)
+        try:
+            resolved_events = _enrich_promoted_fallbacks(
+                resolution.events, promoted_fallback_event_ids,
+            )
+        finally:
+            common.set_source_context(None)
         # This detail pass occurs after the source-worker cache flush above.
         # Persist its successful responses and failure backoff before exit.
         cache_warnings.extend(common.flush_detail_page_caches(
@@ -1941,11 +2029,11 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             )
         else:
             for index, candidate, raw_event in zip(
-                target_indexes, ai_candidates, ai_outputs,
+                target_indexes, ai_candidates, ai_outputs, strict=False,
             ):
                 try:
                     validated_output = validate_event(raw_event)
-                except EventValidationError as exc:
+                except EventValidationError as exc:  # noqa: PERF203 - each AI result validates independently
                     event = deduped[index]
                     ai_validation_warnings.append(diagnostic_warning(
                         event.source,
@@ -2002,7 +2090,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             series_title=row.get("series_title", ""),
             run_id=row.get("run_id", ""),
         )
-        for event, row in zip(deduped, series_rows)
+        for event, row in zip(deduped, series_rows, strict=False)
     ]
     deduped = _enforce_restricted_publication_boundary(deduped)
     deduped = [
@@ -2046,6 +2134,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
             "total_import_duration_ms": round((time.monotonic() - import_started) * 1000),
         },
         early_announcements=tuple(early_deduped),
+        generated_at=generated_at,
     )
 
 
@@ -2083,9 +2172,8 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
         sanitized_warning(warning)
         for warning in quality_gate_warnings(quality_metrics, source_result_payloads)
     ]
-    for event in events:
-        for warning in event.get("quality_warnings", []):
-            quality_warnings.append(sanitized_warning({
+    quality_warnings.extend(
+        sanitized_warning({
                 "source": event.get("source", ""),
                 "source_id": event.get("source_id", ""),
                 "event_id": event.get("event_id", ""),
@@ -2094,7 +2182,10 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
                 "rule_id": warning.get("rule_id", "publication.invariant-conflict"),
                 "field": warning.get("field", ""),
                 "resolution": warning.get("resolution", "unknown"),
-            }))
+            })
+        for event in events
+        for warning in event.get("quality_warnings", [])
+    )
     source_warnings = [
         sanitized_warning(warning)
         for warning in (
@@ -2106,7 +2197,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     start, end = context.window.start, context.window.end
     has_weekend = any((start + timedelta(days=offset)).weekday() >= 5
                       for offset in range((end - start).days + 1))
-    generated_at = context.clock().isoformat(timespec="seconds")
+    generated_at = import_result.generated_at or context.clock().isoformat(timespec="seconds")
     metadata = {
         "snapshot_schema_version": 7,
         "run_id": context.run_id, "run_status": import_result.run_status,
@@ -2192,7 +2283,7 @@ def cli(argv: list[str]) -> int:
         presentation_snapshot = build_snapshot(presentation_result, context)
         print(json.dumps(presentation_snapshot.events, ensure_ascii=False, indent=2))
     else:
-        report_options = {"radius_km": settings.radius_km}
+        report_options: dict[str, Any] = {"radius_km": settings.radius_km}
         if settings.max_per_section:
             report_options["max_per_section"] = settings.max_per_section
         if settings.report_max_chars:

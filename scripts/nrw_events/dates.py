@@ -6,12 +6,10 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
-from typing import Optional
 from zoneinfo import ZoneInfo
 
-
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
-_REFERENCE_DATE: Optional[datetime] = None
+_REFERENCE_DATE: datetime | None = None
 YEARLESS_GRACE_DAYS = 30
 
 
@@ -60,7 +58,7 @@ DATE_FORMATS = (
 )
 
 
-def parse_iso_date(text: str) -> Optional[datetime]:
+def parse_iso_date(text: str) -> datetime | None:
     if not text:
         return None
     try:
@@ -78,7 +76,7 @@ def resolve_yearless_date(
     reference_date: datetime,
     *,
     grace_days: int = YEARLESS_GRACE_DAYS,
-) -> Optional[YearlessDateResolution]:
+) -> YearlessDateResolution | None:
     """Resolve a day/month near the report date and record why its year won."""
     reference_date = _local_naive(reference_date)
     lower_bound = reference_date - timedelta(days=grace_days)
@@ -117,11 +115,10 @@ def _range_start(text: str) -> str:
         start_month = int(re.search(r"\.(\d{1,2})", start).group(1))
         separator = "" if start.endswith(".") else "."
         return f"{start}{separator}{inherited_year(start_month)}"
-    if re.fullmatch(r"\d{1,2}\.?", start):
-        if end_month:
-            day = start.rstrip(".")
-            suffix = inherited_year(end_month)
-            return f"{day}.{end_month:02d}.{suffix}".rstrip(".")
+    if re.fullmatch(r"\d{1,2}\.?", start) and end_month:
+        day = start.rstrip(".")
+        suffix = inherited_year(end_month)
+        return f"{day}.{end_month:02d}.{suffix}".rstrip(".")
     if year and not re.search(r"\b20\d{2}\b", start):
         word_start_month = re.search(r"\b([A-Za-zäöüÄÖÜ]+)\b", start)
         start_month = None
@@ -132,13 +129,13 @@ def _range_start(text: str) -> str:
     return start
 
 
-def _next_yearless_occurrence(day: int, month: int, reference_date: datetime) -> Optional[datetime]:
+def _next_yearless_occurrence(day: int, month: int, reference_date: datetime) -> datetime | None:
     """Compatibility wrapper returning only the resolved calendar occurrence."""
     resolution = resolve_yearless_date(day, month, reference_date)
     return resolution.value if resolution else None
 
 
-def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optional[datetime]:
+def parse_date(text: str, *, reference_date: datetime | None = None) -> datetime | None:
     """Parse common ISO, numeric, English, and German event dates."""
     text = (text or "").strip()
     if not text:
@@ -174,6 +171,12 @@ def parse_date(text: str, *, reference_date: Optional[datetime] = None) -> Optio
             return datetime(year, month, day)
         except ValueError:
             return None
+    match = re.match(r"^(\d{1,2})\.(\d{1,2})\.?(?!\d)", text)
+    if match:
+        reference = reference_date or _REFERENCE_DATE or datetime.now(LOCAL_TIMEZONE)
+        return _next_yearless_occurrence(
+            int(match.group(1)), int(match.group(2)), reference,
+        )
     match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b\.?\s*(20\d{2})", text)
     if match:
         day, month, year = match.groups()

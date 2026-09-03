@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime
 
 from nrw_events.sources import regional_html
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LISTING_HTML = """
 <div class="article articletype-0 even">

@@ -204,7 +204,12 @@ def _events_from_bornheim(html: str) -> list:
         if 'class="event-teaser"' not in part:
             continue
         dates = re.findall(r'date-card-btn-date">([^<]+)', part, re.S | re.I)
-        title = re.search(r'<p>([^<]{4,160})</p>', part, re.S | re.I)
+        title = re.search(
+            r'<(?:h[1-6]|p)\b[^>]*class="[^"]*(?:title|headline)[^"]*"[^>]*>'
+            r'\s*([^<]{4,160})\s*</(?:h[1-6]|p)>',
+            part,
+            re.S | re.I,
+        )
         href = re.search(r'<a[^>]+href="([^"]*/veranstaltung/veranstaltung/[^"]+)"', part, re.S | re.I)
         cat = " ".join(rc.clean(x) for x in re.findall(r'<span class="eventcategory">(.*?)</span>', part, re.S | re.I))
         if not dates:

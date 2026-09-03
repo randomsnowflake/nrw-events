@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from .. import common
 from . import regional_common as rc
 
-
 _URL = "https://lampert-maerkte.de/53121-bonn-an-der-ehem-biskuithalle/"
 _SOURCE = "Lampert Märkte"
 _SOURCE_ID = "lampert-bonn-siemensstrasse"
@@ -57,7 +56,7 @@ def _schedule_from_page(html: str):
     for day, month in re.findall(r"\b(\d{1,2})\.(\d{1,2})\.", rc.clean(schedule_match.group(2))):
         try:
             exception_dates.add(datetime(year, int(month), int(day)).date())
-        except ValueError:
+        except ValueError:  # noqa: PERF203 - invalid exception dates reject only this schedule
             return None
 
     start_hour, start_minute, end_hour, end_minute = (int(value) for value in hours_match.groups())

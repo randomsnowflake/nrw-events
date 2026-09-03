@@ -22,10 +22,11 @@ step whenever this module changes.
 
 from __future__ import annotations
 
-from hashlib import sha256
 import json
 import re
-from typing import Any, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from hashlib import sha256
+from typing import Any
 
 from .normalization import comparison_text
 
@@ -151,7 +152,18 @@ def assign_event_ids(events: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]
     for base_id, group in by_id.items():
         if len(group) < 2:
             continue
-        for position, record in enumerate(sorted(group, key=content_fingerprint)):
+        # Mutable prose, category and ranking fields must not exchange suffixes
+        # after enrichment. Source identity plus its stable URL is the narrowest
+        # deterministic discriminator available for accidental collisions.
+        ordered = sorted(
+            group,
+            key=lambda record: (
+                str(record.get("source_id") or record.get("source") or ""),
+                str(record.get("link") or ""),
+                str(record.get("organizer") or ""),
+            ),
+        )
+        for position, record in enumerate(ordered):
             if position:
                 record["event_id"] = f"{base_id}-{position + 1}"
     for record in assigned:

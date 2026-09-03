@@ -1,8 +1,7 @@
 import unittest
 
-from nrw_events.sources import radiobonn
+from nrw_events.sources import SOURCES, radiobonn
 from nrw_events.validation import canonicalize_event
-from nrw_events.sources import SOURCES
 
 
 class RadioBonnLocationTests(unittest.TestCase):

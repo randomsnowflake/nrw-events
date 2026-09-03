@@ -1,6 +1,5 @@
 """Primary food and drink event calendars in and around Bonn."""
 
-import json
 import re
 import urllib.parse
 from datetime import datetime, timedelta
@@ -9,7 +8,6 @@ from .. import common
 from ..dates import MONTH_ALL
 from ..health import SourceFetchResult
 from . import regional_common as rc
-
 
 _CRAFTQUELLE_URL = "https://craft-quelle.de/neue-tasting-termine/"
 _BFF_URL = "https://bff-bonn.com/kulinarische-highlights-bonn"
@@ -402,10 +400,10 @@ def events_from_street_food(html: str, *, source_url: str = _STREET_FOOD_URL) ->
         re.I,
     )
     events = []
-    for start_day, end_day, month, year, location in pattern.findall(text):
+    for start_day, end_day, month, year, raw_location in pattern.findall(text):
         start = datetime(int(year), int(month), int(start_day))
         end = datetime(int(year), int(month), int(end_day))
-        location = rc.clean(location)
+        location = rc.clean(raw_location)
         if "bad godesberg" in location.casefold():
             city, venue = "Bonn-Bad Godesberg", "Bad Godesberg"
         else:
@@ -558,9 +556,6 @@ def _events_from_schema_html(html: str, *, source: str, default_url: str,
         start = _parse_schema_date(item.get("startDate"))
         if not start:
             continue
-        status = str(item.get("eventStatus") or "")
-        if status.endswith("EventCancelled"):
-            continue
         location = item.get("location") if isinstance(item.get("location"), dict) else {}
         address = location.get("address")
         if not isinstance(address, dict):
@@ -598,6 +593,8 @@ def _events_from_schema_html(html: str, *, source: str, default_url: str,
             venue, city, description, link, source, category, 0.99, coords=coords,
         )
         if ev:
+            if schema_status := common.jsonld_event_status(item.get("eventStatus")):
+                ev["status"] = schema_status
             amount = offers.get("price")
             currency = offers.get("priceCurrency")
             if amount not in (None, ""):
@@ -613,30 +610,7 @@ def _parse_schema_date(value):
 
 
 def _deep_jsonld_events(html: str) -> list:
-    found = []
-
-    def walk(value):
-        if isinstance(value, dict):
-            types = value.get("@type") or []
-            if isinstance(types, str):
-                types = [types]
-            if any(str(item_type).rsplit("/", 1)[-1].endswith("Event") for item_type in types):
-                found.append(value)
-            for child in value.values():
-                walk(child)
-        elif isinstance(value, list):
-            for child in value:
-                walk(child)
-
-    for raw in re.findall(
-        r"<script[^>]+type=['\"]application/ld\+json['\"][^>]*>(.*?)</script>",
-        html or "", re.S | re.I,
-    ):
-        try:
-            walk(json.loads(raw.strip()))
-        except (TypeError, ValueError):
-            continue
-    return found
+    return common.jsonld_event_items(html)
 
 
 def _craftquelle_detail(html: str) -> dict:
@@ -718,11 +692,8 @@ def _parse_german_date(text: str):
     month = MONTH_ALL.get(month_name.casefold().rstrip("."))
     if not month:
         return None
-    year_value = int(year) + 2000 if len(year) == 2 else int(year)
-    try:
-        return datetime(year_value, month, int(day))
-    except ValueError:
-        return None
+    year_value = f"20{year}" if len(year) == 2 else year
+    return common.parse_date(f"{day}.{month}.{year_value}")
 
 
 def _date_from_href(href: str):
@@ -756,8 +727,9 @@ def _safe_detail(fetcher, url: str, source: str) -> str:
 
 def _price(text: str) -> str:
     value = rc.clean(text)
-    if re.search(r"eintritt\s+frei|kostenlos", value, re.I):
-        return "kostenlos"
+    free_price = common.infer_free_admission_price("", value)
+    if free_price:
+        return free_price
     value = re.sub(r"\s*(?:p\.\s*P\.?|pro Person)\s*$", "", value, flags=re.I)
     value = value.replace("€", " EUR ")
     leading = re.match(r"\s*EUR\s*(\d+(?:[,.]\d+)?)", value, re.I)
@@ -767,10 +739,7 @@ def _price(text: str) -> str:
 
 
 def _offer_price(amount, currency) -> str:
-    if isinstance(amount, float):
-        value = f"{amount:.2f}"
-    else:
-        value = str(amount)
+    value = f"{amount:.2f}" if isinstance(amount, float) else str(amount)
     return f"{value.replace('.', ',')} {currency or ''}".strip()
 
 
@@ -780,9 +749,7 @@ def _food_description(text: str) -> str:
 
 
 def _in_window(date_value: datetime) -> bool:
-    return common.TODAY <= date_value <= common.END_DATE.replace(
-        hour=23, minute=59, second=59, microsecond=999999,
-    )
+    return common.window_contains(date_value)
 
 
 def _append_sentence(text: str, sentence: str) -> str:

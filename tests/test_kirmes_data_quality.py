@@ -5,7 +5,6 @@ from unittest.mock import patch
 from nrw_events import common, report
 from nrw_events.sources import bonnkirmes, regional_html
 
-
 BONNKIRMES_HTML = """
 <html><body>
   <h3>Herbstkirmes Duisdorf</h3>
@@ -18,7 +17,7 @@ BORNHEIM_HTML = """
   <span class="date-card-btn-date">29.08.2026</span>
   <span class="date-card-btn-date">30.08.2026</span>
   <span class="eventcategory">Vereine &amp; Brauchtum</span>
-  <p>Dorffest / Kirmes in Widdig</p>
+  <p class="event-title">Dorffest / Kirmes in Widdig</p>
   <a href="/freizeit-tourismus/veranstaltungen/veranstaltungskalender/veranstaltung/veranstaltung/dorffest-kirmes-widdig">Details</a>
 </article>
 <nav>1 2 3 4 5 … 7</nav>

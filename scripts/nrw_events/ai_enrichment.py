@@ -7,33 +7,33 @@ master-data fallback that remains useful without reproducing source copy.
 
 from __future__ import annotations
 
-from contextlib import closing, contextmanager
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, replace
-from datetime import date, datetime, timedelta, timezone
-from difflib import SequenceMatcher
-from email.message import Message
 import fcntl
-from hashlib import sha256
 import json
 import math
 import multiprocessing
 import os
-from pathlib import Path
 import re
 import sqlite3
 import threading
 import time
-from typing import Any, Callable, Iterator, Mapping, Protocol, cast
 import urllib.error
 import urllib.request
 import weakref
+from collections.abc import Callable, Iterator, Mapping
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing, contextmanager
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta, timezone
+from difflib import SequenceMatcher
+from email.message import Message
+from hashlib import sha256
+from pathlib import Path
+from typing import Any, Protocol, cast
 
 from . import category_taxonomy, common, config, richtext
 from .core import keep_only_event_master_data
 from .identity import event_id
 from .models import RawEvent, normalize_source_id
-
 
 TARGET_SOURCE_IDS = frozenset({
     "bonn-de-events",
@@ -71,14 +71,37 @@ _INITIALIZED_DATABASES: set[Path] = set()
 class AIEnrichmentError(RuntimeError):
     """One safe-to-retry AI enrichment operation failed."""
 
-    def __init__(self, message: str, *, usage: Any = None, transient: bool = False) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        usage: Any = None,
+        transient: bool = False,
+        retry_after: float | None = None,
+    ) -> None:
         super().__init__(message)
         self.usage = usage
         self.transient = transient
+        self.retry_after = retry_after
 
 
 class AICacheMissBudgetExceeded(RuntimeError):
     """A safe stop before an unexpected cache invalidation can run up costs."""
+
+
+def _retry_after_seconds(error: urllib.error.HTTPError) -> float | None:
+    raw = error.headers.get("Retry-After", "") if error.headers else ""
+    try:
+        return max(float(raw), 0.0) if raw else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _sleep_before_ai_retry(error: Exception, attempt: int, settings: AISettings) -> None:
+    if not isinstance(error, AIEnrichmentError) or not error.transient:
+        return
+    delay = error.retry_after if error.retry_after is not None else 2.0 ** attempt
+    time.sleep(min(delay, settings.timeout_seconds))
 
 
 def _read_bounded_response(
@@ -188,7 +211,7 @@ def _isolated_http_worker(
         with urllib.request.urlopen(request, timeout=socket_timeout) as response:
             sender.send(("ok", _read_bounded_response(response, socket_timeout, started=started)))
     except urllib.error.HTTPError as exc:
-        sender.send(("http_error", exc.code))
+        sender.send(("http_error", exc.code, exc.headers.get("Retry-After", "")))
     except BaseException as exc:
         sender.send(("error", f"{type(exc).__name__}: {exc}"))
     finally:
@@ -225,13 +248,16 @@ def _read_response_isolated(
         if not receiver.poll(remaining):
             raise TimeoutError("AI request exceeded its wall-clock deadline")
         try:
-            status, value = receiver.recv()
+            status, value, *details = receiver.recv()
         except EOFError as exc:
             raise OSError("AI request worker exited without a result") from exc
         if status == "ok":
             return bytes(value)
         if status == "http_error":
-            raise urllib.error.HTTPError(request.full_url, int(value), "", Message(), None)
+            headers = Message()
+            if details and details[0]:
+                headers["Retry-After"] = str(details[0])
+            raise urllib.error.HTTPError(request.full_url, int(value), "", headers, None)
         raise OSError(f"AI request worker failed: {value}")
     finally:
         receiver.close()
@@ -580,7 +606,13 @@ class ResponsesClient:
         body = {
             "model": self.settings.model,
             "store": False,
-            "reasoning": {"effort": "low"},
+            "reasoning": {
+                "effort": (
+                    self.settings.facts_reasoning_effort
+                    if stage == "facts"
+                    else self.settings.summary_reasoning_effort
+                )
+            },
             "max_output_tokens": (
                 FACTS_OUTPUT_TOKEN_LIMIT if stage == "facts" else SUMMARY_OUTPUT_TOKEN_LIMIT
             ),
@@ -618,7 +650,9 @@ class ResponsesClient:
             raw = _read_http_response(request, self.settings.timeout_seconds, self._opener)
         except urllib.error.HTTPError as exc:
             raise AIEnrichmentError(
-                f"OpenAI HTTP {exc.code}", transient=exc.code >= 500 or exc.code in {408, 429}
+                f"OpenAI HTTP {exc.code}",
+                transient=exc.code >= 500 or exc.code in {408, 429},
+                retry_after=_retry_after_seconds(exc),
             ) from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
             raise AIEnrichmentError(
@@ -732,7 +766,9 @@ class OpenRouterClient:
             raw = _read_http_response(request, self.settings.timeout_seconds, self._opener)
         except urllib.error.HTTPError as exc:
             raise AIEnrichmentError(
-                f"OpenRouter HTTP {exc.code}", transient=exc.code >= 500 or exc.code in {408, 429}
+                f"OpenRouter HTTP {exc.code}",
+                transient=exc.code >= 500 or exc.code in {408, 429},
+                retry_after=_retry_after_seconds(exc),
             ) from exc
         except (OSError, TimeoutError, urllib.error.URLError) as exc:
             raise AIEnrichmentError(
@@ -866,6 +902,18 @@ def _locked_database(path: Path, *, cache_key: str) -> Iterator[sqlite3.Connecti
                                 "ALTER TABLE ai_event_enrichment ADD COLUMN "
                                 "facts_pipeline_version TEXT NOT NULL DEFAULT ''"
                             )
+                        connection.execute(
+                            "CREATE INDEX IF NOT EXISTS ai_event_enrichment_source_pipeline_event "
+                            "ON ai_event_enrichment(source_id, pipeline_version, event_key)"
+                        )
+                        stale_before = _timestamp(
+                            datetime.now(timezone.utc) - timedelta(days=90)
+                        )
+                        connection.execute(
+                            "DELETE FROM ai_event_enrichment "
+                            "WHERE stage2_json = '' AND updated_at < ?",
+                            (stale_before,),
+                        )
                         connection.commit()
                         _INITIALIZED_DATABASES.add(normalized_path)
                     finally:
@@ -1120,10 +1168,10 @@ _MARKETING_PATTERN = re.compile(
     r"einzigartig|spektakulär|atemberaubend|hochkarätig|darf\s+man\s+nicht\s+verpassen|"
     r"lädt\b[^.!?]{0,100}\bein|lockt|paradies|besonder(?:e[snr]?|er)\s+erlebnis|"
     r"(?:gute|schöne|ideale|entspannte)\s+gelegenheit|bietet\s+sich\b|"
-    r"wer\b[^.!?]{0,100}\b(?:mag|möchte|lust\s+hat)|\b(?:du|ihr|euch|dein(?:e[rmns]?)?)\b|"
-    r"\bsollte(?:st|n)?\b|könnte\b[^.!?]{0,100}\bfündig|vormerken|freihalten|"
+    r"wer\b[^.!?]{0,100}\b(?:mag|möchte|lust\s+hat)|\b(?:du|euch|dein(?:e[rmns]?)?)\b|"
+    r"\bdas\s+sollte(?:st|n)?\s+(?:du|ihr|man)\b|könnte\b[^.!?]{0,100}\bfündig|vormerken|freihalten|"
     r"wermutstropfen|intime\s+atmosphäre|stimmungsvoll|ausgelassene?\s+(?:stimmung|fest)|"
-    r"gemütlich(?:e[snr]?)?|entspannt(?:e[snr]?)?|schnäppchen|geheimtipp|sehenswert(?:e[snr]?)?|"
+    r"(?:macht\s+es\s+euch|lehnt\s+euch)\s+gemütlich|entspannt\s+(?:euch|dich)|schnäppchen|geheimtipp|sehenswert(?:e[snr]?)?|"
     r"abwechslungsreich(?:e[snr]?)?|vielseitig(?:e[snr]?)?|größten?\s+hits?|sorgt\s+für|geboten\s+wird|"
     r"verwandelt\s+sich|kulinarische?\s+bühne|nostalgisch(?:e[snr]?)?|besonder(?:e[snr]?)?\s+tipp|"
     r"gemeinschaftsleben|stadtteilleben)\b",
@@ -1451,7 +1499,7 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
         note = ""
         explicit_free = bool(_VISITOR_FREE_PATTERN.search(structured_price))
     amount = admission.get("amount")
-    if not isinstance(amount, (int, float)) or isinstance(amount, bool):
+    if not isinstance(amount, int | float) or isinstance(amount, bool):
         amount = None
     if amount is not None and amount > 0 and not _VISITOR_PAID_PATTERN.search(evidence_text):
         amount = None
@@ -1589,13 +1637,13 @@ def _admission_conflicts(original: Mapping[str, Any], facts: Mapping[str, Any]) 
             existing_free = False
     if existing_free is not None and extracted_free is not None and existing_free != extracted_free:
         return True
-    if existing_free is True and isinstance(extracted_amount, (int, float)) and extracted_amount > 0:
+    if existing_free is True and isinstance(extracted_amount, int | float) and extracted_amount > 0:
         return True
-    if extracted_free is True and isinstance(existing_amount, (int, float)) and existing_amount > 0:
+    if extracted_free is True and isinstance(existing_amount, int | float) and existing_amount > 0:
         return True
     return (
-        isinstance(existing_amount, (int, float))
-        and isinstance(extracted_amount, (int, float))
+        isinstance(existing_amount, int | float)
+        and isinstance(extracted_amount, int | float)
         and abs(float(existing_amount) - float(extracted_amount)) > 0.01
     )
 
@@ -1627,8 +1675,21 @@ def _clean_summary_result(
         )
     ):
         cleaned["price"] = None
-    elif _VENDOR_FEE_PATTERN.search(str(cleaned.get("price") or "")):
-        cleaned["price"] = None
+    else:
+        is_free = admission.get("is_free")
+        amount = admission.get("amount")
+        currency = str(admission.get("currency") or "EUR").upper()
+        donation = bool(admission.get("donation_suggested"))
+        if is_free is True:
+            cleaned["price"] = "Eintritt frei"
+        elif isinstance(amount, int | float) and not isinstance(amount, bool):
+            rendered_amount = f"{float(amount):.2f}".rstrip("0").rstrip(".").replace(".", ",")
+            symbol = "€" if currency == "EUR" else currency
+            cleaned["price"] = f"{rendered_amount} {symbol}".strip()
+        elif donation:
+            cleaned["price"] = "Spende erbeten"
+        else:
+            cleaned["price"] = None
     cleaned["ai_summary"] = summary
     return cleaned
 
@@ -1874,6 +1935,7 @@ def enrich_event(
     settings: AISettings | None = None,
     client: StructuredClient | None = None,
     now: datetime | None = None,
+    configured_timeout_seconds: float | None = None,
 ) -> RawEvent:
     """Enrich one target event, using a forever cache keyed by content/version."""
     if not is_target_event(event):
@@ -1972,10 +2034,23 @@ def enrich_event(
                     else AIEnrichmentError(type(exc).__name__, transient=True)
                 )
                 terminal = row["stage1_attempts"] + 1 >= configured.max_attempts
+                if (
+                    terminal
+                    and configured_timeout_seconds is not None
+                    and configured.timeout_seconds < configured_timeout_seconds
+                    and (
+                        isinstance(exc, TimeoutError)
+                        or "TimeoutError" in str(safe_error)
+                        or "wall-clock deadline" in str(safe_error)
+                    )
+                ):
+                    terminal = False
                 row = _record_failure(
                     connection, row, stage=1, error=safe_error, usage=usage,
                     settings=configured, now=current_time, terminal=terminal,
                 )
+                if row["stage1_attempts"] < configured.max_attempts:
+                    _sleep_before_ai_retry(safe_error, row["stage1_attempts"] - 1, configured)
         if facts is None:
             return _reuse_cached_success(event, configured)
         if _calendar_occurrence_overrides_non_event(facts, original, source_id):
@@ -2087,10 +2162,23 @@ def enrich_event(
                     else AIEnrichmentError(type(exc).__name__, transient=True)
                 )
                 terminal = row["stage2_attempts"] + 1 >= configured.max_attempts
+                if (
+                    terminal
+                    and configured_timeout_seconds is not None
+                    and configured.timeout_seconds < configured_timeout_seconds
+                    and (
+                        isinstance(exc, TimeoutError)
+                        or "TimeoutError" in str(safe_error)
+                        or "wall-clock deadline" in str(safe_error)
+                    )
+                ):
+                    terminal = False
                 row = _record_failure(
                     connection, row, stage=2, error=safe_error, usage=usage,
                     settings=configured, now=current_time, terminal=terminal,
                 )
+                if row["stage2_attempts"] < configured.max_attempts:
+                    _sleep_before_ai_retry(safe_error, row["stage2_attempts"] - 1, configured)
         return _reuse_cached_success(event, configured)
 
 
@@ -2191,7 +2279,7 @@ def enrich_events(
         index, target = item
         source_id = normalize_source_id(target.get("source_id") or target.get("source"))
         remaining = deadline - time.monotonic()
-        if remaining <= 0:
+        if remaining <= 0 or remaining / maximum_calls_per_event < 20:
             cached = _reuse_cached_success(target, configured)
             return index, cached, source_id, True, not str(cached.get("ai_summary", "")).strip(), False, False
         # One event may need facts and summary retries. Divide the remaining
@@ -2205,6 +2293,7 @@ def enrich_events(
             result = enrich_event(
                 target,
                 settings=replace(configured, timeout_seconds=request_timeout),
+                configured_timeout_seconds=configured.timeout_seconds,
             )
             return index, result, source_id, False, False, False, False
         except AICacheMissBudgetExceeded:

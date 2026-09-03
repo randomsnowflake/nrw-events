@@ -5,7 +5,6 @@ from unittest.mock import patch
 from nrw_events import common
 from nrw_events.sources import much
 
-
 DETAIL_LINK = (
     "https://www.much.de/willkommen/veranstaltungen/detail/"
     "19-07-2026_1400/gartencafe-der-solawi-much"

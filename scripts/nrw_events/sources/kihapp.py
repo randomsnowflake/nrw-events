@@ -9,7 +9,6 @@ from datetime import datetime
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://www.kihapp.com/tournaments?country=Germany"
 SOURCE = "Kihapp – Veranstalterdaten"
 SOURCE_ID = "kihapp"
@@ -52,7 +51,7 @@ def _month_day(value: str, year: str) -> datetime | None:
     for pattern in ("%B %d %Y", "%b %d %Y"):
         try:
             return datetime.strptime(f"{value} {year}", pattern)
-        except ValueError:
+        except ValueError:  # noqa: PERF203 - try the maintained date formats in order
             continue
     return None
 

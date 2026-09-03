@@ -1,19 +1,20 @@
 import json
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import unittest
 import unicodedata
+import unittest
+from pathlib import Path
 from unittest import mock
 
-from scripts import audit_venue_locations, enrich_verified_venue_locations
 from nrw_events.normalization import (
     VENUE_REGISTRY,
     VERIFIED_VENUE_LOCATIONS,
     resolve_venue,
 )
 from nrw_events.validation import canonicalize_event
+
+from scripts import audit_venue_locations, enrich_verified_venue_locations
 
 
 def event(**overrides):
@@ -35,6 +36,13 @@ def event(**overrides):
 
 
 class VenueRegistryTests(unittest.TestCase):
+    def test_generic_alias_requires_a_city(self):
+        self.assertEqual(resolve_venue("Marktplatz", "").venue_id, "")
+        self.assertEqual(
+            resolve_venue("Marktplatz", "Siegburg").venue_id,
+            "siegburg-marktplatz",
+        )
+
     def test_mva_calendar_label_resolves_to_repair_cafe(self):
         venue = resolve_venue("MVA - Müllverwertungsanlage", "Bonn")
 

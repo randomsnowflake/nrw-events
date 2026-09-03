@@ -1,11 +1,11 @@
 """Shared test fixtures for mutable legacy compatibility state."""
 
+import tempfile
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-import tempfile
-from typing import Callable, Iterator
 from unittest.mock import patch
 
 from nrw_events import common, config

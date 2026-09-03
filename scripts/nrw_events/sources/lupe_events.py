@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 
 from .. import common
 
-
 _ICAL_URL = "https://lupe-events.de/events/?ical=1"
 _LESSENICH_URL = "https://lupe-events.de/event/kirmes-in-lessenich-2026"
 

@@ -14,6 +14,7 @@ from datetime import datetime
 from nrw_events import core, report
 from nrw_events.health import SourceResult
 from nrw_events.sources import search
+
 from tests.helpers import patch_window
 
 
@@ -159,13 +160,19 @@ class ProduceMarketExclusionTests(unittest.TestCase):
             "end_date": "2026-08-08", "category": "market", "source": "Test",
         }
 
-    def test_produce_and_evening_markets_are_dropped(self):
+    def test_routine_produce_markets_are_dropped(self):
         for title in ("Wochenmarkt am Münsterplatz", "Frischemarkt Beuel",
-                      "Bauernmarkt Wachtberg", "Biomarkt Bonn",
-                      "Abendmarkt auf dem Fischerplatz",
-                      "Zwibbelsmaat Zwiebelmarkt Bad Breisig"):
+                      "Bauernmarkt Wachtberg", "Biomarkt Bonn"):
             with self.subTest(title=title):
                 self.assertTrue(core.is_junk_event(self._event(title)))
+
+    def test_dated_evening_and_annual_specialty_markets_survive(self):
+        for title in (
+            "Abendmarkt auf dem Fischerplatz",
+            "Zwibbelsmaat Zwiebelmarkt Bad Breisig",
+        ):
+            with self.subTest(title=title):
+                self.assertFalse(core.is_junk_event(self._event(title)))
 
     def test_feierabendmarkt_stays_until_its_whitelist_entry_is_revisited(self):
         """Documents a real conflict rather than silently flipping it.

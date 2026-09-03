@@ -7,7 +7,6 @@ from .. import common, normalization
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _BASE_URL = "https://www.coelln-konzept.de/"
 _URL = rc.abs_url(_BASE_URL, "termine.php")
 _MARKET_WORDS = re.compile(r"floh|trödel|antik|mädchenkram|sammler", re.I)

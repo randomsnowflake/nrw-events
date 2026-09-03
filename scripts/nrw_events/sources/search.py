@@ -55,13 +55,14 @@ def fetch_exa() -> list:
                 retry_safe=True,
             )
             for result in data.get("results", []):
+                text = result.get("text") or result.get("summary") or ""
                 ev = common.search_result_event(
                     result.get("title") or "", result.get("url") or "",
-                    f"{result.get('publishedDate') or ''} {result.get('text') or result.get('summary') or ''}",
+                    text,
                     source, 0.58)
                 if ev:
                     events.append(ev)
-        except Exception as e:
+        except Exception as e:  # noqa: PERF203 - search queries must fail independently
             common.log_source_error(f"{source} ({query[:30]}...)", e)
     return events
 
@@ -96,20 +97,30 @@ def fetch_grok() -> list:
             text_parts = []
             for item in data.get("output", []):
                 if item.get("type") == "message" and item.get("role") == "assistant":
-                    for part in item.get("content", []):
-                        if part.get("type") in {"output_text", "text"} and part.get("text"):
-                            text_parts.append(part["text"])
+                    text_parts.extend(
+                        part["text"]
+                        for part in item.get("content", [])
+                        if part.get("type") in {"output_text", "text"} and part.get("text")
+                    )
             for c in common.extract_json_array("\n".join(text_parts)):
                 if not isinstance(c, dict):
                     continue
                 title = c.get("title") or c.get("name") or ""
                 link = c.get("url") or c.get("link") or ""
-                desc = " ".join(str(c.get(k) or "") for k in ["date", "venue", "description"])
+                model_date = common.parse_date(str(c.get("date") or ""))
+                if model_date is None:
+                    continue
+                desc = " ".join(
+                    [
+                        model_date.strftime("%Y-%m-%d"),
+                        str(c.get("venue") or ""),
+                        str(c.get("city") or ""),
+                        str(c.get("description") or ""),
+                    ]
+                )
                 ev = common.search_result_event(title, link, desc, source, 0.7)
                 if ev:
-                    ev["date"] = str(c.get("date") or "")[:40]
                     ev["venue"] = str(c.get("venue") or "")[:120]
-                    ev["city"] = str(c.get("city") or ev["city"])[:80].title()
                     events.append(ev)
         except Exception as e:
             common.log_source_error(f"{source} ({query[:30]}...)", e)

@@ -4,23 +4,21 @@
 from __future__ import annotations
 
 import argparse
+import json
+import sqlite3
+import sys
 from collections import defaultdict
 from contextlib import closing
 from dataclasses import replace
 from hashlib import sha256
-import json
 from pathlib import Path
-import sqlite3
-import sys
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from nrw_events import ai_enrichment, config  # noqa: E402
-from nrw_events.identity import event_id  # noqa: E402
-
+from nrw_events import ai_enrichment, config
+from nrw_events.identity import event_id
 
 DEFAULT_QUOTAS = {
     "bonn-de-events": 16,
@@ -108,7 +106,7 @@ def select_reference_pilot(
     )
 
 
-def _usage(path: Path) -> tuple[int, int, int, float]:
+def _usage(path: Path, keys: list[str], pipeline_version: str) -> tuple[int, int, int, float]:
     if not path.exists():
         return 0, 0, 0, 0.0
     with closing(sqlite3.connect(path)) as connection:
@@ -117,12 +115,17 @@ def _usage(path: Path) -> tuple[int, int, int, float]:
                 str(row[1]) for row in connection.execute("PRAGMA table_info(ai_event_enrichment)")
             }
             cost_column = "COALESCE(SUM(cost_usd), 0)" if "cost_usd" in columns else "0"
+            if not keys:
+                return 0, 0, 0, 0.0
+            placeholders = ",".join("?" for _key in keys)
             row = connection.execute(
                 f"""SELECT COALESCE(SUM(input_tokens), 0),
                           COALESCE(SUM(cached_input_tokens), 0),
                           COALESCE(SUM(output_tokens), 0),
                           {cost_column}
-                   FROM ai_event_enrichment"""
+                   FROM ai_event_enrichment
+                  WHERE pipeline_version = ? AND event_key IN ({placeholders})""",
+                (pipeline_version, *keys),
             ).fetchone()
         except sqlite3.OperationalError:
             return 0, 0, 0, 0.0
@@ -173,7 +176,12 @@ def main() -> int:
         parser.error("--limit must be between 1 and 200")
 
     config.load_env_file()
-    settings = replace(ai_enrichment.settings_from_env(), enabled=True, max_events=0)
+    settings = replace(
+        ai_enrichment.settings_from_env(),
+        enabled=True,
+        max_events=0,
+        max_new_cache_rows_per_day=0,
+    )
     if not settings.api_key:
         key_name = "OPENROUTER_API_KEY" if settings.provider == "openrouter" else "OPENAI_API_KEY"
         parser.error(f"{key_name} is missing")
@@ -192,17 +200,22 @@ def main() -> int:
         parser.error(
             f"reference pilot contains {len(candidates)} events, expected --limit {args.limit}"
         )
-    before = _usage(settings.cache_db)
+    pilot_keys = [event_id(event) for event in candidates]
+    pipeline_version = ai_enrichment.cache_pipeline_version(settings)
+    before = _usage(settings.cache_db, pilot_keys, pipeline_version)
     results = []
     for index, event in enumerate(candidates, start=1):
-        result = ai_enrichment.enrich_event(dict(event), settings=settings)
+        try:
+            result = ai_enrichment.enrich_event(dict(event), settings=settings)
+        except ai_enrichment.AICacheMissBudgetExceeded:
+            result = ai_enrichment.strip_restricted_copy(dict(event))
         results.append(result)
         print(
             f"[{index}/{len(candidates)}] {event.get('source_id', '')}: "
             f"{'summary' if result.get('ai_summary') else 'blank'}",
             flush=True,
         )
-    after = _usage(settings.cache_db)
+    after = _usage(settings.cache_db, pilot_keys, pipeline_version)
     input_tokens = after[0] - before[0]
     cached_tokens = after[1] - before[1]
     output_tokens = after[2] - before[2]
@@ -215,7 +228,7 @@ def main() -> int:
     )
 
     rows = []
-    for original, result in zip(candidates, results):
+    for original, result in zip(candidates, results, strict=False):
         summary = str(result.get("ai_summary") or "")
         outcome = _cache_outcome(settings.cache_db, event_id(original), settings)
         rows.append({

@@ -4,10 +4,9 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
 import json
+from datetime import date
 from pathlib import Path
-
 
 DEFAULT_POLICY = Path(__file__).with_name("venue_geocoding_decisions.json")
 

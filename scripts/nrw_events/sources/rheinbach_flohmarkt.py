@@ -5,9 +5,8 @@ from datetime import datetime
 
 from .. import common
 from ..dates import MONTH_DE
-from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurrences, fetch_market
 from . import regional_common as rc
-
+from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurrences, fetch_market
 
 _SOURCE = "Rheinbach Flohmarkt"
 _SOURCE_ID = "rheinbach-freizeitpark-flohmarkt"
@@ -65,9 +64,9 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
         try:
             start = datetime(int(year_text), month, int(day_text), start_hour, start_minute)
             end = datetime(int(year_text), month, int(day_text), end_hour, end_minute)
-        except ValueError:
+        except ValueError as exc:
             if strict:
-                raise rc.ParserEmptyError("Rheinbach date contract changed")
+                raise rc.ParserEmptyError("Rheinbach date contract changed") from exc
             return []
         parsed.append(MarketOccurrence(
             start, end,

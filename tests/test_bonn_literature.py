@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 from nrw_events.quality import evaluate_event_quality
 from nrw_events.sources import SOURCES, bonn_literature
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 # Trimmed from https://www.parkbuchhandlung.de/veranstaltungen/. The listing
 # repeats every card in an archive block further down the page; the duplicate

@@ -372,6 +372,8 @@ def _fetch_bonner_muenster() -> list:
         except Exception as e:
             common.log_source_error("Bonner Münster Musik", e)
             continue
+        if url != _BONNER_MUENSTER_URL and not page_events:
+            break
         events.extend(page_events)
     return rc.dedupe(events)
 
@@ -380,12 +382,9 @@ def _parse_short_date(value: str):
     match = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})", value or "")
     if not match:
         return None
-    day, month, year = (int(part) for part in match.groups())
-    year = 2000 + year if year < 100 else year
-    try:
-        return datetime(year, month, day)
-    except ValueError:
-        return None
+    day, month, year = match.groups()
+    normalized_year = f"20{year}" if len(year) == 2 else year
+    return common.parse_date(f"{day}.{month}.{normalized_year}")
 
 
 def _with_end_time(start, text: str):

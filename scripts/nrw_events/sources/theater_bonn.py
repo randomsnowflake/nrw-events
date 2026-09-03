@@ -7,7 +7,6 @@ import time
 from .. import category_taxonomy, common
 from . import regional_common as rc
 
-
 _SOURCE = "Theater Bonn"
 _API = "https://www.theater-bonn.de/de/api/events/"
 _CALENDAR = "https://www.theater-bonn.de/de/?mode=kalender#programm"

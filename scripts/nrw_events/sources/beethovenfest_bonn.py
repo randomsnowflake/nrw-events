@@ -7,7 +7,6 @@ import urllib.parse
 from .. import common, richtext
 from . import regional_common as rc
 
-
 API = "https://www.beethovenfest.de/de/api/events/"
 BASE = "https://www.beethovenfest.de"
 SOURCE = "Beethovenfest Bonn"

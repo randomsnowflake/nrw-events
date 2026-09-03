@@ -4,9 +4,8 @@ import re
 from datetime import datetime
 
 from .. import common
-from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurrences, fetch_market
 from . import regional_common as rc
-
+from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurrences, fetch_market
 
 _URL = "https://okkengmbh.de/flohmarkt-bonn/"
 _SOURCE = "Okken Märkte"

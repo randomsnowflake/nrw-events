@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 import re
+from datetime import datetime, timedelta
 
 from .. import common
-
 
 _ICAL_URL = "https://in-guten-kreisen.de/winedb/ical.php"
 _WEEKEND_URL = "https://in-guten-kreisen.de/events/wein-ins-wochenende/"

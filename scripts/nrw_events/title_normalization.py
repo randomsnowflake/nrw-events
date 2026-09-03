@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
-
 _DATE_TOKEN = re.compile(r"(?<!\d)(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2}|20\d{2})(?!\d)")
 _DATE_SUFFIX = re.compile(
     r"\s*(?:[,;|]|\s[-–—]\s)\s*(?:(?:am|vom)\s+)?"

@@ -85,7 +85,8 @@ The persistent cache is controlled by `NRW_EVENTS_AI_CACHE_DB`,
 `NRW_EVENTS_CACHE_DIR`, `NRW_EVENTS_AI_MAX_ATTEMPTS`,
 `NRW_EVENTS_AI_NEGATIVE_CACHE_HOURS`, `NRW_EVENTS_AI_TIMEOUT_SECONDS`,
 `NRW_EVENTS_AI_BATCH_TIMEOUT_SECONDS`,
-`NRW_EVENTS_AI_MAX_EVENTS`, `NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY`, and
+`NRW_EVENTS_AI_WORKERS`, `NRW_EVENTS_AI_MAX_EVENTS`,
+`NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY`, and
 `NRW_EVENTS_AI_MODEL`. The facts and summary stages have independent cache
 compatibility versions: summary-only prompt or quality changes reuse successful
 facts, while extraction prompt/schema/sanitizer changes intentionally invalidate
@@ -233,6 +234,7 @@ scripts/nrw_events/
   quality.py
   radio_primary_resolution.py
   report.py
+  reviewed_corrections.py
   reviewed_summaries.py
   richtext.py
   runner.py

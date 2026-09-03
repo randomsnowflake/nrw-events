@@ -5,8 +5,8 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import meckenheim
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 DETAIL_LINK = (
     "https://www.meckenheim.de/Leben-in-Meckenheim/Veranstaltungen/"

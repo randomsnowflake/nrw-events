@@ -5,9 +5,9 @@ import re
 import time
 import urllib.parse
 from collections.abc import Callable, Iterable
-from datetime import datetime
 from html import unescape
 from html.parser import HTMLParser
+
 from .. import common
 from ..dates import MONTH_ALL, resolve_yearless_date
 from ..source_types import TextParser
@@ -287,8 +287,9 @@ def enrich_descriptions(
         if isinstance(context, str):
             context = {"description": context}
         if merge_context and context:
-            event = merge_context(event, context)
-            events[index] = event
+            merged_event = merge_context(event, context)
+            events[index] = merged_event
+            event = merged_event  # noqa: PLW2901 - subsequent fields apply to the merged record
         replacement = context.get("description") or fallback(event)
         if len(replacement) > len(event.get("description") or ""):
             event["description"] = replacement
@@ -309,7 +310,8 @@ def parse_dt(text: str):
 def with_time(dt, text: str):
     if not dt:
         return None
-    m = re.search(r"(\d{1,2}):(\d{2})", text or "")
+    normalized = time_text(text)
+    m = re.match(r"(\d{1,2}):(\d{2})", normalized)
     return dt.replace(hour=int(m.group(1)), minute=int(m.group(2))) if m else dt
 
 
@@ -320,10 +322,33 @@ def date_for_window(day: int, month: int):
 
 
 def time_text(text: str) -> str:
-    times = re.findall(r"\d{1,2}:\d{2}", text or "")
-    if len(times) >= 2:
-        return f"{times[0]}–{times[1]}"
-    return times[0] if times else ""
+    """Return the first shared-normalizable time or range from source text."""
+    text = text or ""
+    beginning = re.search(r"\bbeginn\b(.+)", text, re.I)
+    search_texts = [beginning.group(1), text] if beginning else [text]
+    for search_text in search_texts:
+        normalized = _first_normalized_time(search_text)
+        if normalized:
+            return normalized
+    return common.normalize_time_fields(text)[0]
+
+
+def _first_normalized_time(text: str) -> str:
+    """Extract one strict clock value without mistaking a date for a time."""
+    candidates = re.finditer(
+        r"(?<![\d.])(?:ab\s+)?\d{1,2}(?:[.:]\d{2})?\s*(?:uhr)?"
+        r"(?:\s*(?:bis|[-–—])\s*\d{1,2}(?:[.:]\d{2})?\s*(?:uhr)?)?(?![\d.])",
+        text,
+        re.I,
+    )
+    for match in candidates:
+        candidate = match.group(0).strip()
+        if ":" not in candidate and "uhr" not in candidate.casefold():
+            continue
+        normalized, _note = common.normalize_time_fields(candidate)
+        if normalized:
+            return normalized
+    return ""
 
 
 def city_from_text(text: str, default_city: str) -> str:
@@ -331,14 +356,7 @@ def city_from_text(text: str, default_city: str) -> str:
 
 
 def dedupe(events: list) -> list:
-    seen, out = set(), []
-    for ev in events:
-        key = (ev["source"], ev["title"].lower(), ev["date"], ev["city"].lower())
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(ev)
-    return out
+    return dedupe_occurrences(events)
 
 
 def dedupe_occurrences(events: list) -> list:
@@ -367,16 +385,30 @@ def title_from_href(href: str) -> str:
 
 def range_dates(text: str):
     text = clean(text)
-    m = re.search(r"(\d{1,2})\.(\d{1,2})\.\s*[–-]\s*(\d{1,2})\.(\d{1,2})\.(20\d{2})", text)
-    if m:
-        start_day, start_month, end_day, end_month, year = (int(part) for part in m.groups())
-        return datetime(year, start_month, start_day), datetime(year, end_month, end_day)
-    dates = re.findall(r"\d{1,2}\.\d{1,2}\.20\d{2}", text)
-    if dates:
-        start = common.parse_date(dates[0])
-        end = common.parse_date(dates[-1]) if len(dates) > 1 else start
+    compact_range = re.search(
+        r"(?<![\d.])(\d{1,2})\.\s*[-–—]\s*(\d{1,2})\.(\d{1,2})\.(20\d{2})?",
+        text,
+    )
+    if compact_range:
+        start_day, end_day, month, year = compact_range.groups()
+        end_text = f"{end_day}.{month}.{year or ''}"
+        end = common.parse_date(end_text, reference_date=common.TODAY)
+        reference = end or common.TODAY
+        start = common.parse_date(
+            f"{start_day}.{month}.{year or ''}", reference_date=reference,
+        )
         return start, end
-    return parse_dt(text), None
+    dates = re.findall(r"\d{1,2}\.\d{1,2}\.(?:20\d{2})?", text)
+    if not dates:
+        return common.parse_date(text), None
+    first = dates[0]
+    last = dates[-1]
+    last_year = re.search(r"(20\d{2})$", last)
+    if not re.search(r"20\d{2}$", first) and last_year:
+        first = f"{first}{last_year.group(1)}"
+    start = common.parse_date(first, reference_date=common.TODAY)
+    end = common.parse_date(last, reference_date=start or common.TODAY)
+    return start, end
 
 
 def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
@@ -436,6 +468,5 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
                 exc,
                 source_id=source_id,
             )
-            if page == 1:
-                break
+            break
     return all_events

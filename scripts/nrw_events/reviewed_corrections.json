@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "groups": {
+    "bonn_press_primary_urls": [
+      {
+        "match": ["BonnFest 2026", "2026-09-25", "2026-09-27"],
+        "value": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/BonnFest-2026.php",
+        "valid_until": "2026-09-27",
+        "evidence": "Reviewed Bonn event calendar detail page"
+      },
+      {
+        "match": ["Poppelsdorfer Straßenfest", "2026-09-19", "2026-09-19"],
+        "value": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Poppelsdorfer-Strassenfest-.php",
+        "valid_until": "2026-09-19",
+        "evidence": "Reviewed Bonn event calendar detail page"
+      }
+    ],
+    "bonn_press_overrides": [
+      {
+        "match": ["BonnFest 2026", "2026-09-25", "2026-09-27"],
+        "value": {
+          "venue": "Bonner Innenstadt",
+          "description": "Das BonnFest findet vom 25. bis 27. September 2026 in der Bonner Innenstadt statt."
+        },
+        "valid_until": "2026-09-27",
+        "evidence": "Reviewed Bonn event calendar occurrence"
+      }
+    ],
+    "bonn_press_occurrence_corrections": [
+      {
+        "match": ["Fest der Beueler Vereine – Promenadenfest", "2026-08-29", "2026-08-30"],
+        "value": {
+          "start_date": "2026-09-05",
+          "end_date": "2026-09-06",
+          "link": "https://beuel.net/2026/06/18/beuelfest-und-promenadenfest-finden-2026-gemeinsam-statt-jetzt-mitmachen/",
+          "description": "Beuelfest und Promenadenfest finden am Samstag, 5. September 2026, und Sonntag, 6. September 2026, am Möhneplatz und am Rheinufer in Bonn-Beuel gemeinsam statt.",
+          "city": "Bonn-Beuel",
+          "previous_event_ids": ["fest-der-beueler-vereine-promenadenfest-2026-08-29-5fa6836fc1"]
+        },
+        "valid_until": "2026-09-06",
+        "evidence": "Reviewed organizer announcement"
+      }
+    ],
+    "beuel_primary_url_replacements": [
+      {
+        "match": ["https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/Nikolausmarkt-in-Beuel.php", "2026-11-27", "2026-11-29"],
+        "value": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+        "valid_until": "2026-11-29",
+        "evidence": "Reviewed Bonn annual events release"
+      }
+    ],
+    "beuel_mirecourtplatz_programme": [
+      {
+        "match": ["2026-07-29", "2026-08-05", "2026-08-12", "2026-08-19", "2026-08-26", "2026-09-02"],
+        "value": "https://dein-phonzimmer.de/mirecourtplatzkonzert-2/",
+        "valid_until": "2026-09-02",
+        "evidence": "Reviewed organizer programme"
+      }
+    ],
+    "burg_lede_programme": [
+      {
+        "match": ["2026"],
+        "value": "https://www.burglede.de/veranstaltungen-2026/",
+        "valid_until": "2026-12-31",
+        "evidence": "Reviewed annual venue programme"
+      }
+    ],
+    "rathausmusik_schedule": [
+      {
+        "match": ["Juli", "August", "September"],
+        "value": {"start_time": "18:00", "end_time": "20:00", "url": "http://www.rathausmusik.com/"},
+        "valid_until": "2026-09-30",
+        "evidence": "Reviewed visually positioned 2026 band schedule"
+      }
+    ]
+  }
+}

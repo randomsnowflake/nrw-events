@@ -14,7 +14,6 @@ from typing import Any
 
 from .category_taxonomy import comparison_text
 
-
 EVENT_TYPES = frozenset({"funfair"})
 
 # Kirmes compounds end in "kirmes" (Herbstkirmes, Rochuskirmes). Rummel may
@@ -29,7 +28,7 @@ _FUNFAIR_TITLE = re.compile(
 def classify_event_types(event: Mapping[str, Any]) -> list[str]:
     """Return validated explicit types plus conservative shared inference."""
     raw_types = event.get("event_types") or []
-    if not isinstance(raw_types, (list, tuple)):
+    if not isinstance(raw_types, list | tuple):
         raise ValueError("event_types_type")
 
     event_types: set[str] = set()

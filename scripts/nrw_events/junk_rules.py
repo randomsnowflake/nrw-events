@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import re
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from html import unescape
-import json
 from pathlib import Path
-import re
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from .event_vocabulary import ROUTINE_MARKET_DROP_TERMS
-
 
 Decision = tuple[str, str, tuple[str, ...]]
 Predicate = Callable[["EventText"], tuple[str, ...] | None]
@@ -98,6 +98,10 @@ _POSTPONED_PATTERN = re.compile(
     r"\b(?:verschoben|verlegt)\b|\bneuer\s+termin\b",
     re.IGNORECASE,
 )
+_CONDITIONAL_CANCELLATION_PATTERN = re.compile(
+    rf"\b(?:{_CANCELLED_STATUS_WORDS})\b\s+(?:bei|falls|wenn|im\s+falle)\b",
+    re.IGNORECASE,
+)
 _LANGUAGE_NAME = re.compile(r"\b(?:italienisch|französisch)\b")
 _LANGUAGE_COURSE_CONTEXT = re.compile(
     r"\b(?:anfänger|anfaenger|fortgeschrittene|kurs|lernen|sprachunterricht|unterricht|[abc][12])\b"
@@ -111,6 +115,21 @@ _SEARCH_DATE_SIGNAL = re.compile(
 
 def _first(terms: frozenset[str], text: str) -> str:
     return next((term for term in terms if term in text), "")
+
+
+def _first_word_bounded(terms: frozenset[str], text: str) -> str:
+    return next(
+        (term for term in terms if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text)),
+        "",
+    )
+
+
+def _navigation_title(context: EventText) -> tuple[str, ...] | None:
+    normalized = re.sub(r"[^\wäöüß]+", " ", context.title).strip()
+    matched = next((term for term in JUNK_TITLE_TERMS if normalized == term), "")
+    if not matched and normalized.startswith("venen aktionstag"):
+        matched = "venen aktionstag"
+    return (matched,) if matched else None
 
 
 def _plain_text(value: str) -> str:
@@ -142,7 +161,7 @@ class EventText:
     destination_market: bool
 
     @classmethod
-    def from_event(cls, event: Mapping[str, Any]) -> "EventText":
+    def from_event(cls, event: Mapping[str, Any]) -> EventText:
         title = str(event.get("title") or "").lower()
         description = str(event.get("description") or "").lower()
         venue = str(event.get("venue") or "").lower()
@@ -172,7 +191,7 @@ def _partisan(context: EventText) -> tuple[str, ...] | None:
 
 def _cancelled(context: EventText) -> tuple[str, ...] | None:
     combined = f"{context.title} {context.description}"
-    if _POSTPONED_PATTERN.search(combined):
+    if _POSTPONED_PATTERN.search(combined) or _CONDITIONAL_CANCELLATION_PATTERN.search(combined):
         return None
     is_cancelled = bool(
         _CANCELLED_TITLE_PATTERN.search(context.title)
@@ -184,8 +203,14 @@ def _cancelled(context: EventText) -> tuple[str, ...] | None:
 
 
 def _governance(context: EventText) -> tuple[str, ...] | None:
-    governance_text = f"{context.title} {context.category} {context.venue} {context.link}"
-    matched = _first(GOVERNANCE_TERMS, governance_text)
+    governance_text = f"{context.title} {context.category}"
+    matched = _first_word_bounded(GOVERNANCE_TERMS, governance_text)
+    if not matched:
+        compound = re.search(
+            r"\b(?:fraktions|ausschuss|beirats?|rats?|kreistags?)sitzung\w*\b",
+            governance_text,
+        )
+        matched = compound.group(0) if compound else ""
     cultural = _first(CULTURAL_EVENT_TERMS, context.title_description)
     if "cinema-special" not in context.category and matched and not context.destination_market and not cultural:
         return (matched,)
@@ -256,6 +281,7 @@ def _routine_course(context: EventText) -> tuple[str, ...] | None:
     advice_service = _ADVICE_SERVICE_CONTEXT.search(context.title_description)
     if "beratung" in context.title and (recurrence or advice_service):
         evidence = recurrence or advice_service
+        assert evidence is not None
         return "beratung", evidence.group(0)
 
     title_course = _first(COURSE_CONTEXT_TERMS, context.title)
@@ -309,7 +335,11 @@ class Rule:
 
 
 RULES = (
-    Rule("metadata.navigation-page", "navigation or legal page is not an event", _contains(JUNK_TITLE_TERMS, "title")),
+    Rule(
+        "metadata.navigation-page",
+        "navigation or legal page is not an event",
+        _navigation_title,
+    ),
     Rule("metadata.directory-link", "link points to navigation, a directory, or a generic listing", _contains(JUNK_LINK_TERMS, "link")),
     Rule("civic.partisan-organization", "partisan organizational activity is outside the editorial scope", _partisan),
     Rule("editorial.private-graduation", "private graduation celebration is not a public destination event", _contains(PRIVATE_EVENT_TERMS, "text")),

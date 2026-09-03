@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .junk_rules import legacy_junk_decision
 
@@ -356,7 +357,10 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
 
     # Public participation records are valuable civic information, but they are
     # planning procedures rather than dated leisure events.
-    if "planung" in description and "stellungnahme" in description:
+    if (
+        re.search(r"\bplanung\b", description)
+        and re.search(r"\bstellungnahme(?:n)?\b", description)
+    ):
         return QualityDecision(
             QualityAction.DROP,
             "civic.public-consultation",
@@ -408,6 +412,7 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     sale_match = re.search(r"\b\w*(?:verkauf|ausgabe)\w*\b", text)
     routine_sale = sale_match and re.search(r"\b(?:gespendet|kleidung|kleider|sachen)\b", text)
     if recurring and routine_sale:
+        assert sale_match is not None
         return QualityDecision(
             QualityAction.DROP,
             "civic.recurring-service",

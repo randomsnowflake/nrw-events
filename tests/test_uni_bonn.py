@@ -4,9 +4,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common
-from nrw_events.sources import SOURCES, SOURCE_IDS, uni_bonn
-from tests.helpers import patch_window
+from nrw_events.sources import SOURCE_IDS, SOURCES, uni_bonn
 
+from tests.helpers import patch_window
 
 CHOIR_URL = (
     "https://www.uni-bonn.de/de/veranstaltungen/"

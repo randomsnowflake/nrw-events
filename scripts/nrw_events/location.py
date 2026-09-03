@@ -5,11 +5,9 @@ from __future__ import annotations
 import math
 import re
 from html import unescape
-from typing import Optional
 
 from . import config
 from .normalization import comparison_text
-
 
 BONN_LAT, BONN_LON = config.BONN_LAT, config.BONN_LON
 MAX_RADIUS_KM = config.MAX_RADIUS_KM
@@ -70,14 +68,14 @@ def canonicalize_city(city: str) -> str:
     return _CITY_ALIASES.get(comparison_text(cleaned), cleaned)
 
 
-def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optional[tuple], str, str]:
+def resolve_location(city: str, coords: tuple | None = None) -> tuple[tuple | None, str, str]:
     """Resolve an event location without silently treating unknown places as Bonn."""
     if coords is not None:
         try:
             lat, lon = float(coords[0]), float(coords[1])
         except (IndexError, TypeError, ValueError):
             return None, "unresolved", "invalid_explicit_coordinates"
-        if -90 <= lat <= 90 and -180 <= lon <= 180:
+        if 47 <= lat <= 56 and 5 <= lon <= 16:
             return (lat, lon), "exact", "source_coordinates"
         return None, "unresolved", "invalid_explicit_coordinates"
     normalized = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", unescape(city or ""))).strip().lower()
@@ -86,7 +84,7 @@ def resolve_location(city: str, coords: Optional[tuple] = None) -> tuple[Optiona
     return None, "unresolved", "unknown_city"
 
 
-def guess_city_from_text(text: str) -> Optional[str]:
+def guess_city_from_text(text: str) -> str | None:
     """Find a configured city in free text, preferring specific names to Bonn."""
     text_lower = re.sub(r"bundesstadt\s+bonn", " ", (text or "").lower())
     candidates = {match.group(0) for match in _NON_AMBIGUOUS_CITY_PATTERN.finditer(text_lower)}

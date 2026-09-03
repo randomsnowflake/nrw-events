@@ -1,7 +1,7 @@
 """Shared editorial vocabulary used across filtering and classification."""
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 

@@ -4,10 +4,10 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 from nrw_events.report import deduplicate
-from nrw_events.sources import SOURCES, SOURCE_IDS, adfc_bonn
+from nrw_events.sources import SOURCE_IDS, SOURCES, adfc_bonn
 from nrw_events.validation import canonicalize_event
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LISTING_ITEM = {
     "eventItemId": "event-guid",

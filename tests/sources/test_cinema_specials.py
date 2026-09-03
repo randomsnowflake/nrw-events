@@ -7,6 +7,7 @@ from nrw_events import common
 from nrw_events.health import SourceResult
 from nrw_events.sources import SOURCES, cinema_specials
 from nrw_events.validation import validate_event
+
 from tests.helpers import patch_window
 
 

@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from nrw_events import common, validation
 from nrw_events.sources import bonn
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 DETAIL_LINK = (
     "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"

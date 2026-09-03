@@ -189,7 +189,7 @@ def fetch() -> list:
     for site in SITES:
         try:
             events.extend(events_for_site(site))
-        except Exception as exc:
+        except Exception as exc:  # noqa: PERF203 - municipality sites must fail independently
             common.log_source_error(
                 site.source,
                 exc,

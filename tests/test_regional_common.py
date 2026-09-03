@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.sources import regional_common
+
 from tests.helpers import patch_window
 
 
@@ -44,6 +45,26 @@ class RegionalCommonHealthTests(unittest.TestCase):
             parsed_event_count=1,
             parser_empty=False,
         )
+
+    def test_dedupe_keeps_distinct_same_day_showtimes(self):
+        base = {
+            "source": "Cinema", "title": "Casablanca", "date": "2026-07-20",
+            "city": "Bonn", "venue": "Filmhaus",
+        }
+        events = [
+            {**base, "time": "18:00", "start_at": "2026-07-20T18:00+02:00"},
+            {**base, "time": "21:00", "start_at": "2026-07-20T21:00+02:00"},
+        ]
+
+        self.assertEqual(regional_common.dedupe(events), events)
+
+    def test_time_text_prefers_beginn_and_accepts_german_clock_forms(self):
+        self.assertEqual(
+            regional_common.time_text("Einlass 18:00 Uhr, Beginn 19:00 Uhr"),
+            "19:00",
+        )
+        self.assertEqual(regional_common.time_text("Beginn 19.30 Uhr"), "19:30")
+        self.assertEqual(regional_common.time_text("ab 10 Uhr"), "10:00")
 
     def test_out_of_window_events_skip_detail_enrichment(self):
         event = common.make_event(

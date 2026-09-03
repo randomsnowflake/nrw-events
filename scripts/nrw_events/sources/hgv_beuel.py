@@ -6,7 +6,6 @@ from datetime import datetime
 from .. import common
 from . import regional_common as rc
 
-
 _URL = "https://www.hgv-beuel.de/aktuelles"
 _SOURCE = "Heimatmuseum Beuel"
 _SOURCE_ID = "hgv-beuel"
@@ -84,8 +83,8 @@ def _detail_facts(html: str) -> dict[str, str]:
     location = rc.clean(location_match.group(1)) if location_match else ""
 
     price = ""
-    if re.search(r"\bEintritt(?:spreis:\s*Eintritt|\s+ist)?\s+frei\b", content, re.I):
-        price = "kostenlos"
+    if free_price := common.infer_free_admission_price("", content):
+        price = free_price
     else:
         price_match = re.search(
             r"(?:Anmeldung:\s*)?Vorverkauf[^\n]*?:\s*([^\n.]+€(?:\s*,\s*ermäßigt\s*[^\n.]+€)?)",

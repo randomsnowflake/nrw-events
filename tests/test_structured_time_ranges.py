@@ -3,6 +3,7 @@ from datetime import datetime
 
 from nrw_events import common
 from nrw_events.validation import validate_event
+
 from tests.helpers import patch_window
 
 

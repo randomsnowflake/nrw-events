@@ -12,7 +12,9 @@ from unittest import mock
 
 from nrw_events import common
 from nrw_events.health import SourceResult, SourceStatus
-from nrw_events.sources import SOURCES, coelln_antik_design as cad
+from nrw_events.sources import SOURCES
+from nrw_events.sources import coelln_antik_design as cad
+
 from tests.helpers import patch_window
 
 

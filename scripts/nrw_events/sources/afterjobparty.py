@@ -5,7 +5,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 URL = "https://afterjobparty.ticket.io/"
 SOURCE = "AfterJobParty Bonn"
 
@@ -59,9 +58,6 @@ def _events_from_listing(html: str) -> list:
         title = common.clean_html(str(item.get("name") or ""))
         if re.search(r"\bgutscheine?\b|\bvoucher\b", title, re.I):
             continue
-        if str(item.get("eventStatus", "")).casefold().endswith("eventcancelled"):
-            continue
-
         location = item.get("location") if isinstance(item.get("location"), dict) else {}
         address = location.get("address") if isinstance(location.get("address"), dict) else {}
         city = common.clean_html(str(address.get("addressLocality") or "Bonn"))
@@ -93,6 +89,8 @@ def _events_from_listing(html: str) -> list:
             coords=coords, source_id="afterjobparty-bonn",
         )
         if event:
+            if schema_status := common.jsonld_event_status(item.get("eventStatus")):
+                event["status"] = schema_status
             price = _price(item.get("offers"))
             if price:
                 event["price"] = price

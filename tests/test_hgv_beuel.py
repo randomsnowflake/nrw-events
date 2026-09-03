@@ -5,8 +5,8 @@ from unittest.mock import patch
 from nrw_events import detail_enrichment
 from nrw_events.sources import SOURCES, hgv_beuel
 from nrw_events.validation import canonicalize_event
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LISTING_HTML = """
 <main>

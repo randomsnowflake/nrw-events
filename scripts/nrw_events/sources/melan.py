@@ -6,7 +6,6 @@ from datetime import datetime
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Melan Märkte"
 _SOURCE_ID = "melan-regional-markets"
 _URL = "https://www.melan.de/fuer-alle/markttermine/"
@@ -82,9 +81,9 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             try:
                 start = datetime(year, month, day, start_hour, start_minute)
                 end = datetime(year, month, day, end_hour, end_minute)
-            except ValueError:
+            except ValueError as exc:
                 if strict:
-                    raise rc.ParserEmptyError("Melan date contract changed")
+                    raise rc.ParserEmptyError("Melan date contract changed") from exc
                 return []
             event = common.make_event(
                 target["title"],

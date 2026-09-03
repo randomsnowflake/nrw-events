@@ -1,12 +1,13 @@
 import json
 import unittest
 from datetime import datetime
-from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 from nrw_events import common
 from nrw_events.sources import afterjobparty, max7, rheinevents, salsainbonn
 from nrw_events.validation import canonicalize_event
+
 from tests.helpers import patch_window
 
 

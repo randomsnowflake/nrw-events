@@ -127,6 +127,53 @@ class ReportTests(unittest.TestCase):
 
         self.assertEqual(len(deduped), 2)
 
+    def test_cross_source_explicit_time_conflict_stays_distinct(self):
+        base = {
+            "title": "Jazz im Park", "date": "2026-08-20",
+            "start_date": "2026-08-20", "end_date": "2026-08-20",
+            "city": "Bonn", "venue": "", "description": "", "price": "",
+            "score": 1.0,
+        }
+        events = [
+            {**base, "source": "A", "time": "18:00", "start_at": "2026-08-20T18:00+02:00"},
+            {**base, "source": "B", "time": "20:00", "start_at": "2026-08-20T20:00+02:00"},
+        ]
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_title_containment_does_not_merge_compound_variants(self):
+        base = {
+            "date": "2026-08-20", "start_date": "2026-08-20", "end_date": "2026-08-20",
+            "city": "Bonn", "venue": "Rheinaue", "description": "", "price": "",
+            "time": "", "start_at": "", "score": 1.0,
+        }
+        events = [
+            {**base, "title": "Flohmarkt Bonn", "source": "A"},
+            {**base, "title": "Kinderflohmarkt Bonn", "source": "B"},
+        ]
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_edition_year_does_not_block_a_legitimate_merge(self):
+        base = {
+            "date": "2026-08-20", "start_date": "2026-08-20", "end_date": "2026-08-20",
+            "city": "Bonn", "venue": "Marktplatz", "description": "", "price": "",
+            "time": "", "start_at": "", "score": 1.0,
+        }
+        events = [
+            {**base, "title": "Sommerfest 2026", "source": "A"},
+            {**base, "title": "Sommerfest", "source": "B"},
+        ]
+        self.assertEqual(len(report.deduplicate(events)), 1)
+
+    def test_title_prefix_normalization_is_word_anchored(self):
+        self.assertNotEqual(
+            report.normalize_title("Konzertabend mit Anna"),
+            report.normalize_title("Abend mit Anna"),
+        )
+        self.assertEqual(
+            report.normalize_title("Ausstellungseröffnung: Farbe"),
+            "ausstellungseroeffnungfarbe",
+        )
+
     def test_mirecourtplatz_mitsingkonzert_prefers_direct_programme(self):
         base = {
             "date": "2026-08-26", "start_date": "2026-08-26",
@@ -1399,6 +1446,18 @@ class ReportTests(unittest.TestCase):
             },
         ]
 
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_same_source_all_day_markets_at_distinct_venues_stay_distinct(self):
+        base = {
+            "title": "Flohmarkt", "date": "2026-09-13", "start_date": "2026-09-13",
+            "end_date": "2026-09-13", "city": "Bonn", "source": "Bonn.de Events",
+            "score": 1.0, "description": "", "price": "", "time": "", "start_at": "",
+        }
+        events = [
+            {**base, "venue": "Rheinaue", "link": "https://example.test/rheinaue"},
+            {**base, "venue": "Beueler Rathausplatz", "link": "https://example.test/beuel"},
+        ]
         self.assertEqual(len(report.deduplicate(events)), 2)
 
     def test_deduplicate_folds_transliterated_titles_cities_and_venues(self):

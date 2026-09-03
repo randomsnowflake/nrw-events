@@ -7,6 +7,7 @@ from nrw_events import common
 from nrw_events.health import SourceStatus
 from nrw_events.sources import CUSTOM_SOURCES, bonn_food
 from nrw_events.validation import validate_event
+
 from tests.helpers import patch_window
 
 

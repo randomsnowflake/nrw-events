@@ -1,19 +1,19 @@
 import json
 import tempfile
-import tomllib
 import unittest
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-from nrw_events import config, radio_primary_resolution as resolution, report, runner
+import tomllib
+from nrw_events import config, report, runner
+from nrw_events import radio_primary_resolution as resolution
 from nrw_events.identity import event_id
 from nrw_events.models import MAX_DISCOVERY_PROVENANCE_SOURCES
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.validation import canonicalize_event
-
 
 RADIO_ID = "radio-bonn-rhein-sieg"
 
@@ -80,12 +80,11 @@ class RadioPrimaryManifestTests(unittest.TestCase):
               "primary_facts": {"description": "Unconfirmed copy"}}],
         ]
         for entries in invalid_entries:
-            with self.subTest(entries=entries):
-                with tempfile.TemporaryDirectory() as directory:
-                    path = Path(directory) / "manifest.json"
-                    path.write_text(json.dumps({"schema_version": 1, "entries": entries}))
-                    with self.assertRaises(ValueError):
-                        resolution.load_manifest(path)
+            with self.subTest(entries=entries), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "manifest.json"
+                path.write_text(json.dumps({"schema_version": 1, "entries": entries}))
+                with self.assertRaises(ValueError):
+                    resolution.load_manifest(path)
 
     def test_manifest_is_included_in_installed_package_data(self):
         pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))

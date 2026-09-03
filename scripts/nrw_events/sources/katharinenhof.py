@@ -7,7 +7,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Katharinenhof"
 _SOURCE_ID = "katharinenhof-flohmarkt"
 _URL = "https://beikircher.de/event-type/katharinenhof/"

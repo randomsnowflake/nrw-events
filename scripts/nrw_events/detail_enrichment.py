@@ -13,19 +13,19 @@ text is worse than an honest short description.
 
 from __future__ import annotations
 
-from collections import Counter
-from datetime import datetime
-from html import escape, unescape
-from html.parser import HTMLParser
+import contextlib
 import json
 import os
 import re
 import time
 import unicodedata
+from collections import Counter
+from datetime import datetime
+from html import escape, unescape
+from html.parser import HTMLParser
 from urllib.parse import urldefrag, urlsplit
 
 from . import common, richtext
-
 
 _NON_DOCUMENT_SUFFIXES = (
     ".css", ".csv", ".gif", ".ics", ".jpeg", ".jpg", ".json", ".pdf",
@@ -484,13 +484,13 @@ def _adfc_table_facts(document: str) -> list[tuple[str, str]]:
     )]
     return [
         (heading, value)
-        for heading, value in zip(headings, values)
+        for heading, value in zip(headings, values, strict=False)
         if heading and value
     ]
 
 
 def _display_number(value: object) -> str:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    if isinstance(value, bool) or not isinstance(value, int | float):
         return ""
     number = float(value)
     if number.is_integer():
@@ -894,10 +894,8 @@ def _dein_phonzimmer_detail_context(document: str, event: dict) -> dict[str, str
         intro = body[:schedule.start()]
         wanted_date = str(event.get("start_date") or event.get("date") or "")[:10]
         date_label = ""
-        try:
+        with contextlib.suppress(ValueError):
             date_label = datetime.strptime(wanted_date, "%Y-%m-%d").strftime("%d.%m.%Y")
-        except ValueError:
-            pass
         occurrence = ""
         if date_label:
             match = re.search(
@@ -1030,7 +1028,7 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
                 context["venue_address"] = structured_address or context["venue_address"]
         organizer = item.get("organizer")
         if isinstance(organizer, list):
-            organizer = next((value for value in organizer if isinstance(value, (dict, str))), "")
+            organizer = next((value for value in organizer if isinstance(value, dict | str)), "")
         if isinstance(organizer, dict):
             organizer = organizer.get("name") or ""
         if isinstance(organizer, str):
@@ -1122,7 +1120,10 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
         enriched["description_html"] = context["description_html"]
 
     price = context.get("price", "")
-    if price:
+    if price and (
+        not str(enriched.get("price") or "").strip()
+        or enriched.get("admission_basis") not in {"explicit", "structured"}
+    ):
         enriched["price"] = common.clean_html(price)[:160]
         enriched["admission_basis"] = "explicit"
     for field in ("venue", "venue_address"):
@@ -1197,6 +1198,9 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
         # A detail page may be retried up to three times. Do not start work
         # that cannot finish within this source's optional enrichment budget.
         if remaining < 3.0:
+            result = getattr(common._SOURCE_CONTEXT, "result", None)
+            if result is not None:
+                result.detail_deadline_skipped_event_count += 1
             enriched.append(event)
             continue
         link = str(event.get("link") or "")

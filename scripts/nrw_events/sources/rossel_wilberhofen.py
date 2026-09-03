@@ -6,7 +6,6 @@ from datetime import datetime
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Bürgerverein Rossel-Wilberhofen"
 _SOURCE_ID = "rossel-wilberhofen-dorfflohmarkt"
 _NEWS_URL = "https://www.rossel-wilberhofen.com/deutsch/aktuelles-1/"
@@ -47,9 +46,9 @@ def _events_from_pages(news_html: str, calendar_html: str, *, strict: bool = Fal
     try:
         start = datetime(year, 8, day, start_hour, start_minute)
         end = datetime(year, 8, day, end_hour, end_minute)
-    except ValueError:
+    except ValueError as exc:
         if strict:
-            raise rc.ParserEmptyError("Rossel-Wilberhofen date contract changed")
+            raise rc.ParserEmptyError("Rossel-Wilberhofen date contract changed") from exc
         return []
     if (day, 8) != (calendar_day, calendar_month):
         if strict:

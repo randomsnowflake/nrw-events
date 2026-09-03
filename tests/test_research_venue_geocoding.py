@@ -1,8 +1,8 @@
 import json
-from pathlib import Path
 import tempfile
 import unittest
 import urllib.error
+from pathlib import Path
 from unittest import mock
 
 from scripts import research_venue_geocoding as research

@@ -5,7 +5,6 @@ import re
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Theater Marabu"
 _CALENDAR = "https://www.theater-marabu.de/kalender/"
 _CATEGORY = "theater bühne performance tanz"

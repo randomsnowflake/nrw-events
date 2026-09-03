@@ -7,21 +7,22 @@ not have to duplicate category rules in TypeScript.
 
 from __future__ import annotations
 
-import re
 import json
+import re
+import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, TypedDict
+from typing import TypedDict, cast
 
 from .models import normalize_source_id
-
 
 _GERMAN_SPELLING_TRANSLATION = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
 _WORD_PATTERN = re.compile(r"\w+")
 
 
 def normalize_text(value: str) -> str:
-    value = (value or "").lower()
+    value = unicodedata.normalize("NFC", value or "").lower()
     value = value.replace("&amp;", "&")
     return re.sub(r"\s+", " ", value).strip()
 
@@ -117,7 +118,7 @@ def _keyword_from_spec(raw: object) -> Keyword:
         raise ValueError(f"unsupported category keyword match_mode {mode!r}")
     if scope not in {"all", "title"}:
         raise ValueError(f"unsupported category keyword scope {scope!r}")
-    if not isinstance(weight, (int, float)) or not 0 < weight <= 1:
+    if not isinstance(weight, int | float) or not 0 < weight <= 1:
         raise ValueError("category keyword weight must be greater than zero and at most one")
     if not isinstance(raw["comment"], str):
         raise ValueError("category keyword comment must be a string")
@@ -198,7 +199,7 @@ def configure_fallback_cache(path: str = "") -> None:
         confidence = raw.get("confidence", 0.9)
         if key not in CATEGORY_BY_KEY or key == "other":
             raise ValueError(f"category fallback cache contains invalid category {key!r}")
-        if not isinstance(confidence, (int, float)) or not HEURISTIC_CONFIDENCE_THRESHOLD <= confidence <= 1:
+        if not isinstance(confidence, int | float) or not HEURISTIC_CONFIDENCE_THRESHOLD <= confidence <= 1:
             raise ValueError("category fallback cache confidence must be between 0.5 and 1.0")
         category = CATEGORY_BY_KEY[key]
         loaded[cache_key] = {
@@ -270,12 +271,16 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
         return "sports"
     if re.search(r"\blearning[ -]?session\b", title_text):
         return "workshop"
+    if re.search(r"\b\w*(?:filmvor|vor)f(?:ü|ue)hrung(?:en)?\b", title_text):
+        return "cinema"
+    if re.search(r"\b\w*(?:urauf|erstauf|wiederauf|auf)f(?:ü|ue)hrung(?:en)?\b", title_text):
+        return "stage"
     if (
         re.search(r"\b\w*museum\w*\b", title_text)
         and re.search(r"\b(?:geöffnet|geoeffnet|öffnung|oeffnung|open)\w*\b", title_text)
     ):
         return "exhibition"
-    if re.search(r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b", title_text):
+    if _GUIDED_TOUR_TITLE_PATTERN.search(title_text):
         return "outdoor"
     if _contains_comparison_word(title_comparison, "bildungsurlaub"):
         return "workshop"
@@ -283,7 +288,8 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
 
 
 _GUIDED_TOUR_TITLE_PATTERN = re.compile(
-    r"\b(?!ein(?:fuehrung|führung)\b)\w*(?:führung(?:en)?|fuehrung(?:en)?)\b"
+    r"\b(?!\w*(?:ein|auf|urauf|vor|filmvor|durch|wiederauf|erstauf)f(?:ü|ue)hrung(?:en)?\b)"
+    r"\w*f(?:ü|ue)hrung(?:en)?\b"
 )
 _INDOOR_MUSEUM_CONTEXT_PATTERN = re.compile(
     r"\b(?:\w*museum\w*|bundeskunsthalle|ausstellungshaus)\b"
@@ -306,7 +312,8 @@ def _is_indoor_museum_guided_tour(
     if _OUTDOOR_GUIDED_TOUR_PATTERN.search(title_text):
         return False
     return bool(
-        _INDOOR_MUSEUM_CONTEXT_PATTERN.search(venue_text)
+        re.search(r"\b(?:kunst\w*museum|bundeskunsthalle|ausstellungshaus)\b", title_text)
+        or _INDOOR_MUSEUM_CONTEXT_PATTERN.search(venue_text)
         or source_text in {
             "bundeskunsthalle",
             "deutsches museum bonn",
@@ -809,7 +816,7 @@ def categorize_event(
 
     fallback = _fallback_category(source_id or source, title_text)
     if best_key == "other" and fallback:
-        return dict(fallback)
+        return cast(CategoryResult, dict(fallback))
 
     confidence = _heuristic_confidence(
         best_title_matches,

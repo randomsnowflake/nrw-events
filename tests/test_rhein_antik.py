@@ -9,6 +9,7 @@ from datetime import datetime
 
 from nrw_events import report
 from nrw_events.sources import SOURCES, rhein_antik
+
 from tests.helpers import patch_window
 
 

@@ -10,7 +10,6 @@ from typing import TypedDict
 from .. import common
 from . import regional_common as rc
 
-
 _SOURCE = "Kirmes in Bonn"
 _SOURCE_ID = "bonnkirmes"
 _URL = "https://www.bonnkirmes.com/"
@@ -125,14 +124,14 @@ def _description(paragraphs: list[str], start: datetime) -> str:
             continue
         selected.append(paragraph)
         for continuation in paragraphs[index + 1:]:
-            continuation = continuation.strip(" \t\r\n\u200b")
-            if not continuation or re.search(
+            clean_continuation = continuation.strip(" \t\r\n\u200b")
+            if not clean_continuation or re.search(
                 r"\b(?:Please contact|Thanks for submitting|Adresse:)\b",
-                continuation,
+                clean_continuation,
                 re.IGNORECASE,
             ):
                 break
-            selected.append(continuation)
+            selected.append(clean_continuation)
         break
     description = " ".join(dict.fromkeys(selected))
     # The organizer sometimes updates the actual date range without replacing

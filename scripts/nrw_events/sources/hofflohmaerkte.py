@@ -6,7 +6,6 @@ from .. import common, http
 from ..dates import MONTH_DE
 from . import regional_common as rc
 
-
 _URL = "https://www.hofflohmaerkte.de/pages/hofflohmarkte-koln"
 _DATE_PATTERN = re.compile(
     r"(?:Sa|So)\.\s*(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})\s*"

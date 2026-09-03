@@ -15,7 +15,6 @@ from html import unescape
 from .. import common
 from ..early_publication import PUETZCHENS_MARKT_SOURCE_ID, PUETZCHENS_MARKT_URL
 
-
 _OBJECT_ID = 11030
 _SOURCE = "Tourismus NRW"
 _DATE_RANGE = re.compile(
@@ -45,7 +44,7 @@ def _event_nodes(html: str) -> list[dict]:
             elif isinstance(item, dict):
                 if item.get("@type") == "Event":
                     nodes.append(item)
-                queue.extend(v for v in item.values() if isinstance(v, (dict, list)))
+                queue.extend(v for v in item.values() if isinstance(v, dict | list))
     return nodes
 
 

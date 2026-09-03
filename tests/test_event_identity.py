@@ -118,6 +118,18 @@ class EventIdStabilityTests(unittest.TestCase):
         right = occurrence(venue_id="", venue="Stadthalle")
         self.assertNotEqual(event_id(left), event_id(right))
 
+    def test_description_enrichment_does_not_create_a_venue_identity(self):
+        base = occurrence(
+            title="Antikmarkt", venue_id="", venue="Bad Godesberg", city="Bonn",
+            description="", time="", start_at="", all_day=True,
+        )
+        enriched = {
+            **base,
+            "description": "Auf der Rigal'schen Wiese in Bad Godesberg.",
+        }
+
+        self.assertEqual(event_id(base), event_id(enriched))
+
     def test_map_only_location_enrichment_preserves_lantershofen_url(self):
         event = occurrence(
             title="100-Jahre Löschgruppe Lantershofen",

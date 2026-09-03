@@ -1,21 +1,20 @@
 import fcntl
 import json
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
-from dataclasses import replace
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import sqlite3
 import tempfile
 import threading
 import time
 import unittest
-from unittest import mock
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from unittest import mock
 
 from nrw_events import ai_enrichment, common
 from nrw_events.identity import event_id
-
 
 FACTS = {
     "title": "Klangraum",
@@ -411,15 +410,14 @@ class AIEnrichmentTests(unittest.TestCase):
             ai_enrichment,
             "_read_response_isolated",
             side_effect=TimeoutError("AI request exceeded its wall-clock deadline"),
-        ) as read_response:
-            with self.assertRaisesRegex(ai_enrichment.AIEnrichmentError, "TimeoutError"):
-                ai_enrichment.OpenRouterClient(settings).structured(
-                    stage="facts",
-                    system="Extract facts.",
-                    payload={"source_material": "Private source copy."},
-                    schema=ai_enrichment._FACT_SCHEMA,
-                    attempt=1,
-                )
+        ) as read_response, self.assertRaisesRegex(ai_enrichment.AIEnrichmentError, "TimeoutError"):
+            ai_enrichment.OpenRouterClient(settings).structured(
+                stage="facts",
+                system="Extract facts.",
+                payload={"source_material": "Private source copy."},
+                schema=ai_enrichment._FACT_SCHEMA,
+                attempt=1,
+            )
 
         read_response.assert_called_once()
 
@@ -471,22 +469,22 @@ class AIEnrichmentTests(unittest.TestCase):
             ai_enrichment._read_bounded_response(OversizedResponse(), 30)
 
     def test_batch_budget_stops_enrichment_without_discarding_remaining_events(self):
-        settings = replace(self.settings, batch_timeout_seconds=30, workers=1)
+        settings = replace(self.settings, batch_timeout_seconds=120, workers=1)
         values = [event(title="First"), event(title="Second")]
         seen_timeouts = []
 
-        def enrich_one(value, *, settings):
+        def enrich_one(value, *, settings, configured_timeout_seconds):
             seen_timeouts.append(settings.timeout_seconds)
             return {**value, "ai_summary": "done"}
 
         with mock.patch.object(
-            ai_enrichment.time, "monotonic", side_effect=[100, 100, 131]
+            ai_enrichment.time, "monotonic", side_effect=[100, 100, 221]
         ), mock.patch.object(
             ai_enrichment.common, "event_in_window", return_value=True
         ), mock.patch.object(ai_enrichment, "enrich_event", side_effect=enrich_one):
             result = ai_enrichment.enrich_events(values, settings=settings)
 
-        self.assertEqual([7.5], seen_timeouts)
+        self.assertEqual([30], seen_timeouts)
         self.assertEqual("done", result[0]["ai_summary"])
         self.assertIn("Second", result[1]["description"])
         self.assertTrue(result[1]["description_html"])
@@ -495,7 +493,7 @@ class AIEnrichmentTests(unittest.TestCase):
         values = [event(title="First"), event(title="Second")]
         barrier = threading.Barrier(2, timeout=1)
 
-        def enrich_one(value, *, settings):
+        def enrich_one(value, *, settings, configured_timeout_seconds):
             barrier.wait()
             return {**value, "ai_summary": f"done: {value['title']}"}
 
@@ -504,7 +502,7 @@ class AIEnrichmentTests(unittest.TestCase):
         ), mock.patch.object(ai_enrichment, "enrich_event", side_effect=enrich_one):
             result = ai_enrichment.enrich_events(
                 values,
-                settings=replace(self.settings, batch_timeout_seconds=30, workers=2),
+                settings=replace(self.settings, batch_timeout_seconds=120, workers=2),
             )
 
         self.assertEqual(
@@ -825,6 +823,18 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertTrue(all(result["description"] for result in results))
         self.assertTrue(all(result["description_source"] == "generated" for result in results))
 
+    def test_near_deadline_skips_without_creating_a_negative_cache_row(self):
+        stats: dict[str, int] = {}
+
+        ai_enrichment.enrich_events(
+            [in_window_event()],
+            settings=replace(self.settings, batch_timeout_seconds=60),
+            stats=stats,
+        )
+
+        self.assertEqual(1, stats["ai_deadline_skipped_event_count"])
+        self.assertFalse(self.settings.cache_db.exists())
+
     def test_batch_reports_cap_skips_separately_from_deadline_skips(self):
         stats: dict[str, int] = {}
 
@@ -1117,6 +1127,21 @@ class AIEnrichmentTests(unittest.TestCase):
             )
         self.assertGreater(negative_until, self.now)
         self.assertLessEqual(negative_until, self.now + timedelta(hours=24))
+
+    def test_transient_failure_backs_off_before_retrying(self):
+        client = FakeClient([
+            ai_enrichment.AIEnrichmentError("OpenAI HTTP 429", transient=True),
+            FACTS,
+            SUMMARY,
+        ])
+
+        with mock.patch.object(ai_enrichment.time, "sleep") as sleep:
+            result = ai_enrichment.enrich_event(
+                event(), settings=self.settings, client=client, now=self.now,
+            )
+
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+        sleep.assert_called_once_with(1.0)
 
     def test_content_refusal_keeps_permanent_negative_cache(self):
         settings = replace(self.settings, max_attempts=1, negative_cache_hours=0)

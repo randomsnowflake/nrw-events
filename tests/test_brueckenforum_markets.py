@@ -3,8 +3,8 @@ from datetime import datetime
 
 from nrw_events.sources import requested_venues
 from nrw_events.validation import canonicalize_event
-from tests.helpers import patch_window
 
+from tests.helpers import patch_window
 
 LISTING = """
 <div class="col module"><div class="event-single">

@@ -11,6 +11,7 @@ from nrw_events.sources import (
     kunstmuseum_bonn,
     museum_koenig,
 )
+
 from tests.helpers import patch_window
 
 

@@ -14,7 +14,6 @@ dependencies = []
 dev = [
     "coverage~=7.9.2",
     "mypy~=1.17.0",
-    "pytest~=8.4.1",
     "ruff~=0.12.3",
 ]
 
@@ -32,6 +31,7 @@ include = ["nrw_events*"]
 nrw_events = [
     "categories.json",
     "junk_rules_data.json",
+    "reviewed_corrections.json",
     "verified_venue_locations.json",
     "sources/radio_primary_sources.json",
     "sources/registry.json",
@@ -39,7 +39,25 @@ nrw_events = [
 
 [tool.mypy]
 python_version = "3.10"
-files = ["scripts/nrw_events/core.py"]
+files = [
+    "scripts/nrw_events/core.py",
+    "scripts/nrw_events/normalization.py",
+    "scripts/nrw_events/config.py",
+    "scripts/nrw_events/health.py",
+    "scripts/nrw_events/models.py",
+    "scripts/nrw_events/identity.py",
+    "scripts/nrw_events/reviewed_summaries.py",
+    "scripts/nrw_events/reviewed_corrections.py",
+    "scripts/nrw_events/location.py",
+    "scripts/nrw_events/scoring.py",
+    "scripts/nrw_events/observability.py",
+    "scripts/nrw_events/title_normalization.py",
+    "scripts/nrw_events/category_taxonomy.py",
+    "scripts/nrw_events/junk_rules.py",
+    "scripts/nrw_events/quality.py",
+    "scripts/nrw_events/series.py",
+    "scripts/nrw_events/radio_primary_resolution.py",
+]
 follow_imports = "skip"
 ignore_missing_imports = true
 disallow_untyped_defs = true
@@ -58,4 +76,8 @@ target-version = "py310"
 line-length = 120
 
 [tool.ruff.lint]
-select = ["E9", "F"]
+select = ["E9", "F", "B", "UP", "SIM", "C4", "PERF", "RUF", "PLE", "PLW", "I"]
+ignore = ["RUF001", "RUF002", "RUF003", "E501", "PLW0603"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["SIM117", "RUF012"]

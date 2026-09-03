@@ -1,7 +1,10 @@
 import unittest
+from datetime import datetime
 from unittest import mock
 
 from nrw_events.sources import search
+
+from tests.helpers import patch_window
 
 
 class SearchSourceTests(unittest.TestCase):
@@ -37,9 +40,25 @@ class SearchSourceTests(unittest.TestCase):
         self.assertEqual(post_json.call_args_list[0].kwargs["headers"], {"x-api-key": "secret"})
         parse_result.assert_called_once_with(
             "Sommerfest Bonn", "https://example.test/fest",
-            "2026-08-03 Am 15. August in Bonn", "Exa Search", 0.58,
+            "Am 15. August in Bonn", "Exa Search", 0.58,
         )
         log_error.assert_called_once()
+
+    def test_exa_publish_date_never_becomes_the_event_date(self):
+        patch_window(self, datetime(2026, 9, 3), datetime(2026, 10, 31))
+        response = {
+            "results": [{
+                "title": "Weinfest Bonn", "url": "https://example.test/fest",
+                "publishedDate": "2026-09-03",
+                "text": "Das Herbstfest findet am 10.10.2026 in Bonn statt.",
+            }],
+        }
+        with mock.patch.dict("os.environ", {"EXA_API_KEY": "secret"}, clear=True), \
+                mock.patch.object(search, "search_queries", return_value=["query"]), \
+                mock.patch.object(search.common, "post_json", return_value=response):
+            [event] = search.fetch_exa()
+
+        self.assertEqual(event["date"], "2026-10-10")
 
     def test_grok_requires_key_and_explicit_opt_in(self):
         with mock.patch.dict("os.environ", {}, clear=True), \
@@ -73,7 +92,10 @@ class SearchSourceTests(unittest.TestCase):
                 },
             ],
         }
-        parsed = {"title": "Weinwanderung", "city": "Bonn", "venue": ""}
+        parsed = {
+            "title": "Weinwanderung", "date": "2026-08-22",
+            "city": "Bad Neuenahr-Ahrweiler", "venue": "",
+        }
         environment = {"XAI_API_KEY": "secret", "NRW_EVENTS_ENABLE_GROK": "yes"}
         with mock.patch.dict("os.environ", environment, clear=True), \
                 mock.patch.object(search, "search_queries", return_value=["Ahrtal events"]), \
@@ -83,14 +105,35 @@ class SearchSourceTests(unittest.TestCase):
 
         self.assertEqual(events, [{
             "title": "Weinwanderung", "date": "2026-08-22",
-            "city": "Bad Neuenahr", "venue": "Kurpark",
+            "city": "Bad Neuenahr-Ahrweiler", "venue": "Kurpark",
         }])
         self.assertEqual(post_json.call_args.args[0], "https://api.x.ai/v1/responses")
         self.assertEqual(post_json.call_args.kwargs["headers"], {"Authorization": "Bearer secret"})
         parse_result.assert_called_once_with(
             "Weinwanderung", "https://example.test/wine",
-            "2026-08-22 Kurpark Geführte Tour", "Grok Search", 0.7,
+            "2026-08-22 Kurpark bad neuenahr Geführte Tour", "Grok Search", 0.7,
         )
+
+    def test_grok_rejects_an_unparseable_model_date(self):
+        response = {
+            "output": [{
+                "type": "message", "role": "assistant",
+                "content": [{
+                    "type": "output_text",
+                    "text": '[{"title":"Maybe","date":"next Saturday",'
+                            '"url":"https://example.test/maybe"}]',
+                }],
+            }],
+        }
+        with mock.patch.dict("os.environ", {
+            "XAI_API_KEY": "secret", "NRW_EVENTS_ENABLE_GROK": "yes",
+        }, clear=True), mock.patch.object(
+            search, "search_queries", return_value=["events"],
+        ), mock.patch.object(
+            search.common, "post_json", return_value=response,
+        ), mock.patch.object(search.common, "search_result_event") as parser:
+            self.assertEqual(search.fetch_grok(), [])
+        parser.assert_not_called()
 
 
 if __name__ == "__main__":
