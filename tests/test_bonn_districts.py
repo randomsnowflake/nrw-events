@@ -202,6 +202,37 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertTrue(all(event["source_role"] == "primary" for event in events))
         self.assertTrue(all(event["discovered_via"] == ["beuel-net"] for event in events))
 
+    def test_official_carillon_source_separates_church_from_listening_place(self):
+        html = """
+        <div class="yel"><a href="/events/#03.09.2026"><span class="title">Carillon-Konzert mit Gerda Peters (NL)</span><br>
+        <b>Do. 03.09.2026 17:00 - 18:00</b> | <a href="/map/?q=St Josef">St Josef / Tisch der Vielfalt</a><br>
+        <a href="https://www.katholisch-an-rhein-und-sieg.de/programm.pdf">externer Link</a></a></div>
+        """
+        [discovered] = bonn_districts.events_from_beuel_html(html)
+
+        [event] = bonn_districts._confirm_beuel_primary_sources(
+            [discovered], primary_fetcher=lambda _url: "offizielles Programm",
+        )
+
+        self.assertEqual(event["venue"], "St. Josef Beuel")
+        self.assertEqual(event["venue_id"], "st-josef-beuel")
+        self.assertIn("St. Josef Beuel", event["description"])
+        self.assertNotIn("Tisch der Vielfalt", event["description"])
+
+    def test_non_carillon_event_keeps_the_combined_beuel_location(self):
+        event = {
+            "title": "Beueler Butterbrot am Tisch der Vielfalt",
+            "venue": "St Josef / Tisch der Vielfalt",
+            "city": "Bonn-Beuel",
+        }
+
+        bonn_districts._canonical_beuel_primary_venue(
+            event, "katholisch-an-rhein-und-sieg.de",
+        )
+
+        self.assertEqual(event["venue"], "St Josef / Tisch der Vielfalt")
+        self.assertNotIn("venue_id", event)
+
     def test_burg_lede_primary_uses_validated_brightdata_once_for_duplicate_cards(self):
         discovered = bonn_districts.events_from_beuel_html(BEUEL_HTML)[0]
         discovered["link"] = BURG_LEDE_URL

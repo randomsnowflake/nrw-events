@@ -49,6 +49,15 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertEqual(venue.venue, "Repair Café MVA Bonn")
         self.assertEqual(venue.venue_id, "repair-cafe-mva-bonn")
 
+    def test_st_josef_beuel_has_verified_structured_location(self):
+        venue = resolve_venue("St. Josef Beuel", "Bonn-Beuel")
+
+        self.assertEqual(venue.venue_id, "st-josef-beuel")
+        self.assertEqual(venue.venue_address, "Hermannstraße 35, 53225 Bonn")
+        self.assertEqual(venue.venue_type, "church")
+        self.assertAlmostEqual(venue.venue_latitude or 0, 50.7369187)
+        self.assertAlmostEqual(venue.venue_longitude or 0, 7.1177258)
+
     def test_verified_asbach_trailhead_parking_resolves_outside_known_city_table(self):
         venue = resolve_venue("Parkplatz Bennau an der L 272", "Asbach")
 

@@ -85,6 +85,7 @@ PUBLIC_VENUE_IDS = frozenset({
     "stadthalle-remagen",
     "stadtgarten-alter-zoll-bonn",
     "stadtmuseum-siegburg",
+    "st-josef-beuel",
     "theater-im-ballsaal",
     "theater-im-keller-bonn",
     "theater-marabu",

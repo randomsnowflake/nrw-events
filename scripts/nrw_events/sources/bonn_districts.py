@@ -35,6 +35,7 @@ _BRUESER_BERG_LOCAL_VENUES = (
     "telekom dome",
 )
 _JMJ_HOST = "jmj-online.de"
+_ST_JOSEF_PARISH_HOST = "katholisch-an-rhein-und-sieg.de"
 
 
 def _active_reviewed_map(group: str) -> dict[tuple[str, ...], object]:
@@ -511,6 +512,21 @@ def _primary_description(event: dict, html: str, source: str) -> str:
     return _jmj_kirmes_description(html)
 
 
+def _canonical_beuel_primary_venue(event: dict, source: str) -> None:
+    """Separate St. Josef from the outdoor listening place beside it."""
+    title = normalization.comparison_text(str(event.get("title") or ""))
+    venue = normalization.comparison_text(str(event.get("venue") or ""))
+    if (
+        source == _ST_JOSEF_PARISH_HOST
+        and "carillon" in title
+        and "st josef" in venue
+        and "tisch der vielfalt" in venue
+    ):
+        event["venue"] = "St. Josef Beuel"
+        event["venue_id"] = "st-josef-beuel"
+        event["city"] = "Bonn-Beuel"
+
+
 def _reviewed_beuel_primary_link(event: dict, link: str) -> str:
     normalized_link = link.rstrip("/")
     programme_entries = reviewed_corrections.active_entries(
@@ -574,6 +590,7 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
         event["source_id"] = "beuel-net"
         event["source_role"] = "primary"
         event["discovered_via"] = ["beuel-net"]
+        _canonical_beuel_primary_venue(event, source)
         description = _primary_description(event, primary_html, source)
         if description:
             event["description"] = description
