@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypedDict, cast
 
+from . import performance
 from .models import normalize_source_id
 
 _GERMAN_SPELLING_TRANSLATION = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
@@ -546,6 +547,7 @@ def _heuristic_confidence(
     return round(min(confidence, 0.95), 2)
 
 
+@performance.measured("canonicalization.taxonomy")
 def categorize_event(
     source_category: str,
     title: str,

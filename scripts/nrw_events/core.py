@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, NoReturn, TypedDict
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import category_taxonomy, config, richtext
+from . import category_taxonomy, config, performance, richtext
 from .dates import MONTH_DE as MONTH_DE
 from .dates import MONTH_EN as MONTH_EN
 from .dates import configure_reference_date as _configure_date_reference
@@ -228,6 +228,9 @@ def capture_parser_metrics() -> Iterator[dict[str, int]]:
 
 
 def _record_parser_candidate(*, out_of_window: bool = False) -> None:
+    performance.count("parser_candidates")
+    if out_of_window:
+        performance.count("parser_out_of_window")
     metrics = getattr(_SOURCE_CONTEXT, "parser_metrics", None)
     if metrics is None:
         return
@@ -386,10 +389,12 @@ def _host_request_slot(url: str, deadline: float) -> Iterator[None]:
     with _HOST_SLOT_LOCK:
         slot = _HOST_SLOTS.setdefault(slot_key, threading.Lock())
     wait = _remaining_timeout(deadline, deadline - time.perf_counter())
-    if not slot.acquire(timeout=wait):
-        raise TimeoutError(f"timed out waiting for request slot on {hostname}")
+    with performance.span("http.host_slot_wait"):
+        if not slot.acquire(timeout=wait):
+            raise TimeoutError(f"timed out waiting for request slot on {hostname}")
     try:
-        _throttle_before_request(url)
+        with performance.span("http.throttle_wait"):
+            _throttle_before_request(url)
         _remaining_timeout(deadline, deadline - time.perf_counter())
         yield
     finally:
@@ -463,6 +468,7 @@ def browser_headers(
     return hdrs
 
 
+@performance.measured("http.fetch_including_slot_and_retries")
 def fetch_url(
     url: str,
     timeout: int = 15,
@@ -496,6 +502,7 @@ def fetch_url(
         else max(int(retry_attempts), 1)
     )
     for attempt in range(attempts):
+        performance.count("http_attempts")
         try:
             started = time.perf_counter()
             req = urllib.request.Request(url, headers=hdrs)
@@ -515,6 +522,7 @@ def fetch_url(
                     body = _read_response_body(
                         resp, settings.http_max_response_bytes, deadline=deadline,
                     )
+                    performance.count("http_bytes", len(body))
                     charset = (
                         headers_obj.get_content_charset()
                         if headers_obj is not None and hasattr(headers_obj, "get_content_charset")
@@ -538,7 +546,7 @@ def fetch_url(
                     if 0xDC80 <= ord(char) <= 0xDCFF else char
                     for char in decoded
                 )
-        except Exception as exc:  # noqa: PERF203 - retry attempts must isolate transport failures
+        except Exception as exc:
             if isinstance(exc, urllib.error.HTTPError) and exc.code in accepted_http_statuses:
                 headers_obj = exc.headers
                 content_type = (
@@ -901,6 +909,7 @@ def _reset_detail_page_cache(namespace: str | None = None) -> None:
             _DETAIL_PAGE_CACHE_STATES.pop(_detail_page_cache_slug(namespace), None)
 
 
+@performance.measured("detail_cache.load")
 def _load_detail_page_cache(namespace: str, ttl_seconds: float) -> DetailCacheState:
     slug = _detail_page_cache_slug(namespace)
     path = _detail_page_cache_path(namespace)
@@ -985,6 +994,7 @@ def _persist_detail_page_cache(state: DetailCacheState) -> dict[str, str] | None
         }
 
 
+@performance.measured("detail_cache.flush")
 def flush_detail_page_caches(namespace: str | None = None) -> list[dict[str, str]]:
     """Persist dirty cache namespaces once at a source-run boundary."""
     warnings: list[dict[str, str]] = []
@@ -1036,6 +1046,7 @@ def fetch_detail_url(
         transport_kwargs["retry_attempts"] = retry_attempts
     ttl_seconds = _detail_page_cache_ttl_seconds()
     if not ttl_seconds:
+        performance.count("detail_cache_bypasses")
         return fetcher(url, timeout=timeout, **transport_kwargs)
     cache_parameters = json.dumps(
         {
@@ -1058,6 +1069,7 @@ def fetch_detail_url(
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         cached = state["entries"].get(cache_key)
         if cached is not None and time.time() - cached["fetched_at"] <= ttl_seconds:
+            performance.count("detail_cache_hits")
             # Access-only LRU bump: kept in memory only, so a fully cached run
             # never rewrites multi-MB namespace files. The bump is persisted
             # alongside the next insertion in this namespace, which is the only
@@ -1066,6 +1078,7 @@ def fetch_detail_url(
             return cached["body"]
         state["entries"].pop(cache_key, None)
 
+    performance.count("detail_cache_misses")
     try:
         body = fetcher(url, timeout=timeout, **transport_kwargs)
     except Exception:
@@ -2134,6 +2147,7 @@ def _event_location(
     return canonical_venue, distance, confidence, source
 
 
+@performance.measured("canonicalization.build_event")
 def build_event(draft: EventDraft) -> RawEvent | None:
     """Normalize one bundled event draft and apply radius and quality checks.
 
@@ -3017,6 +3031,7 @@ def _ical_recurrence_starts(
     }), ""
 
 
+@performance.measured("ical.fetch_parse_canonicalize")
 def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                trust: float = 1.0, source_id: str = "",
                event_filter: Callable[[dict[str, str], datetime, datetime], bool] | None = None,

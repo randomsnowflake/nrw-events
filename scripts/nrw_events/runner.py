@@ -31,6 +31,7 @@ from . import (
     config,
     detail_enrichment,
     early_publication,
+    performance,
     radio_primary_resolution,
     report,
     reviewed_summaries,
@@ -178,6 +179,7 @@ def _sanitize_research_lead(event: Mapping[str, object]) -> dict[str, object]:
     return lead
 
 
+@performance.measured("source.total")
 def _run_source(
     name: str,
     fetch: Callable[[], list],
@@ -191,7 +193,7 @@ def _run_source(
     started = time.monotonic()
     common.set_source_context(result, timeout_seconds, cancel_event)
     try:
-        with common.capture_parser_metrics() as adapter_metrics:
+        with common.capture_parser_metrics() as adapter_metrics, performance.span("source.adapter"):
             fetched = fetch()
         if isinstance(fetched, SourceFetchResult):
             events = list(fetched.events)
@@ -252,10 +254,11 @@ def _run_source(
         # are validated, classified and stored.  Ad-hoc embedded/test sources
         # remain side-effect free unless they opt into the helper directly.
         if events and name in SOURCE_IDS:
-            events = detail_enrichment.enrich_events(
-                events,
-                cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
-            )
+            with performance.span("source.universal_details"):
+                events = detail_enrichment.enrich_events(
+                    events,
+                    cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
+                )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         # Discovery records prove that the parser is healthy and contribute to
         # raw source counts, even though the publication gate excludes them.
@@ -1157,6 +1160,7 @@ def _uniquely_matches_renamed_occurrence(
     )
 
 
+@performance.measured("identity.reconcile")
 def _reconcile_published_ids(
     events: Sequence[CanonicalEvent | dict], previous: dict,
 ) -> list[CanonicalEvent | dict]:
@@ -1262,6 +1266,7 @@ def _reconcile_published_ids(
     return reconciled
 
 
+@performance.measured("snapshot.serialize_write")
 def _atomic_json(path: Path, payload: object) -> None:
     """Write a complete JSON document before atomically replacing its target."""
     temp_name: str | None = None
@@ -1546,6 +1551,7 @@ def filter_import_result(
     return replace(result, events=events)
 
 
+@performance.measured("import.total")
 def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
                executor_factory=_DetachedThreadPoolExecutor) -> ImportResult:
     """Execute one import with runtime settings isolated to its context."""
@@ -1556,6 +1562,7 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
         common.reset_runtime(token)
 
 
+@performance.measured("dedup.retained_against_fresh")
 def _retained_events_without_fresh_duplicate(
     fresh_events: list[CanonicalEvent],
     retained_events: list[CanonicalEvent],
@@ -1841,7 +1848,8 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     pool = executor_factory(max_workers=worker_count)
     started: dict[str, tuple[float, threading.Thread, threading.Event, float]] = {}
     started_condition = threading.Condition()
-    def run_source(name: str, fetch: Callable[[], list]):
+    def run_source(name: str, fetch: Callable[[], list], queued_at: float | None):
+        performance.record_queue_wait(queued_at)
         cancel_event = threading.Event()
         source_timeout = settings.source_timeout_seconds
         # Network work stays capped by source_timeout_seconds.  The worker gets
@@ -1877,6 +1885,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
                 run_source,
                 name,
                 fetch,
+                performance.queued_at(),
             ): name
             for name, fetch in sources.items()
         }
@@ -2057,13 +2066,20 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         if cancellation.end_date >= window_start and cancellation.start_date <= window_end:
             previous_cancellations.append(cancellation)
     all_cancellations = [*cancellations, *(event.to_dict() for event in previous_cancellations)]
-    fresh_deduped = report.deduplicate(
-        [*filtered, *previous_cancellations], cancellations=all_cancellations,
-    )
-    retained, retention = _retain_previous_events(
-        source_results, previous, context, unpublished_fallback_source_ids,
-    )
-    retained_deduped = report.deduplicate(retained, cancellations=all_cancellations)
+    with performance.span("dedup.fresh"):
+        performance.count("dedup_fresh_input", len(filtered) + len(previous_cancellations))
+        fresh_deduped = report.deduplicate(
+            [*filtered, *previous_cancellations], cancellations=all_cancellations,
+        )
+        performance.count("dedup_fresh_output", len(fresh_deduped))
+    with performance.span("retention.merge"):
+        retained, retention = _retain_previous_events(
+            source_results, previous, context, unpublished_fallback_source_ids,
+        )
+    with performance.span("dedup.retained"):
+        performance.count("dedup_retained_input", len(retained))
+        retained_deduped = report.deduplicate(retained, cancellations=all_cancellations)
+        performance.count("dedup_retained_output", len(retained_deduped))
     fresh_deduped, retained_deduped = _prefer_retained_primary_over_radio_fallback(
         fresh_deduped, retained_deduped, promoted_fallback_event_ids,
     )
@@ -2090,7 +2106,8 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = cast(list[CanonicalEvent], _reconcile_published_ids(deduped, previous))
     deduped = _attach_cross_run_fields(deduped, previous, generated_at)
-    deduped, reviewed_warnings = reviewed_summaries.apply_reviewed_summaries(deduped)
+    with performance.span("summaries.reviewed"):
+        deduped, reviewed_warnings = reviewed_summaries.apply_reviewed_summaries(deduped)
 
     ai_started = time.monotonic()
     ai_stats_by_source: dict[str, dict[str, int]] = {}
@@ -2108,11 +2125,12 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         ]
         ai_settings = ai_enrichment.settings_from_env()
         try:
-            ai_outputs = ai_enrichment.enrich_events(
-                ai_inputs,
-                settings=ai_settings,
-                stats_by_source=ai_stats_by_source,
-            )
+            with performance.span("summaries.ai"):
+                ai_outputs = ai_enrichment.enrich_events(
+                    ai_inputs,
+                    settings=ai_settings,
+                    stats_by_source=ai_stats_by_source,
+                )
         except Exception as exc:
             for event in ai_candidates:
                 source_stats = ai_stats_by_source.setdefault(event.source_id, {})
@@ -2270,6 +2288,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     )
 
 
+@performance.measured("snapshot.construct")
 def build_snapshot(import_result: ImportResult, context: RunContext) -> SnapshotPayload:
     """Build deterministic publication documents without filesystem access."""
     source_results = import_result.source_results
@@ -2376,6 +2395,7 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
     return SnapshotPayload(events, metadata, highlights, import_result.series_ledger)
 
 
+@performance.measured("snapshot.publish")
 def publish_snapshot(snapshot: SnapshotPayload, settings: config.RuntimeConfig) -> dict[str, str]:
     """Durably publish a prepared snapshot and its commit manifest."""
     return _publish_snapshots(
@@ -2389,6 +2409,24 @@ def publish_snapshot(snapshot: SnapshotPayload, settings: config.RuntimeConfig) 
 
 
 def cli(argv: list[str]) -> int:
+    """Emit opt-in performance diagnostics on stderr, never in public data."""
+    if os.environ.get("NRW_EVENTS_PERFORMANCE", "").strip() != "1":
+        return _cli(argv)
+    collector = performance.Collector()
+    started = time.perf_counter()
+    cpu_started = time.process_time()
+    try:
+        with performance.collect(collector):
+            return _cli(argv)
+    finally:
+        diagnostics = collector.snapshot()
+        diagnostics["event"] = "import_performance"
+        diagnostics["wall_ms"] = (time.perf_counter() - started) * 1000
+        diagnostics["process_cpu_ms"] = (time.process_time() - cpu_started) * 1000
+        print(json.dumps(diagnostics, sort_keys=True), file=sys.stderr)
+
+
+def _cli(argv: list[str]) -> int:
     """Translate argv/environment and service results into CLI effects."""
     try:
         config.load_env_file()

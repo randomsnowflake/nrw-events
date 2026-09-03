@@ -16,6 +16,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+from . import performance
 from .identity import event_id
 from .normalization import comparison_text
 
@@ -271,6 +272,7 @@ def _season(dates: list[date]) -> tuple[int | None, int | None, str, set[int]]:
     return season_start, season_end, confidence, years
 
 
+@performance.measured("series.enrich")
 def enrich_events(
     events: Iterable[Mapping[str, Any]],
     ledger: Mapping[str, Any],

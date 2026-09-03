@@ -209,6 +209,7 @@ dependency direction are documented in `docs/ARCHITECTURE.md`.
 scripts/nrw_events/
   __init__.py
   ai_enrichment.py
+  benchmark.py
   category_taxonomy.py
   common.py
   config.py
@@ -231,6 +232,7 @@ scripts/nrw_events/
   models.py
   normalization.py
   observability.py
+  performance.py
   quality.py
   radio_primary_resolution.py
   report.py
@@ -241,6 +243,7 @@ scripts/nrw_events/
   runtime.py
   scoring.py
   series.py
+  snapshot_compare.py
   source_specs.py
   source_types.py
   text.py
@@ -427,6 +430,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.
 - `NRW_EVENTS_LOG_FILE` / `NRW_EVENTS_JSON_LOG_FILE` — optional durable text or JSON-lines logs.
+- `NRW_EVENTS_PERFORMANCE=1` — export before invocation for aggregate stderr metrics. This flag is read before the env file. See `docs/performance.md` for offline replay and strict snapshot comparison.
 - `NRW_EVENTS_ENV_FILE` — optional explicit `.env` path for wrappers and callers.
 
 API keys and tuning values are read from the environment, an explicit

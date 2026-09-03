@@ -1,0 +1,61 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//NRW Events//Synthetic performance fixture//DE
+BEGIN:VEVENT
+UID:current
+DTSTART:20260905T160000
+DTEND:20260905T180000
+SUMMARY:Jazzkonzert im Kulturzentrum
+LOCATION:Brotfabrik Bonn
+DESCRIPTION:Ein Konzert mit einem Jazzquartett im Kulturzentrum. Einlass ist eine halbe Stunde vor Beginn.
+URL:https://calendar.example.test/current
+END:VEVENT
+BEGIN:VEVENT
+UID:historical
+DTSTART:20250905T160000
+DTEND:20250905T180000
+SUMMARY:Historisches Jazzkonzert
+LOCATION:Brotfabrik Bonn
+DESCRIPTION:Ein Konzert aus dem vergangenen Jahr.
+URL:https://calendar.example.test/historical
+END:VEVENT
+BEGIN:VEVENT
+UID:ongoing
+DTSTART;VALUE=DATE:20260801
+DTEND;VALUE=DATE:20261001
+SUMMARY:Ausstellung zeitgenössischer Malerei
+LOCATION:Bundeskunsthalle Bonn
+DESCRIPTION:Eine Ausstellung mit Werken zeitgenössischer Künstlerinnen und Künstler.
+URL:https://calendar.example.test/exhibition
+END:VEVENT
+BEGIN:VEVENT
+UID:weekly
+DTSTART:20260827T170000
+DTEND:20260827T180000
+RRULE:FREQ=WEEKLY;COUNT=8
+EXDATE:20260910T170000
+SUMMARY:Vortrag zur Stadtgeschichte
+LOCATION:Stadtmuseum Bonn
+DESCRIPTION:Ein Vortrag zur Geschichte der Stadt Bonn mit anschließender Diskussion.
+URL:https://calendar.example.test/weekly
+END:VEVENT
+BEGIN:VEVENT
+UID:weekly
+RECURRENCE-ID:20260917T170000
+DTSTART:20260917T170000
+DTEND:20260917T180000
+STATUS:CANCELLED
+SUMMARY:Vortrag zur Stadtgeschichte
+LOCATION:Stadtmuseum Bonn
+URL:https://calendar.example.test/weekly
+END:VEVENT
+BEGIN:VEVENT
+UID:future
+DTSTART:20270905T160000
+DTEND:20270905T180000
+SUMMARY:Angekündigtes Jazzkonzert
+LOCATION:Brotfabrik Bonn
+DESCRIPTION:Ein Konzert für das nächste Jahr.
+URL:https://calendar.example.test/future
+END:VEVENT
+END:VCALENDAR

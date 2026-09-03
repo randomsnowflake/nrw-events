@@ -28,6 +28,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from hashlib import sha256
 from typing import Any
 
+from . import performance
 from .normalization import comparison_text
 
 #: Length of the readable title segment inside an id. Long enough to stay
@@ -112,6 +113,7 @@ def content_fingerprint(event: Mapping[str, Any]) -> str:
     return sha256(payload.encode("utf-8")).hexdigest()
 
 
+@performance.measured("identity.content_hash")
 def content_hash(event: Mapping[str, Any]) -> str:
     """Return the public change-detection hash for an occurrence."""
     return content_fingerprint(event)

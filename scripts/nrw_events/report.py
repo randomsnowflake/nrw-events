@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from urllib import parse as urlparse
 
-from . import common
+from . import common, performance
 from .identity import event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent
 from .normalization import comparison_text
@@ -1201,6 +1201,7 @@ def _is_radio_aggregation_link(link: str) -> bool:
 
 def events_are_duplicates(left, right) -> bool:
     """Return whether two canonical records represent the same occurrence."""
+    performance.count("dedup_comparisons")
     left_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(left.get("title", ""))))
     right_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(right.get("title", ""))))
     left_without_year = tuple(

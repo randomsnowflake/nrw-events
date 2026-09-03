@@ -215,6 +215,7 @@ die Schichtung und Verantwortlichkeiten beschreibt
 scripts/nrw_events/
   __init__.py
   ai_enrichment.py
+  benchmark.py
   category_taxonomy.py
   common.py
   config.py
@@ -237,6 +238,7 @@ scripts/nrw_events/
   models.py
   normalization.py
   observability.py
+  performance.py
   quality.py
   radio_primary_resolution.py
   report.py
@@ -247,6 +249,7 @@ scripts/nrw_events/
   runtime.py
   scoring.py
   series.py
+  snapshot_compare.py
   source_specs.py
   source_types.py
   text.py
@@ -463,6 +466,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_LOG_LEVEL`        | `INFO` | Log-Level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
 | `NRW_EVENTS_LOG_FILE`         | nicht gesetzt | Optionaler persistenter Text-Logpfad. |
 | `NRW_EVENTS_JSON_LOG_FILE`    | nicht gesetzt | Optionaler JSON-Lines-Logpfad für Monitoring. |
+| `NRW_EVENTS_PERFORMANCE` | nicht gesetzt | Als Shell-Variable auf `1` setzen: aggregierte Laufzeit- und CPU-Messung auf stderr. Keine Änderung am öffentlichen Snapshot. Wird vor der Env-Datei gelesen. |
 | `NRW_EVENTS_ENV_FILE`         | nicht gesetzt | Expliziter Pfad zu einer `.env`-Datei. |
 
 Beispiel für eine absichtlich kurze, strenge Liste:
@@ -835,6 +839,9 @@ Häufige Anpassungen:
 - `sources/__init__.py` — Quellen hinzufügen oder entfernen.
 
 ## Entwicklung und Qualitätssicherung
+
+Reproduzierbare Offline-Messungen und den strengen Snapshot-Vergleich beschreibt
+[`docs/performance.md`](docs/performance.md).
 
 Die Laufzeit selbst braucht keine Drittanbieter-Pakete. Der kanonische lokale
 Testlauf ist:
