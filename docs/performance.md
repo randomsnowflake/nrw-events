@@ -149,3 +149,32 @@ Generate a larger synthetic fixture in a new directory:
 Run both generated manifests through the benchmark.
 The fixture contains two independent calendars, historical and current dates, recurring events, RDATE, EXDATE, and cancellations.
 Its `.example.test` URLs identify synthetic data, not public events.
+
+## Comparison-key cache
+
+The comparison-key cache stores immutable normalized strings.
+The key contains the original text and the separator.
+It holds at most 16,384 entries and bypasses text longer than 4,096 characters.
+Null-input compatibility and Unicode handling remain unchanged.
+
+Set `NRW_EVENTS_NORMALIZATION_CACHE=0` to disable this cache independently.
+For an offline comparison, set `"normalization_cache": false` in the manifest.
+To disable both optimizations, set both cache flags to zero.
+
+With both caches active, the Wachtberg replay took 2,627.37 ms median across five runs.
+The result was 28.34% faster than the uncached 3,666.66 ms baseline, with identical snapshots.
+Most of this improvement came from the keyword cache.
+The comparison-key cache targets repeated identity and deduplication work in larger mixed-source imports.
+The synthetic 10,000-record fixture took 8,709.72 ms median with both caches (minimum 8,640.64 ms, p95 8,764.94 ms).
+This was 50.51% faster than the uncached fixture and 7.62% faster than the keyword cache alone.
+All snapshots remained identical.
+Peak RSS was 118.36 MiB.
+The first run reused 1,037,509 of 1,038,428 comparison keys and retained 919 entries.
+
+## iCal pruning constraint
+
+Out-of-window records are not disposable.
+The runner passes them to the series ledger, including historical records and cancellation announcements.
+A date-only filter would change series identities, announcement counts, or ledger state.
+Any fast path must preserve these effects and the original quality decisions.
+The future equivalence gate must include the durable series ledger, not only public metadata.

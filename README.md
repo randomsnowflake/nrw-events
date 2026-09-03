@@ -468,6 +468,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_JSON_LOG_FILE`    | nicht gesetzt | Optionaler JSON-Lines-Logpfad für Monitoring. |
 | `NRW_EVENTS_PERFORMANCE` | nicht gesetzt | Als Shell-Variable auf `1` setzen: aggregierte Laufzeit- und CPU-Messung auf stderr. Keine Änderung am öffentlichen Snapshot. Wird vor der Env-Datei gelesen. |
 | `NRW_EVENTS_TAXONOMY_CACHE` | `1` | Begrenzter Cache für identische Schlüsselwortprüfungen. `0` deaktiviert ihn vollständig. Regeln und geprüfte Korrekturen bleiben unverändert. |
+| `NRW_EVENTS_NORMALIZATION_CACHE` | `1` | Begrenzter Cache für identische Textvergleichsschlüssel einschließlich Trennzeichen. `0` deaktiviert ihn unabhängig vom Taxonomie-Cache. |
 | `NRW_EVENTS_ENV_FILE`         | nicht gesetzt | Expliziter Pfad zu einer `.env`-Datei. |
 
 Beispiel für eine absichtlich kurze, strenge Liste:

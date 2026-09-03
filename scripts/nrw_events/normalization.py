@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from html import unescape
 from pathlib import Path
 
@@ -18,11 +20,30 @@ _GERMAN_TRANSLITERATION = str.maketrans({
 })
 
 
-def comparison_text(value: str, *, separator: str = " ") -> str:
-    """Casefold and transliterate text into a punctuation-insensitive key."""
+COMPARISON_CACHE_SIZE = 16384
+_COMPARISON_CACHE_MAX_TEXT = 4096
+
+
+def _comparison_text_uncached(value: str, separator: str) -> str:
     folded = unicodedata.normalize("NFC", value or "").casefold().translate(_GERMAN_TRANSLITERATION)
     ascii_text = unicodedata.normalize("NFKD", folded).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", separator, ascii_text).strip(separator)
+
+
+@lru_cache(maxsize=COMPARISON_CACHE_SIZE)
+def _cached_comparison_text(value: str, separator: str) -> str:
+    return _comparison_text_uncached(value, separator)
+
+
+def comparison_text(value: str, *, separator: str = " ") -> str:
+    """Casefold and transliterate text into a punctuation-insensitive key."""
+    if (
+        isinstance(value, str)
+        and len(value) <= _COMPARISON_CACHE_MAX_TEXT
+        and os.environ.get("NRW_EVENTS_NORMALIZATION_CACHE", "1") != "0"
+    ):
+        return _cached_comparison_text(value, separator)
+    return _comparison_text_uncached(value, separator)
 
 
 @dataclass(frozen=True, slots=True)

@@ -82,6 +82,7 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     os.environ["NRW_EVENTS_TAXONOMY_CACHE"] = "1" if manifest.get("taxonomy_cache", True) else "0"
+    os.environ["NRW_EVENTS_NORMALIZATION_CACHE"] = "1" if manifest.get("normalization_cache", True) else "0"
     root = manifest_path.parent
     transport = ReplayTransport({
         url: ((root / entry["file"]).read_bytes(), entry.get("content_type", "text/html; charset=utf-8"),
@@ -130,9 +131,10 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
         raise ValueError(f"incomplete replay: {len(transport.misses)} unrecorded requests; first: {transport.misses[0]}")
     peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak_rss_mib = peak_rss / (1024 * 1024 if sys.platform == "darwin" else 1024)
-    from . import category_taxonomy
+    from . import category_taxonomy, normalization
     return {"wall_ms": elapsed * 1000, "process_cpu_ms": cpu * 1000, "peak_rss_mib": peak_rss_mib,
             "taxonomy_cache": category_taxonomy._cached_keyword_matches.cache_info()._asdict(),
+            "normalization_cache": normalization._cached_comparison_text.cache_info()._asdict(),
             "telemetry": collector.snapshot(), "snapshot": snapshot.metadata}
 
 
