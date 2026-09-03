@@ -74,6 +74,9 @@ class Keyword:
     word_suffix: bool = False
     compound_word: bool = False
     weak: bool = False
+    # The policy loader proves this prerequisite when it escapes the literal.
+    # Custom regex patterns have no prerequisite unless explicitly declared.
+    required_literal: str = ""
 
 
 @dataclass(frozen=True)
@@ -136,6 +139,7 @@ def _keyword_from_spec(raw: object) -> Keyword:
         word_suffix=mode == "word_suffix",
         compound_word=mode == "compound_word",
         weak=weight < 1,
+        required_literal=normalized_value,
     )
 
 
@@ -226,10 +230,12 @@ def _contains_comparison_word(text: str, normalized_needle: str) -> bool:
     return normalized_needle in _WORD_PATTERN.findall(text)
 
 
-def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
+def _matches(text: str, keyword: str | Keyword, *, is_title: bool, literal_guard: bool = True) -> bool:
     if isinstance(keyword, str):
         return _contains_word(text, keyword)
     if keyword.title_only and not is_title:
+        return False
+    if literal_guard and keyword.required_literal and keyword.required_literal not in text:
         return False
     if keyword.compound_word:
         return any(match.group(0) != keyword.normalized_value for match in keyword.pattern.finditer(text))
@@ -261,7 +267,7 @@ def _matched_keywords(
 ) -> list[str | Keyword]:
     if len(text) > _KEYWORD_CACHE_MAX_TEXT or os.environ.get("NRW_EVENTS_TAXONOMY_CACHE", "1") == "0":
         performance.count("taxonomy_cache_bypasses")
-        return [keyword for keyword in keywords if _matches(text, keyword, is_title=is_title)]
+        return [keyword for keyword in keywords if _matches(text, keyword, is_title=is_title, literal_guard=False)]
     performance.count("taxonomy_cache_requests")
     # Return a new list. Callers must never receive the cached tuple as a mutable
     # classification object. Source defaults and reviewed fallback decisions

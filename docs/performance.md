@@ -248,7 +248,7 @@ Each worker owns its diagnostics and parser counters.
 The parent merges events, warnings, endpoints, and counters in registry order.
 Nested component calls run serially to prevent pool deadlocks.
 Shared detail phases retain one absolute deadline and the global repeated-link policy.
-The source thread persists caches only after component completion.
+The importer persists caches only after component completion.
 If a timed-out component remains active, the mid-run cache flush is deferred instead.
 
 Ten scheduler tests cover overlap, the shared worker limit, host ordering, cancellation, deadlines, context restoration, diagnostics, and cache flush order.
@@ -288,3 +288,19 @@ The combined reduction was 32.29%, below the 35% roadmap target.
 This fixture covers three logical sources, not all 99 production sources.
 The remaining measured CPU bottleneck is Wachtberg taxonomy work.
 The process-pool decision remains open until lower-risk work and production measurements establish its benefit.
+
+### Literal prerequisite for policy regex patterns
+
+A follow-up profile found 349,915 keyword checks in the Wachtberg source path.
+The policy loader escapes each keyword before it constructs the regex.
+Every match therefore requires that exact normalized literal in the input text.
+The matcher now rejects absent literals before it evaluates the regex.
+Custom regex patterns retain the original path unless they explicitly declare a literal prerequisite.
+The existing taxonomy switch disables both the cache and this prerequisite check.
+
+Boundary tests cover every match mode, Unicode, punctuation, compound exclusions, and custom case-insensitive patterns.
+The full local suite passed 1,531 tests with 89% coverage.
+The same mixed-source replay took 2,590.77 ms median across five runs (minimum 2,509.57 ms, p95 2,764.28 ms).
+This is a 35.85% reduction from its 4,038.31 ms baseline.
+Public metadata, highlights, and the durable ledger remained identical.
+The production improvement still requires live measurement.
