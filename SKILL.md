@@ -431,6 +431,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.
 - `NRW_EVENTS_LOG_FILE` / `NRW_EVENTS_JSON_LOG_FILE` — optional durable text or JSON-lines logs.
 - `NRW_EVENTS_PERFORMANCE=1` — export before invocation for aggregate stderr metrics. This flag is read before the env file. See `docs/performance.md` for offline replay and strict snapshot comparison.
+- `NRW_EVENTS_TAXONOMY_CACHE=1` — bounded pure keyword cache. Set to `0` to disable it. The cache does not store classification decisions or reviewed fallbacks.
 - `NRW_EVENTS_ENV_FILE` — optional explicit `.env` path for wrappers and callers.
 
 API keys and tuning values are read from the environment, an explicit

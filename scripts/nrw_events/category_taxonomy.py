@@ -8,10 +8,12 @@ not have to duplicate category rules in TypeScript.
 from __future__ import annotations
 
 import json
+import os
 import re
 import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import TypedDict, cast
 
@@ -238,13 +240,33 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool) -> bool:
     return keyword.pattern.search(text) is not None
 
 
+KEYWORD_CACHE_SIZE = 8192
+_KEYWORD_CACHE_MAX_TEXT = 8192
+
+
+@lru_cache(maxsize=KEYWORD_CACHE_SIZE)
+def _cached_keyword_matches(
+    text: str, keywords: tuple[str | Keyword, ...], is_title: bool,
+) -> tuple[str | Keyword, ...]:
+    """Pure result keyed by text, scope, and the complete immutable keyword policy."""
+    performance.count("taxonomy_cache_misses")
+    return tuple(keyword for keyword in keywords if _matches(text, keyword, is_title=is_title))
+
+
 def _matched_keywords(
     text: str,
     keywords: Iterable[str | Keyword],
     *,
     is_title: bool,
 ) -> list[str | Keyword]:
-    return [keyword for keyword in keywords if _matches(text, keyword, is_title=is_title)]
+    if len(text) > _KEYWORD_CACHE_MAX_TEXT or os.environ.get("NRW_EVENTS_TAXONOMY_CACHE", "1") == "0":
+        performance.count("taxonomy_cache_bypasses")
+        return [keyword for keyword in keywords if _matches(text, keyword, is_title=is_title)]
+    performance.count("taxonomy_cache_requests")
+    # Return a new list. Callers must never receive the cached tuple as a mutable
+    # classification object. Source defaults and reviewed fallback decisions
+    # remain outside this cache and are evaluated on every classification.
+    return list(_cached_keyword_matches(text, tuple(keywords), is_title))
 
 
 def _has_enough_evidence(matches: Iterable[str | Keyword]) -> bool:

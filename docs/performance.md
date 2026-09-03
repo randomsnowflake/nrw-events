@@ -113,3 +113,39 @@ The public snapshot schema remains unchanged.
 Remove this variable to disable the diagnostics.
 
 Do not start another production refresh only to collect metrics while an authorized refresh is active.
+
+## Taxonomy keyword cache
+
+The keyword cache stores immutable matches for identical text, keyword policy, and title scope.
+It holds at most 8,192 entries.
+Texts longer than 8,192 characters bypass the cache.
+Each caller receives a separate result list.
+Final classifications, source defaults, and reviewed fallback decisions remain uncached.
+
+Set `NRW_EVENTS_TAXONOMY_CACHE=0` to disable this optimization.
+For an offline comparison, set `"taxonomy_cache": false` in the replay manifest.
+The benchmark reports cache hits, misses, current size, maximum size, and process peak RSS.
+
+The Wachtberg replay took 2,649.86 ms median with the cache (minimum 2,647.54 ms, p95 2,689.56 ms).
+The same implementation with the cache disabled took 3,666.66 ms median (minimum 3,651.83 ms, p95 3,682.17 ms).
+Each mode used five fresh processes.
+The runtime reduction was 27.73%, with zero semantic differences.
+The first cached run reused 51,758 of 63,742 keyword-group lookups.
+This result applies to the recorded iCal pipeline, not the complete production import.
+
+The 10,000-record synthetic fixture took 17,597.98 ms median without the cache and 9,428.31 ms with it.
+Each mode used five fresh processes and produced identical snapshots.
+Peak RSS was 117.17 MiB without the cache and 118.98 MiB with it.
+The fixture has unusually repetitive text, so its 46.42% reduction is not a forecast for production.
+The cache held 2,870 entries after the run.
+A separate 10,000-key concurrency test filled the cache and verified the 8,192-entry limit.
+
+Generate a larger synthetic fixture in a new directory:
+
+```sh
+.venv/bin/python scripts/generate_performance_fixture.py /tmp/nrw-scale-fixture --records 10000
+```
+
+Run both generated manifests through the benchmark.
+The fixture contains two independent calendars, historical and current dates, recurring events, RDATE, EXDATE, and cancellations.
+Its `.example.test` URLs identify synthetic data, not public events.
