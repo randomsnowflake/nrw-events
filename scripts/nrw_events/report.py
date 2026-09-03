@@ -68,6 +68,14 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
         "haus-der-geschichte-sanditz",
     ("haus-der-geschichte", "buchvorstellungsanditzlukasrietzschel"):
         "haus-der-geschichte-sanditz",
+    (
+        "pantheon-bonn",
+        "diegeschwisterpfisterpraesentierenurslipfisterpeggymarchfrauhuggenbergerundich",
+    ): "pantheon-ursli-pfister-peggy-march",
+    (
+        "bonn-de-events",
+        "urslipfisterjoroloffbandpeggymarchfrauhuggenbergerundichmusikshow",
+    ): "pantheon-ursli-pfister-peggy-march",
 }
 _SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
 _REUSED_OVERVIEW_LINK_THRESHOLD = 5
