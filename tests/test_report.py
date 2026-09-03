@@ -320,6 +320,39 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["location_confidence"], "exact")
         self.assertEqual(deduped[0]["location_source"], "venue_registry")
 
+    def test_colocated_registered_venues_deduplicate_despite_different_broken_links(self):
+        base = {
+            "title": "NICHTS, als die Wahrheit", "date": "2026-09-04",
+            "start_date": "2026-09-04", "end_date": "2026-09-04",
+            "time": "19:00", "start_at": "2026-09-04T19:00+02:00",
+            "end_at": "2026-09-04T19:00+02:00", "city": "Bonn-Beuel",
+            "category_key": "stage", "description": "", "price": "",
+        }
+        deduped = report.deduplicate([
+            {
+                **base, "venue": "Kulturzentrum Brotfabrik",
+                "venue_id": "kulturzentrum-brotfabrik",
+                "venue_address": "Kreuzstraße 16, 53225 Bonn",
+                "source": "Brotfabrik Bonn", "source_id": "brotfabrik-bonn",
+                "score": 0.86,
+                "link": "https://www.theater-marabu.de/stueck/j-e-m-escape-at/",
+            },
+            {
+                **base, "venue": "Theater Marabu", "venue_id": "theater-marabu",
+                "venue_address": "Kreuzstraße 16, 53225 Bonn",
+                "source": "Theater Marabu", "source_id": "theater-marabu",
+                "score": 0.98,
+                "link": "https://www.theater-marabu.de/stueck/nichts-als-die-wahrheit/",
+            },
+        ])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Theater Marabu")
+        self.assertEqual(
+            deduped[0]["link"],
+            "https://www.theater-marabu.de/stueck/nichts-als-die-wahrheit/",
+        )
+
     def test_citywide_street_food_festival_collapses_broad_venue_aliases(self):
         base = {
             "title": "Street Food Festival", "date": "2026-08-28",

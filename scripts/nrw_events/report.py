@@ -499,6 +499,20 @@ def _locations_compatible(left: dict, right: dict) -> bool:
             and left_venue_numbers.isdisjoint(right_venue_numbers)
         ):
             return False
+        # A cultural complex may expose the building and an in-house theatre as
+        # separate registered venues.  Matching full structured addresses with
+        # a concrete unit is stronger place evidence than those differing labels.
+        left_address_raw = str(left.get("venue_address") or "")
+        right_address_raw = str(right.get("venue_address") or "")
+        left_address = comparison_text(left_address_raw)
+        right_address = comparison_text(right_address_raw)
+        if (
+            left_address
+            and left_address == right_address
+            and _concrete_numeric_units(left_address_raw)
+            and _concrete_numeric_units(right_address_raw)
+        ):
+            return True
         # A stable detail URL is stronger continuity evidence than a changed
         # venue label on a retained record from the same publisher.
         left_link = _normalized_link_key(left.get("link", ""))
