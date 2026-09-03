@@ -341,3 +341,17 @@ Those timestamps changed the schedule and natural event ID.
 The IONAS4 adapter now locks the empty time identity when the source explicitly declares an all-day event.
 Unknown schedules remain eligible for detail enrichment.
 Regression tests preserve the all-day fields and prove that existing cross-run reconciliation retains previously published URLs.
+
+### Production canary: registration-page contamination
+
+The first production canary reduced import time from 651.76 to 389.48 seconds (40.24%).
+Its data comparison found eight Brotfabrik workshop records incorrectly rejected as cancelled.
+Their unique query URLs returned a shared registration page, not the requested event.
+Deeper enrichment replaced authoritative API descriptions with general cancellation conditions.
+The candidate build was stopped before publication. The previous live generation remained healthy.
+
+The workshop extractor now requires an exact structured title and occurrence date before it accepts additional prose.
+Without that evidence, it preserves the calendar API fields and ignores registration prices and terms.
+Regression tests cover serial and parallel execution, mismatched titles, mismatched dates, and genuine cancellation descriptions.
+The cancellation policy itself remains unchanged.
+This invalid candidate cannot be resumed as a valid release. A corrected importer requires new local gates and a fresh production candidate.

@@ -915,8 +915,23 @@ def _dein_phonzimmer_detail_context(document: str, event: dict) -> dict[str, str
     return context if context["description"] else None
 
 
+def _bildungswerk_brotfabrik_context(document: str, event: dict) -> dict[str, str] | None:
+    """The query URL can return a shared registration page without the event."""
+    if _event_hostname(event) not in {"bildungswerk-brotfabrik.de", "www.bildungswerk-brotfabrik.de"}:
+        return None
+    if urlsplit(str(event.get("link") or "")).path.casefold().rstrip("/") != "/workshops":
+        return None
+    # Keep the authoritative calendar API copy unless title and occurrence
+    # identity prove that the document contains this event's own description.
+    # Generic extraction would promote registration terms and cancellation
+    # conditions into event facts, even when the URL has a unique IDT query.
+    _description, description_html = _exact_jsonld_description(document, event)
+    return _context_from_fragment(description_html)
+
+
 def _source_specific_detail_context(document: str, event: dict) -> dict[str, str] | None:
     for extractor in (
+        _bildungswerk_brotfabrik_context,
         _klimaviertel_overview_context,
         _pantheon_detail_context,
         _rheinbach_sommerkino_context,
