@@ -212,6 +212,7 @@ scripts/nrw_events/
   benchmark.py
   category_taxonomy.py
   common.py
+  components.py
   config.py
   core.py
   dates.py
@@ -417,6 +418,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_MINIMUM_SNAPSHOT_RATIO=0.5` — preserve the last-known-good snapshot when a run falls below half the previous event count.
 - `NRW_EVENTS_MAX_FAILED_SOURCE_RATIO=0.5` — fail the run when more than half of active sources fail.
 - `NRW_EVENTS_SOURCE_WORKERS=4` / `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS=600` — source parallelism and network-phase budget.
+- `NRW_EVENTS_COMPONENT_WORKERS=3` — one shared pool for independent component calendars, capped at four workers. Use `0` or `1` for serial execution.
 - `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS=180` — extra worker time to process an already fetched large source result.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
 - `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES=30` — safety cap for paginated Bonn.de calendars.

@@ -28,6 +28,7 @@ from typing import Any, cast
 from . import (
     ai_enrichment,
     common,
+    components,
     config,
     detail_enrichment,
     early_publication,
@@ -258,6 +259,7 @@ def _run_source(
                 events = detail_enrichment.enrich_events(
                     events,
                     cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
+                    **({"parallel_components": True} if name in components.COMPOSITE_SOURCES else {}),
                 )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
         # Discovery records prove that the parser is healthy and contribute to
@@ -1558,7 +1560,9 @@ def run_import(context: RunContext, sources: dict[str, Callable[[], list]],
     """Execute one import with runtime settings isolated to its context."""
     token = common.configure_context(context)
     try:
-        return _run_import_configured(context, sources, executor_factory)
+        component_workers = max(1, min(int(os.environ.get("NRW_EVENTS_COMPONENT_WORKERS", "3")), 4))
+        with components.pool_scope(component_workers, executor_factory=_DetachedThreadPoolExecutor):
+            return _run_import_configured(context, sources, executor_factory)
     finally:
         common.reset_runtime(token)
 
@@ -1972,7 +1976,10 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         # Source workers share the detail-cache lock. Persist dirty namespaces
         # once after all workers finish instead of serializing every source at
         # its boundary while other workers still need cache lookups.
-        cache_warnings.extend(common.flush_detail_page_caches())
+        if components.pending():
+            log(logger, 30, "cache flush deferred until component workers finish", run_id=run_id, source="runner")
+        else:
+            cache_warnings.extend(common.flush_detail_page_caches())
     source_results = {
         name: source_results[name]
         for name in sources

@@ -1,12 +1,47 @@
 import json
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from unittest.mock import patch
 
-from nrw_events import detail_enrichment, richtext
+from nrw_events import components, core, detail_enrichment, richtext
+from nrw_events.health import SourceResult
 from nrw_events.validation import canonicalize_event
 
 
 class DetailEnrichmentTests(unittest.TestCase):
+    def test_parallel_components_preserve_global_link_policy_order_and_failure(self):
+        events = [
+            self.event(link="https://a.example.net/unique"),
+            self.event(title="Termin eins", link="https://a.example.net/overview#one"),
+            self.event(link="https://b.example.net/failed"),
+            self.event(title="Termin zwei", link="https://a.example.net/overview#two"),
+            self.event(link="https://a.example.net/other"),
+            self.event(link="https://[malformed", start_date="1900-01-01", end_date="1900-01-01", date="1900-01-01"),
+        ]
+        outputs = []
+        observations = []
+        for workers in (1, 3):
+            result = SourceResult("Fixture")
+            core.set_source_context(result, 30)
+
+            def fetch(url, **_kwargs):
+                if "failed" in url:
+                    raise OSError("fixture failure")
+                return "<main><p>Ein vollständiger Text zum Konzert.</p></main>"
+
+            try:
+                with components.pool_scope(workers, executor_factory=ThreadPoolExecutor), patch.object(
+                    detail_enrichment.common, "fetch_detail_url", side_effect=fetch,
+                ) as transport:
+                    outputs.append(detail_enrichment.enrich_events(deepcopy(events), parallel_components=True))
+                observations.append((sorted(call.args[0] for call in transport.call_args_list), result.warnings))
+            finally:
+                core.set_source_context(None)
+        self.assertEqual(*outputs)
+        self.assertEqual(*observations)
+        self.assertEqual(len(observations[0][0]), 3)
+
     def event(self, **overrides):
         event_date = detail_enrichment.common.TODAY.strftime("%Y-%m-%d")
         return {

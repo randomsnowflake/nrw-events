@@ -1,9 +1,12 @@
 """SiteKit teaser calendars for municipal sources on the Sitepark CMS."""
 
+import os
 import re
+import time
 import urllib.parse
+from functools import partial
 
-from .. import common, richtext
+from .. import common, components, richtext
 from . import regional_common as rc
 
 _SOURCE = "SiteKit regional"
@@ -85,9 +88,10 @@ def _merge_detail_context(event: dict, context: dict[str, str]) -> dict:
 
 
 def fetch() -> list:
-    events = []
-    for calendar in _CALENDARS:
-        events.extend(_fetch_calendar(*calendar))
+    events = components.run([
+        components.Job(calendar[2], partial(_fetch_calendar, *calendar))
+        for calendar in _CALENDARS
+    ])
     events = rc.dedupe(events)
     for event in events:
         # A venue recovered for an empty teaser is display enrichment. Lock
@@ -96,7 +100,48 @@ def fetch() -> list:
         if not event.get("venue"):
             event["identity_venue"] = ""
             event["identity_venue_locked"] = True
-    events = rc.enrich_descriptions(
+    if components.enabled():
+        # Deduplication still precedes enrichment. Keep one shared phase budget
+        # and restore the original event order after independent hosts finish.
+        deadline = time.monotonic() + max(0.0, min(120.0, float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "120"))))
+        groups = {}
+        for index, event in enumerate(events):
+            host = urllib.parse.urlsplit(event.get("link", "")).hostname or ""
+            groups.setdefault(host, []).append((index, event))
+        enriched = components.run([
+            components.Job(f"https://{host}", partial(_enrich_group, rows, deadline))
+            for host, rows in groups.items()
+        ])
+        for index, event in enriched:
+            events[index] = event
+    else:
+        events = _enrich_details(events)
+    for event in events:
+        if event.get("category_key") != "other":
+            continue
+        canonical = common.category_taxonomy.categorize_event(
+            event.get("category", ""),
+            event.get("title", ""),
+            event.get("description", ""),
+            venue=event.get("venue", ""),
+            source=event.get("source", ""),
+        )
+        event.update({
+            "category_key": canonical["key"],
+            "category_label": canonical["label"],
+            "category_confidence": canonical.get("confidence", 0),
+            "category_reason": canonical.get("reason", ""),
+        })
+    return _correct_categories(events)
+
+
+def _enrich_group(indexed_events: list, deadline: float) -> list:
+    rows = _enrich_details([event for _index, event in indexed_events], batch_timeout=deadline - time.monotonic())
+    return [(indexed[0], row) for indexed, row in zip(indexed_events, rows, strict=True)]
+
+
+def _enrich_details(events: list, *, batch_timeout: float = 120) -> list:
+    return rc.enrich_descriptions(
         events,
         source=_SOURCE,
         cache_namespace="regional-sitekit-detail",
@@ -119,25 +164,8 @@ def fetch() -> list:
         # Six municipal calendars currently contribute roughly 140 in-window
         # detail pages. The shared 45-second default consistently stops inside
         # Brühl and starves every later municipality of structured venues.
-        batch_timeout=120,
+        batch_timeout=batch_timeout,
     )
-    for event in events:
-        if event.get("category_key") != "other":
-            continue
-        canonical = common.category_taxonomy.categorize_event(
-            event.get("category", ""),
-            event.get("title", ""),
-            event.get("description", ""),
-            venue=event.get("venue", ""),
-            source=event.get("source", ""),
-        )
-        event.update({
-            "category_key": canonical["key"],
-            "category_label": canonical["label"],
-            "category_confidence": canonical.get("confidence", 0),
-            "category_reason": canonical.get("reason", ""),
-        })
-    return _correct_categories(events)
 
 
 def _correct_categories(events: list) -> list:

@@ -42,8 +42,11 @@ class _Response(io.BytesIO):
 
 
 class ReplayTransport:
-    def __init__(self, responses: dict[str, tuple[bytes, str, int]]) -> None:
+    def __init__(self, responses: dict[str, tuple[bytes, str, int]], *, latency_ms: float = 0) -> None:
+        if not math.isfinite(latency_ms) or not 0 <= latency_ms <= 1000:
+            raise ValueError("replay latency must be between 0 and 1000 milliseconds")
         self.responses = responses
+        self.latency_ms = latency_ms
         self.misses: list[str] = []
         self._lock = threading.Lock()
 
@@ -53,6 +56,8 @@ class ReplayTransport:
             with self._lock:
                 self.misses.append(url)
             raise OSError("missing replay response")
+        if self.latency_ms:
+            time.sleep(self.latency_ms / 1000)
         response = _Response(*self.responses[url], url)
         if response.status >= 400:
             raise urllib.error.HTTPError(url, response.status, "replayed HTTP error", response.headers, response)
@@ -93,6 +98,7 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     os.environ["NRW_EVENTS_TAXONOMY_CACHE"] = "1" if manifest.get("taxonomy_cache", True) else "0"
     os.environ["NRW_EVENTS_NORMALIZATION_CACHE"] = "1" if manifest.get("normalization_cache", True) else "0"
     os.environ["NRW_EVENTS_ICAL_PRUNE"] = "1" if manifest.get("ical_prune", True) else "0"
+    os.environ["NRW_EVENTS_COMPONENT_WORKERS"] = str(manifest.get("component_workers", 3))
     root = manifest_path.parent
     os.environ["NRW_EVENTS_CACHE_DIR"] = str(state / "cache")
     os.environ["NRW_EVENTS_AI_ENRICHMENT"] = "0"
@@ -114,7 +120,7 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
         url: ((root / entry["file"]).read_bytes(), entry.get("content_type", "text/html; charset=utf-8"),
               entry.get("status", 200))
         for url, entry in manifest["responses"].items()
-    })
+    }, latency_ms=float(manifest.get("network_latency_ms", 0)))
     today = datetime.fromisoformat(manifest["date"])
     window = EventWindow.from_days(manifest.get("days_ahead", 90), today)
     settings = config.RuntimeConfig(
@@ -159,6 +165,7 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     peak_rss_mib = peak_rss / (1024 * 1024 if sys.platform == "darwin" else 1024)
     from . import category_taxonomy, normalization
     return {"wall_ms": elapsed * 1000, "process_cpu_ms": cpu * 1000, "peak_rss_mib": peak_rss_mib,
+            "simulated_network_latency_ms": transport.latency_ms,
             "taxonomy_cache": category_taxonomy._cached_keyword_matches.cache_info()._asdict(),
             "normalization_cache": normalization._cached_comparison_text.cache_info()._asdict(),
             "telemetry": collector.snapshot(), "snapshot": snapshot.metadata,

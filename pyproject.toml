@@ -52,6 +52,7 @@ files = [
     "scripts/nrw_events/scoring.py",
     "scripts/nrw_events/observability.py",
     "scripts/nrw_events/performance.py",
+    "scripts/nrw_events/components.py",
     "scripts/nrw_events/snapshot_compare.py",
     "scripts/nrw_events/benchmark.py",
     "scripts/nrw_events/title_normalization.py",

@@ -3,41 +3,65 @@
 import re
 from datetime import datetime
 
-from .. import common, reviewed_corrections, richtext
+from .. import common, components, reviewed_corrections, richtext
 from . import regional_common as rc
 
 
 def fetch() -> list:
-    events = []
-    events.extend(rc.fetch_html_events(
-        "Sankt Augustin",
-        "https://www.sankt-augustin.de/veranstaltungen/",
-        _events_from_sankt_augustin,
-     source_id="sankt-augustin-events"))
-    events.extend(rc.fetch_html_events(
-        "Pantheon Bonn",
-        "https://www.pantheon.de/programm/",
-        _events_from_pantheon,
-     source_id="pantheon-bonn"))
-    events.extend(rc.fetch_html_events(
-        "Haus der Springmaus",
-        "https://www.springmaus-theater.de/events.html?s=all",
-        _events_from_springmaus,
-     source_id="haus-der-springmaus"))
-    events.extend(rc.fetch_html_events(
-        "Brückenforum Bonn",
-        "https://www.brueckenforum.de/alle-events/",
-        lambda html: _events_from_brueckenforum(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="brueckenforum-bonn", timeout=20),
-        ),
-     source_id="brueckenforum-bonn"))
-    events.extend(rc.fetch_html_events(
-        "Musik auf der Rathaustreppe",
-        "http://www.rathausmusik.com/",
-        _events_from_rathausmusik,
-     source_id="rathausmusik"))
+    events = components.run(
+        [
+            components.Job(
+                "https://www.sankt-augustin.de",
+                lambda: rc.fetch_html_events(
+                    "Sankt Augustin",
+                    "https://www.sankt-augustin.de/veranstaltungen/",
+                    _events_from_sankt_augustin,
+                    source_id="sankt-augustin-events",
+                ),
+            ),
+            components.Job(
+                "https://www.pantheon.de",
+                lambda: rc.fetch_html_events(
+                    "Pantheon Bonn",
+                    "https://www.pantheon.de/programm/",
+                    _events_from_pantheon,
+                    source_id="pantheon-bonn",
+                ),
+            ),
+            components.Job(
+                "https://www.springmaus-theater.de",
+                lambda: rc.fetch_html_events(
+                    "Haus der Springmaus",
+                    "https://www.springmaus-theater.de/events.html?s=all",
+                    _events_from_springmaus,
+                    source_id="haus-der-springmaus",
+                ),
+            ),
+            components.Job(
+                "https://www.brueckenforum.de",
+                lambda: rc.fetch_html_events(
+                    "Brückenforum Bonn",
+                    "https://www.brueckenforum.de/alle-events/",
+                    lambda html: _events_from_brueckenforum(
+                        html,
+                        detail_fetcher=lambda url: common.fetch_detail_url(
+                            url, cache_namespace="brueckenforum-bonn", timeout=20
+                        ),
+                    ),
+                    source_id="brueckenforum-bonn",
+                ),
+            ),
+            components.Job(
+                "http://www.rathausmusik.com",
+                lambda: rc.fetch_html_events(
+                    "Musik auf der Rathaustreppe",
+                    "http://www.rathausmusik.com/",
+                    _events_from_rathausmusik,
+                    source_id="rathausmusik",
+                ),
+            ),
+        ]
+    )
     return rc.dedupe(events)
 
 

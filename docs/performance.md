@@ -2,9 +2,9 @@
 
 ## Status
 
-Issue #356 adds measurement tools before changes to parsing or concurrency.
-The current fixture proves repeatability, not production speed.
-The complete multi-source baseline, composite fixture, and live canaries are still required.
+The local implementation covers measurement, bounded caches, safe iCal pruning, and bounded component concurrency.
+The fixtures prove repeatability and controlled local improvements, not production speed.
+Live canaries and the website release gate remain required before deployment.
 GitHub Actions remain outside this workflow.
 
 ### Initial measurement, 2026-09-03
@@ -28,7 +28,7 @@ These warnings remain a separate test-cleanup concern.
 
 ### Remaining work for #356
 
-- Measure the complete multi-source path and establish its critical path before concurrency changes.
+- Verify the measured multi-source critical path against the production run.
 - Verify the website snapshot contract before release.
 
 The current measurements and full test logs are in `/tmp/nrw-performance-evidence.rnDzxw` on the development machine.
@@ -230,3 +230,61 @@ The 10,000-record fixture remained equivalent, with no material runtime regressi
 Its medians were 8,620.25 ms without pruning and 8,585.64 ms with pruning.
 The small difference is not a speed claim because other local checks overlapped part of the comparison.
 These local results do not establish full-source production performance.
+
+## Bounded component concurrency
+
+One run-scoped pool serves SiteKit, IONAS4, regional HTML calendars, requested venues, and Bonn venues.
+The pool also serves their universal detail phase.
+Other logical sources retain their existing behavior.
+Set `NRW_EVENTS_COMPONENT_WORKERS=3` for the conservative default.
+The maximum is four workers.
+Values `0` and `1` restore serial component execution.
+The replay manifest uses `"component_workers": 1` for the serial comparison.
+
+Each host group keeps its original sequence.
+The existing request slots and Bonn throttle remain active across all source and component threads.
+Workers copy the runtime context and original deadline, cancellation signal, and processing grace period.
+Each worker owns its diagnostics and parser counters.
+The parent merges events, warnings, endpoints, and counters in registry order.
+Nested component calls run serially to prevent pool deadlocks.
+Shared detail phases retain one absolute deadline and the global repeated-link policy.
+The source thread persists caches only after component completion.
+If a timed-out component remains active, the mid-run cache flush is deferred instead.
+
+Ten scheduler tests cover overlap, the shared worker limit, host ordering, cancellation, deadlines, context restoration, diagnostics, and cache flush order.
+The full local suite passed 1,528 tests with 89% coverage.
+Ruff, mypy, and both documentation checks passed.
+The existing socket and SQLite cleanup warnings remain separate from these checks.
+
+### Controlled network-wait comparison
+
+The replay accepts `network_latency_ms` from zero to 1,000 milliseconds.
+It applies this simulated delay inside each HTTP request slot.
+The report labels the delay explicitly.
+This simulation does not contact public sources or establish production performance.
+
+Five runs of the eleven-calendar fixture used 20 ms per recorded request.
+Serial execution took 3,032.05 ms median (minimum 2,986.72 ms, p95 3,058.27 ms).
+Three component workers took 2,012.54 ms median (minimum 1,982.73 ms, p95 2,015.90 ms).
+The total reduction was 33.62%.
+SiteKit decreased from 2,956 ms to 1,938 ms, a 34.44% reduction.
+IONAS4 decreased from 2,532 ms to 1,344 ms, a 46.92% reduction.
+All public metadata and durable artifacts remained identical.
+
+### Mixed-source comparison
+
+The mixed fixture combines the saved Wachtberg feed with the eleven-calendar fixture and the same simulated network delay.
+Each mode used five fresh processes with isolated state.
+
+| Mode | Minimum | Median | p95 | Peak RSS |
+| --- | ---: | ---: | ---: | ---: |
+| Caches and pruning disabled, serial components | 4,004.08 ms | 4,038.31 ms | 4,177.41 ms | 77.33 MiB |
+| Caches and pruning enabled, serial components | 3,617.55 ms | 3,656.86 ms | 3,690.29 ms | 79.67 MiB |
+| Caches and pruning enabled, three component workers | 2,652.01 ms | 2,734.60 ms | 2,780.02 ms | 80.25 MiB |
+
+All three modes produced identical public metadata, highlights, and ledger state.
+Component concurrency added a 25.22% reduction after the cache and pruning improvements.
+The combined reduction was 32.29%, below the 35% roadmap target.
+This fixture covers three logical sources, not all 99 production sources.
+The remaining measured CPU bottleneck is Wachtberg taxonomy work.
+The process-pool decision remains open until lower-risk work and production measurements establish its benefit.

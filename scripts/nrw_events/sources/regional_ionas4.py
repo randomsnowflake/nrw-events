@@ -5,8 +5,9 @@ import re
 import urllib.parse
 from collections import defaultdict
 from datetime import timedelta
+from functools import partial
 
-from .. import common, http
+from .. import common, components, http
 from ..models import normalize_source_id
 from . import regional_common as rc
 
@@ -51,29 +52,35 @@ _CALENDARS = [
 
 
 def fetch() -> list:
-    events = []
-    for city, url, calendar_url, trust in _CALENDARS:
-        source_id = normalize_source_id(f"ionas4-{city}")
-        try:
-            hostname = urllib.parse.urlsplit(url).hostname or ""
-            items = json.loads(http.fetch_url_with_brightdata_fallback(
-                url,
-                timeout=25,
-                allowed_hosts=(hostname,),
-                fallback_statuses=(408, 429, 500, 502, 503, 504),
-                fallback_on_timeout=True,
-                accept="application/json,*/*;q=0.8",
-                sec_fetch_mode="cors",
-                sec_fetch_dest="empty",
-            ))
-            if isinstance(items, list):
-                detail_fetcher = _detail_fetcher_for_city(city)
-                events.extend(_events_from_items(
-                    items, city, calendar_url, trust, detail_fetcher=detail_fetcher,
-                    source_id=source_id))
-        except Exception as e:
-            common.log_source_error(f"{_SOURCE} ({city})", e, source_id=source_id)
+    events = components.run([
+        components.Job(calendar[1], partial(_fetch_calendar, *calendar))
+        for calendar in _CALENDARS
+    ])
     return rc.dedupe(events)
+
+
+def _fetch_calendar(city: str, url: str, calendar_url: str, trust: float) -> list:
+    source_id = normalize_source_id(f"ionas4-{city}")
+    try:
+        hostname = urllib.parse.urlsplit(url).hostname or ""
+        items = json.loads(http.fetch_url_with_brightdata_fallback(
+            url,
+            timeout=25,
+            allowed_hosts=(hostname,),
+            fallback_statuses=(408, 429, 500, 502, 503, 504),
+            fallback_on_timeout=True,
+            accept="application/json,*/*;q=0.8",
+            sec_fetch_mode="cors",
+            sec_fetch_dest="empty",
+        ))
+        if isinstance(items, list):
+            detail_fetcher = _detail_fetcher_for_city(city)
+            return _events_from_items(
+                items, city, calendar_url, trust, detail_fetcher=detail_fetcher,
+                source_id=source_id)
+    except Exception as e:
+        common.log_source_error(f"{_SOURCE} ({city})", e, source_id=source_id)
+    return []
 
 
 def _detail_fetcher_for_city(city: str):

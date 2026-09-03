@@ -21,11 +21,12 @@ import time
 import unicodedata
 from collections import Counter
 from datetime import datetime
+from functools import partial
 from html import escape, unescape
 from html.parser import HTMLParser
 from urllib.parse import urldefrag, urlsplit
 
-from . import common, richtext
+from . import common, components, richtext
 
 _NON_DOCUMENT_SUFFIXES = (
     ".css", ".csv", ".gif", ".ics", ".jpeg", ".jpg", ".json", ".pdf",
@@ -1159,7 +1160,8 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
     return enriched
 
 
-def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_NAMESPACE) -> list[dict]:
+def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_NAMESPACE,
+                  parallel_components: bool = False) -> list[dict]:
     """Enrich unique public detail links, failing soft per event.
 
     A URL shared by several events is normally an overview or rolling article;
@@ -1185,6 +1187,32 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
         for event in events
         if isinstance(event, dict) and id(event) in eligible_ids
     )
+    if parallel_components and components.enabled():
+        groups: dict[str, list[tuple[int, dict]]] = {}
+        for index, event in enumerate(events):
+            link = str(event.get("link") or "") if isinstance(event, dict) else ""
+            host = (urlsplit(link).hostname or "") if id(event) in eligible_ids else ""
+            groups.setdefault(host, []).append((index, event))
+        rows = components.run([
+            components.Job(f"https://{host}", partial(
+                _enrich_indexed, indexed, cache_namespace, deadline, eligible_ids, link_counts,
+            )) for host, indexed in groups.items()
+        ])
+        result = list(events)
+        for index, event in rows:
+            result[index] = event
+        return result
+    return _enrich_batch(events, cache_namespace, deadline, eligible_ids, link_counts)
+
+
+def _enrich_indexed(indexed: list, cache_namespace: str, deadline: float,
+                    eligible_ids: set[int], link_counts: Counter) -> list:
+    rows = _enrich_batch([event for _index, event in indexed], cache_namespace, deadline, eligible_ids, link_counts)
+    return [(pair[0], row) for pair, row in zip(indexed, rows, strict=True)]
+
+
+def _enrich_batch(events: list[dict], cache_namespace: str, deadline: float,
+                  eligible_ids: set[int], link_counts: Counter) -> list[dict]:
     documents: dict[str, str] = {}
     enriched: list[dict] = []
     for event in events:

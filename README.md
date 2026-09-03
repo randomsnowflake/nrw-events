@@ -218,6 +218,7 @@ scripts/nrw_events/
   benchmark.py
   category_taxonomy.py
   common.py
+  components.py
   config.py
   core.py
   dates.py
@@ -447,6 +448,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS` | `60.0` | Obergrenze für einzelne Retry-Wartezeiten. |
 | `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES` | `10000000` | Antwortgrößen-Grenze pro HTTP-Request; `0` liest die vollständige Antwort. Der Standard lässt den aktuellen Bonn-Export vollständig durch, begrenzt aber weiterhin fehlerhafte oder unerwartet große Quellen. |
 | `NRW_EVENTS_SOURCE_WORKERS` | `4` | Maximale parallele Quellen. Requests an denselben Host werden serialisiert; verschiedene Hosts laufen parallel. |
+| `NRW_EVENTS_COMPONENT_WORKERS` | `3` | Gemeinsamer Pool für unabhängige Teilkalender. Maximal `4`; `0` oder `1` deaktiviert ihn. Host-Limits und Quellenfristen bleiben erhalten. |
 | `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `600.0` | Zeitbudget für die Netzwerkphase einer Quelle; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
 | `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS` | `180.0` | Zusätzliche Worker-Zeit für Validierung und Verarbeitung bereits geholter großer Quellergebnisse. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |

@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime
 
-from .. import common, richtext
+from .. import common, components, richtext
 from ..dates import MONTH_ALL
 from ..models import AdmissionDefault
 from . import regional_common as rc
@@ -21,37 +21,59 @@ _RHEIN_IN_FLAMMEN_URL = "https://www.rhein-in-flammen.com/"
 
 
 def fetch() -> list:
-    events = []
+    jobs = []
     for month, year in _months_in_window():
-        events.extend(rc.fetch_html_events(
-            "KULT41",
-            f"{_KULT41_URL}?mo={month}&yr={year}",
-            events_from_kult41,
-         source_id="kult41"))
-        events.extend(rc.fetch_html_events(
-            "Repair Cafés Bonn",
-            f"{_REPAIR_CAFES_URL}?time=month&yr={year}&month={month}",
-            events_from_repair_cafes,
-         source_id="repair-cafes-bonn"))
-    events.extend(_fetch_brotfabrik())
-    events.extend(_fetch_volkssternwarte())
-    events.extend(rc.fetch_html_events(
-        "Botanische Gärten Bonn",
-        _BOTGART_URL,
-        lambda html: events_from_botgart(
-            html,
-            detail_fetcher=lambda url: common.fetch_detail_url(
-                url, cache_namespace="botanische-gaerten-bonn", timeout=20),
-        ),
-     source_id="botanische-gaerten-bonn"))
-    events.extend(_fetch_vox_bona())
-    events.extend(_fetch_bonner_muenster())
-    events.extend(rc.fetch_html_events(
-        "Rhein in Flammen Bonn",
-        _RHEIN_IN_FLAMMEN_URL,
-        events_from_rhein_in_flammen,
-     source_id="rhein-in-flammen-bonn"))
-    return rc.dedupe(events)
+        jobs.append(
+            components.Job(
+                _KULT41_URL,
+                lambda month=month, year=year: rc.fetch_html_events(
+                    "KULT41", f"{_KULT41_URL}?mo={month}&yr={year}", events_from_kult41, source_id="kult41"
+                ),
+            )
+        )
+        jobs.append(
+            components.Job(
+                _REPAIR_CAFES_URL,
+                lambda month=month, year=year: rc.fetch_html_events(
+                    "Repair Cafés Bonn",
+                    f"{_REPAIR_CAFES_URL}?time=month&yr={year}&month={month}",
+                    events_from_repair_cafes,
+                    source_id="repair-cafes-bonn",
+                ),
+            )
+        )
+    jobs.extend(
+        [
+            components.Job(_BROTFABRIK_URL, _fetch_brotfabrik),
+            components.Job(_VOLKSSTERNWARTE_ICAL, _fetch_volkssternwarte),
+            components.Job(
+                _BOTGART_URL,
+                lambda: rc.fetch_html_events(
+                    "Botanische Gärten Bonn",
+                    _BOTGART_URL,
+                    lambda html: events_from_botgart(
+                        html,
+                        detail_fetcher=lambda url: common.fetch_detail_url(
+                            url, cache_namespace="botanische-gaerten-bonn", timeout=20
+                        ),
+                    ),
+                    source_id="botanische-gaerten-bonn",
+                ),
+            ),
+            components.Job(_VOX_BONA_ICAL, _fetch_vox_bona),
+            components.Job(_BONNER_MUENSTER_URL, _fetch_bonner_muenster),
+            components.Job(
+                _RHEIN_IN_FLAMMEN_URL,
+                lambda: rc.fetch_html_events(
+                    "Rhein in Flammen Bonn",
+                    _RHEIN_IN_FLAMMEN_URL,
+                    events_from_rhein_in_flammen,
+                    source_id="rhein-in-flammen-bonn",
+                ),
+            ),
+        ]
+    )
+    return rc.dedupe(components.run(jobs))
 
 
 def events_from_kult41(html: str) -> list:

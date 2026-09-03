@@ -34,6 +34,17 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 503)
         raised.exception.close()
 
+    def test_optional_latency_is_explicit_bounded_and_mockable(self):
+        with self.assertRaises(ValueError):
+            ReplayTransport({}, latency_ms=float("nan"))
+        with self.assertRaises(ValueError):
+            ReplayTransport({}, latency_ms=1001)
+        transport = ReplayTransport({"https://example.test": (b"ok", "text/plain", 200)}, latency_ms=20)
+        with patch("nrw_events.benchmark.time.sleep") as delay:
+            with transport.open("https://example.test") as response:
+                self.assertEqual(response.read(), b"ok")
+        delay.assert_called_once_with(0.02)
+
     def test_percentiles_use_observed_nearest_rank_not_extrapolation(self):
         self.assertEqual(summarize([5, 1, 4, 2, 3]), {"min": 1, "median": 3, "p95": 5})
         with self.assertRaises(ValueError):

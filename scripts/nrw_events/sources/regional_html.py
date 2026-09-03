@@ -5,7 +5,7 @@ import urllib.parse
 from datetime import datetime
 from html.parser import HTMLParser
 
-from .. import common, detail_enrichment
+from .. import common, components, detail_enrichment
 from . import regional_common as rc
 
 _LOHMAR_BASE_URL = "https://www.lohmar.de/"
@@ -17,44 +17,66 @@ _ALFTER_EMPTY_NOTICE = "Derzeit sind keine Einträge (unter dieser Rubrik) verf�
 
 
 def fetch() -> list:
-    events = []
-    events.extend(_fetch_alfter())
-    events.extend(rc.fetch_html_events(
-        "Lohmar",
-        _LOHMAR_CALENDAR_URL,
-        lambda html: _events_from_lohmar(
-            html,
-            detail_fetcher=lambda link: common.fetch_detail_url(
-                link, cache_namespace="lohmar", timeout=15),
-        ),
-     source_id="lohmar-events"))
-    events.extend(rc.fetch_html_events(
-        "Bornheim",
-        "https://www.bornheim.de/veranstaltungskalender",
-        _events_from_bornheim,
-     source_id="bornheim-events"))
-    events.extend(rc.fetch_html_events(
-        "Eitorf",
-        "https://www.eitorf.de/veranstaltungen/",
-        lambda html: _events_from_eitorf_cards(
-            html,
-            "https://www.eitorf.de",
-            detail_fetcher=lambda link: common.fetch_detail_url(
-                link, cache_namespace="eitorf-events", timeout=20,
+    events = components.run(
+        [
+            components.Job("https://www.alfter.de", _fetch_alfter),
+            components.Job(
+                _LOHMAR_CALENDAR_URL,
+                lambda: rc.fetch_html_events(
+                    "Lohmar",
+                    _LOHMAR_CALENDAR_URL,
+                    lambda html: _events_from_lohmar(
+                        html,
+                        detail_fetcher=lambda link: common.fetch_detail_url(link, cache_namespace="lohmar", timeout=15),
+                    ),
+                    source_id="lohmar-events",
+                ),
             ),
-        ),
-     source_id="eitorf-events"))
-    events.extend(rc.fetch_html_events(
-        "Bröltal / Ruppichteroth",
-        "https://www.broeltal.de/aktuelles/termine.html",
-        lambda html: _events_from_broeltal(
-            html,
-            "https://www.broeltal.de",
-            detail_fetcher=lambda link: common.fetch_detail_url(
-                link, cache_namespace="broeltal-events", timeout=20,
+            components.Job(
+                "https://www.bornheim.de",
+                lambda: rc.fetch_html_events(
+                    "Bornheim",
+                    "https://www.bornheim.de/veranstaltungskalender",
+                    _events_from_bornheim,
+                    source_id="bornheim-events",
+                ),
             ),
-        ),
-     source_id="broeltal-ruppichteroth-events"))
+            components.Job(
+                "https://www.eitorf.de",
+                lambda: rc.fetch_html_events(
+                    "Eitorf",
+                    "https://www.eitorf.de/veranstaltungen/",
+                    lambda html: _events_from_eitorf_cards(
+                        html,
+                        "https://www.eitorf.de",
+                        detail_fetcher=lambda link: common.fetch_detail_url(
+                            link,
+                            cache_namespace="eitorf-events",
+                            timeout=20,
+                        ),
+                    ),
+                    source_id="eitorf-events",
+                ),
+            ),
+            components.Job(
+                "https://www.broeltal.de",
+                lambda: rc.fetch_html_events(
+                    "Bröltal / Ruppichteroth",
+                    "https://www.broeltal.de/aktuelles/termine.html",
+                    lambda html: _events_from_broeltal(
+                        html,
+                        "https://www.broeltal.de",
+                        detail_fetcher=lambda link: common.fetch_detail_url(
+                            link,
+                            cache_namespace="broeltal-events",
+                            timeout=20,
+                        ),
+                    ),
+                    source_id="broeltal-ruppichteroth-events",
+                ),
+            ),
+        ]
+    )
     return rc.dedupe(events)
 
 
