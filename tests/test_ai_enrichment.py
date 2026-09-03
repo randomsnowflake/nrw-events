@@ -473,7 +473,7 @@ class AIEnrichmentTests(unittest.TestCase):
         values = [event(title="First"), event(title="Second")]
         seen_timeouts = []
 
-        def enrich_one(value, *, settings, configured_timeout_seconds):
+        def enrich_one(value, *, settings, configured_timeout_seconds, outcome=None):
             seen_timeouts.append(settings.timeout_seconds)
             return {**value, "ai_summary": "done"}
 
@@ -493,7 +493,7 @@ class AIEnrichmentTests(unittest.TestCase):
         values = [event(title="First"), event(title="Second")]
         barrier = threading.Barrier(2, timeout=1)
 
-        def enrich_one(value, *, settings, configured_timeout_seconds):
+        def enrich_one(value, *, settings, configured_timeout_seconds, outcome=None):
             barrier.wait()
             return {**value, "ai_summary": f"done: {value['title']}"}
 
@@ -889,6 +889,32 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("19:30", first["time"])
         self.assertEqual("concert", first["category_key"])
         self.assertEqual("Bonner Klangräume", first["series_title"])
+
+    def test_poisoned_cached_category_type_is_skipped_without_aborting(self):
+        ai_enrichment.enrich_event(
+            event(),
+            settings=self.settings,
+            client=FakeClient([FACTS, SUMMARY]),
+            now=self.now,
+        )
+        poisoned = {**SUMMARY, "category_key": ["concert"]}
+        with sqlite3.connect(self.settings.cache_db) as connection:
+            connection.execute(
+                "UPDATE ai_event_enrichment SET stage2_json = ?",
+                (json.dumps(poisoned),),
+            )
+
+        result = ai_enrichment._reuse_cached_success(event(), self.settings)
+
+        self.assertEqual(SUMMARY["ai_summary"], result["ai_summary"])
+        self.assertEqual("other", result["category_key"])
+
+    def test_client_boundary_rejects_schema_type_violations(self):
+        with self.assertRaisesRegex(ai_enrichment.AIEnrichmentError, "output.category_key"):
+            ai_enrichment._validate_types(
+                ai_enrichment._SUMMARY_SCHEMA,
+                {**SUMMARY, "category_key": ["concert"]},
+            )
 
     def test_summary_pipeline_change_reuses_compatible_cached_facts(self):
         ai_enrichment.enrich_event(
@@ -1423,6 +1449,30 @@ class AIEnrichmentTests(unittest.TestCase):
             ),
             "summary contradicts the source location",
         )
+
+    def test_summary_quality_rejects_contact_data_non_german_and_unsupported_time(self):
+        facts = {**FACTS, "time": "19:30"}
+        cases = (
+            (
+                "Das Konzert findet im Rathaus statt und Details stehen auf https://example.test.",
+                "summary contains contact or outbound-link data",
+            ),
+            (
+                "This concert presents chamber music followed by a discussion with the ensemble.",
+                "summary is not recognizably German",
+            ),
+            (
+                "Das Konzert beginnt um 20:15 Uhr und danach gibt es ein Gespräch mit dem Ensemble.",
+                "summary contains a clock time absent from the facts",
+            ),
+        )
+
+        for summary, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    ai_enrichment._summary_quality(summary, event()["description"], facts),
+                    expected,
+                )
 
     def test_other_series_date_is_retried(self):
         unrelated_date = {

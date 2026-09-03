@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import fcntl
 import json
 import os
@@ -55,6 +56,11 @@ from .runtime import EventWindow, RunContext
 from .sources import SOURCE_FETCHERS, SOURCE_IDS
 from .title_normalization import normalize_event_title, title_looks_truncated
 from .validation import EventValidationError, validate_event
+
+# Timed-out workers are daemonized so the main pipeline can finish, but they may
+# still complete a detail fetch after the regular mid-run flush. Give those late
+# cache writes one final durable flush when the process exits.
+atexit.register(common.flush_detail_page_caches)
 
 # Keep the historical module-level name as the injection seam used by callers
 # and tests, while making the typed facade the production default.
@@ -347,8 +353,9 @@ def _run_source(
                         "score": canonical_event.score,
                         "material": private_ai_material,
                     })
-            except EventValidationError as exc:
-                result.reject(str(exc), event, in_window=in_window)
+            except (EventValidationError, TypeError, ValueError) as exc:
+                reason = str(exc) if isinstance(exc, EventValidationError) else f"record_invalid:{type(exc).__name__}"
+                result.reject(reason, event, in_window=in_window)
         result.accepted_event_count = len(accepted)
         result.event_sources = sorted({event["source"] for event in accepted})
         result.event_source_ids = sorted({event.source_id for event in accepted})
@@ -370,10 +377,25 @@ def _run_source(
         common.set_source_context(None)
 
 
-def _run_status(results: dict[str, SourceResult], event_count: int) -> str:
+def _run_status(results: dict[str, SourceResult], event_count: int,
+    *,
+    previous_event_count: int = 0,
+    minimum_snapshot_ratio: float = 0.5,
+    max_failed_source_ratio: float = 0.5,
+) -> str:
     if event_count <= 0:
         return "failed"
     if results and not any(result.event_source_ids for result in results.values()):
+        return "failed"
+    if previous_event_count > 0 and event_count < previous_event_count * minimum_snapshot_ratio:
+        return "failed"
+    attempted = [
+        result
+        for result in results.values()
+        if result.status not in {SourceStatus.SCHEDULED_SKIP, SourceStatus.DISABLED}
+    ]
+    failed_count = sum(result.status == SourceStatus.FAILED for result in attempted)
+    if attempted and failed_count / len(attempted) > max_failed_source_ratio:
         return "failed"
     if any(result.status in {SourceStatus.FAILED, SourceStatus.DEGRADED, SourceStatus.PARSER_EMPTY}
            for result in results.values()):
@@ -493,7 +515,7 @@ def _validate_output_paths(settings: config.RuntimeConfig) -> None:
         Path(raw_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
 
-def _previous_snapshot(path: str) -> dict:
+def _previous_snapshot(path: str, warnings: list[dict[str, str]] | None = None) -> dict:
     metadata_path = Path(path).expanduser()
     try:
         with metadata_path.open(encoding="utf-8") as handle:
@@ -511,7 +533,16 @@ def _previous_snapshot(path: str) -> dict:
             except (OSError, ValueError, TypeError):
                 pass
         return payload
-    except (OSError, ValueError, AttributeError):
+    except (OSError, ValueError, AttributeError) as exc:
+        if metadata_path.exists() and warnings is not None:
+            warnings.append(
+                diagnostic_warning(
+                    "previous-snapshot",
+                    type(exc).__name__,
+                    f"previous snapshot could not be read: {type(exc).__name__}",
+                    source_id="previous-snapshot",
+                )
+            )
         return {}
 
 
@@ -529,6 +560,20 @@ def _event_source_id(event: dict) -> str:
         city = city.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
         return normalize_source_id(f"sitekit-{city}")
     return source
+
+
+def _retained_event_counts_by_source(
+    events: Sequence[CanonicalEvent | dict],
+    published_event_ids: set[str],
+) -> dict[str, int]:
+    """Count retained rows without assuming snapshots still hold model objects."""
+    counts: dict[str, int] = {}
+    for event in events:
+        if event_id(event) not in published_event_ids:
+            continue
+        source_id = _event_source_id(event)
+        counts[source_id] = counts.get(source_id, 0) + 1
+    return counts
 
 
 def _is_discovery_only_event(event: dict) -> bool:
@@ -756,10 +801,27 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
     for name, result in results.items():
         if result.status == SourceStatus.SCHEDULED_SKIP:
             continue
+        if any(
+            details.get("status") == 200
+            and int(details.get("bytes") or 0) > 2000
+            and details.get("candidate_count") == 0
+            for details in result.endpoints.values()
+        ):
+            result.anomalies.append("zero_candidates_from_nonempty_body")
         prior = previous.get(name, {})
-        prior_count = prior.get("raw_event_count")
+        prior_status = prior.get("status")
+        prior_count = (
+            prior.get("last_nonempty_raw_event_count")
+            if prior_status in {SourceStatus.SCHEDULED_SKIP.value, SourceStatus.DISABLED.value}
+            else prior.get("raw_event_count")
+        )
         if not isinstance(prior_count, int):
             continue
+        result.last_nonempty_raw_event_count = (
+            result.raw_event_count
+            if result.raw_event_count > 0
+            else int(prior.get("last_nonempty_raw_event_count") or prior_count or 0)
+        )
         result.baseline = {"previous_raw_event_count": prior_count}
         if prior_count >= minimum_count and result.raw_event_count == 0:
             result.anomalies.append("zero_after_recent_nonempty")
@@ -875,6 +937,26 @@ def _record_publication_ai_metrics(
             if key.startswith(("ai_deadline_", "ai_cap_", "ai_cache_budget_"))
             and key.endswith("_skipped_without_summary_event_count")
         )
+        failed = int(source_stats.get("ai_failed_event_count", 0))
+        if failed / count > 0.5:
+            operational_result = (
+                _operational_source_result_for_event(
+                    candidate_events[source_id],
+                    source_results,
+                )
+                or result
+            )
+            operational_result.warning(
+                candidate_events[source_id].source,
+                "AIEnrichmentFailureWarning",
+                f"AI enrichment failed for {failed}/{count} final target events",
+                source_id=source_id,
+            )
+            if operational_result.status in {
+                SourceStatus.HEALTHY,
+                SourceStatus.HEALTHY_EMPTY,
+            }:
+                operational_result.status = SourceStatus.DEGRADED
         if budget_without_summary:
             operational_result = _operational_source_result_for_event(
                 candidate_events[source_id], source_results,
@@ -927,10 +1009,11 @@ def _attach_cross_run_fields(
         identifier = event_id(canonical_event)
         prior = previous_by_id.get(identifier, {})
         first_seen = str(
-            prior.get("first_seen_at")
+            (prior.get("first_seen_at")
             or prior.get("generated_at")
-            or previous.get("generated_at")
-            or generated_at
+            or previous.get("generated_at"))
+            if prior
+            else generated_at
         )
         current_event = canonical_event
         cancelled_at = current_event.cancelled_at
@@ -1701,7 +1784,9 @@ def _prefer_retained_primary_over_bonn_fallback(
     )
 
 
-def _enforce_restricted_publication_boundary(events: list) -> list:
+def _enforce_restricted_publication_boundary(events: list,
+    warnings: list[dict[str, str]] | None = None,
+) -> list:
     """Reapply the no-source-copy contract after cross-source deduplication."""
     protected = []
     for event in events:
@@ -1710,7 +1795,17 @@ def _enforce_restricted_publication_boundary(events: list) -> list:
             continue
         raw = event.to_dict() if isinstance(event, CanonicalEvent) else dict(event)
         ai_enrichment.strip_restricted_copy(raw)
-        protected.append(validate_event(raw))
+        try:
+            protected.append(validate_event(raw))
+        except EventValidationError as exc:
+            if warnings is not None:
+                warnings.append(
+                    diagnostic_warning(
+                        raw.get("source", "publication-boundary"),
+                        "PublicationBoundaryWarning",
+                        f"record dropped after restricted-copy sanitization: {exc}",
+                        source_id=raw.get("source_id", ""),
+                    ))
     return protected
 
 
@@ -1722,10 +1817,12 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     import_started = time.monotonic()
     settings, logger, run_id = context.settings, context.logger, context.run_id
     previous_path = settings.previous_meta_json or settings.meta_json_out
-    previous = _previous_snapshot(previous_path)
+    previous_snapshot_warnings: list[dict[str, str]] = []
+    previous = _previous_snapshot(previous_path, previous_snapshot_warnings)
     previous_results = previous.get("source_results") or {}
     log(logger, 20, f"fetching {len(sources)} sources", run_id=run_id, source="runner")
     all_events: list[CanonicalEvent] = []
+    events_by_source: dict[str, list[CanonicalEvent]] = {}
     source_results: dict[str, SourceResult] = {}
     worker_count = min(settings.source_workers, max(len(sources), 1))
     cache_warnings: list[dict[str, str]] = []
@@ -1759,7 +1856,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         log(logger, 20 if marker == "✓" else 30,
             f"{marker} {result.status.value}: {result.accepted_event_count}/{result.raw_event_count} events in {result.duration_ms}ms",
             run_id=run_id, source=name)
-        all_events.extend(events)
+        events_by_source[name] = events
 
     try:
         futures = {
@@ -1858,6 +1955,7 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         for name in sources
         if name in source_results
     }
+    all_events = [event for name in sources for event in events_by_source.get(name, [])]
     source_import_duration_ms = round((time.monotonic() - import_started) * 1000)
     radio_result = source_results.get(_RADIO_RUNNER_SOURCE)
     promoted_fallback_event_ids: frozenset[str] = frozenset()
@@ -1969,9 +2067,12 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     )
     # The fresh canonical record wins wholesale. Retained records are only
     # appended when no fresh record represents that occurrence.
+    publication_boundary_warnings: list[dict[str, str]] = []
     deduped = _enforce_restricted_publication_boundary([
         *fresh_deduped, *retained_only,
-    ])
+    ],
+        publication_boundary_warnings,
+    )
     deduped = report.suppress_redundant_series_umbrellas(deduped)
     published_event_ids = {event_id(event) for event in deduped}
     generated_at = context.clock().isoformat(timespec="seconds")
@@ -2055,7 +2156,10 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)
     import_warnings: tuple[dict[str, str], ...] = tuple(
         sanitized_warning(warning)
-        for warning in (*cache_warnings, *reviewed_warnings, *ai_validation_warnings)
+        for warning in (*previous_snapshot_warnings,
+            *cache_warnings, *reviewed_warnings, *ai_validation_warnings,
+            *publication_boundary_warnings,
+        )
     )
     try:
         series_rows, series_metadata, series_ledger = series_entities.enrich_events(
@@ -2092,17 +2196,23 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
         )
         for event, row in zip(deduped, series_rows, strict=False)
     ]
-    deduped = _enforce_restricted_publication_boundary(deduped)
+    boundary_warning_count = len(publication_boundary_warnings)
+    deduped = _enforce_restricted_publication_boundary(deduped,
+        publication_boundary_warnings,
+    )
+    import_warnings = (
+        *import_warnings,
+        *(sanitized_warning(warning) for warning in publication_boundary_warnings[boundary_warning_count:]),
+    )
     deduped = [
         replace(event, content_hash=content_hash(replace(event, content_hash="")))
         for event in deduped
     ]
 
-    actual_by_source: dict[str, int] = {}
-    for event in [*retained_only, *promoted_bonn_primaries]:
-        if event_id(event) not in published_event_ids:
-            continue
-        actual_by_source[event.source_id] = actual_by_source.get(event.source_id, 0) + 1
+    actual_by_source = _retained_event_counts_by_source(
+        [*retained_only, *promoted_bonn_primaries],
+        published_event_ids,
+    )
     retained_sources = retention.get("retained_sources")
     if isinstance(retained_sources, list):
         for item in retained_sources:
@@ -2113,11 +2223,21 @@ def _run_import_configured(context: RunContext, sources: dict[str, Callable[[], 
     retention["retained_event_count"] = retained_count
     retention["fresh_event_count"] = max(len(deduped) - retained_count, 0)
 
-    run_status = _run_status(source_results, len(deduped))
+    run_status = _run_status(source_results, len(deduped),
+        previous_event_count=int(previous.get("event_count") or 0),
+        minimum_snapshot_ratio=settings.minimum_snapshot_ratio,
+        max_failed_source_ratio=settings.max_failed_source_ratio,
+    )
     if import_warnings and run_status != "failed":
         run_status = "degraded"
+    boundary_warning_count = len(publication_boundary_warnings)
     early_deduped = _enforce_restricted_publication_boundary(
-        report.deduplicate(early_candidates)
+        report.deduplicate(early_candidates),
+        publication_boundary_warnings,
+    )
+    import_warnings = (
+        *import_warnings,
+        *(sanitized_warning(warning) for warning in publication_boundary_warnings[boundary_warning_count:]),
     )
     return ImportResult(
         events=tuple(deduped),
@@ -2239,6 +2359,8 @@ def build_snapshot(import_result: ImportResult, context: RunContext) -> Snapshot
             "HighlightArtifactError",
             "highlight artifact is missing or does not match the snapshot run_id",
         ))
+    if quality_warnings and metadata["run_status"] == "healthy":
+        metadata["run_status"] = "degraded"
     return SnapshotPayload(events, metadata, highlights, import_result.series_ledger)
 
 
@@ -2280,8 +2402,11 @@ def cli(argv: list[str]) -> int:
     snapshot = build_snapshot(import_result, context)
     presentation_result = filter_import_result(import_result, settings, query, context.window.start)
     if settings.json_stdout:
-        presentation_snapshot = build_snapshot(presentation_result, context)
-        print(json.dumps(presentation_snapshot.events, ensure_ascii=False, indent=2))
+        presentation_ids = {event_id(event) for event in presentation_result.events}
+        presentation_events = [
+            event for event in snapshot.events if str(event.get("event_id") or "") in presentation_ids
+        ]
+        print(json.dumps(presentation_events, ensure_ascii=False, indent=2))
     else:
         report_options: dict[str, Any] = {"radius_km": settings.radius_km}
         if settings.max_per_section:

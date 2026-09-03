@@ -145,6 +145,7 @@ class SourceResult:
     rejection_samples: dict[str, dict[str, Any]] = field(default_factory=dict)
     endpoints: dict[str, dict[str, Any]] = field(default_factory=dict)
     baseline: dict[str, Any] = field(default_factory=dict)
+    last_nonempty_raw_event_count: int = 0
     anomalies: list[str] = field(default_factory=list)
     duration_ms: int = 0
     ai_duration_ms: int = 0
@@ -272,6 +273,7 @@ class SourceResult:
             "rejection_samples": self.rejection_samples,
             "endpoints": self.endpoints,
             "baseline": self.baseline,
+            "last_nonempty_raw_event_count": self.last_nonempty_raw_event_count,
             "anomalies": self.anomalies,
             "duration_ms": self.duration_ms,
             "ai_duration_ms": self.ai_duration_ms,

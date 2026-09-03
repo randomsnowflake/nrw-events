@@ -447,6 +447,8 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS` | `600.0` | Zeitbudget für die Netzwerkphase einer Quelle; nachfolgende Requests und Retries werden auf die Restzeit begrenzt. |
 | `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS` | `180.0` | Zusätzliche Worker-Zeit für Validierung und Verarbeitung bereits geholter großer Quellergebnisse. |
 | `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT` | `10` | Ab dieser vorherigen Trefferzahl wird ein neuer Nullstand als Telemetrie-Anomalie markiert. |
+| `NRW_EVENTS_MINIMUM_SNAPSHOT_RATIO` | `0.5` | Mindestanteil der vorherigen Ereigniszahl; darunter bleibt der letzte gute Snapshot aktiv. |
+| `NRW_EVENTS_MAX_FAILED_SOURCE_RATIO` | `0.5` | Maximaler Anteil fehlgeschlagener aktiver Quellen, bevor der Lauf als fehlgeschlagen gilt. |
 | `NRW_EVENTS_BONN_DE_DELAY_SECONDS` | `0.5` | Mindestabstand zwischen serialisierten Requests an `bonn.de`; transiente MyraCDN/Backend-Fehler werden zusätzlich mit Backoff wiederholt. |
 | `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES` | `30` | Sicherheitsgrenze für paginierte Bonn.de-Kalenderseiten. |
 | `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` | nicht gesetzt | Bright-Data-Web-Unlocker-Zugang. vomFASS wird montags ausschließlich darüber aktualisiert; Hofflohmärkte Köln nutzt ihn nach direkten HTTP-429- oder Timeout-Fehlern als Fallback. Die fünf IONAS4-Regionalkalender nutzen ihn nur nach direkten Timeouts oder transienten HTTP-Fehlern. Alle Fallbacks bleiben auf die jeweils fest konfigurierten Quellhosts beschränkt. |

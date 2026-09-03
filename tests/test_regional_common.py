@@ -12,6 +12,13 @@ class RegionalCommonHealthTests(unittest.TestCase):
     def setUp(self):
         patch_window(self, datetime(2026, 7, 19), datetime(2026, 8, 1))
 
+    def test_bare_healthy_empty_override_is_rejected(self):
+        with self.assertRaisesRegex(TypeError, "pass a callable"):
+            regional_common.fetch_html_events(
+                "Source", "https://example.test", lambda _html: [],
+                source_id="source", empty_is_healthy=True,
+            )
+
     def test_out_of_window_candidates_are_healthy_empty(self):
         def parser(_html):
             event = common.make_event(

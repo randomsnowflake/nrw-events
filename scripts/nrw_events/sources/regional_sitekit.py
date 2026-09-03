@@ -19,8 +19,7 @@ _CALENDARS = [
 
 
 def _pagination_max(html: str) -> int:
-    match = re.search(r"(?:&quot;|\")max(?:&quot;|\")\s*:\s*(\d+)", html or "")
-    return max(1, int(match.group(1))) if match else 1
+    return rc.pagination_max(html)
 
 
 def _page_url(url: str, page: int) -> str:

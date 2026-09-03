@@ -19,7 +19,8 @@ _SPEC = FixedMarketSpec(
         "Der Eintritt für Besucher ist kostenlos."
     ),
     price="kostenlos", admission_basis="explicit",
-    timeout=20, empty_is_healthy=True,
+    # Strict parsing proves both the address and dated-occurrence contract.
+    timeout=20, empty_is_healthy=lambda _html: True,
 )
 
 

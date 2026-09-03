@@ -21,6 +21,12 @@ class EnvironmentDocumentationTests(unittest.TestCase):
             {"NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS"},
         )
 
+    def test_documented_source_deadlines_match_runtime_defaults(self):
+        defaults = check_env_docs.documented_env_defaults(check_env_docs.ROOT / ".env.example")
+
+        self.assertEqual(defaults["NRW_EVENTS_SOURCE_TIMEOUT_SECONDS"], 600.0)
+        self.assertEqual(defaults["NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS"], 180.0)
+
 
 if __name__ == "__main__":
     unittest.main()

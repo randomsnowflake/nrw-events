@@ -31,7 +31,9 @@ def _events_from_payload(payload: dict) -> list:
             continue
         start = start.replace(hour=start_time[0], minute=start_time[1])
         end = start.replace(hour=end_time[0], minute=end_time[1])
-        if not common.window_contains(start, end):
+        in_window = common.window_contains(start, end)
+        common._record_parser_candidate(out_of_window=not in_window)
+        if not in_window:
             continue
         count = item.get("count")
         stand_text = f" Aktuell sind {count} Stände angemeldet." if isinstance(count, int) and count > 0 else ""
@@ -75,13 +77,17 @@ def fetch() -> list:
             payload = common.fetch_json(url, timeout=20)
             if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
                 raise rc.ParserEmptyError("HofFloh API contract changed")
-            parsed = _events_from_payload(payload)
+            with common.capture_parser_metrics() as metrics:
+                parsed = _events_from_payload(payload)
+            parser_empty = (
+                bool(payload["items"]) and not parsed and metrics["candidate_count"] > metrics["out_of_window_count"]
+            )
             common._record_endpoint(
                 url,
                 parser_type="json",
                 candidate_count=len(payload["items"]),
                 parsed_event_count=len(parsed),
-                parser_empty=False,
+                parser_empty=parser_empty,
             )
             events.extend(parsed)
             total_pages = max(1, int(payload.get("totalPages") or 1))

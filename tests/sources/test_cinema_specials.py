@@ -24,6 +24,13 @@ class CinemaSpecialSourceTests(unittest.TestCase):
             self.assertTrue(validated["start_date"])
             self.assertTrue(validated["link"])
 
+    def test_rex_date_does_not_parse_start_hour_as_two_digit_year(self):
+        match = cinema_specials._REX_DATE_TIME_PATTERN.search("3.10. 15 - 17 Uhr")
+
+        self.assertIsNotNone(match)
+        self.assertIsNone(match.group("year"))
+        self.assertEqual(match.group("hour"), "17")
+
     def test_source_is_registered(self):
         self.assertIn("Curated cinema specials", SOURCES)
 
@@ -306,6 +313,23 @@ Treffpunkt: Jahnschule, Herseler Str. 7, 53117 Bon</strong>n</strong></p>
         self.assertEqual(events, [])
         self.assertEqual(result.warnings[0]["source"], "Bonner Kinemathek")
         self.assertEqual(result.warnings[0]["source_id"], "bonner-kinemathek")
+
+    def test_empty_optional_cinema_page_is_reported_as_parser_drift(self):
+        result = SourceResult("Curated cinema specials")
+        common.set_source_context(result)
+        try:
+            with patch("nrw_events.common.fetch_url", return_value="<html><body>changed</body></html>"):
+                events = cinema_specials._fetch_optional_html(
+                    "Bonner Kinemathek",
+                    "bonner-kinemathek",
+                    "https://example.invalid/events",
+                    lambda _html: [],
+                )
+        finally:
+            common.set_source_context(None)
+
+        self.assertEqual(events, [])
+        self.assertEqual(result.warnings[0]["error_type"], "ParserEmptyError")
 
 
 if __name__ == "__main__":

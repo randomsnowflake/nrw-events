@@ -83,9 +83,16 @@ def _events_from_sankt_augustin(html: str) -> list:
 
 def _events_from_pantheon(html: str) -> list:
     events = []
-    current_year = _first_program_year(html, common.TODAY.year)
+    items = re.findall(r'<li id="t(?P<id>\d+)">(.*?)</li>', html, re.S | re.I)
+    first_month_match = next((
+        re.search(r'class="event-date-3">\s*([A-Za-zäöüÄÖÜ]+)\s*</div>', body, re.S | re.I)
+        for _event_id, body in items
+        if "event-reschedule" not in body or not re.search(r"neuer\s+termin|verschoben", body, re.I)
+    ), None)
+    first_month = common.MONTH_DE.get(first_month_match.group(1).lower()) if first_month_match else None
+    current_year = _program_year_for_month(html, first_month, common.TODAY.year)
     last_month = 0
-    for item in re.findall(r'<li id="t(?P<id>\d+)">(.*?)</li>', html, re.S | re.I):
+    for item in items:
         event_id, body = item
         if "event-reschedule" in body and re.search(r"neuer\s+termin|verschoben", body, re.I):
             continue
@@ -412,6 +419,12 @@ def _parse_springmaus_dt(text: str):
     return rc.parse_dt(normalized)
 
 
-def _first_program_year(html: str, fallback: int) -> int:
-    m = re.search(r'/programm/\?date=(20\d{2})-\d{2}', html)
-    return int(m.group(1)) if m else fallback
+def _program_year_for_month(html: str, month: int | None, fallback: int) -> int:
+    candidates = [
+        (int(year), int(link_month))
+        for year, link_month in re.findall(r'/programm/\?date=(20\d{2})-(\d{2})', html)
+    ]
+    matching_years = [year for year, link_month in candidates if link_month == month]
+    if not matching_years:
+        return fallback
+    return min(matching_years, key=lambda year: (abs(year - fallback), year < fallback))

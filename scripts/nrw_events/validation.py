@@ -692,8 +692,11 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if (event["venue_latitude"] is None) != (event["venue_longitude"] is None):
         raise EventValidationError("venue_coordinates_incomplete")
     if event["venue_latitude"] is not None:
-        latitude = float(event["venue_latitude"])
-        longitude = float(event["venue_longitude"])
+        try:
+            latitude = float(event["venue_latitude"])
+            longitude = float(event["venue_longitude"])
+        except (TypeError, ValueError) as exc:
+            raise EventValidationError("venue_coordinates_invalid") from exc
         if not (47 <= latitude <= 56 and 5 <= longitude <= 16):
             raise EventValidationError("venue_coordinates_invalid")
         event["venue_latitude"] = latitude

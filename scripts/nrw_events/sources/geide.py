@@ -177,6 +177,6 @@ def fetch() -> list:
             # The strict parser above already raises when the page contract
             # changes. A structurally valid annual calendar can legitimately
             # contain no dates inside the rolling import window.
-            empty_is_healthy=True,
+            empty_is_healthy=lambda _html: True,
         ))
     return rc.dedupe(events)

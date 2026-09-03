@@ -27,6 +27,8 @@ def events_from_rss(raw: str) -> list[dict]:
             date_value = parsedate_to_datetime(pub_date).replace(tzinfo=None)
         except (TypeError, ValueError, OverflowError):
             date_value = common.parse_date(pub_date)
+        if rc.has_conflicting_explicit_date(body, date_value):
+            continue
         time_match = re.search(r'(\d{1,2}:\d{2})\s*Uhr', rc.clean(body), re.I)
         time_text = time_match.group(1) if time_match else ""
         start_dt = rc.with_time(date_value, time_text)

@@ -383,6 +383,11 @@ def _beuel_dates(value: str) -> tuple[datetime | None, datetime | None, str]:
     end = resolve(matches[1], start=start) if len(matches) > 1 else start
     start_time = ":".join(matches[0].groups()[3:5]) if matches[0].group(4) else ""
     end_time = ":".join(matches[1].groups()[3:5]) if len(matches) > 1 and matches[1].group(4) else ""
+    if len(matches) == 1 and start:
+        bare_end = re.search(r"[-–]\s*(\d{1,2}):(\d{2})(?:\s*Uhr)?\b", text[matches[0].end():])
+        if bare_end:
+            end = start.replace(hour=int(bare_end.group(1)), minute=int(bare_end.group(2)))
+            end_time = f"{int(bare_end.group(1)):02d}:{bare_end.group(2)}"
     time_text = "–".join(value for value in (start_time, end_time) if value) if start_time else ""
     return start, end, time_text
 
@@ -743,9 +748,14 @@ def events_from_hardtberg_json(raw: str) -> list:
         except (TypeError, ValueError):
             continue
         title = common.clean_html(item.get("title", {}).get("rendered", ""))
-        description = common.concise_description(
+        body = (
             item.get("excerpt", {}).get("rendered", "")
             or item.get("content", {}).get("rendered", "")
+        )
+        if regional_common.has_conflicting_explicit_date(body, start):
+            continue
+        description = common.concise_description(
+            body
         )
         if not description:
             description = common.factual_event_description(

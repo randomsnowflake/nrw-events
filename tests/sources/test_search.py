@@ -111,7 +111,8 @@ class SearchSourceTests(unittest.TestCase):
         self.assertEqual(post_json.call_args.kwargs["headers"], {"Authorization": "Bearer secret"})
         parse_result.assert_called_once_with(
             "Weinwanderung", "https://example.test/wine",
-            "2026-08-22 Kurpark bad neuenahr Geführte Tour", "Grok Search", 0.7,
+            "Kurpark bad neuenahr Geführte Tour", "Grok Search", 0.7,
+            explicit_date=mock.ANY,
         )
 
     def test_grok_rejects_an_unparseable_model_date(self):

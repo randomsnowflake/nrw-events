@@ -60,7 +60,7 @@ _REX_SPECIAL_PATTERN = re.compile(
 )
 _REX_DATE_TIME_PATTERN = re.compile(
     r"(?P<day>\d{1,2})\.\s*(?:(?P<month_num>\d{1,2})\.|(?P<month_name>[A-Za-zäöüÄÖÜ]+))"
-    r"(?:\s*(?P<year>20\d{2}|\d{2}))?"
+    r"(?:\s*(?P<year>20\d{2}))?"
     r"(?:(?!\d{1,2}\.\s*(?:\d{1,2}\.|[A-Za-zäöüÄÖÜ]+)).){0,90}?"
     r"(?P<hour>\d{1,2})(?::(?P<minute>\d{2}))?\s*Uhr",
     re.I,
@@ -69,7 +69,7 @@ _REX_DATE_PATTERN = re.compile(
     r"(?P<day>\d{1,2})\.\s*(?:(?P<month_num>\d{1,2})\.|"
     r"(?P<month_name>Jan(?:uar)?|Feb(?:ruar)?|M(?:är|ae)(?:z|rz)|Apr(?:il)?|Mai|"
     r"Jun(?:i)?|Jul(?:i)?|Aug(?:ust)?|Sep(?:tember)?|Okt(?:ober)?|Nov(?:ember)?|Dez(?:ember)?))"
-    r"(?:\s*(?P<year>20\d{2}|\d{2}))?",
+    r"(?:\s*(?P<year>20\d{2}))?",
     re.I,
 )
 _REX_SHARED_TIME_PATTERN = re.compile(
@@ -119,7 +119,7 @@ def fetch() -> list:
 
 def _fetch_optional_html(name: str, source_id: str, url: str, parser) -> list:
     return rc.fetch_html_events(
-        name, url, parser, source_id=source_id, empty_is_healthy=True,
+        name, url, parser, source_id=source_id,
     )
 
 

@@ -89,5 +89,7 @@ def fetch() -> list:
         lambda html: _events_from_page(html, strict=True),
         timeout=20,
         source_id=_SOURCE_ID,
-        empty_is_healthy=True,
+        # Strict parsing already proved the JSON-LD contract; an empty result
+        # now means all valid occurrences are outside the import window.
+        empty_is_healthy=lambda _html: True,
     )

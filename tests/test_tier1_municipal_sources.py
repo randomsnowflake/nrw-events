@@ -154,6 +154,12 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
         )
 
         self.assertEqual(regional_sitekit._pagination_max(html), 11)
+        self.assertEqual(
+            regional_sitekit._pagination_max(
+                '<script>{"max":99}</script>' + html
+            ),
+            11,
+        )
         self.assertIn(
             "sp%3Apage%5BeventSearch-1.form%5D%5B0%5D=3",
             regional_sitekit._page_url("https://example.test/events", 3),

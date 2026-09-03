@@ -39,9 +39,11 @@ class RuntimeConfig:
     http_max_response_bytes: int = 10_000_000
     http_retry_max_delay_seconds: float = 60.0
     source_workers: int = 12
-    source_timeout_seconds: float = 180.0
-    source_processing_grace_seconds: float = 0.0
+    source_timeout_seconds: float = 600.0
+    source_processing_grace_seconds: float = 180.0
     source_baseline_min_count: int = 10
+    minimum_snapshot_ratio: float = 0.5
+    max_failed_source_ratio: float = 0.5
     json_out: str = str(default_state_dir() / "nrw-events-latest.json")
     meta_json_out: str = str(default_state_dir() / "nrw-events-latest-meta.json")
     highlights_json_out: str = str(default_state_dir() / "highlights.json")
@@ -161,6 +163,8 @@ def runtime_config(days_ahead: int | None = None) -> RuntimeConfig:
             900.0,
         ),
         source_baseline_min_count=_int("NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT", 10, 1, 10_000),
+        minimum_snapshot_ratio=_float("NRW_EVENTS_MINIMUM_SNAPSHOT_RATIO", 0.5, 0.0, 1.0),
+        max_failed_source_ratio=_float("NRW_EVENTS_MAX_FAILED_SOURCE_RATIO", 0.5, 0.0, 1.0),
         json_out=os.environ.get(
             "NRW_EVENTS_JSON_OUT", str(default_state_dir() / "nrw-events-latest.json")
         ),

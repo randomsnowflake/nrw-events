@@ -773,6 +773,14 @@ END:VCALENDAR
         self.assertEqual(start, datetime(2026, 7, 6))
         self.assertEqual(end, datetime(2026, 7, 10))
 
+    def test_regional_range_dates_ignores_earlier_registration_deadline(self):
+        from nrw_events.sources import regional_common as rc
+
+        start, end = rc.range_dates("Sommerfest 15.08.2026 Anmeldung bis 01.08.2026")
+
+        self.assertEqual(start, datetime(2026, 8, 15))
+        self.assertIsNone(end)
+
     def test_numeric_yearless_dates_and_ranges_use_the_report_window(self):
         from nrw_events.sources import regional_common as rc
 
@@ -1547,6 +1555,21 @@ END:VCALENDAR
         self.assertEqual(events[0]["title"], "International Voices Choir - Let's Go to the Movies")
         self.assertEqual(events[0]["date"], "2026-06-21")
         self.assertEqual(events[0]["link"], "https://www.pantheon.de/programm/#t637485")
+
+    def test_pantheon_year_matches_the_first_event_month_not_an_unrelated_link(self):
+        html = """
+        <a href="/programm/?date=2025-12">Archiv</a>
+        <a href="/programm/?date=2027-01">Januar 2027</a>
+        <li id="t700001">
+          <div class="event-date-1">5.</div><div class="event-date-3">Januar</div>
+          <div class="event-time">20:00</div>
+          <h2 class="event-title">Neujahrskabarett</h2>
+        </li>
+        """
+
+        events = requested_venues._events_from_pantheon(html)
+
+        self.assertEqual(events[0]["date"], "2027-01-05")
 
     def test_springmaus_program_cards_create_events(self):
         html = """

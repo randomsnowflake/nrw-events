@@ -1527,8 +1527,8 @@ def extract_dates(text: str) -> list:
         for m in re.finditer(pat, text, re.I):
             dt = parse_date(m.group(0))
             if dt:
-                dates.append(dt)
-    return dates
+                dates.append((m.start(), dt))
+    return [parsed for _position, parsed in sorted(dates, key=lambda item: item[0])]
 
 
 def date_range_overlaps(dates: list) -> bool:
@@ -3168,10 +3168,18 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
 
 # ── Web-search helper (shared by Exa + Grok) ────────────────────────
 
-def search_result_event(title: str, link: str, desc: str, source: str, trust: float) -> RawEvent | None:
+def search_result_event(
+    title: str,
+    link: str,
+    desc: str,
+    source: str,
+    trust: float,
+    *,
+    explicit_date: datetime | None = None,
+) -> RawEvent | None:
     """Convert a search result through the same canonical draft pipeline as adapters."""
     full_text = f"{title} {desc} {link}"
-    extracted_dates = extract_dates(full_text)
+    extracted_dates = [explicit_date] if explicit_date else extract_dates(full_text)
     if not extracted_dates:
         return None
     if not date_range_overlaps(extracted_dates):

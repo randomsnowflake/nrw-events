@@ -7,6 +7,40 @@ from nrw_events.identity import event_id
 
 
 class ReportTests(unittest.TestCase):
+    def test_equal_rank_dedup_winner_is_permutation_invariant(self):
+        base = {
+            "date": "2026-09-12",
+            "start_date": "2026-09-12",
+            "end_date": "2026-09-12",
+            "city": "Bonn",
+            "venue": "Stadtpark",
+            "description": "",
+            "price": "",
+            "time": "20:00",
+            "category_key": "concert",
+            "score": 1.0,
+        }
+        left = {
+            **base,
+            "title": "Konzert: Jazz im Park",
+            "source": "Alpha Kultur",
+            "source_id": "alpha-kultur",
+            "link": "https://alpha.test/jazz",
+        }
+        right = {
+            **base,
+            "title": "Jazz im Park",
+            "source": "Beta Kultur",
+            "source_id": "beta-kultur",
+            "link": "https://beta.test/jazz",
+        }
+
+        [forward] = report.deduplicate([left, right])
+        [reverse] = report.deduplicate([right, left])
+
+        self.assertEqual(event_id(forward), event_id(reverse))
+        self.assertEqual(forward["link"], reverse["link"])
+
     def test_bonn_muensterplatz_weinfest_prefers_detail_calendar_over_press_umbrella(self):
         base = {
             "date": "2026-08-20", "start_date": "2026-08-20",

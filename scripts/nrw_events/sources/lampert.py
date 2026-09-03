@@ -139,5 +139,7 @@ def fetch() -> list:
         lambda html: _events_from_page(html, strict=True),
         timeout=20,
         source_id=_SOURCE_ID,
-        empty_is_healthy=True,
+        # Strict parsing rejects a missing calendar contract before this
+        # callback is consulted.
+        empty_is_healthy=lambda _html: True,
     )

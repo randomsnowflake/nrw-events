@@ -31,7 +31,7 @@ class FixedMarketSpec:
     price: str = ""
     admission_basis: str = ""
     timeout: int = 25
-    empty_is_healthy: bool = False
+    empty_is_healthy: bool | Callable[[str], bool] = False
 
 
 def events_from_occurrences(

@@ -411,6 +411,8 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS=1.0` — exponential backoff base with jitter.
 - `NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS=60.0` — cap retry waits. `NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES=10000000` keeps the current Bonn export complete while bounding unexpectedly large responses; set `0` only to opt into unlimited reads.
 - `NRW_EVENTS_SOURCE_BASELINE_MIN_COUNT=10` — annotate a source that drops from a recent meaningful count to zero.
+- `NRW_EVENTS_MINIMUM_SNAPSHOT_RATIO=0.5` — preserve the last-known-good snapshot when a run falls below half the previous event count.
+- `NRW_EVENTS_MAX_FAILED_SOURCE_RATIO=0.5` — fail the run when more than half of active sources fail.
 - `NRW_EVENTS_SOURCE_WORKERS=4` / `NRW_EVENTS_SOURCE_TIMEOUT_SECONDS=600` — source parallelism and network-phase budget.
 - `NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS=180` — extra worker time to process an already fetched large source result.
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.

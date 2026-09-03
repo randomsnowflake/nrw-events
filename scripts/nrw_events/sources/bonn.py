@@ -849,11 +849,7 @@ def _clean_event_href(href: str) -> str:
 
 
 def _pagination_max(html: str) -> int:
-    match = re.search(r"&quot;max&quot;:(\d+)", html)
-    if match:
-        return max(1, int(match.group(1)))
-    match = re.search(r'"max"\s*:\s*(\d+)', unescape(html))
-    return max(1, int(match.group(1))) if match else 1
+    return rc.pagination_max(html)
 
 
 def _split_tags(value: str) -> set:

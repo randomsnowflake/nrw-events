@@ -11,6 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PATTERN = re.compile(r"\b[A-Z][A-Z0-9_]{2,}\b")
 SYSTEM_ALLOWLIST = {"HOME", "PATH", "PYTHONPATH"}
 ENV_HELPERS = {"_int", "_float", "_bool", "_categories", "_env_number"}
+DOCUMENTED_RUNTIME_DEFAULTS = {
+    "NRW_EVENTS_SOURCE_TIMEOUT_SECONDS": "source_timeout_seconds",
+    "NRW_EVENTS_SOURCE_PROCESSING_GRACE_SECONDS": "source_processing_grace_seconds",
+}
 
 
 def _literal_argument(node: ast.Call) -> str:
@@ -59,6 +63,21 @@ def environment_variables(path: Path) -> set[str]:
     return variables
 
 
+def documented_env_defaults(path: Path) -> dict[str, float]:
+    """Return uncommented numeric assignments from the example env file."""
+    defaults: dict[str, float] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line.startswith("#"):
+            line = line[1:].strip()
+        if not line or "=" not in line:
+            continue
+        key, raw_value = line.split("=", 1)
+        if key in DOCUMENTED_RUNTIME_DEFAULTS:
+            defaults[key] = float(raw_value.strip())
+    return defaults
+
+
 def main() -> int:
     used: set[str] = set()
     for path in (ROOT / "scripts" / "nrw_events").rglob("*.py"):
@@ -73,6 +92,18 @@ def main() -> int:
     if missing_by_document:
         for document, missing in missing_by_document.items():
             print(f"Undocumented environment settings in {document}: {', '.join(missing)}")
+        return 1
+    from nrw_events.config import RuntimeConfig
+
+    documented_defaults = documented_env_defaults(ROOT / ".env.example")
+    mismatches = []
+    for variable, field in DOCUMENTED_RUNTIME_DEFAULTS.items():
+        actual = float(getattr(RuntimeConfig, field))
+        documented = documented_defaults.get(variable)
+        if documented != actual:
+            mismatches.append(f"{variable}: .env.example={documented!r}, RuntimeConfig={actual!r}")
+    if mismatches:
+        print("Runtime defaults differ from .env.example: " + "; ".join(mismatches))
         return 1
     return 0
 

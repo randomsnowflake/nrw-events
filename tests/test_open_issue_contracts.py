@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest import mock
 
-from nrw_events import common, config, highlights, report, runner, series
+from nrw_events import common, config, core, highlights, report, runner, series
 from nrw_events.health import SourceFetchResult, SourceStatus
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
@@ -28,6 +28,25 @@ def raw_event(title="Flohmarkt Rheinaue", day="2026-08-15", **overrides):
 
 
 class OpenIssueContractTests(unittest.TestCase):
+    def test_retained_event_counts_accept_serialized_snapshot_rows(self):
+        retained = raw_event(source="Kunstmuseum Bonn", source_id="kunstmuseum-bonn")
+
+        self.assertEqual(
+            runner._retained_event_counts_by_source(
+                [retained],
+                {runner.event_id(retained)},
+            ),
+            {"kunstmuseum-bonn": 1},
+        )
+
+    def test_extract_dates_preserves_text_position_across_formats(self):
+        dates = core.extract_dates("Am 15. August 2026, Stand 2026-08-06")
+
+        self.assertEqual(
+            [value.strftime("%Y-%m-%d") for value in dates],
+            ["2026-08-15", "2026-08-06"],
+        )
+
     def test_corrupt_series_ledger_is_preserved_as_backup(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "series.json"
@@ -65,6 +84,7 @@ class OpenIssueContractTests(unittest.TestCase):
         settings = config.RuntimeConfig(
             score_floor=0,
             source_timeout_seconds=0.001,
+            source_processing_grace_seconds=0,
             series_ledger_json="",
         )
         context = RunContext(
@@ -268,7 +288,9 @@ class OpenIssueContractTests(unittest.TestCase):
 
     def test_source_wall_clock_timeout_returns_without_waiting_for_stalled_parser(self):
         settings = config.RuntimeConfig(
-            score_floor=0, source_timeout_seconds=0.2, series_ledger_json="",
+            score_floor=0, source_timeout_seconds=0.2,
+            source_processing_grace_seconds=0,
+            series_ledger_json="",
         )
         context = RunContext(
             settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),
@@ -315,6 +337,7 @@ class OpenIssueContractTests(unittest.TestCase):
     def test_queued_source_gets_its_own_budget_after_stalled_worker(self):
         settings = config.RuntimeConfig(
             score_floor=0, source_workers=1, source_timeout_seconds=0.05,
+            source_processing_grace_seconds=0,
             series_ledger_json="",
         )
         context = RunContext(
@@ -336,6 +359,7 @@ class OpenIssueContractTests(unittest.TestCase):
     def test_restricted_source_does_not_borrow_publication_ai_budget(self):
         settings = config.RuntimeConfig(
             score_floor=0, source_timeout_seconds=0.03,
+            source_processing_grace_seconds=0,
             series_ledger_json="",
         )
         context = RunContext(
@@ -395,7 +419,8 @@ class OpenIssueContractTests(unittest.TestCase):
 
     def test_timed_out_source_cannot_start_fresh_proxy_fallbacks(self):
         settings = config.RuntimeConfig(
-            score_floor=0, source_timeout_seconds=0.03, series_ledger_json="",
+            score_floor=0, source_timeout_seconds=0.03,
+            source_processing_grace_seconds=0, series_ledger_json="",
         )
         context = RunContext(
             settings, EventWindow(datetime(2026, 8, 1), datetime(2026, 8, 28)),

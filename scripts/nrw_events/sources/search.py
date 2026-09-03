@@ -110,15 +110,14 @@ def fetch_grok() -> list:
                 model_date = common.parse_date(str(c.get("date") or ""))
                 if model_date is None:
                     continue
-                desc = " ".join(
-                    [
-                        model_date.strftime("%Y-%m-%d"),
-                        str(c.get("venue") or ""),
-                        str(c.get("city") or ""),
-                        str(c.get("description") or ""),
-                    ]
+                desc = " ".join([
+                    str(c.get("venue") or ""),
+                    str(c.get("city") or ""),
+                    str(c.get("description") or ""),
+                ])
+                ev = common.search_result_event(
+                    title, link, desc, source, 0.7, explicit_date=model_date
                 )
-                ev = common.search_result_event(title, link, desc, source, 0.7)
                 if ev:
                     ev["venue"] = str(c.get("venue") or "")[:120]
                     events.append(ev)

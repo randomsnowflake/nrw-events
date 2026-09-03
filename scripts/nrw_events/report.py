@@ -15,6 +15,7 @@ from . import common
 from .identity import event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent
 from .normalization import comparison_text
+from .validation import EventValidationError
 
 # Kept separate from ``score``: score includes distance and topical relevance,
 # while authority decides which publisher owns the canonical record.
@@ -1153,7 +1154,10 @@ def _merge_duplicate_metadata(
         # the published snapshot keeps the same invariants as source records.
         from .validation import canonicalize_event
 
-        return canonicalize_event(replace(winner, **updates).to_dict())
+        try:
+            return canonicalize_event(replace(winner, **updates).to_dict())
+        except EventValidationError:
+            return winner
     return {**winner, **updates}
 
 
@@ -1261,10 +1265,20 @@ def deduplicate(
                 candidate["score"],
                 _duration_days(candidate),
             )
+            current_tiebreaker = (
+                str(current.get("source_id") or ""),
+                str(current.get("link") or ""),
+            )
+            candidate_tiebreaker = (
+                str(candidate.get("source_id") or ""),
+                str(candidate.get("link") or ""),
+            )
+            candidate_wins = candidate_rank > current_rank or (
+                candidate_rank == current_rank and candidate_tiebreaker < current_tiebreaker
+            )
             winner, duplicate = (
                 (candidate, current)
-                if candidate_rank > current_rank
-                else (current, candidate)
+                if candidate_wins else (current, candidate)
             )
         protect_authoritative_schedule = (
             _venue_qualified_aggregator_title_matches(winner, duplicate)

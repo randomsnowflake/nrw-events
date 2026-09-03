@@ -116,6 +116,15 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["time"], "")
         self.assertEqual(events[0]["category_key"], "festival")
 
+    def test_beuel_date_range_keeps_a_bare_end_clock(self):
+        start, end, time_text = bonn_districts._beuel_dates(
+            "12.06.2026 19:30 - 22:00 Uhr"
+        )
+
+        self.assertEqual(start.strftime("%Y-%m-%d %H:%M"), "2026-06-12 19:30")
+        self.assertEqual(end.strftime("%Y-%m-%d %H:%M"), "2026-06-12 22:00")
+        self.assertEqual(time_text, "19:30–22:00")
+
     def test_beuel_rathaus_flea_market_uses_shared_canonical_identity(self):
         html = """
         <div class="yel"><a href="/events/#26.07.2026"><span class="title">Flohmarkt</span><br>
@@ -503,6 +512,17 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["end_at"], "")
         self.assertEqual(events[0]["end_date"], "2026-07-19")
         self.assertIn("vielfältige Auswahl", events[0]["description"])
+
+    def test_hardtberg_rejects_wordpress_publish_date_when_body_names_event_date(self):
+        raw = json.dumps([{
+            "date": "2026-07-19T17:00:00",
+            "link": "https://www.hardtbergkultur.de/ankuendigung/",
+            "title": {"rendered": "Sommerkonzert"},
+            "excerpt": {"rendered": "<p>Das Konzert findet am 25.07.2026 statt.</p>"},
+            "content": {"rendered": ""},
+        }])
+
+        self.assertEqual(bonn_districts.events_from_hardtberg_json(raw), [])
 
     def test_ical_wrappers_guarantee_a_description(self):
         empty_event = {

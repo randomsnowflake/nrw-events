@@ -5,6 +5,7 @@ import re
 import time
 import urllib.parse
 from collections.abc import Callable, Iterable
+from datetime import date, datetime
 from html import unescape
 from html.parser import HTMLParser
 
@@ -98,6 +99,31 @@ class ClassScopedTextParser(HTMLParser):
 
 
 _MONTH = MONTH_ALL
+_EXPLICIT_NUMERIC_DATE = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(20\d{2})\b")
+
+
+def has_conflicting_explicit_date(text: str, expected: date | datetime) -> bool:
+    """Whether source prose explicitly names a date other than ``expected``."""
+    expected_day = expected.date() if isinstance(expected, datetime) else expected
+    for day_text, month_text, year_text in _EXPLICIT_NUMERIC_DATE.findall(text or ""):
+        try:
+            mentioned = date(int(year_text), int(month_text), int(day_text))
+        except ValueError:
+            continue
+        if mentioned != expected_day:
+            return True
+    return False
+
+
+def pagination_max(html: str) -> int:
+    """Read SiteKit page metadata only from its pagination element."""
+    for match in re.finditer(
+        r"<(?:nav|div)\b[^>]*\bSP-Pagination\b[^>]*>", html or "", re.I
+    ):
+        value = re.search(r'["\']max["\']\s*:\s*(\d+)', unescape(match.group(0)))
+        if value:
+            return max(1, int(value.group(1)))
+    return 1
 
 _EXPLICIT_PLACE_PATTERN = re.compile(
     r"\b(?:Treffpunkt|Veranstaltungsort)\s*:\s*(.+?)"
@@ -407,7 +433,12 @@ def range_dates(text: str):
     if not re.search(r"20\d{2}$", first) and last_year:
         first = f"{first}{last_year.group(1)}"
     start = common.parse_date(first, reference_date=common.TODAY)
-    end = common.parse_date(last, reference_date=start or common.TODAY)
+    later_dates = [
+        parsed
+        for raw in dates[1:]
+        if (parsed := common.parse_date(raw, reference_date=start or common.TODAY)) and start and parsed > start
+    ]
+    end = max(later_dates, default=None)
     return start, end
 
 
@@ -419,6 +450,10 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
                       stop_when: Callable[[str, int], bool] | None = None,
                       max_pages: int = 30) -> list:
     """Fetch one or more HTML pages with uniform metrics and source attribution."""
+    if empty_is_healthy is True:
+        raise TypeError(
+            "empty_is_healthy=True is ambiguous; pass a callable that validates the response"
+        )
     if callable(page_urls):
         endpoints = (page_urls(url, page) for page in range(1, max_pages + 1))
     elif page_urls is not None:

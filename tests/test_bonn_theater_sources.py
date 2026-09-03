@@ -258,6 +258,16 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertIn("schwarze Komödie", events[0]["description"])
         self.assert_canonical(events[0], "tik-theater-im-keller")
 
+    def test_tik_rejects_pubdate_when_body_names_a_different_event_date(self):
+        rss = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><item>
+          <title>Premiere</title><link>https://tik-bonn.de/premiere/</link>
+          <pubDate>Fri, 04 Sep 2026 00:00:00 +0200</pubDate>
+          <content:encoded><![CDATA[<p>Premiere am 12.09.2026 um 20:00 Uhr.</p>]]></content:encoded>
+        </item></channel></rss>"""
+
+        self.assertEqual(tik_bonn.events_from_rss(rss), [])
+
 
 if __name__ == "__main__":
     unittest.main()

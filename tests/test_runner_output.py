@@ -24,6 +24,124 @@ from tests.helpers import default_window, make_runner_env, patch_window
 
 
 class RunnerOutputTests(unittest.TestCase):
+    def test_new_event_first_seen_uses_current_generation(self):
+        event = runner.validate_event(
+            {
+                "title": "Neuer Termin",
+                "source": "Quelle",
+                "source_id": "quelle",
+                "date": "2026-09-12",
+                "city": "Bonn",
+                "score": 1,
+            }
+        )
+
+        [result] = runner._attach_cross_run_fields(
+            [event],
+            {"generated_at": "2026-09-02T05:00:00+02:00", "events": []},
+            "2026-09-03T05:00:00+02:00",
+        )
+
+        self.assertEqual(result.first_seen_at, "2026-09-03T05:00:00+02:00")
+
+    def test_invalid_coordinate_is_one_validation_error(self):
+        with self.assertRaisesRegex(runner.EventValidationError, "venue_coordinates_invalid"):
+            runner.validate_event(
+                {
+                    "title": "Termin",
+                    "source": "Quelle",
+                    "date": "2026-09-12",
+                    "city": "Bonn",
+                    "score": 1,
+                    "venue_latitude": "abc",
+                    "venue_longitude": 7.1,
+                }
+            )
+
+    def test_scheduled_skip_baseline_keeps_last_nonempty_count(self):
+        result = SourceResult("Quelle")
+        result.raw_event_count = 0
+        runner._attach_baselines(
+            {"Quelle": result},
+            {
+                "Quelle": {
+                    "status": "scheduled_skip",
+                    "raw_event_count": 0,
+                    "last_nonempty_raw_event_count": 12,
+                }
+            },
+            10,
+        )
+
+        self.assertEqual(result.baseline["previous_raw_event_count"], 12)
+        self.assertIn("zero_after_recent_nonempty", result.anomalies)
+
+    def test_run_status_fails_on_snapshot_collapse_or_majority_source_failure(self):
+        healthy = SourceResult("Healthy", event_source_ids=["healthy"])
+        healthy.status = SourceStatus.HEALTHY
+        failed_a = SourceResult("Failed A")
+        failed_a.status = SourceStatus.FAILED
+        failed_b = SourceResult("Failed B")
+        failed_b.status = SourceStatus.FAILED
+
+        self.assertEqual(
+            runner._run_status(
+                {"Healthy": healthy},
+                49,
+                previous_event_count=100,
+                minimum_snapshot_ratio=0.5,
+            ),
+            "failed",
+        )
+        self.assertEqual(
+            runner._run_status(
+                {"Healthy": healthy, "Failed A": failed_a, "Failed B": failed_b},
+                100,
+                max_failed_source_ratio=0.5,
+            ),
+            "failed",
+        )
+
+    def test_corrupt_previous_snapshot_emits_sanitized_warning(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "previous.json")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("not json")
+            warnings = []
+
+            self.assertEqual(runner._previous_snapshot(path, warnings), {})
+
+        self.assertEqual(warnings[0]["source_id"], "previous-snapshot")
+        self.assertEqual(warnings[0]["error_type"], "JSONDecodeError")
+
+    def test_majority_ai_failures_degrade_the_source(self):
+        event = runner.validate_event(
+            {
+                "title": "Termin",
+                "source": "Bonn.de Events",
+                "source_id": "bonn-de-events",
+                "date": "2026-09-12",
+                "city": "Bonn",
+                "score": 1,
+            }
+        )
+        result = SourceResult(
+            "Bonn.de Events",
+            source_id="bonn-de-events",
+            event_source_ids=["bonn-de-events"],
+        )
+        result.status = SourceStatus.HEALTHY
+
+        runner._record_publication_ai_metrics(
+            [event, event, event],
+            {"Bonn.de Events": result},
+            {"bonn-de-events": {"ai_failed_event_count": 2}},
+            30,
+        )
+
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertEqual(result.warnings[0]["error_type"], "AIEnrichmentFailureWarning")
+
     def test_publication_source_resolution_prefers_exact_owner_over_aggregate_membership(self):
         event = runner.validate_event({
             "title": "Exact owner",
@@ -2507,6 +2625,19 @@ class SnapshotPublicationTests(unittest.TestCase):
             {"Source": result}, {"Source": {"raw_event_count": 12}}, 10,
         )
         self.assertEqual(result.anomalies, ["large_drop_after_recent_nonempty"])
+
+    def test_nonempty_endpoint_with_zero_candidates_is_an_anomaly(self):
+        result = runner.SourceResult(source="Source", raw_event_count=0)
+        result.endpoints["https://example.test/events"] = {
+            "status": 200,
+            "bytes": 3000,
+            "candidate_count": 0,
+            "parsed_event_count": 0,
+        }
+
+        runner._attach_baselines({"Source": result}, {}, 10)
+
+        self.assertEqual(result.anomalies, ["zero_candidates_from_nonempty_body"])
 
     def test_baseline_anomaly_is_included_in_import_issues(self):
         result = runner.SourceResult(source="Source", raw_event_count=0)
