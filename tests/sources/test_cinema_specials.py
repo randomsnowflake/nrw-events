@@ -124,6 +124,42 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         self.assertIn("Anwesenheit des Regisseurs", events[0]["description"])
         self.assert_valid_cinema_events(events)
 
+    def test_rex_filmbuehne_enriches_one_word_title_from_explicit_source_heading(self):
+        html = """
+<div class="vorschau">
+  <div class="row film"><h2 class="col-md-12">Close</h2></div>
+  <div class="row film_termin"><h4 class="col-md-12 termin">Ab Sonntag, 13.09. um 11 Uhr in der Neuen Filmbühne</h4></div>
+  <div class="filmbox row"><div class="beschreibung col-md-12">
+    <p><strong>Close – Filmgespräch zum Welttag der Suizidprävention 2026</strong></p>
+    <p><strong>Sonntag, 13. September um 11 Uhr in der Neuen Film-Bühne</strong></p>
+  </div></div>
+</div>
+"""
+
+        events = cinema_specials._events_from_rex_filmbuehne(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(
+            events[0]["title"],
+            "Close – Filmgespräch zum Welttag der Suizidprävention 2026",
+        )
+
+    def test_rex_filmbuehne_keeps_title_without_explicit_source_heading(self):
+        html = """
+<div class="vorschau">
+  <div class="row film"><h2 class="col-md-12">Mephisto</h2></div>
+  <div class="row film_termin"><h4 class="col-md-12 termin">Preview: Sonntag, 20.09. um 11 Uhr im Rex</h4></div>
+  <div class="filmbox row"><div class="beschreibung col-md-12">
+    <p><strong>Filmgespräch nach der Vorstellung</strong></p>
+  </div></div>
+</div>
+"""
+
+        events = cinema_specials._events_from_rex_filmbuehne(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["title"], "Mephisto")
+
     def test_rex_filmbuehne_skips_invalid_month_or_day_without_losing_siblings(self):
         html = """
 <div class="vorschau">

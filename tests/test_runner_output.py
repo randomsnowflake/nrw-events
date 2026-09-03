@@ -1805,6 +1805,24 @@ class CrossRunRetentionTests(unittest.TestCase):
 
         self.assertEqual(reconciled["preserved_event_id"], "published")
 
+    def test_cross_run_id_reconciliation_preserves_explicit_one_word_title_expansion(self):
+        previous = {"events": [{
+            "event_id": "close-2026-09-13-published", "title": "Close",
+            "start_date": "2026-09-13", "source_id": "rex-filmbuehne-specials",
+            "time": "11:00", "venue": "Neue Filmbühne", "city": "Bonn",
+            "link": "https://www.rex-filmbuehne.de/inhalt/vorschau",
+        }]}
+        current = [{
+            "title": "Close – Filmgespräch zum Welttag der Suizidprävention 2026",
+            "start_date": "2026-09-13", "source_id": "rex-filmbuehne-specials",
+            "time": "11:00", "venue": "Neue Filmbühne", "city": "Bonn",
+            "link": "https://www.rex-filmbuehne.de/inhalt/vorschau",
+        }]
+
+        [reconciled] = runner._reconcile_published_ids(current, previous)
+
+        self.assertEqual(reconciled["preserved_event_id"], "close-2026-09-13-published")
+
     def test_healthy_source_replaces_previous_snapshot_instead_of_retaining_it(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             previous_path = os.path.join(tmpdir, "previous.json")

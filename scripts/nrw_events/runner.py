@@ -1130,9 +1130,21 @@ def _uniquely_matches_renamed_occurrence(
     """Match a conservative upstream title expansion to its published record."""
     current_title = comparison_text(str(current.get("title") or ""))
     prior_title = comparison_text(str(prior.get("title") or ""))
+    current_display_title = " ".join(str(current.get("title") or "").casefold().split())
+    prior_display_title = " ".join(str(prior.get("title") or "").casefold().split())
+    explicit_short_expansion = bool(
+        len(prior_display_title.split()) == 1
+        and re.match(
+            rf"^{re.escape(prior_display_title)}\s*[-–—:]\s+\S",
+            current_display_title,
+        )
+    )
     if (
-        min(len(current_title.replace(" ", "")), len(prior_title.replace(" ", ""))) < 12
-        or (current_title not in prior_title and prior_title not in current_title)
+        not explicit_short_expansion
+        and (
+            min(len(current_title.replace(" ", "")), len(prior_title.replace(" ", ""))) < 12
+            or (current_title not in prior_title and prior_title not in current_title)
+        )
     ):
         return False
     current_venue = comparison_text(str(current.get("venue") or ""))

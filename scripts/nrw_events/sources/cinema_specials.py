@@ -228,6 +228,7 @@ def _events_from_rex_filmbuehne(html: str) -> list:
         if not title or not _REX_SPECIAL_PATTERN.search(evidence):
             continue
 
+        display_title = _rex_enriched_title(title, block)
         description = common.concise_description(rc.clean(block), max_chars=420)
         lines = [line for fragment in [term_html, *highlighted] for line in _html_lines(fragment)]
         shared_time = _REX_SHARED_TIME_PATTERN.search(rc.clean(block))
@@ -246,7 +247,7 @@ def _events_from_rex_filmbuehne(html: str) -> list:
                 if start is None:
                     continue
                 venue = _rex_venue(line, evidence)
-                event_title = title
+                event_title = display_title
                 if re.search(r"reihe\b|retrospektive|festival", title, re.I) and index + 1 < len(lines):
                     subtitle = lines[index + 1].strip(" .")
                     if subtitle and not _REX_DATE_PATTERN.search(subtitle):
@@ -271,6 +272,28 @@ def _events_from_rex_filmbuehne(html: str) -> list:
                 if event:
                     events.append(event)
     return events
+
+
+def _rex_enriched_title(title: str, block: str) -> str:
+    """Use an explicit source subtitle to clarify weak one-word film titles."""
+    if len(title.split()) != 1:
+        return title
+    for fragment in re.findall(
+        r'<(?:strong|b)\b[^>]*>(.*?)</(?:strong|b)>',
+        block or "",
+        re.S | re.I,
+    ):
+        candidate = rc.clean(fragment).strip()
+        if (
+            len(candidate) <= 120
+            and re.fullmatch(
+                rf"{re.escape(title)}\s*[-–—:]\s+\S.*",
+                candidate,
+                re.I,
+            )
+        ):
+            return candidate
+    return title
 
 
 def _first_match(pattern: str, text: str) -> str:
