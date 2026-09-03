@@ -200,4 +200,33 @@ Out-of-window records are not disposable.
 The runner passes them to the series ledger, including historical records and cancellation announcements.
 A date-only filter would change series identities, announcement counts, or ledger state.
 Any fast path must preserve these effects and the original quality decisions.
-The future equivalence gate must include the durable series ledger, not only public metadata.
+The equivalence gate includes the durable series ledger, not only public metadata.
+
+### Safe quality pruning
+
+The iCal parser evaluates the existing quality policy before full event construction.
+It skips only scheduled records that the same policy already rejects.
+Cancellation and postponement records keep the complete construction path.
+All surviving records retain their original fields, including historical series information.
+This replaces the proposed date-only optimization in #358 because that approach would change the ledger.
+
+The parser reuses immutable quality decisions within one calendar invocation.
+The complete quality input forms the cache key.
+The cache holds at most 2,048 entries and clears when full.
+No decisions survive the parser invocation.
+If the quality policy reads another field, extend the preparation and its equivalence tests together.
+
+Set `NRW_EVENTS_ICAL_PRUNE=0` to restore the complete construction path.
+For an offline comparison, set `"ical_prune": false` in the manifest.
+
+Five Wachtberg runs took 2,123.73 ms median (minimum 2,105.60 ms, p95 2,130.26 ms).
+The preceding cached implementation took 2,620.45 ms median.
+The parser stage decreased from 2,460.54 ms to 1,964.50 ms, a 20.16% reduction.
+Full event construction decreased from 1,091 calls to 642 calls, a 41.16% reduction.
+The parser reused 538 quality decisions and computed 553 decisions.
+Public metadata, raw surviving records, parser counts, highlights, and the durable ledger remained identical in the equivalence checks.
+
+The 10,000-record fixture remained equivalent, with no material runtime regression.
+Its medians were 8,620.25 ms without pruning and 8,585.64 ms with pruning.
+The small difference is not a speed claim because other local checks overlapped part of the comparison.
+These local results do not establish full-source production performance.

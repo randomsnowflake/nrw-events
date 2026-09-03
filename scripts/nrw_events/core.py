@@ -51,7 +51,7 @@ from .location import refine_city_from_text as refine_city_from_text
 from .models import AdmissionDefault, EventDraft, RawEvent, normalize_source_id
 from .normalization import VenueResolution, resolve_venue
 from .observability import LOGGER_NAME, log, redact
-from .quality import evaluate_event_quality
+from .quality import QualityDecision, evaluate_event_quality
 from .runtime import RunContext
 from .scoring import category_score, distance_score
 from .title_normalization import normalize_event_title
@@ -2147,8 +2147,59 @@ def _event_location(
     return canonical_venue, distance, confidence, source
 
 
+@dataclass(frozen=True)
+class _QualityPreparation:
+    title: str
+    city: str
+    location: tuple[VenueResolution, float | None, str, str]
+    description: str
+    link: str
+    status: str
+    outside_window: bool
+    decision: QualityDecision
+
+
+_ICalQualityCache = dict[tuple[tuple[str, str], ...], QualityDecision]
+_ICAL_QUALITY_CACHE_SIZE = 2048
+
+
+@performance.measured("ical.quality_preparation")
+def _prepare_ical_quality(draft: EventDraft, cache: _ICalQualityCache | None = None) -> _QualityPreparation:
+    """Build the exact shared quality inputs without taxonomy, admission, or markup."""
+    title = normalize_event_title(draft.title, start=draft.start, end=draft.end, source=draft.source)
+    city = canonicalize_city(draft.city)
+    city = refine_bonn_location(city, f"{draft.venue} {city}")
+    location = _event_location(city, draft.venue, draft.coords)
+    description = concise_description(draft.description)
+    link = normalize_url(draft.link)
+    if is_raw_api_url(link):
+        link = ""
+    status = event_status(title, draft.description)
+    quality_input = {
+        "title": clean_html(title), "description": description,
+        "venue": location[0].venue, "link": link, "category": draft.category,
+        "source": draft.source, "source_id": draft.source_id, "status": status,
+    }
+    key = tuple(quality_input.items())
+    decision = cache.get(key) if cache is not None else None
+    if decision is None:
+        performance.count("ical_quality_cache_misses")
+        decision = evaluate_event_quality(quality_input)
+        if cache is not None:
+            if len(cache) >= _ICAL_QUALITY_CACHE_SIZE:
+                performance.count("ical_quality_cache_evictions", len(cache))
+                cache.clear()
+            cache[key] = decision
+    else:
+        performance.count("ical_quality_cache_hits")
+    return _QualityPreparation(
+        title, city, location, description, link, status,
+        bool(draft.start is not None and not window_contains(draft.start, draft.end)), decision,
+    )
+
+
 @performance.measured("canonicalization.build_event")
-def build_event(draft: EventDraft) -> RawEvent | None:
+def build_event(draft: EventDraft, *, _prepared: _QualityPreparation | None = None) -> RawEvent | None:
     """Normalize one bundled event draft and apply radius and quality checks.
 
     ``coords`` optionally pins the event to an explicit (lat, lon) — e.g. a venue
@@ -2167,14 +2218,17 @@ def build_event(draft: EventDraft) -> RawEvent | None:
     default_category_key, category_locked = draft.default_category_key, draft.category_locked
     if not title or (start_dt is None and end_dt is not None):
         return None
-    title = normalize_event_title(title, start=start_dt, end=end_dt, source=source)
+    title = _prepared.title if _prepared else normalize_event_title(title, start=start_dt, end=end_dt, source=source)
     # Most sources only ever report "Bonn". Resolve the district centrally from
     # the venue so every source benefits instead of each repeating the lookup.
-    city = canonicalize_city(city)
-    city = refine_bonn_location(city, f"{venue} {city}")
-    outside_window = bool(start_dt is not None and not window_contains(start_dt, end_dt))
+    if _prepared:
+        city = _prepared.city
+    else:
+        city = canonicalize_city(city)
+        city = refine_bonn_location(city, f"{venue} {city}")
+    outside_window = _prepared.outside_window if _prepared else bool(start_dt is not None and not window_contains(start_dt, end_dt))
     _record_parser_candidate(out_of_window=outside_window)
-    canonical_venue, km, location_confidence, location_source = _event_location(city, venue, coords)
+    canonical_venue, km, location_confidence, location_source = _prepared.location if _prepared else _event_location(city, venue, coords)
     date_text = start_dt.strftime("%Y-%m-%d") if start_dt else ""
     ongoing = bool(start_dt and end_dt and start_dt < TODAY <= end_dt)
     time_text, time_note, all_day = _event_time_fields(
@@ -2197,10 +2251,10 @@ def build_event(draft: EventDraft) -> RawEvent | None:
         default_category_key=default_category_key,
         category_locked=category_locked,
     )
-    event_link = normalize_url(link)
+    event_link = _prepared.link if _prepared else normalize_url(link)
     if is_raw_api_url(event_link):
         event_link = ""
-    status = event_status(title, description)
+    status = _prepared.status if _prepared else event_status(title, description)
     start_date = start_dt.strftime("%Y-%m-%d") if start_dt else ""
     final_end = (
         end_dt or start_dt
@@ -2218,6 +2272,7 @@ def build_event(draft: EventDraft) -> RawEvent | None:
         and has_explicit_free_admission_wording(title, description)
     ):
         admission_basis = "explicit"
+    concise = _prepared.description if _prepared else concise_description(description)
     ev: RawEvent = {
         "title": clean_html(title),
         "date": date_text,
@@ -2231,10 +2286,10 @@ def build_event(draft: EventDraft) -> RawEvent | None:
         "venue_latitude": canonical_venue.venue_latitude,
         "venue_longitude": canonical_venue.venue_longitude,
         "city": clean_html(city).title(),
-        "description": concise_description(description),
+        "description": concise,
         # Every event carries renderable markup. A source that kept the raw
         # HTML overwrites this with the real headings and lists afterwards.
-        "description_html": richtext.from_plain_text(concise_description(description)),
+        "description_html": richtext.from_plain_text(concise),
         "description_source": description_source or description_source_for(description),
         "price": price,
         "admission_basis": admission_basis,
@@ -2276,7 +2331,7 @@ def build_event(draft: EventDraft) -> RawEvent | None:
         result = getattr(_SOURCE_CONTEXT, "result", None)
         if result is not None:
             result.cancelled_events.append(ev)
-    decision = evaluate_event_quality(ev)
+    decision = _prepared.decision if _prepared else evaluate_event_quality(ev)
     if decision.should_drop:
         if not outside_window:
             log_source_quality_skip(source, decision.rule_id)
@@ -2296,9 +2351,10 @@ def make_event(title: str, start_dt: datetime | None, end_dt: datetime | None,
                category_locked: bool = False,
                source_role: str = "primary",
                discovered_via: tuple[str, ...] = (),
-               link_kind: str = "") -> RawEvent | None:
+               link_kind: str = "", _early_quality: bool = False,
+               _quality_cache: _ICalQualityCache | None = None) -> RawEvent | None:
     """Compatibility adapter for source modules migrating to :class:`EventDraft`."""
-    return build_event(EventDraft(
+    draft = EventDraft(
         title=title, start=start_dt, end=end_dt, venue=venue, city=city,
         description=description, link=link, source=source, category=category,
         trust=trust, time_text=time_text, coords=coords, all_day=all_day,
@@ -2307,7 +2363,24 @@ def make_event(title: str, start_dt: datetime | None, end_dt: datetime | None,
         time_note=time_note, default_category_key=default_category_key,
         category_locked=category_locked, source_role=source_role,
         discovered_via=discovered_via, link_kind=link_kind,
-    ))
+    )
+    if (
+        _early_quality and title and start_dt is not None
+        and (not default_category_key or default_category_key in category_taxonomy.CATEGORY_BY_KEY)
+        and (not category_locked or default_category_key)
+    ):
+        prepared = _prepare_ical_quality(draft, _quality_cache)
+        # Schedule changes must reach the complete cancellation/tombstone path,
+        # even if the shared quality policy would otherwise reject the record.
+        if prepared.status == "scheduled":
+            if prepared.decision.should_drop:
+                _record_parser_candidate(out_of_window=prepared.outside_window)
+                if not prepared.outside_window:
+                    log_source_quality_skip(source, prepared.decision.rule_id)
+                performance.count("ical_pruned_quality_candidates")
+                return None
+            return build_event(draft, _prepared=prepared)
+    return build_event(draft)
 
 
 def _legacy_is_junk_event(ev: dict) -> bool:
@@ -3075,6 +3148,8 @@ def parse_ical(
     empty_calendar_is_valid: bool = False, description_max_chars: int | None = None,
 ) -> list[RawEvent]:
     """Parse an already fetched calendar with the same source/runtime policy."""
+    early_quality = os.environ.get("NRW_EVENTS_ICAL_PRUNE", "1") != "0"
+    quality_cache: _ICalQualityCache = {}
     raw = _ical_unfold(raw)
     raw = re.sub(r"BEGIN:VALARM.*?END:VALARM", "", raw, flags=re.S | re.I)
     events: list[RawEvent] = []
@@ -3173,6 +3248,8 @@ def parse_ical(
                 admission=admission,
                 default_category_key=default_category_key,
                 category_locked=category_locked,
+                _early_quality=early_quality and props.get("STATUS", "").strip().upper() != "CANCELLED",
+                _quality_cache=quality_cache,
             )
             if ev:
                 if props.get("STATUS", "").strip().upper() == "CANCELLED":

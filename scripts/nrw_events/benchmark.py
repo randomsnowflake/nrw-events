@@ -92,6 +92,7 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     os.environ["NRW_EVENTS_TAXONOMY_CACHE"] = "1" if manifest.get("taxonomy_cache", True) else "0"
     os.environ["NRW_EVENTS_NORMALIZATION_CACHE"] = "1" if manifest.get("normalization_cache", True) else "0"
+    os.environ["NRW_EVENTS_ICAL_PRUNE"] = "1" if manifest.get("ical_prune", True) else "0"
     root = manifest_path.parent
     os.environ["NRW_EVENTS_CACHE_DIR"] = str(state / "cache")
     os.environ["NRW_EVENTS_AI_ENRICHMENT"] = "0"
