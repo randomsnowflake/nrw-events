@@ -26,7 +26,7 @@ from typing import Any
 from unittest.mock import patch
 
 from . import performance
-from .snapshot_compare import differences
+from .snapshot_compare import differences, snapshot_differences
 
 
 class _Response(io.BytesIO):
@@ -82,7 +82,7 @@ def summarize(values: list[float]) -> dict[str, float]:
 def replay_differences(left: dict, right: dict) -> list[str]:
     """Compare public metadata and durable artifacts with no ledger exclusions."""
     return [
-        *differences(left["snapshot"], right["snapshot"]),
+        *snapshot_differences(left["snapshot"], right["snapshot"]),
         *differences({"artifacts": left["artifacts"]}, {"artifacts": right["artifacts"]}),
     ]
 
@@ -155,8 +155,9 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     ):
         result = runner.run_import(context, sources)
         snapshot = runner.build_snapshot(result, context)
+        published = {**snapshot.metadata, "events": snapshot.events}
         # Serialize in isolated state to include the real encoding/fsync cost.
-        runner._atomic_json(state / "snapshot.json", snapshot.metadata)
+        runner._atomic_json(state / "snapshot.json", published)
     elapsed = time.perf_counter() - started
     cpu = time.process_time() - cpu_started
     if transport.misses:
@@ -168,7 +169,7 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
             "simulated_network_latency_ms": transport.latency_ms,
             "taxonomy_cache": category_taxonomy._cached_keyword_matches.cache_info()._asdict(),
             "normalization_cache": normalization._cached_comparison_text.cache_info()._asdict(),
-            "telemetry": collector.snapshot(), "snapshot": snapshot.metadata,
+            "telemetry": collector.snapshot(), "snapshot": published,
             "artifacts": {"series_ledger": snapshot.series_ledger, "highlights": snapshot.highlights}}
 
 

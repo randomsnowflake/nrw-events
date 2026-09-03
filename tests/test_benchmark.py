@@ -58,12 +58,20 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(report["semantic_differences"], [[]])
         first = report["runs"][0]
         self.assertGreater(first["snapshot"]["event_count"], 0)
+        self.assertEqual(len(first["snapshot"]["events"]), first["snapshot"]["event_count"])
+        changed = json.loads(json.dumps(first))
+        changed["snapshot"]["events"][0]["title"] = "A changed published title"
+        self.assertTrue(any("/events/0/title" in item for item in replay_differences(first, changed)))
         self.assertGreater(first["telemetry"]["stages"]["canonicalization.build_event"]["calls"], 0)
 
     def test_ledger_change_fails_even_when_public_snapshot_is_identical(self):
-        left = {"snapshot": {}, "artifacts": {"series_ledger": {"series": {"a": {"announced_dates": []}}}}}
-        right = {"snapshot": {}, "artifacts": {"series_ledger": {"series": {"a": {"announced_dates": ["2027-01-01"]}}}}}
+        left = {"snapshot": {"events": []}, "artifacts": {"series_ledger": {"series": {"a": {"announced_dates": []}}}}}
+        right = {"snapshot": {"events": []}, "artifacts": {"series_ledger": {"series": {"a": {"announced_dates": ["2027-01-01"]}}}}}
         self.assertTrue(replay_differences(left, right))
+
+    def test_metadata_only_reports_cannot_claim_event_equivalence(self):
+        incomplete = {"snapshot": {"event_count": 10}, "artifacts": {}}
+        self.assertTrue(replay_differences(incomplete, incomplete))
 
     def test_real_composite_adapters_replay_cache_hits_and_misses(self):
         with tempfile.TemporaryDirectory() as temporary:

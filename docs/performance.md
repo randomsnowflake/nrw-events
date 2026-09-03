@@ -7,6 +7,20 @@ The fixtures prove repeatability and controlled local improvements, not producti
 Live canaries and the website release gate remain required before deployment.
 GitHub Actions remain outside this workflow.
 
+### Correction to the initial equivalence reports
+
+The initial replay reports included metadata, early announcements, highlights, and the ledger, but omitted the final event array.
+Their equality results did not prove complete published-event equivalence.
+The corrected replay includes and serializes every final event field.
+The comparison command now rejects reports without an event array or with an inconsistent event count.
+A regression test changes a published title while metadata remains unchanged and requires a failing comparison.
+
+The corrected five-run comparison includes 185 events from the mixed-source fixture without simulated network delay.
+The disabled-optimization baseline took 4,039.09 ms median (minimum 4,030.36 ms, p95 4,109.99 ms).
+The optimized mode took 1,546.78 ms median (minimum 1,521.90 ms, p95 1,566.42 ms).
+All final event fields, metadata, early announcements, highlights, and ledger entries were identical.
+This complete comparison supersedes the earlier, incomplete equivalence claims.
+
 ### Initial measurement, 2026-09-03
 
 A local replay used 1,091 records from the saved public Wachtberg iCal response.

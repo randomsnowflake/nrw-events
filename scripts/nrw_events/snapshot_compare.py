@@ -66,12 +66,22 @@ def differences(left: Any, right: Any) -> list[str]:
     return result
 
 
+def snapshot_differences(left: Any, right: Any) -> list[str]:
+    """Reject incomplete reports before making a public-event equivalence claim."""
+    for label, payload in (("left", left), ("right", right)):
+        if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
+            return [f"/{label}/events: published event list is missing"]
+        if "event_count" in payload and payload["event_count"] != len(payload["events"]):
+            return [f"/{label}/events: published event count is inconsistent"]
+    return differences(left, right)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("baseline", type=Path)
     parser.add_argument("candidate", type=Path)
     args = parser.parse_args()
-    delta = differences(
+    delta = snapshot_differences(
         json.loads(args.baseline.read_text(encoding="utf-8")),
         json.loads(args.candidate.read_text(encoding="utf-8")),
     )

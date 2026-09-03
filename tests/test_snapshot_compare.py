@@ -3,10 +3,16 @@
 import copy
 import unittest
 
-from nrw_events.snapshot_compare import differences
+from nrw_events.snapshot_compare import differences, snapshot_differences
 
 
 class SnapshotCompareTests(unittest.TestCase):
+    def test_snapshot_gate_requires_complete_event_arrays(self):
+        self.assertTrue(snapshot_differences({"event_count": 1}, {"event_count": 1}))
+        self.assertTrue(snapshot_differences({"events": [], "event_count": 1}, {"events": [], "event_count": 1}))
+        self.assertTrue(snapshot_differences([], []))
+        self.assertEqual(snapshot_differences({"events": []}, {"events": []}), [])
+
     def test_explicit_operational_paths_are_ignored(self):
         left = {
             "run_id": "one", "generated_at": "yesterday", "events_path": "/tmp/one/events.json",

@@ -81,7 +81,7 @@ class ICalPruningTests(unittest.TestCase):
                     with patch.dict(os.environ, {"NRW_EVENTS_ICAL_PRUNE": enabled, "NRW_EVENTS_AI_ENRICHMENT": "0"}), performance.collect(collector):
                         result = runner.run_import(context, {"Fixture": fetch})
                         snapshot = runner.build_snapshot(result, context)
-                    outputs.append({"snapshot": snapshot.metadata, "artifacts": {"series_ledger": snapshot.series_ledger, "highlights": snapshot.highlights, "raw_events": fetched[0]}})
+                    outputs.append({"snapshot": {**snapshot.metadata, "events": snapshot.events}, "artifacts": {"series_ledger": snapshot.series_ledger, "highlights": snapshot.highlights, "raw_events": fetched[0]}})
                     counts.append({key: value for key, value in collector.snapshot()["counts"].items() if key.startswith("parser_")})
                 self.assertEqual(replay_differences(*outputs), [])
                 self.assertEqual(*counts)
