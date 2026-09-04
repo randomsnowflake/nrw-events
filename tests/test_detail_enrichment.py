@@ -221,6 +221,79 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["start_at"], "2026-08-23T11:00:00+02:00")
         self.assertEqual(context["end_at"], "2026-08-23T17:00:00+02:00")
 
+    def test_naive_structured_schedule_uses_event_timezone(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Antik-Trödelmarkt Pferderennbahn Parkplatz Köln",
+          "startDate": "2026-09-04T06:00:00",
+          "endDate": "2026-09-04T13:00:00",
+          "description": "Der Markt findet von 06:00 bis 13:00 Uhr statt."
+        }
+        </script>
+        """
+        source = self.event(
+            title="Antik-Trödelmarkt Pferderennbahn Parkplatz Köln",
+            date="2026-09-04",
+            start_date="2026-09-04",
+            end_date="2026-09-04",
+            description="Kurzer Teaser.",
+            description_html="<p>Kurzer Teaser.</p>",
+            all_day=True,
+            timezone="Europe/Berlin",
+            score=1.0,
+        )
+
+        context = detail_enrichment.extract_detail_context(document, source)
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertEqual(context["start_at"], "2026-09-04T06:00:00+02:00")
+        self.assertEqual(context["end_at"], "2026-09-04T13:00:00+02:00")
+        self.assertEqual(canonicalize_event(enriched).start_at, context["start_at"])
+
+    def test_prose_schedule_recomputes_offsets_across_dst_transitions(self):
+        cases = (
+            ("2026-03-29", "+01:00", "+02:00"),
+            ("2026-10-25", "+02:00", "+01:00"),
+        )
+        for event_date, start_offset, end_offset in cases:
+            with self.subTest(event_date=event_date):
+                document = f"""
+                <script type="application/ld+json">
+                {{
+                  "@type": "Event",
+                  "name": "Zeitumstellung",
+                  "startDate": "{event_date}T01:00:00{start_offset}",
+                  "endDate": "{event_date}T04:00:00{end_offset}",
+                  "description": "Die Veranstaltung dauert von 01:00 bis 04:00 Uhr."
+                }}
+                </script>
+                """
+                source = self.event(
+                    title="Zeitumstellung",
+                    date=event_date,
+                    start_date=event_date,
+                    end_date=event_date,
+                    description="Kurzer Teaser.",
+                    description_html="<p>Kurzer Teaser.</p>",
+                    timezone="Europe/Berlin",
+                    score=1.0,
+                )
+
+                context = detail_enrichment.extract_detail_context(document, source)
+                enriched = detail_enrichment.apply_detail_context(source, context)
+                canonical = canonicalize_event(enriched)
+
+                self.assertEqual(
+                    canonical.start_at,
+                    f"{event_date}T01:00:00{start_offset}",
+                )
+                self.assertEqual(
+                    canonical.end_at,
+                    f"{event_date}T04:00:00{end_offset}",
+                )
+
     def test_complete_prose_still_needs_detail_when_decision_facts_are_missing(self):
         source = self.event(
             description="Vollständige Beschreibung mit Programm und Hintergrund. " * 8,

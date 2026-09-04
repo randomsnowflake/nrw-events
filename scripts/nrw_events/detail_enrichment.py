@@ -25,6 +25,7 @@ from functools import partial
 from html import escape, unescape
 from html.parser import HTMLParser
 from urllib.parse import urldefrag, urlsplit
+from zoneinfo import ZoneInfo
 
 from . import common, components, richtext
 
@@ -273,17 +274,54 @@ def _single_prose_time_range(value: str) -> tuple[str, str] | None:
     return next(iter(ranges)) if len(ranges) == 1 else None
 
 
-def _timestamp_with_clock(value: str, date_value: str, clock: str) -> str:
-    """Replace a structured clock while retaining seconds and timezone data."""
+def _timestamp_with_timezone(value: str, timezone_name: str) -> str:
+    """Attach the event's declared zone when a source emits a local ISO timestamp."""
+    cleaned = re.sub(r"\[[^]]+\]$", "", value.strip())
+    if not cleaned:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError:
+        return cleaned
+    if parsed.tzinfo is not None:
+        return cleaned
+    return parsed.replace(tzinfo=ZoneInfo(timezone_name)).isoformat()
+
+
+def _timestamp_with_clock(
+    value: str,
+    date_value: str,
+    clock: str,
+    timezone_name: str,
+) -> str:
+    """Replace a structured clock and resolve its offset from the event zone."""
     if value:
         replaced = re.sub(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}",
             f"{date_value}T{clock}",
             value,
         )
-        if replaced != value:
-            return replaced
-    return f"{date_value}T{clock}" if date_value else ""
+        cleaned = re.sub(r"\[[^]]+\]$", "", replaced.strip())
+        try:
+            parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+        except ValueError:
+            return _timestamp_with_timezone(replaced, timezone_name)
+        zone = ZoneInfo(timezone_name)
+        wall_time = parsed.replace(tzinfo=None)
+        candidates = (
+            wall_time.replace(tzinfo=zone, fold=0),
+            wall_time.replace(tzinfo=zone, fold=1),
+        )
+        if parsed.tzinfo is not None:
+            for candidate in candidates:
+                if candidate.utcoffset() == parsed.utcoffset():
+                    return candidate.isoformat()
+        return candidates[0].isoformat()
+    if not date_value:
+        return ""
+    return datetime.fromisoformat(f"{date_value}T{clock}").replace(
+        tzinfo=ZoneInfo(timezone_name),
+    ).isoformat()
 
 
 def _best_description(document: str, parser: _SemanticHTML, title: str) -> tuple[str, str]:
@@ -1060,13 +1098,18 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
             start_clock = structured_clock(start_at)
             end_clock = structured_clock(end_at)
             if start_clock:
+                timezone_name = str(event.get("timezone") or "Europe/Berlin")
                 context["time"] = (
                     f"{start_clock}–{end_clock}"
                     if end_clock and end_clock != start_clock else start_clock
                 )
-                context["start_at"] = re.sub(r"\[[^]]+\]$", "", start_at)
+                context["start_at"] = _timestamp_with_timezone(
+                    start_at, timezone_name,
+                )
                 if end_at:
-                    context["end_at"] = re.sub(r"\[[^]]+\]$", "", end_at)
+                    context["end_at"] = _timestamp_with_timezone(
+                        end_at, timezone_name,
+                    )
     # Exact event copy may correct stale plugin-generated JSON-LD. Without an
     # exact structured match, visible prose may fill a missing schedule but
     # must not override one that the page already structured explicitly.
@@ -1079,11 +1122,13 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
         context["time"] = f"{start_clock}–{end_clock}"
         event_date = str(event.get("start_date") or event.get("date") or "")[:10]
         end_date = str(event.get("end_date") or event_date)[:10]
+        timezone_name = str(event.get("timezone") or "Europe/Berlin")
         context["start_at"] = _timestamp_with_clock(
-            context["start_at"], event_date, start_clock,
+            context["start_at"], event_date, start_clock, timezone_name,
         )
         context["end_at"] = _timestamp_with_clock(
-            context["start_at"] or context["end_at"], end_date, end_clock,
+            context["end_at"], end_date, end_clock,
+            timezone_name,
         )
     if _master_data_only(event):
         context["description"] = ""

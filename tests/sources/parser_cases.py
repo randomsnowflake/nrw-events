@@ -381,6 +381,17 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["admission_basis"], "implicit")
         self.assertGreater(events[0]["distance_km"], 0)
 
+    def test_repair_cafes_calendar_skips_holiday_cards_without_a_date(self):
+        html = """
+<article class='calendar-event future-event'>
+  <h3 class='event-title summary'><button>Deutsche Einheit</button></h3>
+  <div class='longdesc description'></div>
+  <p class='mc-details'><a href='https://www.repaircafesbonn.de/mc-events/deutsche-einheit/'>Weiterlesen</a></p>
+</article>
+"""
+
+        self.assertEqual(bonn_venues.events_from_repair_cafes(html), [])
+
     def test_brotfabrik_today_program_creates_events(self):
         patch_window(self, datetime(2026, 7, 4), datetime(2026, 7, 4))
         html = """

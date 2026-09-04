@@ -6,6 +6,7 @@ import re
 import urllib.parse
 from datetime import datetime
 from html.parser import HTMLParser
+from zoneinfo import ZoneInfo
 
 from .. import common, normalization, reviewed_corrections, richtext
 from . import regional_common
@@ -240,7 +241,9 @@ def _enrich_brueser_berg_details(events: list) -> list:
         end_at = common.parse_date(occurrence.get("end_at") or "")
         if end_at:
             event["end_date"] = end_at.strftime("%Y-%m-%d")
-            event["end_at"] = end_at.isoformat()
+            event["end_at"] = end_at.replace(
+                tzinfo=ZoneInfo("Europe/Berlin"),
+            ).isoformat()
             if event.get("time") and end_at.strftime("%H:%M") != "00:00":
                 event["time"] = f"{event['time'].split('–', 1)[0]}–{end_at:%H:%M}"
     return events

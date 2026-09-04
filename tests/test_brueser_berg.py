@@ -133,7 +133,7 @@ class BrueserBergSourceTests(unittest.TestCase):
         calendar = """
 <script type="application/ld+json">[{"@type":"Event","name":"Digitale Nachhilfe",
 "url":"https://www.nachbarschaftszentrum.info/event/digitale-nachhilfe/2026-09-01/",
-"startDate":"2026-09-01T16:00:00+02:00","endDate":"2026-09-01T18:00:00+02:00"}]</script>
+"startDate":"2026-09-01T16:00:00","endDate":"2026-09-01T18:00:00"}]</script>
 """
         detail = """
 <div class="tribe-events-single-event-description tribe-events-content">
@@ -155,6 +155,7 @@ class BrueserBergSourceTests(unittest.TestCase):
             "https://www.nachbarschaftszentrum.info/event/digitale-nachhilfe/2026-09-01/",
         )
         self.assertEqual(enriched["time"], "16:00–18:00")
+        self.assertEqual(enriched["end_at"], "2026-09-01T18:00:00+02:00")
         self.assertEqual(fetch_detail.call_count, 2)
 
     def test_parser_rejects_changed_or_empty_payloads(self):
