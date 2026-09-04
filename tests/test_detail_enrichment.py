@@ -221,6 +221,37 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["start_at"], "2026-08-23T11:00:00+02:00")
         self.assertEqual(context["end_at"], "2026-08-23T17:00:00+02:00")
 
+    def test_naive_structured_schedule_uses_event_timezone(self):
+        document = """
+        <script type="application/ld+json">
+        {
+          "@type": "Event",
+          "name": "Antik-Trödelmarkt Pferderennbahn Parkplatz Köln",
+          "startDate": "2026-09-04T06:00:00",
+          "endDate": "2026-09-04T13:00:00",
+          "description": "Der Markt findet von 06:00 bis 13:00 Uhr statt."
+        }
+        </script>
+        """
+        source = self.event(
+            title="Antik-Trödelmarkt Pferderennbahn Parkplatz Köln",
+            date="2026-09-04",
+            start_date="2026-09-04",
+            end_date="2026-09-04",
+            description="Kurzer Teaser.",
+            description_html="<p>Kurzer Teaser.</p>",
+            all_day=True,
+            timezone="Europe/Berlin",
+            score=1.0,
+        )
+
+        context = detail_enrichment.extract_detail_context(document, source)
+        enriched = detail_enrichment.apply_detail_context(source, context)
+
+        self.assertEqual(context["start_at"], "2026-09-04T06:00:00+02:00")
+        self.assertEqual(context["end_at"], "2026-09-04T13:00:00+02:00")
+        self.assertEqual(canonicalize_event(enriched).start_at, context["start_at"])
+
     def test_complete_prose_still_needs_detail_when_decision_facts_are_missing(self):
         source = self.event(
             description="Vollständige Beschreibung mit Programm und Hintergrund. " * 8,

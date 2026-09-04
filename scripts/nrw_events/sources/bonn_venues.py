@@ -132,6 +132,9 @@ def events_from_repair_cafes(html: str) -> list:
             continue
         start_raw = _match_text(r"class=['\"]value-title['\"][^>]+datetime=['\"]([^'\"]+)['\"]", article)
         end_raw = _match_text(r"class=['\"]end-time dtend['\"][\s\S]*?datetime=['\"]([^'\"]+)['\"]", article)
+        start = common.parse_iso_date(start_raw)
+        if not start:
+            continue
         venue = _match_clean(r"class=['\"]location-label['\"][\s\S]*?<span[^>]*></span>\s*(.*?)</a>", article)
         if not venue:
             venue = _match_clean(r"Karte<span[^>]*>\s*(.*?)</span>", article)
@@ -144,7 +147,7 @@ def events_from_repair_cafes(html: str) -> list:
         coords = _coords_from_google_maps(article)
         ev = common.make_event(
             title_text,
-            common.parse_iso_date(start_raw),
+            start,
             common.parse_iso_date(end_raw),
             venue,
             "Bonn",
