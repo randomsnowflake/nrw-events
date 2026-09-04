@@ -1017,6 +1017,57 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["category_key"], "sports")
         self.assertEqual(deduped[0]["category_label"], "Sport & Bewegung")
 
+    def test_deduplicate_keeps_currency_from_equivalent_first_party_price(self):
+        admission = {
+            "isFree": False,
+            "amount": 39.9,
+            "currency": "EUR",
+            "basis": "explicit",
+            "note": "39.9",
+            "donationSuggested": False,
+        }
+        base = {
+            "title": "Wein & Schokoladen Tasting",
+            "date": "2026-10-03",
+            "start_date": "2026-10-03",
+            "end_date": "2026-10-03",
+            "time": "19:00–22:00",
+            "venue": "CHOCO DEALER SHOP",
+            "city": "Bonn-Bad Godesberg",
+            "description": "Erlebe Genuss in Perfektion.",
+            "distance_km": 0,
+            "category": "Food & Genuss",
+            "category_key": "food",
+        }
+        events = [
+            {
+                **base,
+                "price": "39.9",
+                "admission": admission,
+                "admission_basis": "explicit",
+                "link": "https://choco-dealer.com/event?slotId=fixture",
+                "score": 1.2,
+                "source": "Veranstaltungen Bonn Einreichung",
+                "source_id": "submitted-events",
+            },
+            {
+                **base,
+                "price": "39.9 EUR",
+                "admission": {**admission, "basis": "structured", "note": "39.9 EUR"},
+                "admission_basis": "structured",
+                "link": "https://choco-dealer.com/event?slotId=fixture",
+                "score": 0.97,
+                "source": "Choco Dealer",
+                "source_id": "choco-dealer",
+            },
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Veranstaltungen Bonn Einreichung")
+        self.assertEqual(deduped[0]["price"], "39.9 EUR")
+
     def test_deduplicate_collapses_near_identical_titles_from_different_sources(self):
         events = [
             {

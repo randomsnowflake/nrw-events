@@ -424,6 +424,15 @@ def _tribe_price(document: str) -> str:
     return ""
 
 
+def _product_meta_price(parser: _SemanticHTML) -> str:
+    """Keep the currency paired with Open Graph product price metadata."""
+    amount = common.clean_html(parser.meta.get("product:price:amount", "")).strip()
+    currency = common.clean_html(parser.meta.get("product:price:currency", "")).strip()
+    if not amount or not currency:
+        return ""
+    return f"{amount} {currency}"[:240]
+
+
 def _template_price(document: str) -> str:
     """Extract a price from a known event-only field without broad guessing."""
     if price := _tribe_price(document):
@@ -1042,7 +1051,7 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
         "description_html": description_html,
         "exact_description": exact_description,
         "exact_description_html": exact_description_html,
-        "price": arp_subline_price or _first(parser.item_values, "price") or _visible_labeled_value(
+        "price": arp_subline_price or _product_meta_price(parser) or _first(parser.item_values, "price") or _visible_labeled_value(
             document, "Preis", "Preise", "Kosten", "Eintritt",
         ) or _template_price(document),
         # A bare itemprop=name may be the event title, organizer or venue.  It
