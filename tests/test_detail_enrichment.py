@@ -156,6 +156,27 @@ class DetailEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(context["price"], "12 EUR")
 
+    def test_product_price_metadata_keeps_its_currency(self):
+        for amount in ("35", "39.9"):
+            with self.subTest(amount=amount):
+                document = f"""
+                <meta property="product:price:amount" content="{amount}">
+                <meta property="product:price:currency" content="EUR">
+                <meta itemprop="price" content="{amount}">
+                """
+
+                context = detail_enrichment.extract_detail_context(
+                    document,
+                    self.event(
+                        title="Georgische Weinprobe",
+                        link="https://choco-dealer.com/GEORGISCHE-WEINPROBE/EVENT06?slotId=fixture",
+                        source="Choco Dealer",
+                        source_id="choco-dealer",
+                    ),
+                )
+
+                self.assertEqual(context["price"], f"{amount} EUR")
+
     def test_jsonld_supplies_missing_organizer_schedule_and_address(self):
         document = """
         <script type="application/ld+json">

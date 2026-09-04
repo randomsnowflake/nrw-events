@@ -975,6 +975,21 @@ def _merged_exhibitor_information(winner: dict, duplicate: dict) -> dict | None:
     return merged
 
 
+def _paid_admission_identity(event: dict) -> tuple[object, str] | None:
+    admission = event.get("admission")
+    if not isinstance(admission, dict) or admission.get("isFree") is not False:
+        return None
+    amount = admission.get("amount")
+    if amount is None or isinstance(amount, bool):
+        return None
+    currency = str(admission.get("currency") or "").strip().upper()
+    return amount, currency
+
+
+def _price_has_currency(value: object) -> bool:
+    return bool(re.search(r"(?:€|\bEUR\b|\bEuro\b)", str(value or ""), re.I))
+
+
 def _merge_duplicate_metadata(
     winner,
     duplicate,
@@ -1096,6 +1111,18 @@ def _merge_duplicate_metadata(
             elif winner_venue_is_implausible:
                 for location_field in _VENUE_LOCATION_FIELDS:
                     updates[location_field] = duplicate.get(location_field)
+
+    if (
+        winner.get("price")
+        and duplicate.get("price")
+        and not _price_has_currency(winner.get("price"))
+        and _price_has_currency(duplicate.get("price"))
+        and _paid_admission_identity(winner) == _paid_admission_identity(duplicate)
+        and _paid_admission_identity(winner) is not None
+    ):
+        updates["price"] = duplicate["price"]
+        updates["admission_basis"] = duplicate.get("admission_basis", "")
+        updates["admission"] = duplicate.get("admission")
 
     if (
         winner.get("price")
