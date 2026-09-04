@@ -300,6 +300,7 @@ scripts/nrw_events/
     kunstmuseum_bonn.py
     kunstrasen_bonn.py
     lampert.py
+    lengsdorfer_weinfest.py
     lupe_events.py
     marktcom.py
     max7.py
@@ -578,6 +579,7 @@ Redaktionsentscheidungen.
 | bonn-region | Köln Open Data | `k-ln-open-data` | `python` |
 | bonn-region | Königswinter | `k-nigswinter` | `python` |
 | bonn-region | Lampert Märkte | `lampert-m-rkte` | `python` |
+| bonn-region | Lengsdorfer Weinfest | `lengsdorfer-weinfest` | `python` |
 | bonn-region | Literaturhaus Bonn | `literaturhaus-bonn` | `python` |
 | bonn-region | Ludwig's Bonn | `ludwig-s-bonn` | `python` |
 | bonn-region | LuPe Events | `lupe-events` | `python` |
