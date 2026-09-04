@@ -80,7 +80,7 @@ class OpenIssueContractTests(unittest.TestCase):
         finally:
             pool.shutdown(wait=True)
 
-    def test_completed_future_is_accepted_at_watchdog_boundary(self):
+    def test_completed_future_past_budget_is_rejected_at_watchdog_boundary(self):
         settings = config.RuntimeConfig(
             score_floor=0,
             source_timeout_seconds=0.001,
@@ -95,23 +95,23 @@ class OpenIssueContractTests(unittest.TestCase):
         )
         wait_timeouts = []
 
+        def late_source():
+            time.sleep(0.01)
+            return [raw_event(source="Boundary", source_id="boundary")]
+
         def omit_completed_future(pending, *, timeout, return_when):
             del return_when
             wait_timeouts.append(timeout)
             for future in pending:
                 future.result(timeout=1)
-            time.sleep(0.01)
             return set(), pending
 
         with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
                 mock.patch.object(runner, "wait", side_effect=omit_completed_future):
-            result = runner.run_import(
-                context,
-                {"Boundary": lambda: [raw_event(source="Boundary", source_id="boundary")]},
-            )
+            result = runner.run_import(context, {"Boundary": late_source})
 
-        self.assertEqual(result.source_results["Boundary"].status, SourceStatus.HEALTHY)
-        self.assertEqual([event.title for event in result.events], ["Flohmarkt Rheinaue"])
+        self.assertEqual(result.source_results["Boundary"].status, SourceStatus.FAILED)
+        self.assertEqual(result.events, ())
         self.assertTrue(wait_timeouts)
         self.assertGreaterEqual(min(wait_timeouts), 0.05)
 
