@@ -294,14 +294,29 @@ def _timestamp_with_clock(
     clock: str,
     timezone_name: str,
 ) -> str:
-    """Replace a structured clock and keep the occurrence timezone explicit."""
+    """Replace a structured clock and resolve its offset from the event zone."""
     if value:
         replaced = re.sub(
             r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}",
             f"{date_value}T{clock}",
             value,
         )
-        return _timestamp_with_timezone(replaced, timezone_name)
+        cleaned = re.sub(r"\[[^]]+\]$", "", replaced.strip())
+        try:
+            parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+        except ValueError:
+            return _timestamp_with_timezone(replaced, timezone_name)
+        zone = ZoneInfo(timezone_name)
+        wall_time = parsed.replace(tzinfo=None)
+        candidates = (
+            wall_time.replace(tzinfo=zone, fold=0),
+            wall_time.replace(tzinfo=zone, fold=1),
+        )
+        if parsed.tzinfo is not None:
+            for candidate in candidates:
+                if candidate.utcoffset() == parsed.utcoffset():
+                    return candidate.isoformat()
+        return candidates[0].isoformat()
     if not date_value:
         return ""
     return datetime.fromisoformat(f"{date_value}T{clock}").replace(
@@ -1112,7 +1127,7 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
             context["start_at"], event_date, start_clock, timezone_name,
         )
         context["end_at"] = _timestamp_with_clock(
-            context["start_at"] or context["end_at"], end_date, end_clock,
+            context["end_at"], end_date, end_clock,
             timezone_name,
         )
     if _master_data_only(event):
