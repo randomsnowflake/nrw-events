@@ -1187,7 +1187,7 @@ class OpenIssueContractTests(unittest.TestCase):
         fixture = json.loads(path.read_text(encoding="utf-8"))
         specs = load_source_specs(path)
         self.assertEqual(fixture["schema_version"], 1)
-        self.assertEqual(len(specs), 102)
+        self.assertEqual(len(specs), 103)
         self.assertGreaterEqual(len(specs), 40)
         self.assertTrue(all(spec.region for spec in specs))
         self.assertTrue(all(isinstance(spec.adapter, AdapterType) for spec in specs))

@@ -310,6 +310,7 @@ scripts/nrw_events/
     much.py
     museum_koenig.py
     naturregion_sieg.py
+    ofa_duisdorf.py
     okken.py
     radiobonn.py
     regional_common.py
@@ -348,7 +349,7 @@ Events ohne eigene Kategorien. Die Signale werden bewusst nicht zusammengeklebt:
 Das könnte eine künstlich breite Kategorie-Tüte erzeugen, die die Taxonomie als
 unzuverlässig verwirft.
 
-Alle 81 Registry-Einträge liegen schema-validiert in
+Alle Registry-Einträge liegen schema-validiert in
 `sources/registry.json` und tragen ein `region`-Feld. Standard-iCal-, JSON-LD-
 und einfache selektorbasierte HTML-Quellen benötigen normalerweise nur einen
 neuen Registry-Eintrag plus Fixture-/Vertragstest. `SourceSpec` unterstützt
@@ -590,6 +591,7 @@ Redaktionsentscheidungen.
 | bonn-region | Municipal MEC markets | `municipal-mec-markets` | `python` |
 | bonn-region | Museum Koenig Bonn | `museum-koenig-bonn` | `python` |
 | bonn-region | Naturregion Sieg | `naturregion-sieg` | `python` |
+| bonn-region | OFA Duisdorf | `ofa-duisdorf` | `python` |
 | bonn-region | Okken Märkte | `okken-m-rkte` | `python` |
 | bonn-region | Parkbuchhandlung | `parkbuchhandlung` | `python` |
 | bonn-region | Radio Bonn/Rhein-Sieg | `radio-bonn-rhein-sieg` | `python` |
