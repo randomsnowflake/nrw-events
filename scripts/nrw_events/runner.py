@@ -2465,7 +2465,16 @@ def _cli(argv: list[str]) -> int:
     snapshot = build_snapshot(import_result, context)
     presentation_result = filter_import_result(import_result, settings, query, context.window.start)
     if settings.json_stdout:
-        presentation_ids = {event_id(event) for event in presentation_result.events}
+        presentation_object_ids = {id(event) for event in presentation_result.events}
+        presentation_ids = {
+            assigned["event_id"]
+            for original, assigned in zip(
+                import_result.events,
+                assign_event_ids(event.to_dict() for event in import_result.events),
+                strict=True,
+            )
+            if id(original) in presentation_object_ids
+        }
         presentation_events = [
             event for event in snapshot.events if str(event.get("event_id") or "") in presentation_ids
         ]

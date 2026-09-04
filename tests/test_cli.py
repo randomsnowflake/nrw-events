@@ -11,7 +11,10 @@ from nrw_events import config, runner
 from nrw_events.models import CanonicalEvent
 
 
-def event(title, date, *, time="", category="other", distance=0, free=False):
+def event(
+    title, date, *, time="", category="other", distance=0, free=False,
+    link="", description="",
+):
     return CanonicalEvent(
         title=title,
         source="Test",
@@ -22,6 +25,8 @@ def event(title, date, *, time="", category="other", distance=0, free=False):
         category_key=category,
         distance_km=distance,
         admission={"isFree": free},
+        link=link,
+        description=description,
     )
 
 
@@ -86,6 +91,32 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, runner.EXIT_SUCCESS)
         self.assertEqual(json.loads(stdout.getvalue())[0]["title"], "Machine readable")
+        publish.assert_not_called()
+
+    def test_json_keeps_each_disambiguated_identity_collision(self):
+        def fake_import(context, sources):
+            date = context.window.start.strftime("%Y-%m-%d")
+            return runner.ImportResult((
+                event("Collision", date, link="https://example.org/a", description="A"),
+                event("Collision", date, link="https://example.org/b", description="B"),
+            ), {}, 2, "healthy")
+
+        stdout = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.dict(os.environ, {
+            "NRW_EVENTS_ENV_FILE": os.path.join(tmpdir, "missing.env"),
+            "NRW_EVENTS_JSON_OUT": os.path.join(tmpdir, "events.json"),
+            "NRW_EVENTS_META_JSON_OUT": os.path.join(tmpdir, "meta.json"),
+            "NRW_EVENTS_LOG_LEVEL": "CRITICAL",
+        }, clear=True), mock.patch.object(runner, "run_import", side_effect=fake_import), \
+                mock.patch.object(runner, "publish_snapshot") as publish, contextlib.redirect_stdout(stdout):
+            exit_code = runner.cli(["nrw-events", "heute", "--json"])
+
+        rows = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, runner.EXIT_SUCCESS)
+        self.assertEqual({row["link"] for row in rows}, {
+            "https://example.org/a", "https://example.org/b",
+        })
+        self.assertEqual(len({row["event_id"] for row in rows}), 2)
         publish.assert_not_called()
 
     def test_filtered_cli_publishes_unfiltered_canonical_snapshot(self):
