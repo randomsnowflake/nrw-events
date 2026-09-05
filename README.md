@@ -290,6 +290,7 @@ scripts/nrw_events/
     in_guten_kreisen.py
     junges_theater_bonn.py
     katharinenhof.py
+    kessenicher_herbstmarkt.py
     kihapp.py
     kinderflohmarkt.py
     kleines_theater.py
@@ -566,6 +567,7 @@ Redaktionsentscheidungen.
 | bonn-region | ionas4 regional | `ionas4-regional` | `python` |
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
+| bonn-region | Kessenicher Herbstmarkt | `kessenicher-herbstmarkt` | `python` |
 | bonn-region | Kihapp – Veranstalterdaten | `kihapp` | `python` |
 | bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
