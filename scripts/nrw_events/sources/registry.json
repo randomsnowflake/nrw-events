@@ -140,6 +140,13 @@
       "callable": "nrw_events.sources.kessenicher_herbstmarkt:fetch"
     },
     {
+      "id": "lengsdorfer-weinfest",
+      "display_name": "Lengsdorfer Weinfest",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.lengsdorfer_weinfest:fetch"
+    },
+    {
       "id": "in-guten-kreisen",
       "display_name": "In guten Kreisen",
       "region": "bonn-region",
