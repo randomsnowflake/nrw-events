@@ -54,6 +54,10 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
             # Real publisher pages occasionally contain literal newlines or
             # tabs inside JSON strings. Browsers accept these blocks, and the
             # rest of the document remains useful, so parse them permissively.
+            # Each decode creates a separate object graph. Wrapper roots are
+            # released after walk and their addresses may be reused by CPython;
+            # keeping their IDs across script blocks can silently skip events.
+            seen.clear()
             walk(json.loads(raw, strict=False))
         except json.JSONDecodeError as exc:
             _impl_run_state.log_source_error("JSON-LD", exc)
