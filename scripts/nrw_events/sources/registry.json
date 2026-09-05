@@ -126,6 +126,13 @@
       "callable": "nrw_events.sources.b_future_festival:fetch"
     },
     {
+      "id": "ssf-bonn",
+      "display_name": "SSF Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.ssf_bonn:fetch"
+    },
+    {
       "id": "in-guten-kreisen",
       "display_name": "In guten Kreisen",
       "region": "bonn-region",

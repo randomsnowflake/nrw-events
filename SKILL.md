@@ -180,6 +180,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Schmitt Veranstaltungen | `schmitt-veranstaltungen` | `python` |
 | bonn-region | Siegburg | `siegburg` | `python` |
 | bonn-region | SiteKit regional | `sitekit-regional` | `python` |
+| bonn-region | SSF Bonn | `ssf-bonn` | `python` |
 | bonn-region | Standard regional feeds | `standard-regional-feeds` | `python` |
 | bonn-region | Street Food Bonn | `street-food-bonn` | `python` |
 | bonn-region | Street Food Festival Original | `street-food-festival-original` | `python` |
@@ -324,6 +325,7 @@ scripts/nrw_events/
     search.py
     siebengebirge.py
     siegburg.py
+    ssf_bonn.py
     theater_bonn.py
     theater_im_ballsaal.py
     theater_marabu.py
