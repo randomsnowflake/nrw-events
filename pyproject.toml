@@ -58,6 +58,14 @@ files = [
     "scripts/nrw_events/import_cli.py",
     "scripts/nrw_events/import_orchestration.py",
     "scripts/nrw_events/runner.py",
+    "scripts/nrw_events/ai_enrichment.py",
+    "scripts/nrw_events/ai_cache.py",
+    "scripts/nrw_events/ai_contracts.py",
+    "scripts/nrw_events/ai_policy.py",
+    "scripts/nrw_events/ai_settings.py",
+    "scripts/nrw_events/ai_transport.py",
+    "scripts/nrw_events/ai_orchestration.py",
+
 
     "scripts/nrw_events/dates.py",
 

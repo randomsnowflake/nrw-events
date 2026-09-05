@@ -52,6 +52,7 @@ class RawEvent(TypedDict, total=False):
     link_kind: str
     source_links: list[str]
     previous_event_ids: list[str]
+    preserved_event_id: str
     organizer: str
     description: str
     description_html: str

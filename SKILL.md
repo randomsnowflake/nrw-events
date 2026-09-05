@@ -212,7 +212,13 @@ dependency direction are documented in `docs/ARCHITECTURE.md`.
 ```text
 scripts/nrw_events/
   __init__.py
+  ai_cache.py
+  ai_contracts.py
   ai_enrichment.py
+  ai_orchestration.py
+  ai_policy.py
+  ai_settings.py
+  ai_transport.py
   benchmark.py
   category_taxonomy.py
   common.py
