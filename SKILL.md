@@ -164,6 +164,7 @@ both stages. The daily new-row limit defaults to 150 as a cost fuse; set it to
 | bonn-region | Municipal MEC markets | `municipal-mec-markets` | `python` |
 | bonn-region | Museum Koenig Bonn | `museum-koenig-bonn` | `python` |
 | bonn-region | Naturregion Sieg | `naturregion-sieg` | `python` |
+| bonn-region | OFA Duisdorf | `ofa-duisdorf` | `python` |
 | bonn-region | Okken Märkte | `okken-m-rkte` | `python` |
 | bonn-region | Parkbuchhandlung | `parkbuchhandlung` | `python` |
 | bonn-region | Radio Bonn/Rhein-Sieg | `radio-bonn-rhein-sieg` | `python` |
@@ -307,6 +308,7 @@ scripts/nrw_events/
     much.py
     museum_koenig.py
     naturregion_sieg.py
+    ofa_duisdorf.py
     okken.py
     radiobonn.py
     regional_common.py
