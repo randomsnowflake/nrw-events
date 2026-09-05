@@ -224,6 +224,7 @@ scripts/nrw_events/
   common.py
   components.py
   config.py
+  contract_fixtures.py
   core.py
   dates.py
   dedup_index.py
@@ -288,6 +289,8 @@ scripts/nrw_events/
     bonn_districts.py
     bonn_food.py
     bonn_literature.py
+    bonn_policy.py
+    bonn_sports.py
     bonn_venues.py
     bonner_weihnachtsmarkt.py
     bonnjetzt.py

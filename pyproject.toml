@@ -41,6 +41,7 @@ nrw_events = [
 python_version = "3.10"
 files = [
     "scripts/nrw_events/core.py",
+    "scripts/nrw_events/contract_fixtures.py",
     "scripts/nrw_events/run_state.py",
     "scripts/nrw_events/http.py",
     "scripts/nrw_events/detail_cache.py",
