@@ -7,7 +7,7 @@ name = "nrw-events"
 version = "0.1.0"
 description = "Stdlib-only NRW event importer"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.15"
 dependencies = []
 
 [project.optional-dependencies]
@@ -50,6 +50,15 @@ files = [
     "scripts/nrw_events/ical.py",
     "scripts/nrw_events/listing_parsers.py",
     "scripts/nrw_events/runtime.py",
+    "scripts/nrw_events/import_contracts.py",
+    "scripts/nrw_events/source_execution.py",
+    "scripts/nrw_events/retention_policy.py",
+    "scripts/nrw_events/identity_reconciliation.py",
+    "scripts/nrw_events/snapshot_publication.py",
+    "scripts/nrw_events/import_cli.py",
+    "scripts/nrw_events/import_orchestration.py",
+    "scripts/nrw_events/runner.py",
+
     "scripts/nrw_events/dates.py",
 
     "scripts/nrw_events/normalization.py",

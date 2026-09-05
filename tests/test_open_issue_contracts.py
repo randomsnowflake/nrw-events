@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest import mock
 
-from nrw_events import common, config, core, highlights, report, runner, series
+from nrw_events import common, config, core, highlights, import_orchestration, report, retention_policy, runner, series
 from nrw_events.health import SourceFetchResult, SourceStatus
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
@@ -107,7 +107,7 @@ class OpenIssueContractTests(unittest.TestCase):
             return set(), pending
 
         with mock.patch.object(runner, "_previous_snapshot", return_value={}), \
-                mock.patch.object(runner, "wait", side_effect=omit_completed_future):
+                mock.patch.object(import_orchestration, "wait", side_effect=omit_completed_future):
             result = runner.run_import(context, {"Boundary": late_source})
 
         self.assertEqual(result.source_results["Boundary"].status, SourceStatus.FAILED)
@@ -146,7 +146,7 @@ class OpenIssueContractTests(unittest.TestCase):
         ]
         real_event_id = runner.event_id
 
-        with mock.patch.object(runner, "event_id", wraps=real_event_id) as identity:
+        with mock.patch.object(retention_policy, "event_id", wraps=real_event_id) as identity:
             result = runner._retained_events_without_fresh_duplicate(fresh, retained)
 
         self.assertEqual([event["title"] for event in result], ["Retained"])

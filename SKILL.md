@@ -231,6 +231,10 @@ scripts/nrw_events/
   http.py
   ical.py
   identity.py
+  identity_reconciliation.py
+  import_cli.py
+  import_contracts.py
+  import_orchestration.py
   jsonld.py
   junk_rules.py
   listing_parsers.py
@@ -243,6 +247,7 @@ scripts/nrw_events/
   quality.py
   radio_primary_resolution.py
   report.py
+  retention_policy.py
   reviewed_corrections.py
   reviewed_summaries.py
   richtext.py
@@ -252,6 +257,8 @@ scripts/nrw_events/
   scoring.py
   series.py
   snapshot_compare.py
+  snapshot_publication.py
+  source_execution.py
   source_specs.py
   source_types.py
   text.py

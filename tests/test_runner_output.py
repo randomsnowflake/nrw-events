@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime
 from unittest import mock
 
-from nrw_events import common, config, report, run_state, runner
+from nrw_events import common, config, report, run_state, runner, source_execution
 from nrw_events.health import (
     MAX_REJECTION_SAMPLE_JSON_LENGTH,
     SourceFetchResult,
@@ -1111,7 +1111,7 @@ class RunnerOutputTests(unittest.TestCase):
 
     def test_runner_rejects_non_object_records_before_window_filtering(self):
         with mock.patch.object(
-            runner, "validate_event", wraps=runner.validate_event
+            source_execution, "validate_event", wraps=runner.validate_event
         ) as validate:
             result, events = runner._run_source("Malformed", lambda: [
                 None,
