@@ -220,6 +220,7 @@ scripts/nrw_events/
   config.py
   core.py
   dates.py
+  detail_cache.py
   detail_enrichment.py
   early_publication.py
   event_builder.py
@@ -232,6 +233,7 @@ scripts/nrw_events/
   identity.py
   jsonld.py
   junk_rules.py
+  listing_parsers.py
   location.py
   market_source_fallbacks.py
   models.py
@@ -244,6 +246,7 @@ scripts/nrw_events/
   reviewed_corrections.py
   reviewed_summaries.py
   richtext.py
+  run_state.py
   runner.py
   runtime.py
   scoring.py

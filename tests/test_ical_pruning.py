@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common, core, performance, runner
+from nrw_events import common, core, event_builder, performance, runner
 from nrw_events.benchmark import replay_differences
 from nrw_events.models import EventDraft
 from nrw_events.runtime import EventWindow
@@ -94,7 +94,7 @@ class ICalPruningTests(unittest.TestCase):
         block = calendar("Jazzkonzert").split("BEGIN:VEVENT", 1)[1].split("END:VEVENT", 1)[0]
         raw = "BEGIN:VCALENDAR\n" + ("BEGIN:VEVENT" + block + "END:VEVENT\n") * 3 + "END:VCALENDAR"
         with patch.dict(os.environ, {"NRW_EVENTS_ICAL_PRUNE": "1"}), patch.object(
-            core, "evaluate_event_quality", wraps=core.evaluate_event_quality,
+            event_builder, "evaluate_event_quality", wraps=core.evaluate_event_quality,
         ) as evaluate:
             first = core.parse_ical(raw, "https://example.test/feed", "Fixture", "Bonn")
             self.assertEqual(evaluate.call_count, 1)
@@ -111,7 +111,7 @@ class ICalPruningTests(unittest.TestCase):
         )
         cache = {}
         with patch.object(core, "_ICAL_QUALITY_CACHE_SIZE", 3), patch.object(
-            core, "evaluate_event_quality", wraps=core.evaluate_event_quality,
+            event_builder, "evaluate_event_quality", wraps=core.evaluate_event_quality,
         ) as evaluate:
             core._prepare_ical_quality(draft, cache)
             core._prepare_ical_quality(draft, cache)

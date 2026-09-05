@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import datetime
 from unittest import mock
 
-from nrw_events import common, config, core, report, runner
+from nrw_events import common, config, report, run_state, runner
 from nrw_events.health import (
     MAX_REJECTION_SAMPLE_JSON_LENGTH,
     SourceFetchResult,
@@ -351,7 +351,7 @@ class RunnerOutputTests(unittest.TestCase):
             common.log_source_error("Noisy detail", TimeoutError("request budget exhausted"))
             return []
 
-        with mock.patch.object(core, "log") as emit:
+        with mock.patch.object(run_state, "log") as emit:
             result, _ = runner._run_source("Noisy", noisy_source)
 
         self.assertEqual(len(result.warnings), 1)
@@ -363,7 +363,7 @@ class RunnerOutputTests(unittest.TestCase):
             common.log_source_quality_skip("Filtered", "civic.course")
             return []
 
-        with mock.patch.object(core, "log") as emit:
+        with mock.patch.object(run_state, "log") as emit:
             result, _ = runner._run_source("Filtered", filtered_source)
 
         self.assertEqual(result.rejection_reasons, {"quality:civic.course": 2})

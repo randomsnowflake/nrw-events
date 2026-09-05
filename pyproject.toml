@@ -41,6 +41,17 @@ nrw_events = [
 python_version = "3.10"
 files = [
     "scripts/nrw_events/core.py",
+    "scripts/nrw_events/run_state.py",
+    "scripts/nrw_events/http.py",
+    "scripts/nrw_events/detail_cache.py",
+    "scripts/nrw_events/text.py",
+    "scripts/nrw_events/event_builder.py",
+    "scripts/nrw_events/jsonld.py",
+    "scripts/nrw_events/ical.py",
+    "scripts/nrw_events/listing_parsers.py",
+    "scripts/nrw_events/runtime.py",
+    "scripts/nrw_events/dates.py",
+
     "scripts/nrw_events/normalization.py",
     "scripts/nrw_events/config.py",
     "scripts/nrw_events/health.py",

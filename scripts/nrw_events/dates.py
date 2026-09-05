@@ -121,9 +121,9 @@ def _range_start(text: str) -> str:
         return str(year - 1 if start_month and end_month and start_month > end_month else year)
 
     if re.fullmatch(r"\d{1,2}\.\d{1,2}\.?", start) and year:
-        start_month = int(re.search(r"\.(\d{1,2})", start).group(1))
+        start_month_number = int(start.split(".")[1])
         separator = "" if start.endswith(".") else "."
-        return f"{start}{separator}{inherited_year(start_month)}"
+        return f"{start}{separator}{inherited_year(start_month_number)}"
     if re.fullmatch(r"\d{1,2}\.?", start) and end_month:
         day = start.rstrip(".")
         suffix = inherited_year(end_month)
@@ -188,17 +188,17 @@ def parse_date(text: str, *, reference_date: datetime | None = None) -> datetime
         )
     match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b\.?\s*(20\d{2})", text)
     if match:
-        day, month, year = match.groups()
-        key = month.lower().rstrip(".")
+        day_text, month_text, year_text = match.groups()
+        key = month_text.lower().rstrip(".")
         month_number = MONTH_ALL.get(key)
         if month_number:
-            return datetime(int(year), month_number, int(day))
+            return datetime(int(year_text), month_number, int(day_text))
     match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b\.?", text)
     if match:
-        day, month = match.groups()
-        key = month.lower().rstrip(".")
+        day_text, month_text = match.groups()
+        key = month_text.lower().rstrip(".")
         month_number = MONTH_ALL.get(key)
         if month_number:
             reference = reference_date or runtime_reference_date()
-            return _next_yearless_occurrence(int(day), month_number, reference)
+            return _next_yearless_occurrence(int(day_text), month_number, reference)
     return None
