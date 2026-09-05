@@ -226,8 +226,13 @@ scripts/nrw_events/
   config.py
   core.py
   dates.py
+  dedup_index.py
+  dedup_merge.py
+  dedup_rules.py
+  deduplication.py
   detail_cache.py
   detail_enrichment.py
+  duplicate_identity.py
   early_publication.py
   event_builder.py
   event_types.py
@@ -245,6 +250,7 @@ scripts/nrw_events/
   junk_rules.py
   listing_parsers.py
   location.py
+  markdown_report.py
   market_source_fallbacks.py
   models.py
   normalization.py
@@ -252,6 +258,7 @@ scripts/nrw_events/
   performance.py
   quality.py
   radio_primary_resolution.py
+  ranking.py
   report.py
   retention_policy.py
   reviewed_corrections.py
