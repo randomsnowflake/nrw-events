@@ -17,11 +17,11 @@ _WEEKEND_DESCRIPTION = (
 
 
 def _fridays() -> list[datetime]:
-    cursor = common.TODAY
+    cursor = common.runtime_window().start
     while cursor.weekday() != 4:
         cursor += timedelta(days=1)
     dates = []
-    while cursor <= common.END_DATE:
+    while cursor <= common.runtime_window().end:
         dates.append(cursor.replace(hour=19, minute=0, second=0, microsecond=0))
         cursor += timedelta(days=7)
     return dates

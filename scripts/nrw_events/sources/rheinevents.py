@@ -135,8 +135,8 @@ def _listing_url(skip: int) -> str:
     query = urllib.parse.urlencode({
         "sellerId": _SELLER_ID,
         "visibleInListing": "true",
-        "endMin": _window_timestamp(common.TODAY),
-        "startMax": _window_timestamp(common.END_DATE, end_of_day=True),
+        "endMin": _window_timestamp(common.runtime_window().start),
+        "startMax": _window_timestamp(common.runtime_window().end, end_of_day=True),
         "top": _PAGE_SIZE,
         "skip": skip,
     })

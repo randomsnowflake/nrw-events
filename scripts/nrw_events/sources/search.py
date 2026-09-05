@@ -17,8 +17,8 @@ from .. import common
 
 def search_queries() -> list:
     """Shared local/province/outdoor fallback queries (month/year interpolated)."""
-    month = common.TODAY.strftime("%B %Y")
-    year = common.TODAY.strftime("%Y")
+    month = common.runtime_window().start.strftime("%B %Y")
+    year = common.runtime_window().start.strftime("%Y")
     return [
         f"Veranstaltungen Bonn Wochenende {month} Stadtteilfest Dorffest Markt Konzert Ausstellung",
         f"Bonn Poppelsdorf Endenich Beuel Bad Godesberg Kessenich Dottendorf Fest Meile Markt {month}",

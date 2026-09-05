@@ -58,8 +58,8 @@ def _events_from_payload(payload: dict) -> list:
 def fetch() -> list:
     query = urllib.parse.urlencode({
         "per_page": 50,
-        "start_date": common.TODAY.strftime("%Y-%m-%d"),
-        "end_date": common.END_DATE.strftime("%Y-%m-%d"),
+        "start_date": common.runtime_window().start.strftime("%Y-%m-%d"),
+        "end_date": common.runtime_window().end.strftime("%Y-%m-%d"),
     })
     url = f"{API_URL}?{query}"
     try:

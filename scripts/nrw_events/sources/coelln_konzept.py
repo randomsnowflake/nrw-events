@@ -81,7 +81,7 @@ def _detail_context(html: str) -> dict:
 def _events_from_listing(html: str, detail_fetcher=None) -> list:
     events = []
     detail_cache = {}
-    year = common.TODAY.year
+    year = common.runtime_window().start.year
     rows = re.findall(r"<tr\b[^>]*>(.*?)</tr>", html or "", re.S | re.I)
     for row in rows:
         year_match = re.search(r"Termine\s+(20\d{2})", rc.clean(row), re.I)

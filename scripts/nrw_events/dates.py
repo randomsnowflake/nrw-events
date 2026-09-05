@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 from zoneinfo import ZoneInfo
 
+from .runtime import ACTIVE_RUNTIME
+
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
 _REFERENCE_DATE: datetime | None = None
 YEARLESS_GRACE_DAYS = 30
@@ -32,6 +34,13 @@ def configure_reference_date(value: datetime) -> None:
     """Set the report-window date used for yearless source values."""
     global _REFERENCE_DATE
     _REFERENCE_DATE = _local_naive(value)
+
+
+def runtime_reference_date() -> datetime:
+    state = ACTIVE_RUNTIME.get()
+    if state is not None and state.window is not None:
+        return state.window.start
+    return _REFERENCE_DATE or datetime.now(LOCAL_TIMEZONE)
 
 
 MONTH_DE = {
@@ -173,7 +182,7 @@ def parse_date(text: str, *, reference_date: datetime | None = None) -> datetime
             return None
     match = re.match(r"^(\d{1,2})\.(\d{1,2})\.?(?!\d)", text)
     if match:
-        reference = reference_date or _REFERENCE_DATE or datetime.now(LOCAL_TIMEZONE)
+        reference = reference_date or runtime_reference_date()
         return _next_yearless_occurrence(
             int(match.group(1)), int(match.group(2)), reference,
         )
@@ -190,6 +199,6 @@ def parse_date(text: str, *, reference_date: datetime | None = None) -> datetime
         key = month.lower().rstrip(".")
         month_number = MONTH_ALL.get(key)
         if month_number:
-            reference = reference_date or _REFERENCE_DATE or datetime.now(LOCAL_TIMEZONE)
+            reference = reference_date or runtime_reference_date()
             return _next_yearless_occurrence(int(day), month_number, reference)
     return None

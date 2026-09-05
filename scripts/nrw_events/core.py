@@ -27,7 +27,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager, suppress
-from contextvars import ContextVar, Token
+from contextvars import Token
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
@@ -52,7 +52,9 @@ from .models import AdmissionDefault, EventDraft, RawEvent, normalize_source_id
 from .normalization import VenueResolution, resolve_venue
 from .observability import LOGGER_NAME, log, redact
 from .quality import QualityDecision, evaluate_event_quality
-from .runtime import RunContext
+from .runtime import ACTIVE_RUNTIME as _RUNTIME_STATE
+from .runtime import EventWindow, RunContext
+from .runtime import RuntimeState as _RuntimeState
 from .scoring import category_score, distance_score
 from .title_normalization import normalize_event_title
 
@@ -77,16 +79,6 @@ DESCRIPTION_MAX_CHARS = 700
 _SOURCE_CONTEXT = threading.local()
 _RUN_ID = ""
 _LOGGER = logging.getLogger(LOGGER_NAME)
-
-
-@dataclass(frozen=True, slots=True)
-class _RuntimeState:
-    settings: config.RuntimeConfig
-    run_id: str
-    logger: logging.Logger
-
-
-_RUNTIME_STATE: ContextVar[_RuntimeState | None] = ContextVar("nrw_events_runtime", default=None)
 
 
 def _runtime_state() -> _RuntimeState:
@@ -171,8 +163,8 @@ def configure_runtime(
     settings: config.RuntimeConfig, run_id: str, logger: logging.Logger,
 ) -> Token[_RuntimeState | None]:
     """Apply validated settings after the optional env file has been loaded."""
-    category_taxonomy.configure_fallback_cache(settings.category_fallback_cache)
-    return _RUNTIME_STATE.set(_RuntimeState(settings, run_id, logger))
+    cache = category_taxonomy.load_fallback_cache(settings.category_fallback_cache)
+    return _RUNTIME_STATE.set(_RuntimeState(settings, run_id, logger, category_cache=cache))
 
 
 def reset_runtime(token: Token[_RuntimeState | None]) -> None:
@@ -182,13 +174,19 @@ def reset_runtime(token: Token[_RuntimeState | None]) -> None:
 
 def configure_context(context: RunContext) -> Token[_RuntimeState | None]:
     """Compatibility composition hook while source adapters migrate to context."""
-    token = configure_runtime(context.settings, context.run_id, context.logger)
-    global DAYS_AHEAD, TODAY, END_DATE
-    DAYS_AHEAD = context.settings.days_ahead
-    TODAY = context.window.start
-    END_DATE = context.window.end
-    _configure_date_reference(TODAY)
-    return token
+    cache = category_taxonomy.load_fallback_cache(context.settings.category_fallback_cache)
+    return _RUNTIME_STATE.set(_RuntimeState(context.settings, context.run_id, context.logger, context.window, cache))
+
+
+def runtime_window() -> EventWindow:
+    """Return this worker's immutable window; retain direct-parser defaults."""
+    state = _RUNTIME_STATE.get()
+    return state.window if state is not None and state.window is not None else EventWindow(TODAY, END_DATE)
+
+
+def runtime_days_ahead() -> int:
+    state = _RUNTIME_STATE.get()
+    return state.settings.days_ahead if state is not None else DAYS_AHEAD
 
 
 def set_source_context(
@@ -1563,9 +1561,9 @@ def window_contains(start_dt: datetime | None, end_dt: datetime | None = None) -
     """Return whether a dated event overlaps the inclusive report window."""
     if start_dt is None:
         return False
-    window_end = END_DATE.replace(hour=23, minute=59, second=59, microsecond=999999)
+    window_end = runtime_window().end.replace(hour=23, minute=59, second=59, microsecond=999999)
     effective_end = end_dt or start_dt
-    return effective_end >= TODAY and start_dt <= window_end
+    return effective_end >= runtime_window().start and start_dt <= window_end
 
 
 def event_in_window(event: dict) -> bool:
@@ -2230,7 +2228,7 @@ def build_event(draft: EventDraft, *, _prepared: _QualityPreparation | None = No
     _record_parser_candidate(out_of_window=outside_window)
     canonical_venue, km, location_confidence, location_source = _prepared.location if _prepared else _event_location(city, venue, coords)
     date_text = start_dt.strftime("%Y-%m-%d") if start_dt else ""
-    ongoing = bool(start_dt and end_dt and start_dt < TODAY <= end_dt)
+    ongoing = bool(start_dt and end_dt and start_dt < runtime_window().start <= end_dt)
     time_text, time_note, all_day = _event_time_fields(
         start_dt, end_dt, time_text, time_note, all_day,
     )
@@ -3067,7 +3065,7 @@ def _ical_recurrence_starts(
         return [start], "unsupported ordinal or invalid RRULE BYDAY"
     weekdays = {_ICAL_WEEKDAYS[token] for token in byday_tokens}
 
-    window_end = END_DATE.replace(hour=23, minute=59, second=59, microsecond=999999)
+    window_end = runtime_window().end.replace(hour=23, minute=59, second=59, microsecond=999999)
     hard_end = min(window_end, until) if until else window_end
     cursor = start
     starts = []

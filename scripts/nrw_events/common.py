@@ -3,7 +3,7 @@
 New code should import the focused modules (``http``, ``text``,
 ``event_builder``, ``jsonld``, and ``ical``). The module alias preserves the
 historical mutable window/runtime state for adapters that still assign
-``common.TODAY`` in tests or embedding code.
+``common.runtime_window().start`` in tests or embedding code.
 """
 
 from __future__ import annotations

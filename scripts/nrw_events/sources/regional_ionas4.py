@@ -226,7 +226,7 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
     overrides = {
         tuple(entry["match"]): entry["value"]
         for entry in reviewed_corrections.active_entries(
-            "ionas4_occurrence_overrides", common.TODAY)
+            "ionas4_occurrence_overrides", common.runtime_window().start)
     }
     for item in _collapse_consecutive_all_day_items(items):
         start = common.parse_iso_date(item.get("start", ""))

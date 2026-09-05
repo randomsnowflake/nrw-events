@@ -39,8 +39,8 @@ def is_eligible(event: Mapping[str, object]) -> bool:
 
     start = common.parse_iso_date(str(event.get("start_date") or event.get("date") or ""))
     end = common.parse_iso_date(str(event.get("end_date") or "")) or start
-    if not start or not end or end < common.TODAY:
+    if not start or not end or end < common.runtime_window().start:
         return False
     if common.window_contains(start, end):
         return False
-    return start <= common.TODAY + timedelta(days=MAX_EARLY_DAYS)
+    return start <= common.runtime_window().start + timedelta(days=MAX_EARLY_DAYS)

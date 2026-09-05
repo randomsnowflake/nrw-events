@@ -125,7 +125,7 @@ def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
         # Shapehub removes detail pages at the start of their event date (HTTP
         # 410) while leaving the cards in the calendar. Keep today's cards
         # useful via the listing; future cards can link straight to details.
-        event_url = detail_url if start and start.date() > common.TODAY.date() else listing_url
+        event_url = detail_url if start and start.date() > common.runtime_window().start.date() else listing_url
         ev = common.make_event(
             rc.clean(title.group(1)),
             rc.with_time(start, text),
@@ -168,7 +168,7 @@ def _fetch_linz() -> list:
                 common.parse_iso_date(value)
                 for value in re.findall(r'/events/(20\d{2}-\d{2}-\d{2})-', html, re.I)
             ]
-            if dates and max(date for date in dates if date) >= common.END_DATE:
+            if dates and max(date for date in dates if date) >= common.runtime_window().end:
                 break
             next_page = re.search(
                 r'<li class="next"><a[^>]+href="([^"]+)"', html, re.S | re.I)

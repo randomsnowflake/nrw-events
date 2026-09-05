@@ -325,7 +325,7 @@ def _rex_datetime(match: re.Match, *, hour: int | None = None, minute: int | Non
                 year += 2000
             resolved = datetime(year, month, day)
         else:
-            resolution = resolve_yearless_date(day, month, common.TODAY)
+            resolution = resolve_yearless_date(day, month, common.runtime_window().start)
             if resolution is None:
                 return None
             resolved = resolution.value
@@ -460,10 +460,10 @@ def _events_from_stummfilmtage(html: str) -> list:
 
 def _fetch_filmhaus_events() -> list:
     berlin = ZoneInfo("Europe/Berlin")
-    window_start = common.TODAY.replace(
+    window_start = common.runtime_window().start.replace(
         hour=0, minute=0, second=0, microsecond=0, tzinfo=berlin,
     ).astimezone(timezone.utc)
-    window_end = common.END_DATE.replace(
+    window_end = common.runtime_window().end.replace(
         hour=23, minute=59, second=59, microsecond=999999, tzinfo=berlin,
     ).astimezone(timezone.utc)
     query = urllib.parse.urlencode({

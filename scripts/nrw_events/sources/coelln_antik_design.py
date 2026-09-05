@@ -46,7 +46,7 @@ _NORMALIZED_HOUR_RANGE = re.compile(
 
 def _plausible_year(value: int) -> bool:
     """Accept only years a hand-maintained schedule could legitimately name."""
-    return common.TODAY.year - 1 <= value <= common.TODAY.year + 3
+    return common.runtime_window().start.year - 1 <= value <= common.runtime_window().start.year + 3
 
 
 def _hour_range(text: str) -> str:

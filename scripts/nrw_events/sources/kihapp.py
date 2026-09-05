@@ -284,7 +284,7 @@ def fetch(*, listing_fetcher=None, detail_fetcher=None) -> list:
             next_page = _next_page(payload)
             if not next_page or next_page <= page:
                 break
-            if any(candidate["start"] > common.END_DATE for candidate in candidates):
+            if any(candidate["start"] > common.runtime_window().end for candidate in candidates):
                 break
             page = next_page
         except Exception as exc:

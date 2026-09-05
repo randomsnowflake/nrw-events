@@ -440,8 +440,8 @@ def _split_brotfabrik_prefix(prefix: str) -> tuple[str, str]:
 
 def _months_in_window() -> list[tuple[int, int]]:
     months = []
-    cursor = datetime(common.TODAY.year, common.TODAY.month, 1)
-    end = datetime(common.END_DATE.year, common.END_DATE.month, 1)
+    cursor = datetime(common.runtime_window().start.year, common.runtime_window().start.month, 1)
+    end = datetime(common.runtime_window().end.year, common.runtime_window().end.month, 1)
     while cursor <= end:
         months.append((cursor.month, cursor.year))
         year = cursor.year + (1 if cursor.month == 12 else 0)

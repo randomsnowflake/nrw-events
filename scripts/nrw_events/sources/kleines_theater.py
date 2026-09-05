@@ -17,8 +17,8 @@ _CONCERT_PATTERN = re.compile(
 
 
 def _month_starts() -> list[datetime]:
-    current = common.TODAY.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    end = common.END_DATE.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    current = common.runtime_window().start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    end = common.runtime_window().end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     months = []
     while current <= end:
         months.append(current)

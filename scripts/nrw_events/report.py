@@ -1556,8 +1556,8 @@ def format_report(events: list, *, window_start: datetime | None = None,
                   window_end: datetime | None = None, max_per_section: int = 0,
                   max_chars: int = 0, radius_km: float | None = None) -> str:
     """Render the deduplicated, scored event list into a grouped Markdown report."""
-    start = window_start or common.TODAY
-    end = window_end or common.END_DATE
+    start = window_start or common.runtime_window().start
+    end = window_end or common.runtime_window().end
     lines = [
         "# 🗓 Weekend Event Report",
         f"**{start.strftime('%A %d %b')} → {end.strftime('%A %d %b %Y')}**",

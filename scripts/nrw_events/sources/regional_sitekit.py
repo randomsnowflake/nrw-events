@@ -43,7 +43,7 @@ def _page_starts_after_window(html: str) -> bool:
         )
     ]
     dates = [value for value in dates if value]
-    return bool(dates) and min(dates) > common.END_DATE
+    return bool(dates) and min(dates) > common.runtime_window().end
 
 
 def _fetch_calendar(city: str, source_id: str, url: str, trust: float) -> list:

@@ -19,6 +19,7 @@ from typing import TypedDict, cast
 
 from . import performance
 from .models import normalize_source_id
+from .runtime import ACTIVE_RUNTIME
 
 _GERMAN_SPELLING_TRANSLATION = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
 _WORD_PATTERN = re.compile(r"\w+")
@@ -189,11 +190,15 @@ def category_cache_key(source_id: str, title: str) -> str:
 
 
 def configure_fallback_cache(path: str = "") -> None:
-    """Load reviewed fallback classifications without invoking any external service."""
+    """Configure compatibility defaults for callers without a run context."""
     global _FALLBACK_CACHE
+    _FALLBACK_CACHE = load_fallback_cache(path)
+
+
+def load_fallback_cache(path: str = "") -> dict[str, CategoryResult]:
+    """Load reviewed fallback classifications without invoking any external service."""
     if not path:
-        _FALLBACK_CACHE = {}
-        return
+        return {}
     payload = json.loads(Path(path).expanduser().read_text(encoding="utf-8"))
     entries = payload.get("entries") if isinstance(payload, dict) else None
     if not isinstance(payload, dict) or payload.get("version") != 1 or not isinstance(entries, dict):
@@ -215,11 +220,13 @@ def configure_fallback_cache(path: str = "") -> None:
             "confidence": float(confidence),
             "reason": f"fallback:cache:{raw.get('reason', 'reviewed')}",
         }
-    _FALLBACK_CACHE = loaded
+    return loaded
 
 
 def _fallback_category(source_id: str, title: str) -> CategoryResult | None:
-    return _FALLBACK_CACHE.get(category_cache_key(source_id, title))
+    state = ACTIVE_RUNTIME.get()
+    cache = state.category_cache if state is not None else _FALLBACK_CACHE
+    return cache.get(category_cache_key(source_id, title))
 
 
 def _contains_word(text: str, needle: str) -> bool:

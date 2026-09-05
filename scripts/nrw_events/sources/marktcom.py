@@ -232,7 +232,7 @@ def _page_starts_after_window(html: str) -> bool:
     """Results are date-ordered, so a page beyond the window ends pagination."""
     dates = [common.parse_date(value) for value in _DATE.findall(html or "")]
     dates = [value for value in dates if value]
-    return bool(dates) and min(dates) > common.END_DATE
+    return bool(dates) and min(dates) > common.runtime_window().end
 
 
 def _has_page(html: str, page: int) -> bool:

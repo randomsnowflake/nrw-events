@@ -2337,7 +2337,7 @@ def enrich_events(
 
     def candidate_priority(item: tuple[int, RawEvent]) -> tuple[bool, int, float, str]:
         index, target = item
-        today = common.TODAY.date()
+        today = common.runtime_window().start.date()
         try:
             start = datetime.fromisoformat(str(target.get("start_date") or target.get("date") or "")[:10]).date()
             end = datetime.fromisoformat(str(target.get("end_date") or target.get("start_date") or target.get("date") or "")[:10]).date()

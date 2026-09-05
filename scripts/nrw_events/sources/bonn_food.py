@@ -41,7 +41,7 @@ def fetch_bff() -> list:
 
 
 def fetch_vomfass() -> list | SourceFetchResult:
-    if common.TODAY.weekday() != 0:
+    if common.runtime_window().start.weekday() != 0:
         return SourceFetchResult.scheduled_skip(
             "weekly refresh runs on Mondays; retaining unexpired events"
         )

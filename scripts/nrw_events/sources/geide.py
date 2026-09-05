@@ -74,7 +74,7 @@ def _configured_hours(source_id: str, schedule_year: int) -> tuple[int, int] | N
     if fallback is None:
         return None
     valid_until = date.fromisoformat(fallback["valid_until"])
-    if common.TODAY.date() > valid_until or schedule_year != valid_until.year:
+    if common.runtime_window().start.date() > valid_until or schedule_year != valid_until.year:
         common.log_source_error(
             _SOURCE,
             RuntimeError(

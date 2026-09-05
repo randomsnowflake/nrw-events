@@ -79,8 +79,8 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
         return []
 
     year = schedule["year"]
-    window_start = max(common.TODAY.date(), datetime(year, 1, 1).date())
-    window_end = min(common.END_DATE.date(), datetime(year, 12, 31).date())
+    window_start = max(common.runtime_window().start.date(), datetime(year, 1, 1).date())
+    window_end = min(common.runtime_window().end.date(), datetime(year, 12, 31).date())
     if window_start > window_end:
         return []
 

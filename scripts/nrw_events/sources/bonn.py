@@ -806,7 +806,7 @@ _PRESS_MONTH_PATHS = (
 def _active_reviewed_map(group: str) -> dict[tuple[str, ...], object]:
     return {
         tuple(str(value) for value in entry["match"]): entry["value"]
-        for entry in reviewed_corrections.active_entries(group, common.TODAY)
+        for entry in reviewed_corrections.active_entries(group, common.runtime_window().start)
     }
 
 
@@ -820,8 +820,8 @@ def _press_urls(year: int) -> tuple[str, ...]:
 
 def _calendar_search_url(page: int = 1, *, free_only: bool = True) -> str:
     params = [
-        ("sp:dateFrom[]", common.TODAY.strftime("%Y-%m-%d")),
-        ("sp:dateTo[]", common.END_DATE.strftime("%Y-%m-%d")),
+        ("sp:dateFrom[]", common.runtime_window().start.strftime("%Y-%m-%d")),
+        ("sp:dateTo[]", common.runtime_window().end.strftime("%Y-%m-%d")),
         ("action", "submit"),
     ]
     if free_only:
@@ -1542,9 +1542,9 @@ def fetch_press_festivals() -> list:
     """
     source = "Bonn district festivals"
     # Try this year; from October onward also try next year's edition (published early).
-    years = [common.TODAY.year]
-    if common.TODAY.month >= 10:
-        years.append(common.TODAY.year + 1)
+    years = [common.runtime_window().start.year]
+    if common.runtime_window().start.month >= 10:
+        years.append(common.runtime_window().start.year + 1)
 
     events = []
     occurrence_corrections = _active_reviewed_map(

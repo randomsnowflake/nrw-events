@@ -114,7 +114,7 @@ def _events_from_pantheon(html: str) -> list:
         if "event-reschedule" not in body or not re.search(r"neuer\s+termin|verschoben", body, re.I)
     ), None)
     first_month = common.MONTH_DE.get(first_month_match.group(1).lower()) if first_month_match else None
-    current_year = _program_year_for_month(html, first_month, common.TODAY.year)
+    current_year = _program_year_for_month(html, first_month, common.runtime_window().start.year)
     last_month = 0
     for item in items:
         event_id, body = item
@@ -157,7 +157,7 @@ def _events_from_pantheon(html: str) -> list:
 def _events_from_rathausmusik(html: str) -> list:
     """Read the visually positioned band schedule without mixing neighbours."""
     schedules = reviewed_corrections.active_entries(
-        "rathausmusik_schedule", common.TODAY,
+        "rathausmusik_schedule", common.runtime_window().start,
     )
     if not schedules:
         return []

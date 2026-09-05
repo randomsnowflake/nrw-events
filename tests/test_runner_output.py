@@ -927,7 +927,7 @@ class RunnerOutputTests(unittest.TestCase):
     def test_source_worker_defers_ai_and_telemetry_to_publication_stage(self):
         event = {
             "title": "Event", "source": "Bonn.de Events",
-            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
         }
 
         with mock.patch.object(runner.ai_enrichment, "enrich_events") as enrich:
@@ -991,7 +991,7 @@ class RunnerOutputTests(unittest.TestCase):
         event = runner.validate_event({
             "title": "Event", "source": "Bonn.de Events",
             "source_id": "bonn-de-events",
-            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
         })
         result = SourceResult(
             "Bonn.de Events", source_id="bonn-de-events",
@@ -1018,7 +1018,7 @@ class RunnerOutputTests(unittest.TestCase):
         events = [
             runner.validate_event({
                 "title": title, "source": "Grouped source", "source_id": source_id,
-                "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0, "city": "Bonn",
             })
             for title, source_id in (
                 ("Civic event", "bonn-de-events"),
@@ -1041,7 +1041,7 @@ class RunnerOutputTests(unittest.TestCase):
             "title": "Discovered event", "source": "Radio Bonn/Rhein-Sieg",
             "source_id": "radio-bonn-rhein-sieg", "source_role": "discovery",
             "discovered_via": ["radio-bonn-rhein-sieg"],
-            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0,
             "city": "Bonn", "venue": "Marktplatz",
             "link": "https://www.radiobonn.de/artikel/tipps", "link_kind": "overview",
             "description": "Publisher prose must stay private.",
@@ -1115,7 +1115,7 @@ class RunnerOutputTests(unittest.TestCase):
         ) as validate:
             result, events = runner._run_source("Malformed", lambda: [
                 None,
-                {"title": "Event", "source": "Malformed", "date": common.TODAY.strftime("%Y-%m-%d"),
+                {"title": "Event", "source": "Malformed", "date": common.runtime_window().start.strftime("%Y-%m-%d"),
                  "score": 1.0, "city": "Bonn"},
             ])
 
@@ -1146,7 +1146,7 @@ class RunnerOutputTests(unittest.TestCase):
             "title": hostile_title,
             "source": "Spoofed\nSource",
             "source_id": "spoofed-source",
-            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"),
             "score": 1.0,
             "city": "Bonn",
             "link": "/invalid",
@@ -1191,7 +1191,7 @@ class RunnerOutputTests(unittest.TestCase):
         result, events = runner._run_source("Trusted Source", lambda: [{
             "title": "Invalid surrogate \ud800 title",
             "source": "Spoofed Source",
-            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"),
             "score": 1.0,
             "city": "Bonn",
             "link": "/invalid",
@@ -1203,7 +1203,7 @@ class RunnerOutputTests(unittest.TestCase):
         json.dumps(result.as_dict(), ensure_ascii=False).encode("utf-8")
 
     def test_runner_rejects_malformed_date_types_without_dropping_valid_siblings(self):
-        current_date = common.TODAY.strftime("%Y-%m-%d")
+        current_date = common.runtime_window().start.strftime("%Y-%m-%d")
         result, events = runner._run_source("Malformed", lambda: [
             {"title": "Bad start date", "source": "Malformed", "start_date": 123,
              "score": 1.0, "city": "Bonn"},
@@ -1316,7 +1316,7 @@ class SourceHealthTests(unittest.TestCase):
     def test_legacy_adapter_gets_source_level_parser_metrics(self):
         raw = {
             "title": "Event", "source": "Legacy direct fetch",
-            "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0,
             "city": "Bonn",
         }
 
@@ -1371,7 +1371,7 @@ class SourceHealthTests(unittest.TestCase):
 
     def test_runner_preserves_typed_partial_success(self):
         result, events = runner._run_source("Typed", lambda: SourceFetchResult.partial([
-            {"title": "Event", "source": "Typed", "date": common.TODAY.strftime("%Y-%m-%d"),
+            {"title": "Event", "source": "Typed", "date": common.runtime_window().start.strftime("%Y-%m-%d"),
              "score": 1.0, "city": "Bonn"},
         ], "one endpoint failed"))
         self.assertEqual(result.status, SourceStatus.DEGRADED)
@@ -2204,10 +2204,10 @@ class CrossRunRetentionTests(unittest.TestCase):
 class EventQualityTests(unittest.TestCase):
     def test_expected_quality_rejections_do_not_degrade_source_health(self):
         result, events = runner._run_source("Filtered", lambda: [
-            {"title": "Concert", "source": "Filtered", "date": common.TODAY.strftime("%Y-%m-%d"),
+            {"title": "Concert", "source": "Filtered", "date": common.runtime_window().start.strftime("%Y-%m-%d"),
              "score": 1.0, "city": "Bonn", "category": "konzert"},
             {"title": "Deutschkurs für Männer", "source": "Filtered",
-             "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+             "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0,
              "city": "Bonn", "category": "kurs"},
         ])
 
@@ -2224,12 +2224,12 @@ class EventQualityTests(unittest.TestCase):
         result, events = runner._run_source("Availability", lambda: [
             {
                 "title": "Belcanto", "source": "Availability",
-                "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0,
                 "city": "Bonn", "description": "Konzert – Ausverkauft",
             },
             {
                 "title": "Nachtwache", "source": "Availability",
-                "date": common.TODAY.strftime("%Y-%m-%d"), "score": 1.0,
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"), "score": 1.0,
                 "city": "Bonn",
                 "description": "Wenn die Türen geschlossen sind, beginnt das Escape Game.",
             },
@@ -2247,12 +2247,12 @@ class EventQualityTests(unittest.TestCase):
     def test_make_event_quality_drops_are_counted_by_named_rule(self):
         def fetch_events():
             kept = common.make_event(
-                "Sommerkonzert", common.TODAY, common.TODAY, "Club", "Bonn",
+                "Sommerkonzert", common.runtime_window().start, common.runtime_window().start, "Club", "Bonn",
                 "Live-Musik", "https://example.test/concert", "Measured Source",
                 "konzert",
             )
             dropped = common.make_event(
-                "Deutschkurs für Männer", common.TODAY, common.TODAY,
+                "Deutschkurs für Männer", common.runtime_window().start, common.runtime_window().start,
                 "Bürgerzentrum", "Bonn", "Sprachkurs",
                 "https://example.test/course", "Measured Source", "kurs",
             )
@@ -2271,7 +2271,7 @@ class EventQualityTests(unittest.TestCase):
         def fetch_events():
             return [{
                 "title": title,
-                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"),
                 "venue": "Stadthalle",
                 "city": "Köln",
                 "description": "Comic- und Manga-Convention",
@@ -2297,7 +2297,7 @@ class EventQualityTests(unittest.TestCase):
         title = "Hostile\n\x00\ud800" + ("💥" * 10_000) + " und"
         result, events = runner._run_source("Trusted Adapter", lambda: [{
             "title": title,
-            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"),
             "venue": "Club",
             "city": "Bonn",
             "link": "https://example.test/event",
@@ -2318,7 +2318,7 @@ class EventQualityTests(unittest.TestCase):
     def test_raw_source_cannot_spoof_source_specific_truncation_detection(self):
         result, events = runner._run_source("Trusted Adapter", lambda: [{
             "title": "A sufficiently long source teaser ending...",
-            "date": common.TODAY.strftime("%Y-%m-%d"),
+            "date": common.runtime_window().start.strftime("%Y-%m-%d"),
             "venue": "Club",
             "city": "Bonn",
             "link": "https://example.test/event",
@@ -2342,7 +2342,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         def fetch_event():
             return [{
                 "title": "Concert",
-                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"),
                 "time": "20:00",
                 "venue": "Club",
                 "city": "Bonn",
@@ -2390,7 +2390,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         def fetch_event():
             return [{
                 "title": "Concert",
-                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"),
                 "time": "20:00",
                 "venue": "Club",
                 "city": "Bonn",
@@ -2464,7 +2464,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         def fetch_event():
             return [{
                 "title": "Concert",
-                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"),
                 "time": "20:00",
                 "venue": "Club",
                 "city": "Bonn",
@@ -2576,7 +2576,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         def fetch_event():
             return [{
                 "title": "Concert",
-                "date": common.TODAY.strftime("%Y-%m-%d"),
+                "date": common.runtime_window().start.strftime("%Y-%m-%d"),
                 "time": "20:00",
                 "venue": "Club",
                 "city": "Bonn",
@@ -2612,7 +2612,7 @@ class SnapshotPublicationTests(unittest.TestCase):
     def test_invalid_source_records_are_quarantined_with_reason_counts(self):
         def mixed_fetch():
             return [{
-                "title": "Valid", "date": common.TODAY.strftime("%Y-%m-%d"), "time": "", "venue": "", "city": "Bonn",
+                "title": "Valid", "date": common.runtime_window().start.strftime("%Y-%m-%d"), "time": "", "venue": "", "city": "Bonn",
                 "description": "", "price": "", "link": "https://example.test", "distance_km": 0,
                 "score": 1.0, "source": "Mixed", "category": "concert",
             }, {"title": "Invalid", "score": 1.0, "source": "Mixed"}]
@@ -2671,8 +2671,8 @@ class SnapshotPublicationTests(unittest.TestCase):
     def test_repair_descriptions_do_not_trigger_nightlife_bucket(self):
         event = common.make_event(
             "Repair Café MVA Bonn - Fahrrad, Geräte, Nähen",
-            common.TODAY.replace(hour=18, minute=30),
-            common.TODAY.replace(hour=20, minute=30),
+            common.runtime_window().start.replace(hour=18, minute=30),
+            common.runtime_window().start.replace(hour=20, minute=30),
             "Repair Café MVA Bonn",
             "Bonn",
             "SMD Löttechnik sowie Akku-Technologien sind ein wichtiges Thema.",
@@ -2689,7 +2689,7 @@ class SnapshotPublicationTests(unittest.TestCase):
 
     def test_report_escapes_remote_markdown_and_wraps_links(self):
         event = common.make_event(
-            "# Stern_*[Titel]`", common.TODAY, common.TODAY,
+            "# Stern_*[Titel]`", common.runtime_window().start, common.runtime_window().start,
             "Saal_[1]", "Bonn", "Text_mit *Markup* und `Code`.",
             "https://example.test/a_(b)", "Source_[remote]", "Konzert",
         )
@@ -2706,7 +2706,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         events = []
         for index in range(12):
             event = common.make_event(
-                f"Konzert {index}", common.TODAY, common.TODAY,
+                f"Konzert {index}", common.runtime_window().start, common.runtime_window().start,
                 "Saal", "Bonn", "Lange Beschreibung " * 20,
                 f"https://example.test/{index}", "Source", "Konzert",
             )

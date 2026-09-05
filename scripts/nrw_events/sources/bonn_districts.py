@@ -42,7 +42,7 @@ _ST_JOSEF_PARISH_HOST = "katholisch-an-rhein-und-sieg.de"
 def _active_reviewed_map(group: str) -> dict[tuple[str, ...], object]:
     return {
         tuple(str(value) for value in entry["match"]): entry["value"]
-        for entry in reviewed_corrections.active_entries(group, common.TODAY)
+        for entry in reviewed_corrections.active_entries(group, common.runtime_window().start)
     }
 
 
@@ -533,7 +533,7 @@ def _canonical_beuel_primary_venue(event: dict, source: str) -> None:
 def _reviewed_beuel_primary_link(event: dict, link: str) -> str:
     normalized_link = link.rstrip("/")
     programme_entries = reviewed_corrections.active_entries(
-        "beuel_mirecourtplatz_programme", common.TODAY,
+        "beuel_mirecourtplatz_programme", common.runtime_window().start,
     )
     programme = programme_entries[0] if programme_entries else None
     if (
@@ -608,7 +608,7 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
 def _fetch_beuel_primary(url: str) -> str:
     kwargs = {}
     burg_entries = reviewed_corrections.active_entries(
-        "burg_lede_programme", common.TODAY,
+        "burg_lede_programme", common.runtime_window().start,
     )
     burg_url = str(burg_entries[0]["value"]) if burg_entries else ""
     if burg_url and url.rstrip("/") == burg_url.rstrip("/"):
@@ -797,8 +797,8 @@ def fetch_hardtberg() -> list:
     source = "Hardtberg Kultur"
     params = urllib.parse.urlencode({
         "per_page": 100,
-        "after": common.TODAY.strftime("%Y-%m-%dT00:00:00"),
-        "before": common.END_DATE.strftime("%Y-%m-%dT23:59:59"),
+        "after": common.runtime_window().start.strftime("%Y-%m-%dT00:00:00"),
+        "before": common.runtime_window().end.strftime("%Y-%m-%dT23:59:59"),
         "orderby": "date",
         "order": "asc",
         "_fields": "date,link,title,content,excerpt",

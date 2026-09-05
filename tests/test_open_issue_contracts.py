@@ -127,7 +127,12 @@ class OpenIssueContractTests(unittest.TestCase):
             common._SOURCE_CONTEXT.result.cancelled_events.append(dict(raw_cancellation))
             return [raw_cancellation]
 
-        result, events = runner._run_source("Official Calendar", fetch)
+        context = RunContext(config.RuntimeConfig(), EventWindow.from_days(3, datetime(2026, 8, 15)), 'cancellation', configure_logging('cancellation', 'ERROR', '', ''))
+        token = common.configure_context(context)
+        try:
+            result, events = runner._run_source("Official Calendar", fetch)
+        finally:
+            common.reset_runtime(token)
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].title, "Sommerfest")

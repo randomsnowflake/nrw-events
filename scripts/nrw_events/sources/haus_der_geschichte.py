@@ -160,8 +160,8 @@ def guided_tours_from_html(html: str) -> list:
         definitions.append((title, weekdays, int(time_match.group(1)), int(time_match.group(2) or 0), link))
 
     events = []
-    cursor = common.TODAY
-    while cursor <= common.END_DATE:
+    cursor = common.runtime_window().start
+    while cursor <= common.runtime_window().end:
         for title, weekdays, hour, minute, link in definitions:
             if cursor.weekday() not in weekdays:
                 continue

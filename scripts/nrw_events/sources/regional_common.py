@@ -343,7 +343,7 @@ def with_time(dt, text: str):
 
 def date_for_window(day: int, month: int):
     """Resolve a yearless date through the shared rollover/grace policy."""
-    resolution = resolve_yearless_date(day, month, common.TODAY)
+    resolution = resolve_yearless_date(day, month, common.runtime_window().start)
     return resolution.value if resolution else None
 
 
@@ -418,8 +418,8 @@ def range_dates(text: str):
     if compact_range:
         start_day, end_day, month, year = compact_range.groups()
         end_text = f"{end_day}.{month}.{year or ''}"
-        end = common.parse_date(end_text, reference_date=common.TODAY)
-        reference = end or common.TODAY
+        end = common.parse_date(end_text, reference_date=common.runtime_window().start)
+        reference = end or common.runtime_window().start
         start = common.parse_date(
             f"{start_day}.{month}.{year or ''}", reference_date=reference,
         )
@@ -432,11 +432,11 @@ def range_dates(text: str):
     last_year = re.search(r"(20\d{2})$", last)
     if not re.search(r"20\d{2}$", first) and last_year:
         first = f"{first}{last_year.group(1)}"
-    start = common.parse_date(first, reference_date=common.TODAY)
+    start = common.parse_date(first, reference_date=common.runtime_window().start)
     later_dates = [
         parsed
         for raw in dates[1:]
-        if (parsed := common.parse_date(raw, reference_date=start or common.TODAY)) and start and parsed > start
+        if (parsed := common.parse_date(raw, reference_date=start or common.runtime_window().start)) and start and parsed > start
     ]
     end = max(later_dates, default=None)
     return start, end

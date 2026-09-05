@@ -225,9 +225,9 @@ def _fetch_program_events(source: str) -> list:
     for name, value in fields:
         dated_value = value
         if name.endswith("[startDate]"):
-            dated_value = common.TODAY.strftime("%Y-%m-%d")
+            dated_value = common.runtime_window().start.strftime("%Y-%m-%d")
         elif name.endswith("[endedBeforeDate]"):
-            dated_value = common.END_DATE.strftime("%Y-%m-%d")
+            dated_value = common.runtime_window().end.strftime("%Y-%m-%d")
         dated_fields.append((name, dated_value))
     api_url = common.urllib.parse.urljoin(_EVENTS_URL, api_path)
     payload = common.post_form(
@@ -259,7 +259,7 @@ def _fetch_exhibitions(source: str) -> list:
         # Treat as an exhibition spanning [start, end]; make_event keeps it if the
         # span overlaps the window. Open-start exhibitions use TODAY as start.
         ev = common.make_event(
-            title, start_dt or common.TODAY, end_dt,
+            title, start_dt or common.runtime_window().start, end_dt,
             "Bundeskunsthalle", "Bonn",
             "Museum Mile, Helmut-Kohl-Allee 4", link,
             source, "exhibition museum art", 1.0,

@@ -1,12 +1,13 @@
 import os
 import tempfile
+import threading
 import unittest
 from contextvars import copy_context
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-from nrw_events import common, config, report
+from nrw_events import common, config, dates, report
 from nrw_events.health import SourceResult, SourceStatus
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
@@ -160,3 +161,36 @@ class RuntimeConfigTests(unittest.TestCase):
         result.finish([])
 
         self.assertEqual(result.status, SourceStatus.PARSER_EMPTY)
+
+
+class RunWindowIsolationTests(unittest.TestCase):
+    def test_overlapping_and_late_workers_keep_their_original_window(self):
+        original = common.runtime_window()
+        logger = configure_logging('isolation', 'ERROR', '', '')
+        first = RunContext(config.RuntimeConfig(days_ahead=2), EventWindow.from_days(2, datetime(2030, 1, 1)), 'first', logger)
+        second = RunContext(config.RuntimeConfig(days_ahead=5), EventWindow.from_days(5, datetime(2040, 1, 1)), 'second', logger)
+        token = common.configure_context(first)
+        worker_context = copy_context()
+        common.reset_runtime(token)
+        self.assertEqual(common.runtime_window(), original)
+        completed = threading.Event()
+        release = threading.Event()
+        observed = []
+        def late_worker():
+            release.wait(2)
+            observed.append((common.runtime_window(), dates.parse_date('2. Januar'), common._runtime_state().run_id, common.runtime_days_ahead()))
+            completed.set()
+        worker = threading.Thread(target=worker_context.run, args=(late_worker,))
+        worker.start()
+        token = common.configure_context(second)
+        try:
+            self.assertEqual(dates.parse_date('2. Januar'), datetime(2040, 1, 2))
+            release.set()
+            self.assertTrue(completed.wait(2))
+            self.assertEqual(common.runtime_window(), second.window)
+        finally:
+            common.reset_runtime(token)
+            release.set()
+            worker.join(2)
+        self.assertEqual(observed, [(first.window, datetime(2030, 1, 2), 'first', 2)])
+        self.assertEqual(common.runtime_window(), original)

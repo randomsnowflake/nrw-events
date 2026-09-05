@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
+
+if TYPE_CHECKING:
+    from .category_taxonomy import CategoryResult
 
 from .config import RuntimeConfig
 
@@ -38,3 +43,16 @@ class RunContext:
     run_id: str
     logger: logging.Logger
     clock: Callable[[], datetime] = local_now
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeState:
+    """Dependencies inherited by worker contexts and reset with one token."""
+    settings: RuntimeConfig
+    run_id: str
+    logger: logging.Logger
+    window: EventWindow | None = None
+    category_cache: dict[str, CategoryResult] = field(default_factory=dict)
+
+
+ACTIVE_RUNTIME: ContextVar[RuntimeState | None] = ContextVar('nrw_events_runtime', default=None)
