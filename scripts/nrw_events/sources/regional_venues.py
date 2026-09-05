@@ -302,7 +302,12 @@ def _events_from_lvr(html: str) -> list:
 
 
 def _event_from_lvr_body(body: str):
-    text = rc.clean(body)
+    # The listing's navigation anchor is not publisher-authored event copy.
+    # Remove by class rather than deleting legitimate prose ending in 'mehr'.
+    copy_body = re.sub(
+        r'<a\b[^>]*class=["\']more["\'][^>]*>.*?</a>', '', body, flags=re.S | re.I,
+    )
+    text = rc.clean(copy_body)
     href = re.search(r'<a class="more"[^>]+href="([^"]+)"', body, re.S | re.I)
     data = re.search(r'data-filter-list="([^"]+)"', body, re.S | re.I)
     hay = rc.clean(data.group(1) if data else text)

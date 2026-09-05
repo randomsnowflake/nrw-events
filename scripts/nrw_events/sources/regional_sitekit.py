@@ -245,8 +245,14 @@ def _visible_venue_context(html: str) -> dict[str, str]:
         lines.pop(0)
     if "Kontakt" in lines:
         lines = lines[:lines.index("Kontakt")]
+    # SiteKit's contact card repeats its heading/place name and includes a
+    # Maps action with screen-reader text. None of those are address lines.
+    lines = [line for line in lines if line.casefold() != "ort" and not re.match(
+        r"^(?:Karte öffnen\b|\(Öffnet in einem neuen Tab\))", line, re.I,
+    )]
     if not lines:
         return {}
+    lines = [lines[0], *(line for line in lines[1:] if line != lines[0])]
 
     if len(lines) == 1:
         parts = [part.strip() for part in lines[0].split(",") if part.strip()]

@@ -1632,7 +1632,10 @@ def fetch_press_festivals() -> list:
                             "source_id": "bonn-de-events",
                             "discovered_via": ["bonn-district-festivals"],
                         })
-                        ev.update(primary_event_overrides.get(occurrence_key, {}))
+                    # Reviewed programme facts need not change source ownership.
+                    # In particular an official PDF can enrich a press occurrence
+                    # without pretending that it is a Bonn.de event detail.
+                    ev.update(primary_event_overrides.get(occurrence_key, {}))
                     events.append(ev)
     deduped = []
     seen = set()

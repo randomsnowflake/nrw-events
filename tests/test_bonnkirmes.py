@@ -61,7 +61,12 @@ class BonnKirmesSourceTests(unittest.TestCase):
         self.assertTrue(all(event["source"] == "Kirmes in Bonn" for event in events))
         self.assertTrue(all(event["source_id"] == "bonnkirmes" for event in events))
         self.assertTrue(all(event["category_key"] == "festival" for event in events))
-        self.assertTrue(all(event["link"] == "https://www.bonnkirmes.com/" for event in events))
+        self.assertEqual([event["link"] for event in events], [
+            "https://www.bonnkirmes.com/",
+            "https://www.bonnkirmes.com/",
+            "https://www.bonnkirmes.com/",
+            "https://www.ofa-duisdorf.de/kirmes",
+        ])
         self.assertIn("Karfreitag ist geschlossen", events[0]["description"])
         self.assertIn("Öffnungszeiten", events[0]["description"])
 

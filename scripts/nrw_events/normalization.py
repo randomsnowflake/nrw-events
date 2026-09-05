@@ -149,7 +149,7 @@ VENUE_REGISTRY: tuple[VenueRecord, ...] = (
     _venue("museum-koenig-bonn", "Museum Koenig Bonn", "Museum Koenig", "Zoologisches Forschungsmuseum Alexander Koenig", city="Bonn", district="Bonn-Gronau", venue_type="museum", address="Adenauerallee 160, 53113 Bonn", coordinates=(50.7221437, 7.1134825)),
     _venue("lvr-landesmuseum-bonn", "LVR-LandesMuseum Bonn", "LVR-LandesMuseum", city="Bonn", venue_type="museum"),
     _venue("interim-zentralbibliothek-koeln", "Interim Zentralbibliothek", city="Köln", venue_type="library"),
-    _venue("brueckenforum-bonn", "Brückenforum Bonn", "Brückenforum", city="Bonn", district="Bonn-Beuel", venue_type="event_venue"),
+    _venue("brueckenforum-bonn", "Brückenforum Bonn", "Brückenforum", "Brückenforum GmbH", city="Bonn", district="Bonn-Beuel", venue_type="event_venue"),
     _venue("arkadenhof-universitaet-bonn", "Arkadenhof Universität Bonn", city="Bonn", venue_type="university"),
     _venue("kult41", "KULT41", city="Bonn", venue_type="cultural_center"),
     _venue("selbstwerk-bonn", "Selbstwerk Bonn", city="Bonn", venue_type="workshop"),
@@ -270,7 +270,11 @@ def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | Non
     if first_segment and first_segment != value:
         candidates.append(first_segment)
     for candidate in candidates:
-        locations = _VERIFIED_LOCATION_BY_ALIAS.get(comparison_text(candidate), [])
+        candidate_key = comparison_text(candidate)
+        # Registry uniqueness does not establish locality for a generic plaza.
+        if not city and candidate_key == "schuetzenplatz":
+            continue
+        locations = _VERIFIED_LOCATION_BY_ALIAS.get(candidate_key, [])
         for location in locations:
             if city and not _compatible_city(location.city, city):
                 continue

@@ -160,14 +160,20 @@
       "city": "Bad Honnef",
       "venue": "Ziepchensplatz, Bad Honnef-Rhöndorf",
       "address": "Löwenburgstr. 21, 53604 Bad Honnef-Rhöndorf",
-      "latitude": 50.6596297,
-      "longitude": 7.213198,
-      "checkedAt": "2026-08-01",
+      "latitude": 50.6593944,
+      "longitude": 7.2129747,
+      "checkedAt": "2026-09-05",
       "evidence": {
-        "eventUrl": "https://meinbadhonnef.de/kalender/veranstaltungen/2026/august/2026-08-28-freiluftgalerie-rhoendorf/21682:0",
-        "osmUrl": "https://www.openstreetmap.org/way/858498222",
-        "method": "source address matched postcode, house number, street and municipality"
-      }
+        "eventUrl": "https://meinbadhonnef.de/kalender/veranstaltungen/2026/september/2026-09-04-57.-rhoendorfer-weinfest/20692:0",
+        "mapUrl": "https://www.openstreetmap.org/node/14078862702",
+        "osmUrl": "https://www.openstreetmap.org/node/14078862702",
+        "method": "Municipal event explicitly names Ziepchensplatz; matched named OSM marketplace and corroborating Google Places square. Replaces prior house-number geocode of residential building Löwenburgstraße 21 with actual square.",
+        "checkedAt": "2026-09-05"
+      },
+      "aliases": [
+        "Ziepchensplatz",
+        "Ziepchesplatz"
+      ]
     },
     {
       "city": "Bad Münstereifel",
@@ -275,6 +281,26 @@
     },
     {
       "city": "Bonn",
+      "venue": "Brückenforum Bonn",
+      "address": "Friedrich-Breuer-Straße 17, 53225 Bonn",
+      "latitude": 50.7387911,
+      "longitude": 7.115840899999999,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://bonn.jetzt/event/pinoy-fiesta",
+        "mapUrl": "https://maps.google.com/?cid=10583679500549885178",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address. Official venue visitor address independently confirmed. Reject Bonn.jetzt point (50.739, 7.11902), which lies east of the building; use exact-address Brückenforum GmbH Places result.",
+        "checkedAt": "2026-09-05",
+        "corroboratingUrl": "https://www.brueckenforum.de/anfahrt/"
+      },
+      "aliases": [
+        "Brückenforum GmbH",
+        "Brückenforum"
+      ]
+    },
+    {
+      "city": "Bonn",
       "venue": "Café P26",
       "address": "Poststraße 26, 53111 Bonn",
       "latitude": 50.7337311,
@@ -349,6 +375,38 @@
         "eventUrl": "https://www.deutsches-museum.de/bonn/programm/veranstaltung/mitgliederfuehrung-besuch-im-teilchenzoo",
         "osmUrl": "https://www.openstreetmap.org/node/31768100",
         "method": "venue name and municipality matched"
+      }
+    },
+    {
+      "city": "Bonn",
+      "venue": "Dorfplatz Buschdorf",
+      "address": "Otto-Hahn-Straße 95-103, 53117 Bonn",
+      "latitude": 50.7578225,
+      "longitude": 7.0529762,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+        "mapUrl": "https://maps.google.com/?cid=13887165438118677073",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address.",
+        "checkedAt": "2026-09-05",
+        "corroboratingUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
+      }
+    },
+    {
+      "city": "Bonn",
+      "venue": "Europaplatz an der Rochusstraße",
+      "address": "Rochusstraße, 53123 Bonn",
+      "latitude": 50.71627008,
+      "longitude": 7.05092157,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.bonnkirmes.com/",
+        "mapUrl": "https://www.google.com/maps/search/?api=1&query=50.71627008,7.05092157",
+        "osmUrl": "",
+        "method": "Europaplatz site anchor at Europa-Säule: KiöR Bonn's artwork page explicitly embeds 50.71627008,7.05092157 and names Rochusstraße/Villemombler Straße. The municipal artwork inventory (Yumpu mirror: https://www.yumpu.com/de/document/view/4744370/bonn-kunstwerke-im-offentlichen-raum-nach-1945) locates Europa-Säule at Duisdorf Europaplatz. GA's 2018 streetworks report independently identifies Europaplatz as that junction (https://ga.de/bonn/hardtberg/naechste-baustelle-sorgt-fuer-stau-in-duisdorf_aid-43871059). This replaces the distinct Rochusplatz park centre, OSM way 14388044; not a fair entrance or a whole-fair centroid.",
+        "checkedAt": "2026-09-05",
+        "corroboratingUrl": "https://kioer-bonn.de/kunstwerke-details/adlesi%C4%8D-wenzel-europa-saeule"
       }
     },
     {
@@ -509,6 +567,24 @@
     },
     {
       "city": "Bonn",
+      "venue": "Markt Bonn",
+      "address": "Markt 53111 Bonn",
+      "latitude": 50.7353141,
+      "longitude": 7.1018176,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.beethovenfest.de/de/programm-tickets/buhne-frei-fur-beethoven/816",
+        "mapUrl": "https://maps.google.com/?cid=10048972688740018629",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address.",
+        "checkedAt": "2026-09-05"
+      },
+      "aliases": [
+        "Marktplatz Bonn"
+      ]
+    },
+    {
+      "city": "Bonn",
       "venue": "Max7 Altstadt",
       "address": "Maxstr. 7",
       "latitude": 50.7383299,
@@ -535,6 +611,22 @@
     },
     {
       "city": "Bonn",
+      "venue": "Muffendorfer Hauptstraße",
+      "address": "Muffendorfer Hauptstraße, 53177 Bonn",
+      "latitude": 50.671572,
+      "longitude": 7.1603755,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://bergfunken.de/wp-content/uploads/2026/01/BF-Journal-2025-2026-Doppelseiten-Web.pdf#page=90",
+        "mapUrl": "https://maps.google.com/?cid=2433245249163262695",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address. Representative point of festival street, not a specific entrance or the separate programme at house 11a.",
+        "checkedAt": "2026-09-05",
+        "corroboratingUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
+      }
+    },
+    {
+      "city": "Bonn",
       "venue": "Museum Koenig",
       "address": "",
       "latitude": 50.7221437,
@@ -557,6 +649,21 @@
         "eventUrl": "https://bonn.leibniz-lib.de/de/veranstaltungen/wir-lesen-vor-maerchen-und-geschichten-fuer-kids-ab-4-jahren-3.html",
         "osmUrl": "https://www.openstreetmap.org/way/24873000",
         "method": "venue name and municipality matched"
+      }
+    },
+    {
+      "city": "Bonn",
+      "venue": "Möhneplatz",
+      "address": "Rathausstraße, 53225 Bonn",
+      "latitude": 50.7393914,
+      "longitude": 7.1198711,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://beuel.net/2026/06/18/beuelfest-und-promenadenfest-finden-2026-gemeinsam-statt-jetzt-mitmachen/",
+        "mapUrl": "https://maps.google.com/?cid=4468314771462483703",
+        "osmUrl": "",
+        "method": "Official event explicitly names this component; name and municipality matched Google Places named square. Map marks the Möhneplatz stage component only. Joint Beuelfest/Promenadenfest also spans the riverfront. Never alias Beuel-Zentrum to this square.",
+        "checkedAt": "2026-09-05"
       }
     },
     {
@@ -600,6 +707,25 @@
     },
     {
       "city": "Bonn",
+      "venue": "Park am Kettelerplatz",
+      "address": "Am Kettelerplatz, 53121 Bonn",
+      "latitude": 50.7379347,
+      "longitude": 7.0487661,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+        "mapUrl": "https://www.openstreetmap.org/way/48866010",
+        "osmUrl": "https://www.openstreetmap.org/way/48866010",
+        "method": "Municipal event explicitly names Park am Kettelerplatz; matched named OSM Kettelerplatz park (not the adjacent residential street). Representative park centre, not an entrance.",
+        "checkedAt": "2026-09-05",
+        "corroboratingUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
+      },
+      "aliases": [
+        "Kettelerplatz"
+      ]
+    },
+    {
+      "city": "Bonn",
       "venue": "Poppelsdorfer Allee / Ecke Prinz-Albert-Straße",
       "address": "",
       "latitude": 50.7303455,
@@ -639,6 +765,22 @@
     },
     {
       "city": "Bonn",
+      "venue": "Rheinufer Beuel, China-Schiff bis Bahnhöfchen",
+      "address": "",
+      "latitude": 50.7376622,
+      "longitude": 7.1133741,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://beuel.net/2026/06/18/beuelfest-und-promenadenfest-finden-2026-gemeinsam-statt-jetzt-mitmachen/",
+        "mapUrl": "https://www.openstreetmap.org/way/31261778",
+        "osmUrl": "https://www.openstreetmap.org/way/31261778",
+        "method": "Municipal calendar bounds this event riverfront from China-Schiff to Bahnhöfchen; organizer confirms riverfront participation. OSM Hans-Steger-Ufer footway segment centre represents this riverfront area, not an entrance, Möhneplatz, Brückenforum, or southern Rheinaue.",
+        "checkedAt": "2026-09-05",
+        "corroboratingUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
+      }
+    },
+    {
+      "city": "Bonn",
       "venue": "Sportpark Nord",
       "address": "",
       "latitude": 50.7478558,
@@ -665,6 +807,21 @@
     },
     {
       "city": "Bonn",
+      "venue": "Tierheim Bonn",
+      "address": "Lambareneweg 2, 53119 Bonn",
+      "latitude": 50.7389298,
+      "longitude": 7.072011499999999,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Sommerfest-im-Tierheim.php",
+        "mapUrl": "https://maps.google.com/?cid=17153376042578531947",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address.",
+        "checkedAt": "2026-09-05"
+      }
+    },
+    {
+      "city": "Bonn",
       "venue": "TiK – Theater im Keller",
       "address": "",
       "latitude": 50.7211294,
@@ -677,6 +834,25 @@
       },
       "aliases": [
         "TiK Theater Im Keller"
+      ]
+    },
+    {
+      "city": "Bonn",
+      "venue": "Treffpunkt: Bonn-Information",
+      "address": "Windeckstraße 1, 53111 Bonn",
+      "latitude": 50.7345333,
+      "longitude": 7.0980444,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/bonn-information/tor-zum-romantischen-rhein.php",
+        "mapUrl": "https://maps.google.com/?cid=4143898475035764413",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address.",
+        "checkedAt": "2026-09-05"
+      },
+      "aliases": [
+        "Bonn-Information",
+        "Bonn Information"
       ]
     },
     {
@@ -1019,6 +1195,21 @@
     },
     {
       "city": "Bornheim",
+      "venue": "Kirchplatz Hersel",
+      "address": "Rheinstraße 204, 53332 Bornheim",
+      "latitude": 50.7742356,
+      "longitude": 7.0447758,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://lupe-events.de/event/kirmes-hersel-in-2026",
+        "mapUrl": "https://maps.google.com/?cid=9026018119396363597",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address. St. Aegidius site pin at organizer address Rheinstraße 204 represents the Kirchplatz site, not an indoor church event or exact fair entrance; OSM church building separately lists 206.",
+        "checkedAt": "2026-09-05"
+      }
+    },
+    {
+      "city": "Bornheim",
       "venue": "PORTA",
       "address": "Alexander-Bell-Straße 2",
       "latitude": 50.7589536,
@@ -1252,6 +1443,25 @@
       }
     },
     {
+      "city": "Dransdorf",
+      "venue": "Park am Kettelerplatz",
+      "address": "Am Kettelerplatz, 53121 Bonn",
+      "latitude": 50.7379347,
+      "longitude": 7.0487661,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+        "mapUrl": "https://www.openstreetmap.org/way/48866010",
+        "osmUrl": "https://www.openstreetmap.org/way/48866010",
+        "method": "Municipal event explicitly names Park am Kettelerplatz; matched named OSM Kettelerplatz park (not the adjacent residential street). Representative park centre, not an entrance. Locality spelling compatibility for production city=Dransdorf; same verified park as Bonn-Dransdorf, not a second physical venue.",
+        "checkedAt": "2026-09-05",
+        "corroboratingUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php"
+      },
+      "aliases": [
+        "Kettelerplatz"
+      ]
+    },
+    {
       "city": "Eitorf",
       "venue": "Sängerheim",
       "address": "Parkstr. 12, 53783 Eitorf",
@@ -1341,6 +1551,24 @@
         "osmUrl": "https://www.openstreetmap.org/way/168997861",
         "method": "source address matched postcode, house number, street and municipality"
       }
+    },
+    {
+      "city": "Euskirchen",
+      "venue": "Flohmarkt Roller Euskirchen",
+      "address": "Gottfried-Schenker-Str. 8",
+      "latitude": 50.6481055,
+      "longitude": 6.8027497,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.marktcom.de/veranstaltung/flohmarkt-roller-euskirchen-gottfried-schenker-str-8-in-53879-euskirchen-roitzheim",
+        "mapUrl": "https://maps.google.com/?cid=10368251432106850553",
+        "osmUrl": "",
+        "method": "Event venue and municipality matched Google Places name and postal address.",
+        "checkedAt": "2026-09-05"
+      },
+      "aliases": [
+        "ROLLER Euskirchen"
+      ]
     },
     {
       "city": "Grafschaft",
@@ -2107,6 +2335,21 @@
         "eventUrl": "https://www.roesrath.de/kalender/2026/q3/august/2026-08-09-ausstellung-metamorphose-in-der-bildungswerkstatt/17683:0",
         "osmUrl": "https://www.openstreetmap.org/way/110134435",
         "method": "venue name and municipality matched"
+      }
+    },
+    {
+      "city": "Rösrath",
+      "venue": "Schützenplatz",
+      "address": "",
+      "latitude": 50.8943563,
+      "longitude": 7.1828993,
+      "checkedAt": "2026-09-05",
+      "evidence": {
+        "eventUrl": "https://www.roesrath.de/kalender/2026/q3/september/2026-09-06-stadtfest-und-schuetzenfest-in-roesrath/17422:0",
+        "mapUrl": "https://www.openstreetmap.org/way/32546944",
+        "osmUrl": "https://www.openstreetmap.org/way/32546944",
+        "method": "Official event explicitly names this component; name and municipality matched OSM named square. Map marks the Schützenplatz fairground component only. The event also spans the town-centre festival mile and Scharrenbroicher Straße. Never alias Rösrath-Mitte to this square.",
+        "checkedAt": "2026-09-05"
       }
     },
     {

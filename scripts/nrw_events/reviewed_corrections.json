@@ -15,7 +15,64 @@
         "evidence": "Reviewed Bonn event calendar detail page"
       }
     ],
+    "ionas4_occurrence_overrides": [
+      {
+        "match": ["ionas4-ruppichteroth", "Röttgen Rockt", "2026-09-04", "2026-09-05"],
+        "value": {
+          "city": "Much",
+          "venue": "Festzelt Bruchhausen Röttgen",
+          "venue_address": "Bruchhausen, 53804 Much",
+          "preserved_event_id": "roettgen-rockt-2026-09-04-1ae4157a7d"
+        },
+        "valid_until": "2026-09-05",
+        "evidence": "Verified 2026-09-05: https://www.ruppichteroth.de/kalender/meldungen/2026-09-04-roettgen-rockt/30460:0 gives Festzelt Bruchhausen Röttgen, Bruchhausen, 53804 Much. Calendar owner Ruppichteroth is not the venue locality. Preserve original public URL despite city correction."
+      },
+      {
+        "match": ["ionas4-r-srath", "Stadtfest und Schützenfest in Rösrath", "2026-09-06", "2026-09-06"],
+        "value": {
+          "venue": "Schützenplatz",
+          "venue_address": "",
+          "preserved_event_id": "stadtfest-und-schuetzenfest-in-roesrath-2026-09-06-510269c3be",
+          "description_source": "generated",
+          "description": "Am Sonntag, 6. September 2026, findet von 11 bis 18 Uhr das Stadtfest in der Rösrather Innenstadt statt. Dazu gehören Musik, Tanz, kulinarische Angebote und Stände von Vereinen, Organisationen und Kunsthandwerk. Die Kirmes auf dem Schützenplatz gehört zum Schützenfest; entlang der Scharrenbroicher Straße findet ein Flohmarkt statt. Der verkaufsoffene Sonntag läuft von 13 bis 18 Uhr, der Schützenumzug beginnt um 17 Uhr.\n\nDie Karte markiert den Schützenplatz; das gemeinsame Fest findet außerdem in der Rösrather Innenstadt und entlang der Scharrenbroicher Straße statt."
+        },
+        "valid_until": "2026-09-06",
+        "evidence": "Verified 2026-09-05: https://www.roesrath.de/kalender/2026/q3/september/2026-09-06-stadtfest-und-schuetzenfest-in-roesrath/17422:0 confirms Innenstadt, Kirmes auf dem Schützenplatz and Flohmarkt entlang der Scharrenbroicher Straße. Schützenplatz is a representative component, never an alias for Rösrath-Mitte."
+      }
+    ],
     "bonn_press_overrides": [
+      {
+        "match": ["Beuel-Fest", "2026-09-05", "2026-09-06"],
+        "value": {
+          "venue": "Möhneplatz",
+          "city": "Bonn-Beuel",
+          "venue_address": "Rathausstraße, 53225 Bonn",
+          "preserved_event_id": "beuel-fest-2026-09-05-6622f26bb3",
+          "link": "https://beuel.net/2026/06/18/beuelfest-und-promenadenfest-finden-2026-gemeinsam-statt-jetzt-mitmachen/",
+          "link_kind": "detail",
+          "description_source": "generated",
+          "description": "Beuelfest und Promenadenfest finden am Samstag, 5. September 2026, und Sonntag, 6. September 2026, gemeinsam statt. Die Gewerbe-Gemeinschaft Beuel und die Interessengemeinschaft Beueler Vereine veranstalten das Fest am Möhneplatz beim Rathaus und am Rheinufer. Am Rheinufer ist eine Blaulicht-Meile mit Fahrzeugen der Rettungs- und Hilfsorganisationen angekündigt.\n\nDie Karte markiert den Möhneplatz; zum gemeinsamen Fest gehört außerdem das Beueler Rheinufer."
+        },
+        "valid_until": "2026-09-06",
+        "evidence": "Verified 2026-09-05: https://beuel.net/2026/06/18/beuelfest-und-promenadenfest-finden-2026-gemeinsam-statt-jetzt-mitmachen/ explicitly names Möhneplatz am Rathaus and Rheinufer for 05–06.09.2026. Representative component only; no global Beuel-Zentrum mapping."
+      },
+      {
+        "match": ["Muffenale", "2026-09-06", "2026-09-06"],
+        "value": {
+          "link": "https://bergfunken.de/wp-content/uploads/2026/01/BF-Journal-2025-2026-Doppelseiten-Web.pdf#page=90",
+          "link_kind": "detail",
+          "time": "10:30",
+          "start_time": "10:30",
+          "start_at": "2026-09-06T10:30:00+02:00",
+          "all_day": false,
+          "identity_time": "",
+          "identity_time_locked": true,
+          "description_source": "generated",
+          "description": "Am Sonntag, 6. September 2026, lädt die Muffenale ab 10:30 Uhr zum Straßenfest auf der Muffendorfer Hauptstraße ein. Wer sich auf das Fest einstimmen möchte, findet im Bergfunken-Journal einen Rückblick auf 2025: mit Zwiebel- und Lauchkuchen, Federweißem und Federrotem am Vereinsstand sowie Auftritten der Tanzgruppen.\n\nDie verlinkte Originalquelle ist das Bergfunken-Journal 2025/2026 als PDF. Auf Seite 90 steht der diesjährige Termin; Seite 62 erzählt vom vergangenen Fest. Ein detailliertes Programm für 2026 nennt das Heft noch nicht."
+        },
+        "valid_until": "2026-09-06",
+        "evidence": "Verified 2026-09-05: https://bergfunken.de/wp-content/uploads/2026/01/BF-Journal-2025-2026-Doppelseiten-Web.pdf printed p90 lists 06.09.2026 ab 10:30, Muffendorfer Hauptstr.; p62 retrospective concerns 2025, explicitly dated 07.09.25 on p27. Keep published all-day identity despite time enrichment."
+      },
       {
         "match": ["BonnFest 2026", "2026-09-25", "2026-09-27"],
         "value": {

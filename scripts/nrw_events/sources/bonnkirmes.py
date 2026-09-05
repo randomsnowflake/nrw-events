@@ -184,6 +184,11 @@ def events_from_html(html: str, *, strict: bool = False) -> list:
             category_locked=True,
         )
         if event:
+            # OFA's fair-specific page describes the Duisdorf programme; keep
+            # the ARGE listing as date authority and retain source/identity.
+            if title.casefold() == "herbstkirmes duisdorf":
+                event["link"] = "https://www.ofa-duisdorf.de/kirmes"
+                event["link_kind"] = "detail"
             events.append(event)
     if strict and not dated_sections:
         raise rc.ParserEmptyError("Kirmes in Bonn page contained no dated fair sections")

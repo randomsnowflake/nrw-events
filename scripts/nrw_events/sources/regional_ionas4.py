@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import timedelta
 from functools import partial
 
-from .. import common, components, http
+from .. import common, components, http, reviewed_corrections
 from ..models import normalize_source_id
 from . import regional_common as rc
 
@@ -223,6 +223,11 @@ def _collapse_consecutive_all_day_items(items: list) -> list:
 def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
                        detail_fetcher=None, source_id: str = "") -> list:
     events = []
+    overrides = {
+        tuple(entry["match"]): entry["value"]
+        for entry in reviewed_corrections.active_entries(
+            "ionas4_occurrence_overrides", common.TODAY)
+    }
     for item in _collapse_consecutive_all_day_items(items):
         start = common.parse_iso_date(item.get("start", ""))
         end = common.parse_iso_date(item.get("end", "")) or start
@@ -292,7 +297,16 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
                 event["identity_time_locked"] = True
             if context.get("organizer"):
                 event["organizer"] = context["organizer"]
-            event["description"] = _description_with_context(event)
-            event["description_source"] = common.description_source_for(event["description"])
+            # Source/title/date interval, not a global place-name alias. The
+            # reviewed public ID survives changed city or component venue.
+            override = overrides.get((
+                source_id, event["title"], event["start_date"], event["end_date"],
+            ), {})
+            event.update(override)
+            # Build factual copy from corrected locality, while preserving
+            # reviewed component explanations and richer publisher prose.
+            if "description" not in override:
+                event["description"] = _description_with_context(event)
+                event["description_source"] = common.description_source_for(event["description"])
             events.append(event)
     return events

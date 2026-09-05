@@ -99,7 +99,7 @@ def main() -> int:
             "address": (proposal.get("addresses") or [""])[0],
             "latitude": match["latitude"],
             "longitude": match["longitude"],
-            "checkedAt": checked_at,
+            "checkedAt": date.fromisoformat(proposal.get("checkedAt", checked_at)).isoformat(),
             "evidence": {
                 "eventUrl": samples[0].get("link", "") if samples else "",
                 "osmUrl": match.get("osmUrl", ""),
