@@ -277,6 +277,60 @@ class VenueCompletenessTests(unittest.TestCase):
         self.assertEqual(enriched["identity_venue"], "")
         self.assertTrue(enriched["identity_venue_locked"])
 
+    def test_bonn_sports_parkrun_keeps_rheinaue_place_for_every_occurrence(self):
+        """Issue #470: bonn.de ships a BreadcrumbList block before the Event block.
+
+        Both teaser occurrences share one detail page whose JSON-LD Place is
+        "Halfpipe Rheinaue" (Martin-Luther-King-Straße 40). The Breadcrumb root
+        is released after traversal; if its address is reused for the Event
+        root, the venue silently disappears from every occurrence.
+        """
+        import builtins
+        from unittest.mock import patch
+
+        from nrw_events import jsonld
+
+        patch_window(self, datetime(2026, 9, 5), datetime(2026, 10, 2))
+        teasers = """
+        <article class="SP-Teaser">
+          <a class="SP-Teaser__inner" href="/veranstaltungskalender/veranstaltungen/hauptkalender/Rheinaue-parkrun.php">
+            <span class="SP-Kicker__text">Sport</span>
+            <div class="SP-Scheduling">
+              <span><span class="SP-Scheduling__date">05.09.2026</span><span class="SP-Scheduling__time">09:00 Uhr</span></span>
+              <span><span class="SP-Scheduling__date">12.09.2026</span><span class="SP-Scheduling__time">09:00 Uhr</span></span>
+            </div>
+            <h1 class="SP-Teaser__headline">Rheinaue parkrun</h1>
+          </a>
+        </article>
+        """
+        detail = """
+        <script id="BreadCrumbSerializer-307028" type="application/ld+json">
+        {"@context":"http:\\/\\/schema.org","@type":"BreadcrumbList","itemListElement":[
+          {"@type":"ListItem","position":1,"item":{"@id":"https:\\/\\/www.bonn.de\\/\\/index.php","name":"Startseite bonn.de"}}]}
+        </script>
+        <script id="EventSerializer-307028" type="application/ld+json">
+        {"@context":"http:\\/\\/schema.org","@type":"Event","name":"Rheinaue parkrun",
+         "url":"https:\\/\\/www.bonn.de\\/veranstaltungskalender\\/veranstaltungen\\/hauptkalender\\/Rheinaue-parkrun.php",
+         "location":[{"@type":"Place","name":"Halfpipe Rheinaue","address":{"@type":"PostalAddress",
+           "postalCode":"53175","addressLocality":"Bonn","streetAddress":"Martin-Luther-King-Straße 40"}}],
+         "startDate":"2025-11-22","endDate":"2026-11-21"}
+        </script>
+        """
+        events = bonn.events_from_sport_teasers(teasers)
+        self.assertEqual([e["start_date"] for e in events], ["2026-09-05", "2026-09-12"])
+
+        def reused_address(value):
+            return 1 if isinstance(value, dict) and value.get("@type") in ("BreadcrumbList", "Event") else builtins.id(value)
+
+        with patch.object(jsonld, "id", reused_address, create=True):
+            enriched = bonn._enrich_sport_details(events, lambda _url: detail)
+
+        for event in enriched:
+            with self.subTest(date=event["start_date"]):
+                self.assertEqual(event["venue"], "Halfpipe Rheinaue")
+                self.assertEqual(event["venue_address"], "Martin-Luther-King-Straße 40 53175 Bonn")
+                self.assertEqual(event["city"], "Bonn")
+
     def test_roleber_detail_context_can_recover_only_an_explicit_place(self):
         html = """
         <div class="tribe-events-single-event-description">

@@ -525,6 +525,36 @@ class CategoryTaxonomyTests(unittest.TestCase):
                     expected,
                 )
 
+    def test_touring_shows_are_stage_or_music_programme_not_guided_tours(self):
+        touring_cases = [
+            ("kabarett kleinkunst", "Miss Allie - Paradiesvogel Tour 2026", "", "stage"),
+            ("kabarett kleinkunst", "Stunk Unplugged - Tour 26", "", "stage"),
+            ("comedy kabarett impro", "Nicole Staudinger - Time for Tacheles-Tour 2026", "", "stage"),
+            (
+                "theater konzert kultur comedy",
+                "RÄUBER: Deutschland Tour 2026",
+                "ACHTUNG ORTSWECHSEL! Die Veranstaltung wird in das Kulturkino Vogelsang verlegt.",
+                "concert",
+            ),
+            ("konzert musik", "ONE of THESE a CELEBRATION of PINK FLOYD - TOUR 2026 - Animals Tour", "", "concert"),
+            ("", "Irgendwer - Namenlos Tour 2026", "", "stage"),
+        ]
+        for source_category, title, description, expected in touring_cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], expected)
+
+        guided_cases = [
+            ("Veranstaltung Grafschaft kommunal lokal", "Die Senioren aus Karweiler auf Tour 2026", ""),
+            ("Tour", "Schiffstour auf dem Rhein", ""),
+            ("Sportveranstaltung", "ADFC-Feierabendtour", ""),
+            ("Führung/Rundgang, Tour", "Stadttour mit wohnungsloser Person", ""),
+            ("Event", "Urban Colour: Streetart Tour Bonn", ""),
+            ("", "Stadtführung Bonn - Tour 2026", ""),
+        ]
+        for source_category, title, description in guided_cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title, description)["key"], "outdoor")
+
     def test_known_indoor_museum_tours_are_exhibitions_without_reclassifying_outdoor_tours(self):
         indoor_cases = [
             (
