@@ -342,6 +342,73 @@ class MarketDuplicateRegressionTests(unittest.TestCase):
 
         self.assertEqual(len(report.deduplicate(events)), 2)
 
+    def test_rauschendorf_kita_flea_market_variants_collapse(self):
+        events = [
+            market(
+                "Sortierter Kindersachenflohmarkt im CJD Kindergarten Rauschendorf",
+                "Bonn.de Events",
+                "2026-09-06",
+                "CJD Kindergarten Rauschendorf",
+                "Königswinter",
+                "https://www.bonn.de/veranstaltungskalender/extern/kindersachenflohmarkt.php",
+                source_id="bonn-de-events",
+                start_at="2026-09-06T10:00+02:00",
+                end_at="2026-09-06T10:00+02:00",
+                score=0.99,
+            ),
+            market(
+                "Sortierter Kindersachenflohmarkt in der CJD Kita in Rauschendorf",
+                "Königswinter",
+                "2026-09-06",
+                "CJD Kindergarten Rauschendorf",
+                "Königswinter",
+                "https://www.koenigswinter.de/de/veranstaltungskalender/event/143237,1081/kindersachenflohmarkt.html",
+                source_id="k-nigswinter",
+                start_at="2026-09-06T10:00+02:00",
+                end_at="2026-09-06T13:00+02:00",
+                time="10:00 bis 13:00",
+                score=1.05,
+            ),
+        ]
+
+        deduped = report.deduplicate(events)
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Königswinter")
+        self.assertIn(
+            "https://www.bonn.de/veranstaltungskalender/extern/kindersachenflohmarkt.php",
+            deduped[0]["source_links"],
+        )
+        self.assertTrue(deduped[0]["previous_event_ids"])
+
+    def test_second_market_at_the_same_kita_on_another_time_survives(self):
+        events = [
+            market(
+                "Sortierter Kindersachenflohmarkt im CJD Kindergarten Rauschendorf",
+                "Bonn.de Events",
+                "2026-09-06",
+                "CJD Kindergarten Rauschendorf",
+                "Königswinter",
+                "https://www.bonn.de/veranstaltungskalender/extern/kindersachenflohmarkt.php",
+                source_id="bonn-de-events",
+                start_at="2026-09-06T10:00+02:00",
+                end_at="2026-09-06T13:00+02:00",
+            ),
+            market(
+                "Bücherflohmarkt in der CJD Kita in Rauschendorf",
+                "Königswinter",
+                "2026-09-06",
+                "CJD Kindergarten Rauschendorf",
+                "Königswinter",
+                "https://www.koenigswinter.de/de/veranstaltungskalender/event/143238,1081/buecherflohmarkt.html",
+                source_id="k-nigswinter",
+                start_at="2026-09-06T15:00+02:00",
+                end_at="2026-09-06T18:00+02:00",
+            ),
+        ]
+
+        self.assertEqual(len(report.deduplicate(events)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

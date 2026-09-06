@@ -576,6 +576,27 @@ def _series_tokens(title: str) -> tuple[str, ...]:
     return tuple(numbers + [f"roman:{token}" for token in roman_episodes])
 
 
+def _venue_occurrence_identity(event: Mapping[str, Any]) -> str:
+    """Return the registered venue id, or the venue name for market records.
+
+    A kindergarten or club house that hosts one flea market a year never earns
+    a registry entry, so its duplicates across a civic calendar and the town
+    calendar have no shared id. The market branch below still requires the same
+    market family and compatible start times, which keeps the name fallback
+    from folding two different formats at one address.
+    """
+    venue_id = str(event.get("venue_id") or "").strip()
+    if venue_id:
+        return f"id:{venue_id}"
+    if event.get("category_key") != "market":
+        return ""
+    venue = _venue_comparison_text(event)
+    city = _normalized_city(event.get("city", ""))
+    # Unlike a registry id, a venue name is only unique inside its town:
+    # "Marktplatz" exists in every neighbouring municipality.
+    return f"venue:{city}|{venue}" if venue and city else ""
+
+
 def _same_registered_venue_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Match cross-source records by canonical venue, date, and category."""
     if not left.get("source") or left.get("source") == right.get("source"):
@@ -591,13 +612,13 @@ def _same_registered_venue_occurrence(left: Mapping[str, Any], right: Mapping[st
         and right_start
         and not _same_explicit_start(left_start, right_start)
     )
-    left_venue_id = left.get("venue_id")
     left_category = left.get("category_key")
+    left_identity = _venue_occurrence_identity(left)
     left_bounds = _date_bounds(left)
     right_bounds = _date_bounds(right)
     same_identity = bool(
-        left_venue_id
-        and left_venue_id == right.get("venue_id")
+        left_identity
+        and left_identity == _venue_occurrence_identity(right)
         and left_category
         and left_category == right.get("category_key")
         and left_bounds is not None
