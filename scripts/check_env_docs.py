@@ -84,7 +84,7 @@ def main() -> int:
         used.update(environment_variables(path))
     used -= SYSTEM_ALLOWLIST
     missing_by_document = {}
-    for relative_path in (".env.example", "README.md", "SKILL.md"):
+    for relative_path in (".env.example", "docs/reference.md", "docs/discovery.md"):
         documented = set(PATTERN.findall((ROOT / relative_path).read_text(encoding="utf-8")))
         missing = sorted(used - documented)
         if missing:

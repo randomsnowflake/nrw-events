@@ -9,6 +9,14 @@ if [[ -x "$REPO_DIR/.venv/bin/python" ]]; then
   python_bin="$REPO_DIR/.venv/bin/python"
 fi
 
+# Agent mode wraps this exact gate; it does not choose or skip tests.
+if [[ "${1:-}" == "--agent" ]]; then
+  shift
+  exec "$python_bin" "$REPO_DIR/scripts/agent_test_runner.py" "$@"
+fi
+
+cd "$REPO_DIR"
+
 if [[ "${NRW_EVENTS_COVERAGE:-0}" == "1" ]]; then
   test_runner=("$python_bin" -m coverage run --source="$REPO_DIR/scripts/nrw_events" -m unittest)
 else

@@ -1,0 +1,105 @@
+{
+  "identity": {
+    "files": [
+      "scripts/nrw_events/identity.py",
+      "scripts/nrw_events/identity_reconciliation.py"
+    ],
+    "tests": [
+      "tests/test_event_identity.py"
+    ],
+    "docs": [
+      "docs/ARCHITECTURE.md"
+    ],
+    "fixtures": [
+      "tests/data/event_id_vectors.json"
+    ],
+    "commands": [
+      "bash scripts/test.sh --agent tests.test_event_identity"
+    ]
+  },
+  "deduplication": {
+    "files": [
+      "scripts/nrw_events/deduplication.py",
+      "scripts/nrw_events/dedup_rules.py",
+      "scripts/nrw_events/dedup_merge.py",
+      "scripts/nrw_events/duplicate_identity.py"
+    ],
+    "tests": [
+      "tests/test_report.py"
+    ],
+    "docs": [
+      "docs/ARCHITECTURE.md"
+    ],
+    "fixtures": [],
+    "commands": [
+      "bash scripts/test.sh --agent tests.test_report"
+    ]
+  },
+  "archive": {
+    "files": [
+      "scripts/nrw_events/retention_policy.py",
+      "scripts/nrw_events/snapshot_publication.py"
+    ],
+    "tests": [
+      "tests/test_runner_output.py"
+    ],
+    "docs": [
+      "docs/ARCHITECTURE.md"
+    ],
+    "fixtures": [],
+    "commands": [
+      "bash scripts/test.sh --agent tests.test_runner_output"
+    ]
+  },
+  "venues": {
+    "files": [
+      "scripts/nrw_events/event_builder.py",
+      "scripts/nrw_events/location.py",
+      "scripts/nrw_events/verified_venue_locations.json"
+    ],
+    "tests": [
+      "tests/test_venue_registry.py"
+    ],
+    "docs": [
+      "docs/reference.md"
+    ],
+    "fixtures": [],
+    "commands": [
+      "bash scripts/test.sh --agent tests.test_venue_registry"
+    ]
+  },
+  "deployment": {
+    "files": [
+      "scripts/nrw_events/checkpoint.py",
+      "scripts/nrw_events/snapshot_publication.py"
+    ],
+    "tests": [
+      "tests/test_checkpoint.py"
+    ],
+    "docs": [
+      "docs/reference.md"
+    ],
+    "fixtures": [],
+    "commands": [
+      "bash scripts/test.sh --agent tests.test_checkpoint"
+    ]
+  },
+  "tooling": {
+    "files": [
+      "scripts/agent_tools.py",
+      "scripts/test.sh",
+      "scripts/agent_test_runner.py",
+      "scripts/generate_docs.py"
+    ],
+    "tests": [
+      "tests/test_agent_tools.py"
+    ],
+    "docs": [
+      "docs/agent-tools.md"
+    ],
+    "fixtures": [],
+    "commands": [
+      "bash scripts/test.sh --agent tests.test_agent_tools"
+    ]
+  }
+}

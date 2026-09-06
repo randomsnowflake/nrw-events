@@ -5,12 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "scripts" / "nrw_events" / "sources" / "registry.json"
-DOCUMENTS = (ROOT / "README.md", ROOT / "SKILL.md")
+DOCUMENTS = (ROOT / "docs/sources.md", ROOT / "docs/modules.md")
 
 
 def source_inventory() -> str:
@@ -39,21 +38,10 @@ def module_inventory() -> str:
     return "\n".join(lines)
 
 
-def replace_block(text: str, name: str, content: str) -> str:
-    begin = f"<!-- BEGIN GENERATED {name} -->"
-    end = f"<!-- END GENERATED {name} -->"
-    pattern = re.compile(rf"{re.escape(begin)}.*?{re.escape(end)}", re.S)
-    replacement = f"{begin}\n{content}\n{end}"
-    updated, count = pattern.subn(lambda _match: replacement, text)
-    if count != 1:
-        raise ValueError(f"expected one {name} block, found {count}")
-    return updated
-
-
 def generated_document(path: Path) -> str:
-    text = path.read_text(encoding="utf-8")
-    text = replace_block(text, "SOURCES", source_inventory())
-    return replace_block(text, "MODULES", module_inventory())
+    if path.name == "sources.md":
+        return "# Source inventory\n\nGenerated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.\n\n" + source_inventory() + "\n"
+    return "# Module inventory\n\nGenerated from `scripts/nrw_events`; do not edit by hand.\n\n" + module_inventory() + "\n"
 
 
 def main() -> int:
@@ -63,7 +51,7 @@ def main() -> int:
     generated_documents = {path: generated_document(path) for path in DOCUMENTS}
     drifted = []
     for path, generated in generated_documents.items():
-        if generated == path.read_text(encoding="utf-8"):
+        if path.exists() and generated == path.read_text(encoding="utf-8"):
             continue
         drifted.append(path.relative_to(ROOT))
         if not args.check:

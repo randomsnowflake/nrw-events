@@ -22,3 +22,11 @@ nrw-events-latest-meta.json.manifest.json
 .idea/
 .vscode/
 *.swp
+
+# Local quality artifacts
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

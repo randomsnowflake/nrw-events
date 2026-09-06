@@ -25,12 +25,16 @@ class GeneratedDocumentationTests(unittest.TestCase):
         source_modules = {
             path.name for path in (ROOT / "scripts/nrw_events/sources").glob("*.py")
         }
+        sources = (ROOT / "docs/sources.md").read_text(encoding="utf-8")
+        inventory = (ROOT / "docs/modules.md").read_text(encoding="utf-8")
+        self.assertTrue(all(row["display_name"] in sources for row in registry["sources"]))
+        self.assertTrue(all(module in inventory for module in modules | source_modules))
         for document in ("README.md", "SKILL.md"):
             text = (ROOT / document).read_text(encoding="utf-8")
-            with self.subTest(document=document):
-                self.assertTrue(all(row["display_name"] in text for row in registry["sources"]))
-                self.assertTrue(all(module in text for module in modules))
-                self.assertTrue(all(module in text for module in source_modules))
+            self.assertIn("docs/sources.md", text)
+            self.assertIn("docs/modules.md", text)
+            self.assertNotIn("<!-- BEGIN GENERATED", text)
+
 
 
 if __name__ == "__main__":
