@@ -323,6 +323,16 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
     return ""
 
 
+# A Tournee title ("… Tour 2026", "…-Tour 26") names a travelling stage or music
+# production, never a guided walk. Only the bare word carries that sense:
+# compounds ("Stadttour", "Feierabendtour") and the idiom "auf Tour" stay
+# guided-outdoor formats, and a tour title without a year stays untouched.
+_TOURING_SHOW_TITLE_PATTERN = re.compile(r"(?<!auf )(?<![^\W\d_])tour(?:nee)?\s*['’]?\d{2}(?:\d{2})?\b")
+# Once a title is a Tournee, every bare tour token in it belongs to the show
+# name ("… - TOUR 2026 - Animals Tour").
+_TOURING_SHOW_TOKEN_PATTERN = re.compile(r"(?<!auf )(?<![^\W\d_])tour(?:nee)?s?\b")
+
+
 _GUIDED_TOUR_TITLE_PATTERN = re.compile(
     r"\b(?!\w*(?:ein|auf|urauf|vor|filmvor|durch|wiederauf|erstauf)f(?:ü|ue)hrung(?:en)?\b)"
     r"\w*f(?:ü|ue)hrung(?:en)?\b"
@@ -775,6 +785,13 @@ def categorize_event(
                 "reason": f"forced:{forced_key}",
             }
 
+    # Score without the Tournee marker so "Tour 2026" cannot rank as a guided
+    # walk, while "Stadtführung … Tour 2026" keeps its real outdoor evidence.
+    touring_show = bool(_TOURING_SHOW_TITLE_PATTERN.search(title_comparison))
+    if touring_show:
+        title_comparison = _TOURING_SHOW_TOKEN_PATTERN.sub(" ", title_comparison)
+        description_comparison = _TOURING_SHOW_TOKEN_PATTERN.sub(" ", description_comparison)
+
     best_key = "other"
     best_score = 0
     best_priority = -1
@@ -854,6 +871,17 @@ def categorize_event(
     fallback = _fallback_category(source_id or source, title_text)
     if best_key == "other" and fallback:
         return cast(CategoryResult, dict(fallback))
+
+    # A travelling production is stage programme even when nothing else in the
+    # record says what it is; the weak confidence keeps it reviewable.
+    if best_key == "other" and touring_show:
+        category = CATEGORY_BY_KEY["stage"]
+        return {
+            "key": category["key"],
+            "label": category["label"],
+            "confidence": 0.6,
+            "reason": "stage:title=touring-show",
+        }
 
     confidence = _heuristic_confidence(
         best_title_matches,
