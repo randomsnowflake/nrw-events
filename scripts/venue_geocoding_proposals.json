@@ -2442,6 +2442,39 @@
     },
     {
       "city": "Brühl",
+      "venue": "Balthasar-Neumann-Platz",
+      "aliases": [],
+      "count": 1,
+      "addresses": [
+        "Balthasar-Neumann-Platz, 50321 Brühl"
+      ],
+      "samples": [
+        {
+          "link": "https://www.bruehl.de/veranstaltungskalender/veranstaltungen/hauptkalender/ig-balthasar-n-p_rheinisches-buergerfest.php?sp%3AstartDateKey=2026-09-06"
+        }
+      ],
+      "status": "strong-candidate",
+      "score": 15,
+      "checkedAt": "2026-09-06",
+      "reasons": [
+        "venue-name-exact",
+        "city-match"
+      ],
+      "match": {
+        "latitude": 50.8277947,
+        "longitude": 6.8973885,
+        "osmUrl": "https://www.openstreetmap.org/way/25785843",
+        "category": "highway",
+        "type": "pedestrian"
+      },
+      "evidence": {
+        "eventUrl": "https://www.bruehl.de/veranstaltungskalender/veranstaltungen/hauptkalender/ig-balthasar-n-p_rheinisches-buergerfest.php?sp%3AstartDateKey=2026-09-06",
+        "osmUrl": "https://www.openstreetmap.org/way/25785843",
+        "method": "venue name and municipality matched"
+      }
+    },
+    {
+      "city": "Brühl",
       "venue": "BTV-Sportzentrum",
       "aliases": [],
       "count": 1,

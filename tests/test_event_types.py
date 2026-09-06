@@ -60,6 +60,33 @@ class EventTypeTests(unittest.TestCase):
         with self.assertRaisesRegex(EventValidationError, "event_types_type"):
             event(event_types="funfair")
 
+    def test_classifies_christmas_markets_only_in_market_categories(self):
+        self.assertEqual(
+            event(title="Bonner Weihnachtsmarkt", category_key="market").event_types,
+            ["christmas-market"],
+        )
+        self.assertEqual(
+            event(title="Adventsmarkt Röttgen", category_key="festival").event_types,
+            ["christmas-market"],
+        )
+        self.assertEqual(
+            event(title="Weihnachtskonzert der Chöre", category_key="concert").event_types,
+            [],
+        )
+
+    def test_classifies_halloween_only_where_it_names_itself(self):
+        self.assertEqual(
+            event(title="Halloween-Party im Club", category_key="nightlife").event_types,
+            ["halloween"],
+        )
+        self.assertEqual(
+            event(title="Gruselnacht im Schloss", category_key="kids").event_types,
+            [],
+        )
+        self.assertEqual(
+            event(title="Führungen in St. Martin", category_key="outdoor").event_types,
+            [],
+        )
 
 if __name__ == "__main__":
     unittest.main()
