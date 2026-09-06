@@ -221,6 +221,7 @@ scripts/nrw_events/
   ai_transport.py
   benchmark.py
   category_taxonomy.py
+  checkpoint.py
   common.py
   components.py
   config.py

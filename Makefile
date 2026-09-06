@@ -14,3 +14,11 @@ venue-registry-check:
 		--registry scripts/nrw_events/verified_venue_locations.json \
 		--decisions /tmp/nrw-events-venue-decisions.json \
 		--check
+
+.PHONY: test checkpoint-help
+
+test:
+	bash scripts/test.sh
+
+checkpoint-help:
+	PYTHONPATH=scripts $(PYTHON) -m nrw_events.checkpoint --help

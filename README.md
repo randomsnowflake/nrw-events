@@ -223,6 +223,7 @@ scripts/nrw_events/
   ai_transport.py
   benchmark.py
   category_taxonomy.py
+  checkpoint.py
   common.py
   components.py
   config.py
@@ -969,3 +970,25 @@ jeweiligen Quellen.
 Dieses Projekt ist unabhängig von den genannten Datenquellen. Es ist keine
 offizielle Eventdatenbank und keine Zusicherung, dass eine Veranstaltung wirklich
 stattfindet, vollständig beschrieben oder noch verfügbar ist.
+
+## Import-Checkpoints für Consumer-Releases
+
+`python -m nrw_events.checkpoint` speichert und prüft transportierbare Importausgaben.
+Der Consumer liefert eine Identität aus Importer-Code, Konfiguration und vorherigem
+Snapshot. Events, Metadaten, Highlights und Serien-Ledger werden gemeinsam mit
+Prüfsummen gespeichert; fehlgeschlagene Importe und beschädigte oder mehr als
+36 Stunden alte Checkpoints werden abgewiesen.
+
+```sh
+PYTHONPATH=scripts python3 -m nrw_events.checkpoint capture /path/to/checkpoint \
+  --identity <input-hash> --events /path/to/events.json \
+  --metadata /path/to/metadata.json --highlights /path/to/highlights.json \
+  --series /path/to/series-ledger.json
+PYTHONPATH=scripts python3 -m nrw_events.checkpoint inspect /path/to/checkpoint --identity <input-hash>
+```
+
+`restore` verwendet dieselben Ausgabeparameter wie `capture`. Es validiert den
+vollständigen Checkpoint vor dem Schreiben. So kann eine nachgelagerte Website
+nach einem Buildfehler fortsetzen, ohne die Quellen erneut abzurufen. Der
+Website-Release-Befehl übernimmt Identitäten und Wiederanlauf automatisch;
+siehe dort `docs/release-workflow.md`.
