@@ -22,6 +22,10 @@ calendar fields, at most 10 matches per stage; `--limit` accepts 1–100. `--ful
 includes complete matching records. It never dumps every event, fetches sources,
 loads credentials or writes snapshots. No matches exit 1; invalid input exits 2.
 Only supplied stages can be inspected; missing provenance is not invented.
+Both `--snapshot` and `--stage` accept published event arrays or objects with an
+`events` list. Objects can also include `early_announcements` and run metadata.
+Array files have no run metadata, so `run_id` and `generated_at` remain null.
+The tool does not read metadata sidecars.
 
 `--agent` wraps the canonical shell test gate and keeps all its tests, warnings,
 coverage rules and exit codes. Full logs and `summary.json` are retained in a
