@@ -80,8 +80,11 @@ def query_key(query: str) -> str:
 
 def inspect_snapshot(query: str, snapshot: Path, full: bool = False, limit: int = 10) -> dict:
     payload = read_json(snapshot)
+    # Published event files are arrays; recorded stages can include metadata.
+    if isinstance(payload, list):
+        payload = {'events': payload}
     if not isinstance(payload, dict) or not isinstance(payload.get('events'), list):
-        raise ValueError(f'{snapshot}: expected a snapshot object with an events list')
+        raise ValueError(f'{snapshot}: expected an event array or a snapshot object with an events list')
     key = query_key(query)
     matches = []
     for section in ('events', 'early_announcements'):

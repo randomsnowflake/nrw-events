@@ -43,6 +43,65 @@ class AgentToolsTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 inspect_snapshot('event-abc', path)
 
+    def test_inspects_published_event_arrays_and_object_stages(self):
+        from types import SimpleNamespace
+
+        from nrw_events.snapshot_publication import _publish_snapshots
+
+        event = {'event_id': 'published-id', 'title': 'Published event',
+                 'previous_event_ids': ['old-id'], 'link': 'https://example.test/event',
+                 'description': 'Full description'}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            settings = SimpleNamespace(
+                json_out=str(root / 'events.json'),
+                meta_json_out=str(root / 'metadata.json'),
+                highlights_json_out=str(root / 'highlights.json'),
+                series_ledger_json=str(root / 'series.json'),
+            )
+            outputs = _publish_snapshots(
+                settings, [event, event],
+                {'generated_at': '2026-09-06T00:00:00Z', 'run_status': 'healthy'},
+                'recorded-run',
+            )
+            for output in ('events', 'immutable_events'):
+                path = Path(outputs[output])
+                for query in ('published-id', 'old-id', event['link']):
+                    with self.subTest(output=output, query=query):
+                        result = inspect_snapshot(query, path, limit=1)
+                        self.assertEqual(result['match_count'], 2)
+                        self.assertEqual(result['omitted'], 1)
+                        self.assertEqual(result['matches'][0]['section'], 'events')
+                        self.assertNotIn('description', result['matches'][0]['record'])
+                        self.assertIsNone(result['run_id'])
+                        self.assertIsNone(result['generated_at'])
+            stage = root / 'stage.json'
+            stage.write_text(json.dumps({'events': [], 'early_announcements': [event],
+                                         'run_id': 'recorded-stage'}))
+            result = subprocess.run(
+                [sys.executable, str(ROOT / 'scripts/agent_tools.py'), 'inspect', 'published-id',
+                 '--snapshot', outputs['events'], '--stage', str(stage), '--full', '--limit', '1'],
+                check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            stages = json.loads(result.stdout)['stages']
+            self.assertEqual(stages[0]['matches'][0]['record'], event)
+            self.assertEqual(stages[1]['matches'][0]['section'], 'early_announcements')
+            self.assertEqual(stages[1]['run_id'], 'recorded-stage')
+
+    def test_empty_published_array_reports_no_matches(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'events.json'
+            path.write_text('[]')
+            result = subprocess.run(
+                [sys.executable, str(ROOT / 'scripts/agent_tools.py'), 'inspect', 'missing',
+                 '--snapshot', str(path)], check=False, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 1, result.stderr)
+            stage = json.loads(result.stdout)['stages'][0]
+            self.assertEqual(stage['match_count'], 0)
+            self.assertEqual(stage['matches'], [])
+
     def test_logged_runner_preserves_failure_exit_and_complete_log(self):
         spec = importlib.util.spec_from_file_location('agent_test_runner', ROOT / 'scripts/agent_test_runner.py')
         module = importlib.util.module_from_spec(spec)
