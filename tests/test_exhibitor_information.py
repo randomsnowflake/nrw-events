@@ -24,6 +24,13 @@ def market(**overrides):
 
 
 class ExhibitorInformationTests(unittest.TestCase):
+    def test_visitor_registration_is_not_exhibitor_information(self):
+        for title in ("Draußen Aktiv Schwarzrheindorf", "100 Jahre Gedok", "Hausaufgabenhilfe", "Spieleabend", "Konzert", "Flohmarkt"):
+            for description in ("Eine Anmeldung ist nicht erforderlich.", "Anmeldung erforderlich."):
+                with self.subTest(title=title, description=description):
+                    event = canonicalize_event(market(title=title, description=description))
+                    self.assertIsNone(event.exhibitor["registration"]["required"])
+
     def test_rigalsche_wiese_keeps_seller_facts_separate_from_unknown_admission(self):
         event = canonicalize_event(market(
             title="Familien Flohmarkt auf der Rigal'schen Wiese",

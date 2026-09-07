@@ -213,9 +213,16 @@ def _canonical_exhibitor(event: dict[str, Any]) -> None:
     required = raw_registration.get("required")
     if required not in {None, True, False}:
         raise EventValidationError("exhibitor_registration_required_invalid")
-    if required is None and _REGISTRATION_NOT_REQUIRED.search(text):
+    # General registration language belongs to visitors unless the source also
+    # supplies seller logistics. A category/title alone is not seller evidence.
+    seller_context = bool(
+        amount is not None or explicit_free is not None or setup_time
+        or exhibitor["accessHours"]
+        or re.search(r"\b(?:standplatz|standfläche|standflaeche|aussteller|ausstellende|verkäufer|verkaeufer)\b", text, re.IGNORECASE)
+    )
+    if required is None and seller_context and _REGISTRATION_NOT_REQUIRED.search(text):
         required = False
-    elif required is None and _REGISTRATION_REQUIRED.search(text):
+    elif required is None and seller_context and _REGISTRATION_REQUIRED.search(text):
         required = True
     url = str(raw_registration.get("url") or "").strip()
     if url:
