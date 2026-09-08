@@ -228,17 +228,17 @@ class SourceOutageTests(unittest.TestCase):
                 self.assertEqual(payload["retained_sources"], [])
 
     def test_optional_endpoint_diagnostics_do_not_create_outage(self):
-        from nrw_events.health import EndpointOutcome
+        from nrw_events import http
 
         for message in ("optional detail\n  offline", "optional detail " + "ü" * 600):
             with self.subTest(message=message[:30]), make_runner_env() as env:
                 def detail_only():
+                    url = "https://example.test/detail"
+                    http._record_endpoint(url, error_type="TimeoutError", error=message)
+                    http._mark_optional_detail_failure(url, TimeoutError(message))
                     runner.common.log_source_error(
                         "Calendar", TimeoutError(message), error_type="OptionalDetailWarning")
-                    return SourceFetchResult.partial(
-                        [event(title="Fresh concert")],
-                        endpoints=(EndpointOutcome("https://example.test/detail",
-                                                   error_type="TimeoutError", error=message),))
+                    return SourceFetchResult.partial([event(title="Fresh concert")])
 
                 self.run_day(env, -1, self.sources(lambda: [event()]))
                 for day in (0, 5, 7):

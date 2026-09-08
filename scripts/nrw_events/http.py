@@ -163,6 +163,14 @@ def _record_endpoint(url: str, **details: Any) -> None:
         _impl_run_state._SOURCE_CONTEXT.deadline = min(renewed_deadline, hard_deadline) if hard_deadline else renewed_deadline
 
 
+def _mark_optional_detail_failure(url: str, error: Exception) -> None:
+    """Attribute an existing failed request without adding a synthetic attempt."""
+    result = getattr(_impl_run_state._SOURCE_CONTEXT, "result", None)
+    endpoint = result.endpoints.get(redact(url)) if result is not None else None
+    if endpoint and endpoint.get("error_type") and endpoint.get("error") == redact(error):
+        endpoint["optional_detail"] = True
+
+
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
     hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
     state = _RUNTIME_STATE.get()

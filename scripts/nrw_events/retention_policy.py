@@ -184,14 +184,12 @@ def _retention_labels(
             if normalize_source_id(warning.get("source_id") or warning.get("source"))
             not in {result.source_id, runner_source_id}
         }
-        optional_errors = {warning.get("error") for warning in result.warnings
-                           if warning.get("error_type") == "OptionalDetailWarning"}
         # Warning attribution uses the persisted diagnostic boundary, whereas
         # endpoint telemetry still contains raw multiline/unbounded errors.
         endpoints = [sanitized_warning(endpoint) for endpoint in result.endpoints.values()]
         endpoint_failures = [endpoint for endpoint in endpoints
                              if (endpoint.get("error_type") or endpoint.get("parser_empty"))
-                             and endpoint.get("error") not in optional_errors]
+                             and endpoint.get("optional_detail") is not True]
         structural_failure = any(not reason.startswith(("quality:", "filter:"))
                                  for reason in result.rejection_reasons)
         runner_wide_failure = (
