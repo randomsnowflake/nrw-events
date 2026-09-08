@@ -80,6 +80,73 @@ class SourceOutageTests(unittest.TestCase):
                 self.assertIn("Fresh concert", titles)
                 self.assertEqual("Concert" in titles, day < 7)
 
+    def test_empty_partial_without_diagnostics_preserves_outage_clock(self):
+        for seed in (False, True):
+            with self.subTest(seed=seed), make_runner_env() as env:
+                if seed:
+                    self.run_day(env, -1, self.sources(lambda: [event()]))
+                for day in (0, 0, 5, 6, 7, 8):
+                    result, payload = self.run_day(
+                        env, day, self.sources(lambda: SourceFetchResult.partial([])))
+                    self.assertEqual(result.run_status, "degraded")
+                    self.assertEqual(len(payload["retained_sources"]), 1)
+                    retained = payload["retained_sources"][0]
+                    self.assertEqual(retained["source_id"], "calendar")
+                    self.assertEqual(retained["first_failure_at"], START.isoformat(timespec="seconds"))
+                    self.assertEqual(payload["retained_event_count"], int(seed and day < 7))
+                _, payload = self.run_day(env, 9, self.sources(lambda: SourceFetchResult.success([])))
+                self.assertEqual(payload["retained_sources"], [])
+
+    def test_empty_partial_with_benign_diagnostics_still_tracks_outage(self):
+        for kind in ("QualityGateWarning", "OptionalDetailWarning"):
+            with self.subTest(kind=kind), make_runner_env() as env:
+                self.run_day(env, -1, self.sources(lambda: [event()]))
+
+                def partial():
+                    runner.common.log_source_error("Calendar", ValueError("benign diagnostic"), error_type=kind)
+                    return SourceFetchResult.partial([])
+
+                for day in (0, 5, 7, 8):
+                    _, payload = self.run_day(env, day, self.sources(partial))
+                    self.assertEqual(len(payload["retained_sources"]), 1)
+                    self.assertEqual(payload["retained_sources"][0]["first_failure_at"],
+                                     START.isoformat(timespec="seconds"))
+                    self.assertEqual(payload["retained_event_count"], int(day < 7))
+
+                def healthy_empty():
+                    partial()  # Same benign diagnostic, but authoritative output.
+                    return SourceFetchResult.success([])
+
+                _, payload = self.run_day(env, 9, self.sources(healthy_empty))
+                self.assertEqual(payload["retained_sources"], [])
+                self.assertNotIn("_explicit_empty_partial", payload["source_results"]["Calendar"])
+
+    def test_child_endpoint_diagnostics_do_not_retain_withdrawn_sibling(self):
+        from nrw_events.health import EndpointOutcome
+
+        for message in ("child offline\n  retry later", "child offline " + "ü" * 600):
+            for mixed, empty in ((False, False), (False, True), (True, False), (True, True)):
+                with self.subTest(message=message[:30], mixed=mixed, empty=empty), make_runner_env() as env:
+                    self.run_day(env, -1, self.sources(lambda: [
+                        event("Child", "Child cached"), event("Sibling", "Withdrawn sibling")]))
+
+                    def partial():
+                        runner.common.log_source_error("Child", TimeoutError(message))
+                        warnings = ("whole runner endpoint failed",) if mixed else ()
+                        return SourceFetchResult.partial(
+                            [] if empty else [event("Sibling", "Fresh sibling")], *warnings,
+                            endpoints=(EndpointOutcome("https://example.test/child",
+                                                       error_type="TimeoutError", error=message),))
+
+                    for day in (0, 5, 6, 7, 8):
+                        result, payload = self.run_day(env, day, self.sources(partial))
+                        self.assertEqual({row["source_id"] for row in payload["retained_sources"]},
+                                         {"child", "sibling"} if mixed else {"child"})
+                        titles = {e.title for e in result.events}
+                        self.assertEqual("Fresh sibling" in titles, not empty)
+                        self.assertEqual("Child cached" in titles, day < 7)
+                        self.assertEqual("Withdrawn sibling" in titles, mixed and day < 7)
+
     def test_expired_cancelled_never_become_active(self):
         with make_runner_env() as env:
             self.run_day(env, -1, self.sources(lambda: [event()]))
@@ -159,6 +226,34 @@ class SourceOutageTests(unittest.TestCase):
                 result, payload = self.run_day(env, day, self.sources(detail_only))
                 self.assertIn("Concert", {e.title for e in result.events})
                 self.assertEqual(payload["retained_sources"], [])
+
+    def test_optional_endpoint_diagnostics_do_not_create_outage(self):
+        from nrw_events.health import EndpointOutcome
+
+        for message in ("optional detail\n  offline", "optional detail " + "ü" * 600):
+            with self.subTest(message=message[:30]), make_runner_env() as env:
+                def detail_only():
+                    runner.common.log_source_error(
+                        "Calendar", TimeoutError(message), error_type="OptionalDetailWarning")
+                    return SourceFetchResult.partial(
+                        [event(title="Fresh concert")],
+                        endpoints=(EndpointOutcome("https://example.test/detail",
+                                                   error_type="TimeoutError", error=message),))
+
+                self.run_day(env, -1, self.sources(lambda: [event()]))
+                for day in (0, 5, 7):
+                    result, payload = self.run_day(env, day, self.sources(detail_only))
+                    self.assertEqual(payload["retained_sources"], [])
+                    self.assertNotIn("Concert", {e.title for e in result.events})
+                    self.assertIn("Fresh concert", {e.title for e in result.events})
+
+    def test_empty_partial_total_failure_remains_fatal(self):
+        with make_runner_env() as env:
+            self.run_day(env, -1, self.sources(lambda: [event()]))
+            partial = lambda: SourceFetchResult.partial([])
+            result, payload = self.run_day(env, 0, {"Calendar": partial, "Healthy": partial})
+            self.assertEqual(result.run_status, "failed")
+            self.assertEqual(payload["retained_event_count"], 2)
 
     def test_mixed_child_and_whole_runner_partial_failure_retains_both_cohorts(self):
         with make_runner_env() as env:

@@ -168,6 +168,9 @@ class SourceResult:
     error: dict[str, str] | None = None
     status_reason: str = ""
     source_id: str = ""
+    # In-memory adapter evidence: benign diagnostics cannot make an explicit
+    # empty partial authoritative. Not persisted; the outage ledger owns time.
+    _explicit_empty_partial: bool = field(default=False, repr=False)
     # Private source prose carried only in memory to the publication-stage AI
     # pass. Deliberately omitted from ``as_dict`` and every snapshot artifact.
     _ai_source_material: list[dict[str, Any]] = field(default_factory=list, repr=False)

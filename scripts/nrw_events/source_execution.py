@@ -129,6 +129,7 @@ def _run_source(
             events = list(fetched.events)
             result.status = fetched.status
             result.status_reason = fetched.disabled_reason
+            result._explicit_empty_partial = fetched.status == SourceStatus.DEGRADED and not events
             for warning in fetched.warnings:
                 result.warning(name, "SourceWarning", warning)
             for endpoint in fetched.endpoints:
