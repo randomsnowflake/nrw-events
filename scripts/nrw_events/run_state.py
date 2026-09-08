@@ -186,23 +186,24 @@ def log_source_disabled(source: str, reason: str) -> None:
     log(runtime.logger, logging.INFO, reason, run_id=runtime.run_id, source=source)
 
 
-def log_source_error(source: str, err: Exception, *, source_id: str = "") -> None:
-    """Record/log a source failure without aborting legacy fetchers."""
+def log_source_error(source: str, err: Exception, *, source_id: str = "", error_type: str = "") -> None:
+    """Record a failure; optional enrichment may explicitly classify diagnostics."""
     message = redact(err)
-    warning = {"source": source, "error_type": type(err).__name__, "error": message}
+    error_type = error_type or type(err).__name__
+    warning = {"source": source, "error_type": error_type, "error": message}
     if source_id:
         warning["source_id"] = source_id
     result = getattr(_SOURCE_CONTEXT, "result", None)
     should_log = True
     if result is not None:
         should_log = result.warning(
-            source, type(err).__name__, message, source_id=source_id
+            source, error_type, message, source_id=source_id
         )
     if not should_log:
         return
     runtime = _runtime_state()
     log(runtime.logger, logging.WARNING, message, run_id=runtime.run_id,
-        source=source, error_type=type(err).__name__)
+        source=source, error_type=error_type)
 
 
 def log_source_quality_skip(source: str, reason: str) -> None:

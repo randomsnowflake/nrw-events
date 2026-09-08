@@ -1584,6 +1584,7 @@ class CrossRunRetentionTests(unittest.TestCase):
             "retained_event_count": 1,
             "expired_event_count": 1,
             "last_success_at": "2026-06-07T05:00:00",
+            "first_failure_at": "2026-06-08T03:00:00+00:00",
             "consecutive_failures": 1,
         }])
 

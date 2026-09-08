@@ -163,6 +163,21 @@ def _record_endpoint(url: str, **details: Any) -> None:
         _impl_run_state._SOURCE_CONTEXT.deadline = min(renewed_deadline, hard_deadline) if hard_deadline else renewed_deadline
 
 
+@contextmanager
+def _optional_detail_request(url: str) -> Iterator[None]:
+    """Attribute new failed attempts, including terminal retry-budget errors."""
+    result = getattr(_impl_run_state._SOURCE_CONTEXT, "result", None)
+    key = redact(url)
+    prior_attempts = (result.endpoints.get(key) or {}).get("attempts", 0) if result is not None else 0
+    try:
+        yield
+    except Exception:
+        endpoint = result.endpoints.get(key) if result is not None else None
+        if endpoint and endpoint.get("error_type") and endpoint.get("attempts", 0) > prior_attempts:
+            endpoint["optional_detail"] = True
+        raise
+
+
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
     hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
     state = _RUNTIME_STATE.get()
