@@ -4,6 +4,8 @@ from typing import Any
 
 from .config import RuntimeConfig
 from .identity import event_id
+from .health import SourceResult, SourceStatus
+from .retention_policy import _retain_previous_events
 from .import_contracts import ImportResult
 from .observability import configure_logging
 from .runtime import EventWindow, RunContext
@@ -33,10 +35,13 @@ def semantic_contract() -> dict[str, Any]:
         "link": f"https://example.test/{name}", "score": 2.0,
         **values,
     }) for name, values in cases)
-    context = RunContext(RuntimeConfig(), EventWindow(datetime(2026, 10, 1), datetime(2026, 11, 2)),
+    context = RunContext(RuntimeConfig(json_out="nrw-events-events.json"), EventWindow(datetime(2026, 10, 1), datetime(2026, 11, 2)),
                          "semantic-contract", configure_logging("semantic-contract", "ERROR", "", ""),
                          clock=lambda: datetime(2026, 10, 20, 12))
-    snapshot = build_snapshot(ImportResult(events, {}, len(events), "healthy"), context)
+    sources = {"Unavailable": SourceResult(source="Unavailable", status=SourceStatus.PARSER_EMPTY)}
+    _, retention = _retain_previous_events(sources, {}, context)
+    retention["fresh_event_count"] = len(events)
+    snapshot = build_snapshot(ImportResult(events, sources, len(events), "degraded", retention=retention), context)
     return {"producer": {**snapshot.metadata, "events": snapshot.events},
             "expected_ids": [event_id(event) for event in events],
             "cases": [name for name, _ in cases],

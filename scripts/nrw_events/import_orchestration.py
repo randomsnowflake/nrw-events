@@ -594,8 +594,15 @@ def _run_import_configured(context: RunContext, sources: Mapping[str, Callable[[
     retention["retained_event_count"] = retained_count
     retention["fresh_event_count"] = max(len(deduped) - retained_count, 0)
 
+    # A large individual source may own most of the feed. Its proven day-seven
+    # removals are expected, but every unrelated missing row stays guarded.
+    expired_ids = retention.pop("_outage_expired_event_ids", [])
+    expected_removals = set(expired_ids if isinstance(expired_ids, list) else []) - {
+        event_id(event) for event in deduped
+    }
+    guarded_previous_count = max(int(previous.get("event_count") or 0) - len(expected_removals), 0)
     run_status = _impl_source_execution._run_status(source_results, len(deduped),
-        previous_event_count=int(previous.get("event_count") or 0),
+        previous_event_count=guarded_previous_count,
         minimum_snapshot_ratio=settings.minimum_snapshot_ratio,
         max_failed_source_ratio=settings.max_failed_source_ratio,
     )

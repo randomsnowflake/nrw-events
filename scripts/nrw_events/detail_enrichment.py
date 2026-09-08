@@ -1322,6 +1322,6 @@ def _enrich_batch(events: list[dict], cache_namespace: str, deadline: float,
             document = documents[fetch_link]
             enriched.append(apply_detail_context(event, extract_detail_context(document, event)))
         except Exception as exc:
-            common.log_source_error(f"{event.get('source') or 'event'} detail", exc)
+            common.log_source_error(f"{event.get('source') or 'event'} detail", exc, error_type="OptionalDetailWarning")
             enriched.append(event)
     return enriched

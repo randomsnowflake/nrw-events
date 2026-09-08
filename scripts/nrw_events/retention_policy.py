@@ -7,6 +7,7 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import (
@@ -25,7 +26,7 @@ from .health import (
 from .identity import content_hash, event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
-from .runtime import RunContext
+from .runtime import LOCAL_TIMEZONE, RunContext
 from .validation import EventValidationError, validate_event
 
 _DISCOVERY_ONLY_SOURCE_IDS = frozenset({"radio-bonn-rhein-sieg"})
@@ -114,6 +115,23 @@ def _is_discovery_only_event(event: dict) -> bool:
     )
 
 
+def _outage_warning(warning: dict) -> bool:
+    """Transport/parser failures, not editorial or enrichment diagnostics."""
+    kind = str(warning.get("error_type") or "")
+    return kind == "SourceWarning" or bool(kind and not kind.endswith("Warning"))
+
+
+def _outage_instant(value: object) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(str(value or ""))
+    except ValueError:
+        return None
+    # Legacy producer clocks were local naive Europe/Berlin timestamps.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=LOCAL_TIMEZONE)
+    return parsed.astimezone(timezone.utc)
+
+
 def _retention_labels(
     results: dict[str, SourceResult],
     previous: dict,
@@ -158,17 +176,43 @@ def _retention_labels(
             # Bootstrap snapshots predate per-runner source metadata. Most
             # standalone adapters use the runner name as their event source.
             prior_labels.add(runner_source_id)
-        fresh_labels = set(result.event_source_ids)
+        outage_warnings = [warning for warning in result.warnings if _outage_warning(warning)]
+        failed_children = {
+            normalize_source_id(warning.get("source_id") or warning.get("source"))
+            for warning in outage_warnings
+            if normalize_source_id(warning.get("source_id") or warning.get("source"))
+            not in {result.source_id, runner_source_id}
+        }
+        optional_errors = {warning.get("error") for warning in result.warnings
+                           if warning.get("error_type") == "OptionalDetailWarning"}
+        endpoint_failures = [endpoint for endpoint in result.endpoints.values()
+                             if (endpoint.get("error_type") or endpoint.get("parser_empty"))
+                             and endpoint.get("error") not in optional_errors]
+        structural_failure = any(not reason.startswith(("quality:", "filter:"))
+                                 for reason in result.rejection_reasons)
+        runner_wide_failure = (
+            result.status == SourceStatus.FAILED or structural_failure
+            or any(normalize_source_id(warning.get("source_id") or warning.get("source"))
+                   in {result.source_id, runner_source_id} for warning in outage_warnings)
+            or any(not any(warning.get("error") and warning.get("error") == endpoint.get("error")
+                           for warning in outage_warnings) for endpoint in endpoint_failures)
+        )
         unavailable = (
             result.status in {SourceStatus.FAILED, SourceStatus.PARSER_EMPTY}
-            or (result.status == SourceStatus.DEGRADED and not fresh_labels)
-            or result.status == SourceStatus.SCHEDULED_SKIP
-            or "zero_after_recent_nonempty" in result.anomalies
+            or (result.status == SourceStatus.DEGRADED and (
+                outage_warnings or endpoint_failures or structural_failure
+            ))
         )
         if unavailable:
+            # Narrow only when every failure is attributed to a child. A mixed
+            # child + whole-runner partial failure also protects the prior cohort.
+            labels.update(failed_children)
+            if not failed_children or runner_wide_failure:
+                labels.update(prior_labels or {result.source_id})
+        elif result.status == SourceStatus.SCHEDULED_SKIP:
             labels.update(prior_labels)
 
-        for warning in result.warnings:
+        for warning in outage_warnings:
             warning_source = normalize_source_id(
                 warning.get("source_id") or warning.get("source")
             )
@@ -245,6 +289,9 @@ def _retain_previous_events(
         runner_source_id = normalize_source_id(runner_source)
         if not prior_ids and runner_source_id in labels:
             prior_ids.add(runner_source_id)
+        if result.source_id in labels:
+            prior_ids.add(result.source_id)
+            source_names.setdefault(result.source_id, result.source)
         for source_id in prior_ids & labels:
             runner_sources.setdefault(source_id, runner_source)
         for warning in result.warnings:
@@ -257,7 +304,30 @@ def _retain_previous_events(
     # recover the label from the snapshot when Radio itself is unavailable.
     for label in unpublished_fallback_source_ids & labels:
         runner_sources.setdefault(label, _RADIO_RUNNER_SOURCE)
+    # The importer snapshot is the single outage ledger. Run counters and the
+    # last successful run cannot establish a first failure in legacy snapshots;
+    # migrate them at the first observed failure, never guess elapsed days.
+    now = _outage_instant(context.clock().isoformat())
+    assert now is not None
+    first_failures: dict[str, str] = {}
+    grace_expired: set[str] = set()
+    for label in labels:
+        prior = previous_retention.get(label) or {}
+        runner_result = results.get(runner_sources.get(label, ""))
+        skipped = runner_result is not None and runner_result.status == SourceStatus.SCHEDULED_SKIP
+        non_outage = skipped or label in unpublished_fallback_source_ids
+        first = _outage_instant(prior.get("first_failure_at"))
+        if first is None and not non_outage:
+            first = now
+        if first is not None:
+            first = min(first, now)
+            first_failures[label] = first.isoformat(timespec="seconds")
+            if now - first >= timedelta(days=7):
+                grace_expired.add(label)
+        else:
+            first_failures[label] = ""
     retained: list[CanonicalEvent] = []
+    outage_expired_event_ids: set[str] = set()
     expired_counts = dict.fromkeys(labels, 0)
     candidate_counts = dict.fromkeys(labels, 0)
     window_start = context.window.start.strftime("%Y-%m-%d")
@@ -293,6 +363,10 @@ def _retain_previous_events(
             continue
         if event.start_date > window_end:
             continue
+        if label in grace_expired:
+            if event.status == "scheduled" and published_event_id:
+                outage_expired_event_ids.add(published_event_id)
+            continue
         retained.append(event)
         candidate_counts[label] += 1
 
@@ -312,6 +386,7 @@ def _retain_previous_events(
             "retained_event_count": candidate_counts[label],
             "expired_event_count": expired_counts[label],
             "last_success_at": prior.get("last_success_at") or prior_generated_at,
+            "first_failure_at": first_failures[label],
             "consecutive_failures": (
                 int(prior.get("consecutive_failures") or 0)
                 if scheduled_skip
@@ -323,6 +398,8 @@ def _retain_previous_events(
         "retained_event_count": len(retained),
         "expired_retained_event_count": sum(expired_counts.values()),
         "retained_sources": retained_sources,
+        # Internal evidence consumed by orchestration, never serialized.
+        "_outage_expired_event_ids": sorted(outage_expired_event_ids),
     }
 
 
