@@ -234,8 +234,12 @@ class SourceOutageTests(unittest.TestCase):
             with self.subTest(message=message[:30]), make_runner_env() as env:
                 def detail_only():
                     url = "https://example.test/detail"
-                    http._record_endpoint(url, error_type="TimeoutError", error=message)
-                    http._mark_optional_detail_failure(url, TimeoutError(message))
+                    try:
+                        with http._optional_detail_request(url):
+                            http._record_endpoint(url, error_type="TimeoutError", error=message)
+                            raise TimeoutError(message)
+                    except TimeoutError:
+                        pass
                     runner.common.log_source_error(
                         "Calendar", TimeoutError(message), error_type="OptionalDetailWarning")
                     return SourceFetchResult.partial([event(title="Fresh concert")])

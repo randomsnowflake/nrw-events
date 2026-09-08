@@ -1311,18 +1311,18 @@ def _enrich_batch(events: list[dict], cache_namespace: str, deadline: float,
         try:
             if fetch_link not in documents:
                 hostname = (urlsplit(fetch_link).hostname or "").casefold()
-                documents[fetch_link] = common.fetch_detail_url(
-                    fetch_link,
-                    cache_namespace=cache_namespace,
-                    timeout=min(20.0, remaining / 3.0),
-                    brightdata_fallback=True,
-                    allowed_hosts=(hostname,),
-                    cache_failures=True,
-                )
+                with http._optional_detail_request(fetch_link):
+                    documents[fetch_link] = common.fetch_detail_url(
+                        fetch_link,
+                        cache_namespace=cache_namespace,
+                        timeout=min(20.0, remaining / 3.0),
+                        brightdata_fallback=True,
+                        allowed_hosts=(hostname,),
+                        cache_failures=True,
+                    )
             document = documents[fetch_link]
             enriched.append(apply_detail_context(event, extract_detail_context(document, event)))
         except Exception as exc:
-            http._mark_optional_detail_failure(fetch_link, exc)
             common.log_source_error(f"{event.get('source') or 'event'} detail", exc, error_type="OptionalDetailWarning")
             enriched.append(event)
     return enriched
