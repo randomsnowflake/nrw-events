@@ -24,6 +24,7 @@ from .health import (
     diagnostic_warning,
     sanitized_warning,
 )
+from .health import outage_warning as _outage_warning
 from .identity import content_hash, event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
@@ -116,12 +117,6 @@ def _is_discovery_only_event(event: dict) -> bool:
     )
 
 
-def _outage_warning(warning: dict) -> bool:
-    """Transport/parser failures, not editorial or enrichment diagnostics."""
-    kind = str(warning.get("error_type") or "")
-    return kind == "SourceWarning" or bool(kind and not kind.endswith("Warning"))
-
-
 def _outage_instant(value: object) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value or ""))
@@ -199,13 +194,7 @@ def _retention_labels(
             or any(not any(warning.get("error") and warning.get("error") == endpoint.get("error")
                            for warning in outage_warnings) for endpoint in endpoint_failures)
         )
-        unavailable = (
-            result.status in {SourceStatus.FAILED, SourceStatus.PARSER_EMPTY}
-            or (result.status == SourceStatus.DEGRADED and (
-                result._explicit_empty_partial or outage_warnings or endpoint_failures or structural_failure
-            ))
-        )
-        if unavailable:
+        if result.has_outage_evidence():
             # Narrow only when every failure is attributed to a child. A mixed
             # child + whole-runner partial failure also protects the prior cohort.
             labels.update(failed_children)
