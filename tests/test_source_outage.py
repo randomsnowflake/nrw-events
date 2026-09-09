@@ -204,6 +204,32 @@ class SourceOutageTests(unittest.TestCase):
             self.assertEqual(payload["retained_sources"][0]["first_failure_at"], first)
             self.assertEqual(payload["retained_event_count"], 0)
 
+    def test_majority_empty_sources_with_benign_warnings_do_not_block_publication(self):
+        from nrw_events.run_state import log_source_error
+
+        for kind in ("QualityGateWarning", "OptionalDetailWarning"):
+            with self.subTest(kind=kind), make_runner_env() as env:
+                def empty(warning_type=kind):
+                    log_source_error("Empty", ValueError("diagnostic"), error_type=warning_type)
+                    return SourceFetchResult.success([])
+
+                result, payload = self.run_day(env, 0, {
+                    "Empty A": empty, "Empty B": empty,
+                    "Healthy": lambda: [event("Healthy", "Play")],
+                })
+                self.assertEqual(payload["retained_sources"], [])
+                self.assertEqual(result.run_status, "degraded")
+                self.assertEqual(payload["event_count"], 1)
+
+    def test_majority_empty_partial_sources_still_block_publication(self):
+        with make_runner_env() as env:
+            result, _ = self.run_day(env, 0, {
+                "Empty A": lambda: SourceFetchResult.partial([]),
+                "Empty B": lambda: SourceFetchResult.partial([]),
+                "Healthy": lambda: [event("Healthy", "Play")],
+            })
+            self.assertEqual(result.run_status, "failed")
+
     def test_majority_parser_collapse_remains_fatal_with_a_healthy_source(self):
         with make_runner_env() as env:
             sources = self.sources(SourceFetchResult.parser_empty)

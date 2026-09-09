@@ -47,6 +47,12 @@ def bounded_diagnostic_text(value: Any, max_bytes: int) -> str:
     return encoded[:max_bytes].decode("utf-8", errors="ignore")
 
 
+def outage_warning(warning: Mapping[str, Any]) -> bool:
+    """Transport/parser failures, not editorial or enrichment diagnostics."""
+    kind = str(warning.get("error_type") or "")
+    return kind == "SourceWarning" or bool(kind and not kind.endswith("Warning"))
+
+
 def sanitized_warning(warning: Mapping[str, Any]) -> dict[str, Any]:
     """Bound untrusted warning text while preserving typed monitoring fields."""
     sanitized = dict(warning)
@@ -180,6 +186,19 @@ class SourceResult:
         self.source_id = bounded_diagnostic_text(
             normalize_source_id(self.source_id or self.source), 100
         ) or "unknown-source"
+
+    def has_outage_evidence(self) -> bool:
+        """Use the same outage evidence for retention and the publication guard."""
+        if self.status in {SourceStatus.FAILED, SourceStatus.PARSER_EMPTY}:
+            return True
+        return self.status == SourceStatus.DEGRADED and (
+            self._explicit_empty_partial
+            or any(outage_warning(warning) for warning in self.warnings)
+            or any((endpoint.get("error_type") or endpoint.get("parser_empty"))
+                   and endpoint.get("optional_detail") is not True
+                   for endpoint in self.endpoints.values())
+            or any(not reason.startswith(("quality:", "filter:")) for reason in self.rejection_reasons)
+        )
 
     def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> bool:
         warning = diagnostic_warning(

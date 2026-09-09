@@ -330,7 +330,7 @@ def _run_status(results: dict[str, SourceResult], event_count: int,
         if result.status not in {SourceStatus.SCHEDULED_SKIP, SourceStatus.DISABLED}
     ]
     failed_count = sum(result.status in {SourceStatus.FAILED, SourceStatus.PARSER_EMPTY}
-                       or (result.status == SourceStatus.DEGRADED and not result.event_source_ids)
+                       or (not result.event_source_ids and result.has_outage_evidence())
                        for result in attempted)
     if attempted and failed_count / len(attempted) > max_failed_source_ratio:
         return "failed"
