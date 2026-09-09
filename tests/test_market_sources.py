@@ -188,6 +188,28 @@ class MarketSourceTests(unittest.TestCase):
         self.assertEqual(events[1]["title"], "Hofflohmarkt Agnesviertel")
         self.assertTrue(all(event["description"] for event in events))
 
+    def test_hofflohmaerkte_reads_visitor_copy_and_exact_dated_tour_plan(self):
+        html = """
+        <p>Hausanwohner*innen verkaufen im eigenen Hof oder Garten. Nachhaltigkeit im Veedel.
+        Auf dieser Seite könnt ihr einen Hof anmelden.</p>
+        <p>Sa. 19. September 2026 · 10 - 16 Uhr · <strong>Sülz &amp; Klettenberg<br/></strong></p>
+        <a href="https://cdn.shopify.com/s/files/hofflohmaerkte-suelzklettenberg-190925.pdf">Alt</a>
+        <a href="https://evil.example/hofflohmaerkte-suelzklettenberg-190926.pdf">Falsch</a>
+        <a href="https://cdn.shopify.com/s/files/hofflohmaerkte-zollstock-190926.pdf">Anderes Veedel</a>
+        <a href="https://cdn.shopify.com/s/files/hofflohmaerkte-suelzklettenberg-190926.pdf?v=1&amp;x=2">Tourplan</a>
+        <p>Hof-Anmeldung 16 Euro. Newsletter bestellen.</p>
+        """
+        event = hofflohmaerkte._events_from_page(html)[0]
+        self.assertIn("Nachhaltigkeit im Veedel", event["description"])
+        self.assertIn("Tourplan für diesen Termin ist veröffentlicht", event["description"])
+        self.assertNotIn("Hof anmelden", event["description"])
+        self.assertNotIn("16 Euro", event["description"])
+        self.assertEqual(event["link"], "https://cdn.shopify.com/s/files/hofflohmaerkte-suelzklettenberg-190926.pdf?v=1&x=2")
+        self.assertIn(hofflohmaerkte._URL, event["source_links"])
+        self.assertEqual(event["link_kind"], "detail")
+        stale_only = html.replace("190926", "190925")
+        self.assertEqual(hofflohmaerkte._events_from_page(stale_only)[0]["link"], hofflohmaerkte._URL)
+
     def test_hofflohmaerkte_recovers_rate_limits_through_web_unlocker(self):
         html = (
             "<h1>Hofflohmärkte Köln</h1>"

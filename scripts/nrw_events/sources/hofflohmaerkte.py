@@ -1,6 +1,9 @@
 """Neighborhood courtyard flea markets published by Hofflohmärkte Köln."""
 
 import re
+import html as html_lib
+import unicodedata
+from urllib.parse import urlsplit
 
 from .. import common, http
 from ..dates import MONTH_DE
@@ -14,8 +17,42 @@ _DATE_PATTERN = re.compile(
 )
 
 
+def _neighborhood_key(value: str) -> str:
+    value = value.casefold().replace("ß", "ss").replace("ü", "ue").replace("ö", "oe").replace("ä", "ae")
+    value = "".join(char for char in unicodedata.normalize("NFKD", value) if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]", "", value.replace(" & ", "").replace(" / ", ""))
+
+
+def _tour_plan(html: str, neighborhood: str, start) -> str:
+    # Only this neighbourhood AND occurrence date may select a PDF. In
+    # particular, last year's tour plan must never become the current source.
+    date_token = start.strftime("%d%m%y")
+    key = _neighborhood_key(neighborhood)
+    for href in re.findall(r'href=["\']([^"\']+)["\']', html, re.I):
+        url = html_lib.unescape(href)
+        parts = urlsplit(url)
+        if parts.scheme != "https" or parts.hostname != "cdn.shopify.com":
+            continue
+        filename = parts.path.rsplit("/", 1)[-1]
+        match = re.fullmatch(r"hofflohmaerkte-(.+)-(\d{6})\.pdf", filename, re.I)
+        if match and match[2] == date_token and _neighborhood_key(match[1]) == key:
+            return url
+    return ""
+
+
+def _visitor_context(html: str) -> list[str]:
+    # Read the actual visitor introduction, not the seller checkout, consent
+    # text, navigation, or the list of dates for other neighbourhoods.
+    paragraphs = [rc.clean(value) for value in re.findall(r"<p\b[^>]*>(.*?)</p>", html, re.S | re.I)]
+    introduction = next((p for p in paragraphs if "Hausanwohner" in p and "Hof oder Garten" in p), "")
+    introduction = introduction.split("Auf dieser Seite", 1)[0].strip()
+    tour_notice = next((p for p in paragraphs if "Tourpläne" in p and "veröffentlichen" in p), "")
+    return [p for p in (introduction, tour_notice) if p]
+
+
 def _events_from_page(html: str) -> list:
     events = []
+    context = _visitor_context(html)
     for match in _DATE_PATTERN.finditer(html or ""):
         day, month_name, year, start_hour, end_hour, neighborhood_html = match.groups()
         month = MONTH_DE.get(month_name.casefold().rstrip("."))
@@ -32,6 +69,13 @@ def _events_from_page(html: str) -> list:
             f"Beim Hofflohmarkt in {neighborhood} verkaufen Hausanwohnerinnen und "
             "Hausanwohner auf ihren eigenen Höfen und in ihren Gärten."
         )
+        tour_plan = _tour_plan(html, neighborhood, start)
+        if context:
+            description = f"Hofflohmarkt in {neighborhood}.\n\n" + "\n\n".join(context[:1])
+        if tour_plan:
+            description += "\n\nDer Tourplan für diesen Termin ist veröffentlicht. Er zeigt die teilnehmenden Höfe und hilft bei der Planung des Rundgangs durch das Viertel. Den Plan erreichst du über die Originalquelle."
+        elif len(context) > 1:
+            description += "\n\n" + context[1]
         event = common.make_event(
             title,
             start,
@@ -39,13 +83,15 @@ def _events_from_page(html: str) -> list:
             neighborhood,
             city,
             description,
-            _URL,
+            tour_plan or _URL,
             "Hofflohmärkte Köln",
             "hofflohmarkt flohmarkt nachbarschaft markt",
             0.94,
             time_text,
         )
         if event:
+            event["link_kind"] = "detail" if tour_plan else "overview"
+            event["source_links"] = list(dict.fromkeys([_URL, tour_plan or _URL]))
             events.append(event)
     return rc.dedupe(events)
 
