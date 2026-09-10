@@ -127,6 +127,9 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Haus der Natur", "Inklusionsthemen", "Inklusiv konzipiert",
         "Integration/Migration/Interkultur", "Internationales", "Jugendliche",
         "Junge Erwachsene", "Klima", "Kunstmuseum", "Nachhaltigkeit",
+        # Reading-festival umbrella, not an occurrence's format or admission.
+        # Its events also carry topics such as Aktion/Workshop or Lesung.
+        "Käpt´n Book",
         "Beratungsstelle für Eltern, Kinder und Jugendliche", "SDG-Tage",
         "Seniorinnen und Senioren", "Sitzungstermine Rat",
         "Stadtbibliothek", "Startseite", "Volkshochschule", "Weihnachten",

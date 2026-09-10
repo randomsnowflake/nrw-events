@@ -144,7 +144,11 @@ def _events_from_bonner_kinemathek(html: str, detail_fetcher=None) -> list:
             re.S | re.I,
         )
         tags = rc.clean(" ".join(tag_lines))
-        if not _is_special_format(title, tags):
+        # The programme also labels curated series by name, without a generic
+        # "festival"/"open air" tag. Keep these publisher-owned title prefixes
+        # local: ordinary OmU, national-cinema and children's screenings stay out.
+        named_series = re.match(r"^(?:Pink Movie Club|Fahrradkino)\s*:", title, re.I)
+        if not (_is_special_format(title, tags) or named_series):
             continue
         if re.search(r"\bkeine\s+(?:veranstaltung|vorstellung|filmvorführung)", title, re.I):
             continue
