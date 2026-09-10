@@ -92,6 +92,7 @@ _REVIEWED_VENUE_ALIAS_FAMILIES = (
     frozenset({
         "moehneplatz bonn beuel", "moehneplatz", "rathaustreppe",
         "beueler rathaustreppe", "beueler rathaus", "beueler rathausplatz",
+        "rathaus beuel",
     }),
     frozenset({
         "sieglarer marktplatz", "marktplatz sieglar", "troisdorf sieglar",
