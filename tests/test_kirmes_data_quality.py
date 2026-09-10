@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common, report
@@ -70,6 +71,23 @@ class KirmesDataQualityTests(unittest.TestCase):
         self.assertTrue(all(row["description_source"] == "generated" for row in rows))
         self.assertTrue(all("Hier können Sie" not in row["description"] for row in rows))
         self.assertTrue(all("Newsletter" not in row["description"] for row in rows))
+
+    def test_bornheim_nested_title_does_not_read_cookie_dialog(self):
+        html = (Path(__file__).parent / "fixtures/bornheim_apfelfest_cookie.html").read_text()
+        rows = regional_html._events_from_bornheim(html)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({row["title"] for row in rows}, {"Apfelfest bei Schmitz-Hübsch"})
+        self.assertEqual({row["start_date"] for row in rows}, {"2026-09-19", "2026-09-20"})
+        self.assertTrue(all("Genuss und Spaß für die Familie" in row["description"] for row in rows))
+        self.assertTrue(all("Cookie-Hinweis" not in str(row) for row in rows))
+
+    def test_bornheim_missing_title_does_not_borrow_following_heading(self):
+        html = BORNHEIM_HTML.replace(
+            '<p class="event-title">Dorffest / Kirmes in Widdig</p>', ""
+        ) + '<h3 class="dialog-title">Cookie-Hinweis</h3>'
+        rows = regional_html._events_from_bornheim(html)
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all("Cookie" not in row["title"] for row in rows))
 
     def test_funfair_title_year_and_locative_word_do_not_block_same_run_dedup(self):
         lupe = event(
