@@ -220,15 +220,53 @@ def _lohmar_fallback_description(title: str, time_text: str, venue: str) -> str:
     return f"„{title}“ ist im Lohmarer Veranstaltungskalender{details} angekündigt."
 
 
+class _BornheimEventCards(HTMLParser):
+    """Keep nested date articles and exclude consent/navigation after a card."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.cards = []
+        self.parts = []
+        self.depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "article":
+            if not self.depth and "event-teaser" in dict(attrs).get("class", "").split():
+                self.depth = 1
+            elif self.depth:
+                self.depth += 1
+        if self.depth:
+            self.parts.append(self.get_starttag_text())
+
+    def handle_endtag(self, tag):
+        if self.depth:
+            self.parts.append(f"</{tag}>")
+            if tag == "article":
+                self.depth -= 1
+                if not self.depth:
+                    self.cards.append("".join(self.parts))
+                    self.parts = []
+
+    def handle_data(self, data):
+        if self.depth:
+            self.parts.append(data)
+
+    def handle_entityref(self, name):
+        self.handle_data(f"&{name};")
+
+    def handle_charref(self, name):
+        self.handle_data(f"&#{name};")
+
+
 def _events_from_bornheim(html: str) -> list:
     events = []
-    for part in re.split(r'(?=<article class="event-teaser")', html):
-        if 'class="event-teaser"' not in part:
-            continue
+    parser = _BornheimEventCards()
+    parser.feed(html)
+    for part in parser.cards:
         dates = re.findall(r'date-card-btn-date">([^<]+)', part, re.S | re.I)
         title = re.search(
             r'<(?:h[1-6]|p)\b[^>]*class="[^"]*(?:title|headline)[^"]*"[^>]*>'
-            r'\s*([^<]{4,160})\s*</(?:h[1-6]|p)>',
+            r'\s*(.*?)\s*</(?:h[1-6]|p)>',
             part,
             re.S | re.I,
         )
@@ -239,9 +277,15 @@ def _events_from_bornheim(html: str) -> list:
         title_text = rc.clean(title.group(1)) if title else rc.title_from_href(href.group(1) if href else "")
         if not title_text:
             continue
+        source_description = " ".join(
+            rc.clean(body)
+            for attrs, body in re.findall(r"<p\b([^>]*)>(.*?)</p>", part, re.S | re.I)
+            if not re.search(r"(?:content-info|eventcategor|title|headline)", attrs, re.I)
+            and rc.clean(body)
+        )
         for date_text in dates:
             start = rc.parse_dt(date_text)
-            description = common.factual_event_description(
+            description = source_description or common.factual_event_description(
                 title_text,
                 date_value=start,
                 city="Bornheim",
