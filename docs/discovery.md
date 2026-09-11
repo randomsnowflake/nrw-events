@@ -33,8 +33,8 @@ Siegburg landing page, Street Food Festival "Das Original", Choco Dealer),
 BV Holzlar (Bonn-Ost neighbourhood associations: Holzlar, Kohlkaul,
 Roleber-Gielgen, Mühlenverein), Rhein in Flammen Bonn,
 Literaturhaus Bonn, Parkbuchhandlung Bad Godesberg,
-Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, Exa Search, and
-optional Grok Search. Bonn sport-club scrape candidates discovered for
+Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, and Exa Search.
+Grok Search is permanently retired. Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
 Bonn.de sports + annual Veranstaltungjahr pages, TGV Bonn, 1. BC Beuel, SSF
 Bonn, Bonn Rugby UC, OFC Bonn, Post-Sportverein Bonn Clubway feed, Bonner
@@ -146,7 +146,7 @@ To trim output for terse contexts, set `NRW_EVENTS_MAX_PER_SECTION=N`.
 
 Defaults favour **quantity over quality** (filter the full list yourself):
 
-- `EXA_API_KEY` / `XAI_API_KEY` — credentials for the optional Exa and Grok search fallbacks.
+- `EXA_API_KEY` — credentials for the optional Exa search fallback.
 - `NRW_EVENTS_MAX_PER_SECTION=N` — cap events shown per category (0/unset = all).
 - `NRW_EVENTS_REPORT_MAX_CHARS=N` — optionally cap the complete Markdown report (0/unset = full output).
 - `NRW_EVENTS_DAYS_AHEAD=3` — default time window when the CLI has no day argument (1–90).
@@ -160,7 +160,6 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_DESCRIPTION_MAX_CHARS=700` — maximum normalized description length.
 - `NRW_EVENTS_CATEGORY_FALLBACK_CACHE=/path/cache.json` — optional reviewed category cache; the importer itself never invokes an LLM.
 - `NRW_EVENTS_EXA_QUERIES=10` — how many `search_queries()` to send to Exa (~5 results each).
-- `NRW_EVENTS_ENABLE_GROK=1` — enable the slow/costly agentic Grok sweep (off by default).
 - `NRW_EVENTS_USER_AGENT` — override the default browser-like user agent.
 - `NRW_EVENTS_HTTP_RETRY_ATTEMPTS=5` — transient HTTP/network retry limit.
 - `NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS=45.0` — total request, retry, and backoff budget.

@@ -10,8 +10,7 @@
 #
 # Optional API keys (set as real env vars or in a .env file at the repo root):
 #   EXA_API_KEY  — enables the Exa neural web-search fallback
-#   XAI_API_KEY  — enables the optional Grok agentic search
-#                  (also requires NRW_EVENTS_ENABLE_GROK=1)
+#   Grok event search is retired and cannot be enabled.
 # The script runs without any keys; the deterministic scrapers do the heavy lifting.
 
 set -euo pipefail

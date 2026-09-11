@@ -232,12 +232,11 @@ keine Treffer.
 ## API-Schlüssel, optional
 
 Das Tool läuft ohne API-Schlüssel. Die deterministischen Quellen erledigen den
-wichtigsten Teil. Zwei optionale Schlüssel aktivieren zusätzliche Such-Fallbacks:
+wichtigsten Teil. Ein optionaler Schlüssel aktiviert den Such-Fallback:
 
 | Schlüssel     | Dienst                 | Aktiviert                                           |
 |---------------|------------------------|-----------------------------------------------------|
 | `EXA_API_KEY` | [Exa](https://exa.ai)  | Websuche für schwer auffindbare lokale Eventseiten  |
-| `XAI_API_KEY` | [xAI Grok](https://x.ai) | optionale agentische Suche, standardmäßig aus      |
 
 Schlüssel können als echte Umgebungsvariablen gesetzt werden oder über eine
 lokale `.env`:
@@ -313,7 +312,6 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales Pilotlimit für den finalen deduplizierten AI-Batch; `0` verarbeitet alle Zielevents. |
 | `NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY` | `150` | Kostenbremse für neue AI-Cache-Zeilen pro UTC-Tag; `0` hebt das Limit nur für bewusst überwachte Läufe auf. |
 | `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
-| `NRW_EVENTS_ENABLE_GROK`      | nicht gesetzt | Auf `1` setzen, um die langsame/kostspielige Grok-Suche zu aktivieren. |
 | `NRW_EVENTS_USER_AGENT`       | moderner Chrome UA | Optionaler Override für HTTP-Requests an öffentliche Quellen. |
 | `NRW_EVENTS_HTTP_RETRY_ATTEMPTS` | `5` | Maximale Versuche für temporäre HTTP-/Netzwerkfehler (`429`, `5xx`, Timeouts). |
 | `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS` | `1.0` | Basis für exponentielles Retry-Backoff mit Jitter. |
@@ -489,8 +487,8 @@ See the generated [sources inventory](sources.md).
   Detailseiten, und die Paginierung endet bei der ersten Seite jenseits des
   Berichtsfensters — ein kurzes Fenster kostet also einen Request pro Format.
   Datensätze von Veranstaltern, die wir bereits direkt lesen, werden verworfen.
-- **Websuche als Fallback:** Exa standardmäßig, Grok nur mit
-  `NRW_EVENTS_ENABLE_GROK=1` (`search.py`).
+- **Websuche als Fallback:** Exa (`search.py`). Grok Search ist dauerhaft
+  deaktiviert; alte xAI-Schlüssel und Opt-in-Variablen werden nicht verwendet.
 
 ### Quellenautorität bei Duplikaten
 

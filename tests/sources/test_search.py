@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events.sources import search
+from nrw_events.health import SourceStatus
 
 from tests.helpers import patch_window
 
@@ -60,81 +61,17 @@ class SearchSourceTests(unittest.TestCase):
 
         self.assertEqual(event["date"], "2026-10-10")
 
-    def test_grok_requires_key_and_explicit_opt_in(self):
-        with mock.patch.dict("os.environ", {}, clear=True), \
-                mock.patch.object(search.common, "log_source_disabled") as disabled:
-            self.assertEqual(search.fetch_grok(), [])
-            disabled.assert_called_once_with(
-                "Grok Search", "disabled: XAI_API_KEY is not configured",
-            )
-
-        with mock.patch.dict("os.environ", {"XAI_API_KEY": "secret"}, clear=True), \
-                mock.patch.object(search.common, "log_source_disabled") as disabled, \
-                mock.patch.object(search.common, "post_json") as post_json:
-            self.assertEqual(search.fetch_grok(), [])
-            post_json.assert_not_called()
-            disabled.assert_called_once_with(
-                "Grok Search", "disabled: set NRW_EVENTS_ENABLE_GROK=1 to enable Grok search",
-            )
-
-    def test_grok_extracts_assistant_json_and_normalizes_fields(self):
-        response = {
-            "output": [
-                {"type": "reasoning", "content": []},
-                {
-                    "type": "message", "role": "assistant",
-                    "content": [{
-                        "type": "output_text",
-                        "text": '[{"name":"Weinwanderung","date":"2026-08-22",'
-                                '"city":"bad neuenahr","venue":"Kurpark",'
-                                '"description":"Geführte Tour","link":"https://example.test/wine"}]',
-                    }],
-                },
-            ],
-        }
-        parsed = {
-            "title": "Weinwanderung", "date": "2026-08-22",
-            "city": "Bad Neuenahr-Ahrweiler", "venue": "",
-        }
-        environment = {"XAI_API_KEY": "secret", "NRW_EVENTS_ENABLE_GROK": "yes"}
-        with mock.patch.dict("os.environ", environment, clear=True), \
-                mock.patch.object(search, "search_queries", return_value=["Ahrtal events"]), \
-                mock.patch.object(search.common, "post_json", return_value=response) as post_json, \
-                mock.patch.object(search.common, "search_result_event", return_value=parsed) as parse_result:
-            events = search.fetch_grok()
-
-        self.assertEqual(events, [{
-            "title": "Weinwanderung", "date": "2026-08-22",
-            "city": "Bad Neuenahr-Ahrweiler", "venue": "Kurpark",
-        }])
-        self.assertEqual(post_json.call_args.args[0], "https://api.x.ai/v1/responses")
-        self.assertEqual(post_json.call_args.kwargs["headers"], {"Authorization": "Bearer secret"})
-        parse_result.assert_called_once_with(
-            "Weinwanderung", "https://example.test/wine",
-            "Kurpark bad neuenahr Geführte Tour", "Grok Search", 0.7,
-            explicit_date=mock.ANY,
-        )
-
-    def test_grok_rejects_an_unparseable_model_date(self):
-        response = {
-            "output": [{
-                "type": "message", "role": "assistant",
-                "content": [{
-                    "type": "output_text",
-                    "text": '[{"title":"Maybe","date":"next Saturday",'
-                            '"url":"https://example.test/maybe"}]',
-                }],
-            }],
-        }
-        with mock.patch.dict("os.environ", {
-            "XAI_API_KEY": "secret", "NRW_EVENTS_ENABLE_GROK": "yes",
-        }, clear=True), mock.patch.object(
-            search, "search_queries", return_value=["events"],
-        ), mock.patch.object(
-            search.common, "post_json", return_value=response,
-        ), mock.patch.object(search.common, "search_result_event") as parser:
-            self.assertEqual(search.fetch_grok(), [])
-        parser.assert_not_called()
+    def test_grok_is_retired_even_with_legacy_key_and_opt_in(self):
+        for environment in ({}, {"XAI_API_KEY": "secret"},
+                            {"XAI_API_KEY": "secret", "NRW_EVENTS_ENABLE_GROK": "yes"}):
+            with self.subTest(environment_keys=sorted(environment)), \
+                    mock.patch.dict("os.environ", environment, clear=True), \
+                    mock.patch.object(search.common, "post_json") as post_json:
+                result = search.fetch_grok()
+                self.assertEqual(result.events, ())
+                self.assertEqual(result.status, SourceStatus.DISABLED)
+                self.assertEqual(result.disabled_reason, "Grok event search permanently retired")
+                post_json.assert_not_called()
 
 
 if __name__ == "__main__":

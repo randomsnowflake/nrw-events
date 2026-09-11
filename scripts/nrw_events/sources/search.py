@@ -2,9 +2,9 @@
 Web-search fallbacks for obscure local/province events the scrapers miss.
 
 fetch_exa()  — Exa neural search (default; needs EXA_API_KEY)
-fetch_grok() — xAI Grok agentic web search (opt-in: NRW_EVENTS_ENABLE_GROK=1 + XAI_API_KEY)
+fetch_grok() — retired provider, retained only for explicit disabled health reports
 
-Both feed results through common.search_result_event(), which requires an
+Exa feeds results through common.search_result_event(), which requires an
 in-window date signal and a real topical signal before keeping anything.
 The query templates below interpolate the current month/year — they contain
 neighbourhood/town *keywords*, never event names or fixed dates.
@@ -13,6 +13,7 @@ neighbourhood/town *keywords*, never event names or fixed dates.
 import os
 
 from .. import common
+from ..health import SourceFetchResult
 
 
 def search_queries() -> list:
@@ -67,60 +68,6 @@ def fetch_exa() -> list:
     return events
 
 
-def fetch_grok() -> list:
-    source = "Grok Search"
-    api_key = os.environ.get("XAI_API_KEY", "")
-    if not api_key:
-        common.log_source_disabled(source, "disabled: XAI_API_KEY is not configured")
-        return []
-    if os.environ.get("NRW_EVENTS_ENABLE_GROK", "").lower() not in {"1", "true", "yes"}:
-        common.log_source_disabled(source, "disabled: set NRW_EVENTS_ENABLE_GROK=1 to enable Grok search")
-        return []
-    events = []
-    system_prompt = (
-        "Find concrete dated events near Bonn, Germany within ~75km. "
-        "Prioritize small local/outdoor/province events: Königswinter, Siebengebirge, Ahrtal, Andernach, "
-        "hikes, wine walks, markets, festivals, guided tours. Return only a JSON array of objects with "
-        "title, date, city, venue, description, url. Exclude static tourism pages without a specific date."
-    )
-    for query in search_queries()[:2]:
-        try:
-            data = common.post_json(
-                "https://api.x.ai/v1/responses",
-                {"model": "grok-4-1-fast",
-                 "input": [{"role": "developer", "content": system_prompt},
-                           {"role": "user", "content": query}],
-                 "tools": [{"type": "web_search"}]},
-                timeout=35, headers={"Authorization": f"Bearer {api_key}"},
-                retry_safe=True,
-            )
-            text_parts = []
-            for item in data.get("output", []):
-                if item.get("type") == "message" and item.get("role") == "assistant":
-                    text_parts.extend(
-                        part["text"]
-                        for part in item.get("content", [])
-                        if part.get("type") in {"output_text", "text"} and part.get("text")
-                    )
-            for c in common.extract_json_array("\n".join(text_parts)):
-                if not isinstance(c, dict):
-                    continue
-                title = c.get("title") or c.get("name") or ""
-                link = c.get("url") or c.get("link") or ""
-                model_date = common.parse_date(str(c.get("date") or ""))
-                if model_date is None:
-                    continue
-                desc = " ".join([
-                    str(c.get("venue") or ""),
-                    str(c.get("city") or ""),
-                    str(c.get("description") or ""),
-                ])
-                ev = common.search_result_event(
-                    title, link, desc, source, 0.7, explicit_date=model_date
-                )
-                if ev:
-                    ev["venue"] = str(c.get("venue") or "")[:120]
-                    events.append(ev)
-        except Exception as e:
-            common.log_source_error(f"{source} ({query[:30]}...)", e)
-    return events
+def fetch_grok() -> SourceFetchResult:
+    """Retired event provider; legacy credentials/opt-in cannot re-enable it."""
+    return SourceFetchResult.disabled("Grok event search permanently retired")
