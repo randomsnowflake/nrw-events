@@ -49,6 +49,14 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertEqual(venue.venue, "Repair Café MVA Bonn")
         self.assertEqual(venue.venue_id, "repair-cafe-mva-bonn")
 
+    def test_salsa_stadtbefestigung_label_resolves_to_alter_zoll(self):
+        # Salsa in Bonn names the cannons on the bastion "Bonner Stadtbefestigung"
+        # and only carries "Alter Zoll" in the street field the detail pass adds.
+        venue = resolve_venue("Bonner Stadtbefestigung, Stadtbefestigung Alter Zoll 53113 Bonn", "Bonn")
+
+        self.assertEqual(venue.venue_id, "stadtgarten-alter-zoll-bonn")
+        self.assertEqual(resolve_venue("Bonner Stadtbefestigung", "Köln").venue_id, "")
+
     def test_st_josef_beuel_has_verified_structured_location(self):
         venue = resolve_venue("St. Josef Beuel", "Bonn-Beuel")
 

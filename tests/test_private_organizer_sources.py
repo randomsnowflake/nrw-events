@@ -170,17 +170,20 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         fetch_detail.assert_called_once()
         self.assertEqual(fetch_detail.call_args.kwargs["retry_attempts"], 1)
 
-    def test_kunstrasen_reads_page_data_price_and_cached_detail_time(self):
-        payload = {"tourTeasers": [{"name": "Aktuelle Veranstaltungen", "tours": [{
-            "artist": "SAVATAGE </br>13.08.2026", "title": "Prelude to Madness Summer Tour 2026",
-            "url": "savatage-tickets-94.html", "minprice": "72.4",
-        }, {"artist": "External </br>14.08.2026", "title": "Other", "url": "https://elsewhere.test/event"}]}]}
-        html = f'<script>wlec.pageData = {json.dumps(payload)};</script>'
-        detail = '<a data-eventdate="2026-08-13" aria-label="SAVATAGE, Bonn, KUNST!RASEN BONN, 19:00 Uhr, 13.08.2026">Tickets</a>'
-        [event] = kunstrasen_bonn._events_from_listing(html, detail_fetcher=lambda _url: detail)
-        self.assertEqual(event["title"], "Savatage")
-        self.assertEqual(event["time"], "19:00")
-        self.assertEqual(event["price"], "ab 72.4 €")
+    def test_kunstrasen_reads_vivenu_next_data_time_price_and_sold_out(self):
+        payload = {"props": {"pageProps": {"sellerPage": {"events": [
+            {"name": "Die Fantastischen Vier ", "url": "die-fantastischen-vier-mu4e8n", "start": "2027-07-23T17:00:00.000Z", "end": "2027-07-23T20:00:00.000Z", "locationName": "KUNST!RASEN BONN", "locationCity": "Bonn", "startingPrice": 282.4, "saleStatus": "soldOut"},
+            {"name": "Elsewhere", "url": "elsewhere", "start": "2027-07-24T17:00:00.000Z", "locationName": "Palladium", "locationCity": "Köln"},
+        ]}}}}
+        html = f'<script id="__NEXT_DATA__" type="application/json">{json.dumps(payload)}</script>'
+        [event] = kunstrasen_bonn._events_from_listing(html)
+        self.assertEqual(event["title"], "Die Fantastischen Vier")
+        self.assertEqual(event["venue"], "KUNST!RASEN Bonn")
+        self.assertEqual(event["start_date"], "2027-07-23")
+        self.assertEqual(event["time"], "19:00–22:00")
+        self.assertEqual(event["price"], "ab 282.4 €")
+        self.assertEqual(event["availability"], "SoldOut")
+        self.assertEqual(event["link"], "https://tickets.kunstrasen-bonn.de/event/die-fantastischen-vier-mu4e8n")
 
     def test_beethovenfest_preserves_rich_copy_status_and_excludes_berlin(self):
         items = [{

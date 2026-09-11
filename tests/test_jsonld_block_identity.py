@@ -25,3 +25,10 @@ class JsonLdBlockIdentityTests(unittest.TestCase):
         with patch.object(jsonld, 'id', reused_address, create=True):
             events = jsonld.jsonld_event_items(document)
         self.assertEqual([event['name'] for event in events], [f'Contract market {i}' for i in range(14)])
+
+    def test_trailing_garbage_after_root_keeps_leading_event(self):
+        document = ('<script type="application/ld+json">'
+                    '{"@type": "FoodEvent", "name": "Street Food Festival Bonn"}\n  },\n\n}'
+                    '</script>')
+        events = jsonld.jsonld_event_items(document)
+        self.assertEqual([event['name'] for event in events], ['Street Food Festival Bonn'])

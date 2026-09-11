@@ -57,8 +57,10 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
             # Each decode creates a separate object graph. Wrapper roots are
             # released after walk and their addresses may be reused by CPython;
             # keeping their IDs across script blocks can silently skip events.
+            # Hand-edited blocks (street-food-festival.de) also trail stray
+            # braces after a valid root; browsers keep the leading value.
             seen.clear()
-            walk(json.loads(raw, strict=False))
+            walk(json.JSONDecoder(strict=False).raw_decode(raw)[0])
         except json.JSONDecodeError as exc:
             _impl_run_state.log_source_error("JSON-LD", exc)
             continue

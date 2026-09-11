@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import re
 import urllib.parse
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -25,16 +23,9 @@ def _local(value: str):
 
 
 def _events_from_listing(html: str) -> list:
-    match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html or "", re.S | re.I)
-    if not match:
-        return []
-    try:
-        items = json.loads(match.group(1))["props"]["pageProps"]["sellerPage"]["events"]
-    except (KeyError, TypeError, ValueError):
-        return []
     events = []
-    for item in items if isinstance(items, list) else []:
-        if not isinstance(item, dict) or common.clean_html(str(item.get("locationCity") or "")).casefold() != "bonn":
+    for item in rc.vivenu_seller_events(html):
+        if common.clean_html(str(item.get("locationCity") or "")).casefold() != "bonn":
             continue
         title = common.clean_html(str(item.get("name") or ""))
         start, end = _local(item.get("start")), _local(item.get("end"))

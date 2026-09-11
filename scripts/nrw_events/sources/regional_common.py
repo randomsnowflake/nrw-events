@@ -1,5 +1,6 @@
 """Shared helpers for regional Bonn/Rhein-Sieg source scrapers."""
 
+import json
 import os
 import re
 import time
@@ -379,6 +380,18 @@ def _first_normalized_time(text: str) -> str:
 
 def city_from_text(text: str, default_city: str) -> str:
     return common.guess_city_from_text(text) or default_city
+
+
+def vivenu_seller_events(html: str) -> list[dict]:
+    """Event records embedded by vivenu ticket shops in the Next.js page payload."""
+    match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html or "", re.S | re.I)
+    if not match:
+        return []
+    try:
+        items = json.loads(match.group(1))["props"]["pageProps"]["sellerPage"]["events"]
+    except (KeyError, TypeError, ValueError):
+        return []
+    return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
 
 def dedupe(events: list) -> list:

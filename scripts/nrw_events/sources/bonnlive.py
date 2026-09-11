@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import time
@@ -34,16 +33,9 @@ def _ticket_key(value: str) -> str:
 
 
 def _next_events(html: str) -> dict[str, list[dict]]:
-    match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html or "", re.S | re.I)
-    if not match:
-        return {}
-    try:
-        items = json.loads(match.group(1))["props"]["pageProps"]["sellerPage"]["events"]
-    except (KeyError, TypeError, ValueError):
-        return {}
     events: dict[str, list[dict]] = {}
-    for item in items:
-        if not isinstance(item, dict) or not item.get("name"):
+    for item in rc.vivenu_seller_events(html):
+        if not item.get("name"):
             continue
         key = _ticket_key(common.clean_html(str(item["name"])))
         events.setdefault(key, []).append(item)

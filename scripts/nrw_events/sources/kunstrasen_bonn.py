@@ -1,82 +1,55 @@
-"""First-party KUNST!RASEN Bonn dates from the public ticket shop."""
+"""First-party KUNST!RASEN Bonn dates from the public vivenu ticket shop."""
 
 from __future__ import annotations
 
-import json
-import re
 import urllib.parse
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from .. import common
 from . import regional_common as rc
 
 URL = "https://tickets.kunstrasen-bonn.de/"
 SOURCE = "KUNST!RASEN Bonn"
+VENUE = "KUNST!RASEN Bonn"
+_BERLIN = ZoneInfo("Europe/Berlin")
 
 
-def _page_data(html: str) -> dict:
-    match = re.search(r"wlec\.pageData\s*=\s*(\{.*?\})\s*;\s*</script>", html or "", re.S)
-    if not match:
-        return {}
+def _local(value: str):
     try:
-        return json.loads(match.group(1))
+        parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
     except ValueError:
-        return {}
+        return None
+    return parsed.astimezone(_BERLIN).replace(tzinfo=None) if parsed.tzinfo else parsed
 
 
-def _tour_items(payload: dict) -> list[dict]:
-    groups = payload.get("tourTeasers") or []
-    for group in groups if isinstance(groups, list) else []:
-        if not isinstance(group, dict):
-            continue
-        if "aktuelle veranstaltungen" in common.clean_html(str(group.get("name") or "")).casefold():
-            return [item for item in (group.get("tours") or []) if isinstance(item, dict)]
-    return []
-
-
-def _detail_time(html: str, date_value: str) -> str:
-    anchors = re.findall(r'<a[^>]+data-eventdate=["\']' + re.escape(date_value) + r'["\'][^>]*>', html or "", re.I)
-    for anchor in anchors:
-        label_match = re.search(r'aria-label=["\']([^"\']+)["\']', anchor, re.I)
-        time_match = re.search(r"\b([0-2]\d:[0-5]\d)\s*Uhr\b", label_match.group(1) if label_match else "", re.I)
-        if time_match:
-            return time_match.group(1)
-    return ""
-
-
-def _events_from_listing(html: str, *, detail_fetcher=None) -> list:
-    detail_fetcher = detail_fetcher or (lambda link: common.fetch_detail_url(link, cache_namespace="kunstrasen-bonn", timeout=15))
+def _events_from_listing(html: str) -> list:
     events = []
-    for item in _tour_items(_page_data(html)):
-        href = str(item.get("url") or "").strip()
-        if not href or urllib.parse.urlsplit(href).netloc:
+    for item in rc.vivenu_seller_events(html):
+        if common.clean_html(str(item.get("locationCity") or "")).casefold() != "bonn":
             continue
-        artist_html = str(item.get("artist") or "")
-        artist = common.clean_html(re.split(r"</?br\s*/?>", artist_html, maxsplit=1, flags=re.I)[0])
-        title = artist or common.clean_html(str(item.get("title") or ""))
-        date_match = re.search(r"\b(\d{2}\.\d{2}\.20\d{2})\b", common.clean_html(artist_html))
-        start = common.parse_date(date_match.group(1)) if date_match else None
-        if not title or not start:
-            continue
-        link = urllib.parse.urljoin(URL, href)
-        time_text = ""
-        if common.event_in_window_and_radius(start, start, "Bonn"):
-            try:
-                time_text = _detail_time(detail_fetcher(link), start.strftime("%Y-%m-%d"))
-            except Exception as exc:
-                common.log_source_error(f"{SOURCE} detail", exc)
-        if time_text:
-            hour, minute = map(int, time_text.split(":"))
-            start = start.replace(hour=hour, minute=minute)
-        tour_title = common.clean_html(str(item.get("title") or ""))
-        description = common.concise_description(tour_title) or common.factual_event_description(title, date_value=start, time_text=time_text, venue="KUNST!RASEN Bonn", city="Bonn")
+        title = common.clean_html(str(item.get("name") or ""))
+        start, end = _local(item.get("start")), _local(item.get("end"))
+        venue = common.clean_html(str(item.get("locationName") or "")) or VENUE
+        if venue.casefold() == VENUE.casefold():
+            venue = VENUE
+        slogan = common.clean_html(str(item.get("slogan") or ""))
+        description = common.concise_description(slogan) or common.factual_event_description(title, date_value=start, venue=venue, city="Bonn")
+        slug = str(item.get("url") or "").strip("/")
         default_category = "festival" if "festival" in title.casefold() else "concert"
-        event = common.make_event(title, start, start, "KUNST!RASEN Bonn", "Bonn", description, link, SOURCE, "open air concert festival live music", 1.0, source_id="kunstrasen-bonn", description_source="scraped" if tour_title else "generated", default_category_key=default_category, category_locked=True)
+        event = common.make_event(title, start, end or start, venue, "Bonn", description, urllib.parse.urljoin(URL, f"event/{slug}") if slug else URL, SOURCE, "open air concert festival live music", 1.0, source_id="kunstrasen-bonn", description_source="scraped" if slogan else "generated", default_category_key=default_category, category_locked=True)
         if not event:
             continue
-        price = item.get("minprice")
-        if price not in (None, ""):
+        price = item.get("startingPrice")
+        if price not in (None, "") and common.parse_float(price):
             event["price"] = f"ab {common.parse_float(price):g} €"
             event["admission_basis"] = "explicit"
+        if str(item.get("saleStatus") or "").casefold() == "soldout":
+            event["availability"] = "SoldOut"
+        street = common.clean_html(str(item.get("locationStreet") or ""))
+        locality = " ".join(filter(None, (common.clean_html(str(item.get("locationPostal") or "")), "Bonn")))
+        if street or locality:
+            event["venue_address"] = ", ".join(filter(None, (street, locality)))
         events.append(event)
     return rc.dedupe(events)
 
@@ -87,7 +60,7 @@ def fetch() -> list:
         with common.capture_parser_metrics() as metrics:
             events = _events_from_listing(html)
         parser_empty = not events and metrics["out_of_window_count"] == 0
-        common._record_endpoint(URL, parser_type="page-data-json", candidate_count=metrics["candidate_count"], out_of_window_count=metrics["out_of_window_count"], parsed_event_count=len(events), parser_empty=parser_empty)
+        common._record_endpoint(URL, parser_type="next-data-json", candidate_count=metrics["candidate_count"], out_of_window_count=metrics["out_of_window_count"], parsed_event_count=len(events), parser_empty=parser_empty)
         if parser_empty:
             common.log_source_error(SOURCE, rc.ParserEmptyError("parser returned no event records"))
         return events
