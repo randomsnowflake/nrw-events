@@ -612,14 +612,21 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     admission_text = " ".join((
         event["title"], event["description"], event["price"],
     )).casefold()
-    amount_match = re.search(
-        r"(?<!\d)(\d+(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b)",
+    number = r"(?:\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+[.,]\d{1,2}|\d+)"
+    matches = re.finditer(
+        rf"(?:^|[^\d.,])(?:({number})\s*(?:[-–—]|bis)\s*)?({number})\s*(?:€|eur\b|euro\b)",
         event["price"].casefold(),
     )
-    amount = (
-        float(amount_match.group(1).replace(",", "."))
-        if amount_match else None
-    )
+    amounts = []
+    for match in matches:
+        for digits in match.groups():
+            if digits is None:
+                continue
+            if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?", digits):
+                digits = digits.replace(".", "")
+            amounts.append(float(digits.replace(",", ".")))
+    positive_amounts = [value for value in amounts if value > 0]
+    amount = min(positive_amounts) if positive_amounts else (0.0 if amounts else None)
     normalized_price = event["price"].strip().casefold()
     donation_suggested = bool(re.search(
         r"\b(?:spendenbasis|spende(?:n)?\s+erbeten|hut(?:kasse|spende|spenden))\b",
@@ -628,7 +635,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     is_free = (
         True
         if normalized_price in {"frei", "kostenfrei", "kostenlos", "free"}
-        or amount == 0 or donation_suggested
+        or amount == 0 or (donation_suggested and amount is None)
         else False if normalized_price or amount is not None else None
     )
     event["admission"] = {
