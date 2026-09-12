@@ -1,0 +1,182 @@
+[
+  {
+    "name": "thousands",
+    "price": "1.200,00 EUR",
+    "description": "Konzert.",
+    "producer": {
+      "amount": 1200,
+      "isFree": false,
+      "schemaPrice": 1200
+    },
+    "submission": {
+      "amount": 1200,
+      "isFree": false
+    },
+    "legacySchemaPrice": 1200
+  },
+  {
+    "name": "decimal",
+    "price": "12,50 EUR",
+    "description": "Konzert.",
+    "producer": {
+      "amount": 12.5,
+      "isFree": false,
+      "schemaPrice": 12.5
+    },
+    "submission": {
+      "amount": 12.5,
+      "isFree": false
+    },
+    "legacySchemaPrice": 12.5
+  },
+  {
+    "name": "range",
+    "price": "10–20 €",
+    "description": "Konzert.",
+    "producer": {
+      "amount": 10,
+      "isFree": false,
+      "schemaPrice": 10
+    },
+    "submission": {
+      "amount": 10,
+      "isFree": false
+    },
+    "legacySchemaPrice": 10
+  },
+  {
+    "name": "reverse-range",
+    "price": "20 bis 10 Euro",
+    "description": "Konzert.",
+    "producer": {
+      "amount": 10,
+      "isFree": false,
+      "schemaPrice": 10
+    },
+    "submission": {
+      "amount": 10,
+      "isFree": false
+    },
+    "legacySchemaPrice": 10
+  },
+  {
+    "name": "child-first",
+    "price": "Kinder 0 €, Erwachsene 12 €",
+    "description": "Konzert.",
+    "producer": {
+      "amount": 12,
+      "isFree": false,
+      "schemaPrice": 12
+    },
+    "submission": {
+      "amount": 12,
+      "isFree": false
+    },
+    "legacySchemaPrice": 12
+  },
+  {
+    "name": "adult-first",
+    "price": "Erwachsene 12 €, Kinder 0 €",
+    "description": "Konzert.",
+    "producer": {
+      "amount": 12,
+      "isFree": false,
+      "schemaPrice": 12
+    },
+    "submission": {
+      "amount": 12,
+      "isFree": false
+    },
+    "legacySchemaPrice": 12
+  },
+  {
+    "name": "zero",
+    "price": "0 €",
+    "description": "Konzert.",
+    "producer": {
+      "amount": null,
+      "isFree": true,
+      "schemaPrice": 0
+    },
+    "submission": {
+      "amount": null,
+      "isFree": true
+    },
+    "legacySchemaPrice": 0
+  },
+  {
+    "name": "unknown",
+    "price": "",
+    "description": "Konzert.",
+    "producer": {
+      "amount": null,
+      "isFree": null,
+      "schemaPrice": null
+    },
+    "submission": {
+      "amount": null,
+      "isFree": null
+    },
+    "legacySchemaPrice": null
+  },
+  {
+    "name": "donation",
+    "price": "Spende erbeten",
+    "description": "Konzert.",
+    "producer": {
+      "amount": null,
+      "isFree": true,
+      "schemaPrice": 0
+    },
+    "submission": {
+      "amount": null,
+      "isFree": true
+    },
+    "legacySchemaPrice": null
+  },
+  {
+    "name": "bare",
+    "price": "49,9",
+    "description": "Konzert.",
+    "producer": {
+      "amount": null,
+      "isFree": false,
+      "schemaPrice": null
+    },
+    "submission": {
+      "amount": 49.9,
+      "isFree": false
+    },
+    "legacySchemaPrice": null
+  },
+  {
+    "name": "seller-description",
+    "price": "",
+    "description": "Standgebühr für Verkäufer 20 €.",
+    "producer": {
+      "amount": null,
+      "isFree": null,
+      "schemaPrice": null
+    },
+    "submission": {
+      "amount": null,
+      "isFree": null
+    },
+    "legacySchemaPrice": null
+  },
+  {
+    "name": "paid-donation",
+    "price": "12 €; Spende erbeten",
+    "description": "Konzert.",
+    "producer": {
+      "amount": 12,
+      "isFree": false,
+      "schemaPrice": 12
+    },
+    "submission": {
+      "amount": 12,
+      "isFree": false
+    },
+    "legacySchemaPrice": 12
+  }
+]

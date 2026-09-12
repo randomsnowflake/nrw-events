@@ -11,6 +11,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import ai_enrichment, category_taxonomy, common, event_types, performance, richtext
+from .admission_amounts import admission_amount
 from .models import (
     MAX_DISCOVERY_PROVENANCE_SOURCES,
     CanonicalEvent,
@@ -612,21 +613,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     admission_text = " ".join((
         event["title"], event["description"], event["price"],
     )).casefold()
-    number = r"(?:\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+[.,]\d{1,2}|\d+)"
-    matches = re.finditer(
-        rf"(?:^|[^\d.,])(?:({number})\s*(?:[-–—]|bis)\s*)?({number})\s*(?:€|eur\b|euro\b)",
-        event["price"].casefold(),
-    )
-    amounts = []
-    for match in matches:
-        for digits in match.groups():
-            if digits is None:
-                continue
-            if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?", digits):
-                digits = digits.replace(".", "")
-            amounts.append(float(digits.replace(",", ".")))
-    positive_amounts = [value for value in amounts if value > 0]
-    amount = min(positive_amounts) if positive_amounts else (0.0 if amounts else None)
+    amount = admission_amount(event["price"])
     normalized_price = event["price"].strip().casefold()
     donation_suggested = bool(re.search(
         r"\b(?:spendenbasis|spende(?:n)?\s+erbeten|hut(?:kasse|spende|spenden))\b",

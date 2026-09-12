@@ -5,6 +5,7 @@ Generated from `scripts/nrw_events`; do not edit by hand.
 ```text
 scripts/nrw_events/
   __init__.py
+  admission_amounts.py
   ai_cache.py
   ai_contracts.py
   ai_enrichment.py

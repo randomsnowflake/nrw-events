@@ -40,6 +40,7 @@ nrw_events = [
 [tool.mypy]
 python_version = "3.10"
 files = [
+    "scripts/nrw_events/admission_amounts.py",
     "scripts/nrw_events/core.py",
     "scripts/nrw_events/checkpoint.py",
     "scripts/nrw_events/contract_fixtures.py",

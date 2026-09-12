@@ -1,13 +1,15 @@
 """Offline boundary records shared with consumers of the published snapshot."""
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from .config import RuntimeConfig
-from .identity import event_id
 from .health import SourceResult, SourceStatus
-from .retention_policy import _retain_previous_events
+from .identity import event_id
 from .import_contracts import ImportResult
 from .observability import configure_logging
+from .retention_policy import _retain_previous_events
 from .runtime import EventWindow, RunContext
 from .snapshot_publication import build_snapshot
 from .validation import validate_event
@@ -28,6 +30,8 @@ def semantic_contract() -> dict[str, Any]:
         ("restricted-copy", {"source": "marktcom", "source_id": "marktcom", "source_role": "discovery", "discovered_via": ["marktcom"], "description": "RESTRICTED_SENTINEL", "description_html": "<p>RESTRICTED_SENTINEL</p>"}),
         ("retained-legacy", {"start_date": "2026-10-01", "end_date": "2026-10-01", "first_seen_at": "2026-09-01", "source_links": ["https://example.test/primary"], "discovered_via": ["legacy-calendar"]}),
     ]
+    price_vectors = json.loads((Path(__file__).resolve().parents[2] / "tests/data/admission-vectors.json").read_text())
+    cases.extend((f"admission-{v['name']}", {"price": v["price"], "description": v["description"]}) for v in price_vectors)
     events = tuple(validate_event({
         "title": f"Contract {name}", "source": "Test", "source_id": "test",
         "start_date": "2026-10-24", "end_date": "2026-10-24", "city": "Bonn",
@@ -43,6 +47,7 @@ def semantic_contract() -> dict[str, Any]:
     retention["fresh_event_count"] = len(events)
     snapshot = build_snapshot(ImportResult(events, sources, len(events), "degraded", retention=retention), context)
     return {"producer": {**snapshot.metadata, "events": snapshot.events},
+            "admission_vectors": price_vectors,
             "expected_ids": [event_id(event) for event in events],
             "cases": [name for name, _ in cases],
             "accepted_schemas": [None, 1, 2, 3, 4, 5, 6, 7], "rejected_schemas": [0, 8, 999]}
