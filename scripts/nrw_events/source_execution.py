@@ -26,7 +26,7 @@ from .health import (
     bounded_diagnostic_text,
 )
 from .identity import event_id
-from .models import CanonicalEvent, normalize_source_id
+from .models import CanonicalEvent, RawEvent, normalize_source_id
 from .observability import redact
 from .sources import SOURCE_IDS
 from .title_normalization import normalize_event_title, title_looks_truncated
@@ -179,7 +179,9 @@ def _run_source(
             events = cast(list[dict], [
                 event for event in events if event not in discovery_events
             ])
-        events = cast(list[dict], events)
+        # Adapter records use the RawEvent boundary; malformed values remain
+        # quarantined by canonical validation below.
+        events = cast(list[RawEvent], events)
         # Feed/listing payloads are commonly teasers.  Every registered source
         # gets the same cached detail-page second pass before canonical fields
         # are validated, classified and stored.  Ad-hoc embedded/test sources
@@ -252,7 +254,7 @@ def _run_source(
                 # failures. Let canonical validation reject just this record.
                 in_window = True
             if not in_window and not early_publication.is_eligible(event):
-                result.announced_events.append(event)
+                result.announced_events.append(dict(event))
                 continue
             if title_looks_truncated(
                 str(event.get("title") or ""),

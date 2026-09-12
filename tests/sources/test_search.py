@@ -2,8 +2,8 @@ import unittest
 from datetime import datetime
 from unittest import mock
 
-from nrw_events.sources import search
 from nrw_events.health import SourceStatus
+from nrw_events.sources import search
 
 from tests.helpers import patch_window
 

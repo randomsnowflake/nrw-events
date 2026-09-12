@@ -40,6 +40,15 @@ nrw_events = [
 [tool.mypy]
 python_version = "3.10"
 files = [
+    "scripts/nrw_events/reconciliation_rules.py",
+    "scripts/nrw_events/import_phases.py",
+    "scripts/nrw_events/source_batch.py",
+    "scripts/nrw_events/publication_selection.py",
+    "scripts/nrw_events/publication_enrichment.py",
+    "scripts/nrw_events/detail_enrichment.py",
+    "scripts/nrw_events/detail_parsing.py",
+    "scripts/nrw_events/detail_types.py",
+    "scripts/nrw_events/detail_extractors",
     "scripts/nrw_events/admission_amounts.py",
     "scripts/nrw_events/core.py",
     "scripts/nrw_events/checkpoint.py",

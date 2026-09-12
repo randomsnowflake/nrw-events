@@ -6,6 +6,7 @@ from datetime import datetime
 from html.parser import HTMLParser
 
 from .. import common, components, detail_enrichment
+from ..detail_parsing import _exact_title_key
 from . import regional_common as rc
 
 _LOHMAR_BASE_URL = "https://www.lohmar.de/"
@@ -469,11 +470,11 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
     """Add venue facts only from exact occurrence or bounded event copy."""
     context = detail_enrichment.extract_detail_context(document, event)
     exact_place: dict[str, str] = {}
-    expected_title = detail_enrichment._exact_title_key(event.get("title"))
+    expected_title = _exact_title_key(event.get("title"))
     expected_date = str(event.get("start_date") or event.get("date") or "")[:10]
     for item in common.jsonld_event_items(document or ""):
         if (
-            detail_enrichment._exact_title_key(item.get("name")) != expected_title
+            _exact_title_key(item.get("name")) != expected_title
             or str(item.get("startDate") or "")[:10] != expected_date
         ):
             continue

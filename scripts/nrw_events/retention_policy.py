@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import cast
 
 from . import (
     ai_enrichment,
@@ -26,7 +27,7 @@ from .health import (
 )
 from .health import outage_warning as _outage_warning
 from .identity import content_hash, event_id
-from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, normalize_source_id
+from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent, RawEvent, normalize_source_id
 from .normalization import comparison_text
 from .runtime import LOCAL_TIMEZONE, RunContext
 from .validation import EventValidationError, validate_event
@@ -620,9 +621,9 @@ def _enrich_promoted_fallbacks(
     if not indexes:
         return resolved
 
-    drafts: list[dict] = []
+    drafts: list[RawEvent] = []
     for index in indexes:
-        draft = resolved[index].to_dict()
+        draft = cast(RawEvent, resolved[index].to_dict())
         draft["preserved_event_id"] = event_id(resolved[index])
         drafts.append(draft)
 

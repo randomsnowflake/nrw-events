@@ -28,6 +28,8 @@ scripts/nrw_events/
   deduplication.py
   detail_cache.py
   detail_enrichment.py
+  detail_parsing.py
+  detail_types.py
   duplicate_identity.py
   early_publication.py
   event_builder.py
@@ -42,6 +44,7 @@ scripts/nrw_events/
   import_cli.py
   import_contracts.py
   import_orchestration.py
+  import_phases.py
   jsonld.py
   junk_rules.py
   listing_parsers.py
@@ -52,9 +55,12 @@ scripts/nrw_events/
   normalization.py
   observability.py
   performance.py
+  publication_enrichment.py
+  publication_selection.py
   quality.py
   radio_primary_resolution.py
   ranking.py
+  reconciliation_rules.py
   report.py
   retention_policy.py
   reviewed_corrections.py
@@ -67,6 +73,7 @@ scripts/nrw_events/
   series.py
   snapshot_compare.py
   snapshot_publication.py
+  source_batch.py
   source_execution.py
   source_specs.py
   source_types.py

@@ -1,7 +1,7 @@
 """Neighborhood courtyard flea markets published by Hofflohmärkte Köln."""
 
-import re
 import html as html_lib
+import re
 import unicodedata
 from urllib.parse import urlsplit
 

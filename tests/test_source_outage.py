@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from nrw_events import runner
 from nrw_events.health import SourceFetchResult
 from nrw_events.runtime import EventWindow
+
 from tests.helpers import make_event, make_runner_env
 
 START = datetime(2026, 6, 8, 5, tzinfo=timezone.utc)
@@ -102,7 +103,7 @@ class SourceOutageTests(unittest.TestCase):
             with self.subTest(kind=kind), make_runner_env() as env:
                 self.run_day(env, -1, self.sources(lambda: [event()]))
 
-                def partial():
+                def partial(kind=kind):
                     runner.common.log_source_error("Calendar", ValueError("benign diagnostic"), error_type=kind)
                     return SourceFetchResult.partial([])
 
@@ -130,7 +131,7 @@ class SourceOutageTests(unittest.TestCase):
                     self.run_day(env, -1, self.sources(lambda: [
                         event("Child", "Child cached"), event("Sibling", "Withdrawn sibling")]))
 
-                    def partial():
+                    def partial(message=message, mixed=mixed, empty=empty):
                         runner.common.log_source_error("Child", TimeoutError(message))
                         warnings = ("whole runner endpoint failed",) if mixed else ()
                         return SourceFetchResult.partial(
@@ -241,6 +242,7 @@ class SourceOutageTests(unittest.TestCase):
         import time
         from collections import Counter
         from unittest.mock import patch
+
         from nrw_events import detail_enrichment
         def detail_only():
             row = event(link="https://calendar.bonn.de/event/concert")
@@ -258,7 +260,7 @@ class SourceOutageTests(unittest.TestCase):
 
         for message in ("optional detail\n  offline", "optional detail " + "ü" * 600):
             with self.subTest(message=message[:30]), make_runner_env() as env:
-                def detail_only():
+                def detail_only(message=message):
                     url = "https://example.test/detail"
                     try:
                         with http._optional_detail_request(url):

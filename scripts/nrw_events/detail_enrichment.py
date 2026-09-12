@@ -13,21 +13,31 @@ text is worse than an honest short description.
 
 from __future__ import annotations
 
-import contextlib
-import json
 import os
 import re
 import time
-import unicodedata
 from collections import Counter
-from datetime import datetime
 from functools import partial
-from html import escape, unescape
-from html.parser import HTMLParser
+from typing import Literal
 from urllib.parse import urldefrag, urlsplit
-from zoneinfo import ZoneInfo
 
 from . import common, components, http, richtext
+from .detail_extractors import extract_source_context, source_price, supports_repeated_detail, template_price
+from .detail_parsing import (
+    _best_description,
+    _exact_jsonld_description,
+    _first,
+    _jsonld_candidates,
+    _product_meta_price,
+    _SemanticHTML,
+    _single_prose_time_range,
+    _timestamp_with_clock,
+    _timestamp_with_timezone,
+    _tribe_price,
+    _visible_labeled_value,
+)
+from .detail_types import DetailContext
+from .models import RawEvent
 
 _NON_DOCUMENT_SUFFIXES = (
     ".css", ".csv", ".gif", ".ics", ".jpeg", ".jpg", ".json", ".pdf",
@@ -37,18 +47,7 @@ _SKIPPED_HOSTS = {
     "example.com", "example.org", "example.test", "kihapp.com", "localhost",
     "www.example.com", "www.example.org", "www.kihapp.com",
 }
-_CONTENT_TOKENS = {
-    "article-content", "content-detail", "detail-content", "entry-content",
-    "event-content", "event-description", "event-details", "event-text",
-    "eventdetail", "eventdescription", "events_page_detail",
-    "rich-text", "shapehub-detail-description", "tx-gbevents-pi1", "va-content",
-    "veranstaltungsbeschreibung", "veranstaltungsdetails",
-}
 _GENERIC_CACHE_NAMESPACE = "universal-event-details-v2"
-_VOID_TAGS = {
-    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
-    "meta", "param", "source", "track", "wbr",
-}
 
 
 def enabled() -> bool:
@@ -73,7 +72,7 @@ def _candidate_url(url: str) -> bool:
     )
 
 
-def _needs_detail(event: dict) -> bool:
+def _needs_detail(event: RawEvent) -> bool:
     """Limit the expensive second pass to genuinely incomplete teasers."""
     if event.get("_detail_page_enriched") is True:
         return False
@@ -98,904 +97,7 @@ def _invalid_short_venue(value: str) -> bool:
     return len(re.sub(r"[^a-z0-9]+", "", common.clean_html(value).casefold())) <= 1
 
 
-def _attributes(attrs: list[tuple[str, str | None]]) -> dict[str, str]:
-    return {name.casefold(): value or "" for name, value in attrs}
-
-
-def _attribute_tokens(attrs: dict[str, str]) -> set[str]:
-    return {
-        token.casefold()
-        for value in (attrs.get("class", ""), attrs.get("id", ""))
-        for token in re.split(r"[^a-zA-Z0-9_-]+", value)
-        if token
-    }
-
-
-def _is_event_type(value: str) -> bool:
-    return bool(re.search(r"(?:schema.org/)?[A-Za-z]*Event\b", value or "", re.I))
-
-
-class _SemanticHTML(HTMLParser):
-    """Collect high-confidence event fragments and machine-readable values."""
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.captures: list[dict[str, object]] = []
-        self.active: list[dict[str, object]] = []
-        self.meta: dict[str, str] = {}
-        self.item_values: dict[str, list[str]] = {}
-        self._item_stack: list[tuple[str, list[str]]] = []
-
-    def handle_starttag(self, tag, attrs):
-        attr = _attributes(attrs)
-        tokens = _attribute_tokens(attr)
-        itemprop = attr.get("itemprop", "").casefold()
-        for capture in self.active:
-            capture["parts"].append(self.get_starttag_text() or f"<{tag}>")
-            if tag not in _VOID_TAGS:
-                capture["depth"] = int(capture["depth"]) + 1
-
-        # HTMLParser does not emit an end tag for HTML void elements.  Treating
-        # them like containers makes a description meta tag or image swallow
-        # the rest of the document and also corrupts every outer depth count.
-        if tag in _VOID_TAGS:
-            if itemprop and attr.get("content"):
-                self.item_values.setdefault(itemprop, []).append(attr["content"])
-            if tag == "meta":
-                key = (attr.get("property") or attr.get("name") or "").casefold()
-                if key and attr.get("content"):
-                    self.meta[key] = attr["content"]
-            return
-
-        score = 0
-        if itemprop in {"description", "articlebody"}:
-            score = 100
-        elif tokens & _CONTENT_TOKENS:
-            score = 80
-        elif _is_event_type(attr.get("itemtype", "")) and tag in {"main", "article", "section", "div"}:
-            score = 70
-        if score:
-            capture = {"tag": tag, "depth": 1, "score": score, "parts": []}
-            self.captures.append(capture)
-            self.active.append(capture)
-            capture["parts"].append(self.get_starttag_text() or f"<{tag}>")
-
-        if itemprop:
-            content = attr.get("content", "")
-            if content:
-                self.item_values.setdefault(itemprop, []).append(content)
-            self._item_stack.append((itemprop, []))
-        else:
-            self._item_stack.append(("", []))
-
-        if tag == "meta":
-            key = (attr.get("property") or attr.get("name") or "").casefold()
-            if key and attr.get("content"):
-                self.meta[key] = attr["content"]
-
-    def handle_startendtag(self, tag, attrs):
-        self.handle_starttag(tag, attrs)
-        if tag not in _VOID_TAGS:
-            self.handle_endtag(tag)
-
-    def handle_data(self, data):
-        for capture in self.active:
-            capture["parts"].append(escape(data, quote=False))
-        for itemprop, parts in self._item_stack:
-            if itemprop:
-                parts.append(data)
-
-    def handle_endtag(self, tag):
-        for capture in list(self.active):
-            capture["parts"].append(f"</{tag}>")
-            capture["depth"] = int(capture["depth"]) - 1
-            if capture["depth"] == 0:
-                self.active.remove(capture)
-        if self._item_stack:
-            itemprop, parts = self._item_stack.pop()
-            if itemprop:
-                value = common.clean_html(" ".join(parts))
-                if value:
-                    self.item_values.setdefault(itemprop, []).append(value)
-
-
-def _jsonld_candidates(document: str, title: str) -> list[dict]:
-    candidates = common.jsonld_event_items(document)
-    if not candidates:
-        return []
-    title_key = re.sub(r"[^a-z0-9]+", "", title.casefold())
-
-    def similarity(item: dict) -> tuple[int, int]:
-        item_key = re.sub(r"[^a-z0-9]+", "", common.clean_html(str(item.get("name") or "")).casefold())
-        shared = os.path.commonprefix([title_key, item_key])
-        return (len(shared), len(str(item.get("description") or "")))
-
-    return sorted((item for item in candidates if isinstance(item, dict)), key=similarity, reverse=True)
-
-
-def _exact_title_key(value: object) -> str:
-    normalized = unicodedata.normalize(
-        "NFC", common.clean_html(str(value or "")),
-    ).lower()
-    normalized = unicodedata.normalize("NFC", normalized)
-    # Casefolding and fuzzy transliteration collapse distinct letters such as
-    # ß/ss and í/i, which is unsafe when selecting authoritative event copy.
-    # Lowercasing can expand a letter into a base plus a combining mark, as for
-    # İ. Keep attached marks so distinct Unicode titles cannot collide.
-    key: list[str] = []
-    accepts_mark = False
-    for character in normalized:
-        if character.isalnum():
-            key.append(character)
-            accepts_mark = True
-        elif accepts_mark and unicodedata.category(character).startswith("M"):
-            key.append(character)
-        else:
-            accepts_mark = False
-    return "".join(key)
-
-
-def _exact_jsonld_description(document: str, event: dict) -> tuple[str, str]:
-    """Return copy only when structured title and occurrence date match exactly."""
-
-    expected_title_key = _exact_title_key(event.get("title"))
-    event_date = str(event.get("start_date") or event.get("date") or "")[:10]
-    if not expected_title_key or not event_date:
-        return "", ""
-    for item in common.jsonld_event_items(document or ""):
-        if (
-            _exact_title_key(item.get("name")) != expected_title_key
-            or str(item.get("startDate") or "")[:10] != event_date
-        ):
-            continue
-        raw_description = item.get("description")
-        if not isinstance(raw_description, str) or not raw_description.strip():
-            continue
-        description_html = richtext.sanitize_rich_text(raw_description)
-        description = richtext.to_plain_text(description_html)
-        if description:
-            return description, description_html
-    return "", ""
-
-
-_PROSE_TIME_RANGE = re.compile(
-    r"\b(?:von\s+)?([01]?\d|2[0-3]):([0-5]\d)\s*(?:uhr\s*)?"
-    r"(?:bis|[-–])\s*([01]?\d|2[0-3]):([0-5]\d)\s*(?:uhr)?\b",
-    re.IGNORECASE,
-)
-
-
-def _single_prose_time_range(value: str) -> tuple[str, str] | None:
-    """Read one unambiguous visible clock range from first-party event copy."""
-    ranges = {
-        (f"{int(match.group(1)):02d}:{match.group(2)}", f"{int(match.group(3)):02d}:{match.group(4)}")
-        for match in _PROSE_TIME_RANGE.finditer(common.clean_html(value or ""))
-    }
-    return next(iter(ranges)) if len(ranges) == 1 else None
-
-
-def _timestamp_with_timezone(value: str, timezone_name: str) -> str:
-    """Attach the event's declared zone when a source emits a local ISO timestamp."""
-    cleaned = re.sub(r"\[[^]]+\]$", "", value.strip())
-    if not cleaned:
-        return ""
-    try:
-        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
-    except ValueError:
-        return cleaned
-    if parsed.tzinfo is not None:
-        return cleaned
-    return parsed.replace(tzinfo=ZoneInfo(timezone_name)).isoformat()
-
-
-def _timestamp_with_clock(
-    value: str,
-    date_value: str,
-    clock: str,
-    timezone_name: str,
-) -> str:
-    """Replace a structured clock and resolve its offset from the event zone."""
-    if value:
-        replaced = re.sub(
-            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}",
-            f"{date_value}T{clock}",
-            value,
-        )
-        cleaned = re.sub(r"\[[^]]+\]$", "", replaced.strip())
-        try:
-            parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
-        except ValueError:
-            return _timestamp_with_timezone(replaced, timezone_name)
-        zone = ZoneInfo(timezone_name)
-        wall_time = parsed.replace(tzinfo=None)
-        candidates = (
-            wall_time.replace(tzinfo=zone, fold=0),
-            wall_time.replace(tzinfo=zone, fold=1),
-        )
-        if parsed.tzinfo is not None:
-            for candidate in candidates:
-                if candidate.utcoffset() == parsed.utcoffset():
-                    return candidate.isoformat()
-        return candidates[0].isoformat()
-    if not date_value:
-        return ""
-    return datetime.fromisoformat(f"{date_value}T{clock}").replace(
-        tzinfo=ZoneInfo(timezone_name),
-    ).isoformat()
-
-
-def _best_description(document: str, parser: _SemanticHTML, title: str) -> tuple[str, str]:
-    choices: list[tuple[int, int, str]] = []
-    for capture in parser.captures:
-        fragment = "".join(capture["parts"])
-        if re.search(r'class=["\'][^"\']*\bva-content\b', fragment, re.I):
-            # Arp Museum nests its share/calendar controls inside va-content.
-            # They are page furniture, while the preceding paragraphs are the
-            # complete editorial event copy.
-            fragment = re.split(
-                r'<div[^>]+class=["\'][^"\']*\bva-content-cta\b',
-                fragment,
-                maxsplit=1,
-                flags=re.I,
-            )[0]
-            fragment = re.sub(r"<figure\b.*?</figure>", "", fragment, flags=re.I | re.S)
-        sanitized = richtext.sanitize_rich_text(fragment)
-        plain = richtext.to_plain_text(sanitized)
-        if plain and common.clean_html(title).casefold() != plain.casefold():
-            choices.append((int(capture["score"]), len(plain), sanitized))
-    for item in _jsonld_candidates(document, title):
-        description = item.get("description")
-        if isinstance(description, str) and description.strip():
-            sanitized = richtext.sanitize_rich_text(description)
-            choices.append((65, richtext.text_length(sanitized), sanitized))
-    meta_description = parser.meta.get("og:description") or parser.meta.get("description") or ""
-    if meta_description:
-        sanitized = richtext.from_plain_text(common.clean_html(meta_description))
-        choices.append((25, richtext.text_length(sanitized), sanitized))
-    if not choices:
-        return "", ""
-    # Confidence wins before length: a huge event-root container must not beat
-    # an explicit itemprop=description merely by including page furniture.
-    _, _, html = max(choices, key=lambda choice: (choice[0], choice[1]))
-    html = _append_supplemental_details(document, html)
-    return richtext.to_plain_text(html), html
-
-
-def _append_supplemental_details(document: str, description_html: str) -> str:
-    """Keep event facts that municipal templates place beside the prose.
-
-    Köln's official detail pages are the first concrete contract: registration
-    and age are siblings of ``itemprop=description``, not children of it.  The
-    patterns are intentionally label-bound and therefore cannot absorb generic
-    navigation or contact furniture.
-    """
-    additions: list[str] = []
-    for heading, pattern in (
-        ("Hinweis", r'<span[^>]+itemprop=["\']age["\'][^>]*>(.*?)</span>'),
-        ("Anmeldung", r'<strong>\s*Anmeldung:\s*</strong>.*?<span[^>]*>(.*?)</span>'),
-    ):
-        match = re.search(pattern, document or "", re.I | re.S)
-        value = common.clean_html(match.group(1)) if match else ""
-        if value and value.casefold() not in richtext.to_plain_text(description_html).casefold():
-            additions.append(f"<h3>{heading}</h3><p>{escape(value, quote=False)}</p>")
-    return description_html + "".join(additions)
-
-
-def _first(values: dict[str, list[str]], *names: str) -> str:
-    for name in names:
-        for value in values.get(name.casefold(), []):
-            cleaned = common.clean_html(value)
-            if cleaned:
-                return cleaned
-    return ""
-
-
-def _visible_labeled_value(document: str, *labels: str) -> str:
-    """Read a short value following an explicit, visible field label.
-
-    Several otherwise well-structured calendars omit schema.org admission and
-    address fields.  Label-bound extraction keeps this conservative: arbitrary
-    currency-like page text (for example vendor fees or related events) is not
-    promoted.
-    """
-    label_pattern = "|".join(re.escape(label) for label in labels)
-    match = re.search(
-        rf"<(?:b|strong)[^>]*>\s*(?:{label_pattern})\s*:?\s*</(?:b|strong)>"
-        rf"\s*(?:<br\s*/?>\s*)?(.*?)(?=<br\s*/?>|</p>|</div>|</li>|</td>)",
-        document or "",
-        re.I | re.S,
-    )
-    return common.clean_html(match.group(1)).lstrip(" :–-")[:240] if match else ""
-
-
-def _tribe_price(document: str) -> str:
-    """Extract The Events Calendar's visitor-facing event cost."""
-    tribe_cost = re.search(
-        r'<(?P<tag>[a-z0-9]+)[^>]+class=["\'][^"\']*'
-        r'(?:tribe-events-cost|tribe-events-event-cost)(?=\s|["\'])'
-        r'[^"\']*["\'][^>]*>(?P<value>.*?)</(?P=tag)>',
-        document or "",
-        re.I | re.S,
-    )
-    if tribe_cost:
-        price = common.clean_html(tribe_cost.group("value"))
-        if price:
-            return price[:240]
-    return ""
-
-
-def _product_meta_price(parser: _SemanticHTML) -> str:
-    """Keep the currency paired with Open Graph product price metadata."""
-    amount = common.clean_html(parser.meta.get("product:price:amount", "")).strip()
-    currency = common.clean_html(parser.meta.get("product:price:currency", "")).strip()
-    if not amount or not currency:
-        return ""
-    return f"{amount} {currency}"[:240]
-
-
-def _template_price(document: str) -> str:
-    """Extract a price from a known event-only field without broad guessing."""
-    if price := _tribe_price(document):
-        return price
-    if "MyEventButton" in (document or "") and "springmaus-theater.de" in (document or ""):
-        for value in re.findall(r'<div[^>]+class=["\']mb-4["\'][^>]*>([^<]+)</div>', document, re.I):
-            cleaned = common.clean_html(value)
-            if re.search(r"(?:€|\bEUR\b|\bEuro\b)", cleaned, re.I):
-                return cleaned[:240]
-    return ""
-
-
-def _arp_museum_subline_price(document: str, event: dict) -> str:
-    """Prefer Arp Museum's exact event-headline admission over plugin metadata."""
-    if str(event.get("source_id") or "").casefold() != "arp-museum":
-        return ""
-    try:
-        hostname = (urlsplit(str(event.get("link") or "")).hostname or "").casefold()
-    except ValueError:
-        return ""
-    if hostname not in {"arpmuseum.org", "www.arpmuseum.org"}:
-        return ""
-    labeled_price = _visible_labeled_value(
-        document, "Preis", "Preise", "Kosten", "Eintritt",
-    )
-    if re.search(
-        r"(?:\bzzgl\.?|\bzuzüglich|\bzuzueglich)\s+"
-        r"[^.!?;]{0,40}\bmuseumseintritt\b",
-        labeled_price,
-        re.I,
-    ):
-        return ""
-    headline = re.search(
-        r'<section[^>]+class=["\'][^"\']*\bce-page-headline\b[^"\']*["\'][^>]*>'
-        r'(.*?)</section>',
-        document or "",
-        re.I | re.S,
-    )
-    if not headline:
-        return ""
-    subline = re.search(
-        r'<p[^>]+class=["\'][^"\']*\bsubline\b[^"\']*["\'][^>]*>(.*?)</p>',
-        headline.group(1),
-        re.I | re.S,
-    )
-    value = common.clean_html(subline.group(1)).casefold() if subline else ""
-    normalized = re.sub(r"[^a-zäöüß]+", " ", value).strip()
-    explicit_free = re.search(
-        r"\bsonder veranstaltung (?:kostenfrei{1,2}|eintritt frei)"
-        r"(?: keine anmeldung erforderlich)?$",
-        normalized,
-    )
-    return "kostenlos" if explicit_free else ""
-
-
-def _adfc_shoebox(document: str, event: dict) -> dict | None:
-    """Decode the event payload embedded by the ADFC Ember application."""
-    try:
-        hostname = (urlsplit(str(event.get("link") or "")).hostname or "").casefold()
-    except ValueError:
-        return None
-    if hostname != "touren-termine.adfc.de":
-        return None
-
-    for value in re.findall(
-        r'<script[^>]+type=["\']fastboot/shoebox["\'][^>]*>(.*?)</script>',
-        document or "",
-        re.I | re.S,
-    ):
-        try:
-            payload = json.loads(unescape(value).strip())
-            if isinstance(payload, str):
-                payload = json.loads(payload)
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if isinstance(payload, dict) and isinstance(payload.get("eventItem"), dict):
-            return payload
-    return None
-
-
-def _adfc_table_facts(document: str) -> list[tuple[str, str]]:
-    """Read the visitor-facing tour labels paired with their displayed values."""
-    match = re.search(
-        r'<h[1-6][^>]*>\s*Tourdaten\s*</h[1-6]>(.*?</table>)',
-        document or "",
-        re.I | re.S,
-    )
-    if not match:
-        return []
-    table = match.group(1)
-    headings = [common.clean_html(value) for value in re.findall(
-        r"<th\b[^>]*>(.*?)</th>", table, re.I | re.S,
-    )]
-    body = re.search(r"<tbody\b[^>]*>(.*?)</tbody>", table, re.I | re.S)
-    values = [common.clean_html(value) for value in re.findall(
-        r"<td\b[^>]*>(.*?)</td>", body.group(1) if body else table, re.I | re.S,
-    )]
-    return [
-        (heading, value)
-        for heading, value in zip(headings, values, strict=False)
-        if heading and value
-    ]
-
-
-def _display_number(value: object) -> str:
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return ""
-    number = float(value)
-    if number.is_integer():
-        return str(int(number))
-    return f"{number:.2f}".rstrip("0").rstrip(".").replace(".", ",")
-
-
-def _adfc_structured_tour_facts(item: dict) -> list[tuple[str, str]]:
-    facts: list[tuple[str, str]] = []
-    for label, field, unit in (
-        ("Tourlänge", "cTourLengthKm", "km"),
-        ("Geschwindigkeit", "cTourSpeedKmh", "km/h"),
-        ("Höhenmeter", "cTourHeight", "m"),
-    ):
-        value = _display_number(item.get(field))
-        if value and float(item[field]) > 0:
-            facts.append((label, f"{value} {unit}"))
-    return facts
-
-
-def _adfc_price(payload: dict) -> str:
-    prices: list[str] = []
-    for item in payload.get("eventItemPrices") or []:
-        if not isinstance(item, dict):
-            continue
-        amount = _display_number(item.get("price"))
-        if not amount:
-            continue
-        label = common.clean_html(str(item.get("groupName") or ""))
-        value = "kostenfrei" if float(item["price"]) == 0 else f"{amount} €"
-        rendered = f"{label}: {value}" if label else value
-        if rendered not in prices:
-            prices.append(rendered)
-    return ", ".join(prices)[:240]
-
-
-def _adfc_location(payload: dict) -> tuple[str, str]:
-    locations = [
-        item for item in (payload.get("tourLocations") or [])
-        if isinstance(item, dict)
-    ]
-    if not locations:
-        return "", ""
-    locations.sort(key=lambda item: (
-        str(item.get("type") or "").casefold() != "startpunkt",
-        int(item.get("position") or 0),
-    ))
-    location = locations[0]
-    street = common.clean_html(str(location.get("street") or ""))
-    city_line = " ".join(filter(None, (
-        common.clean_html(str(location.get("zipCode") or "")),
-        common.clean_html(str(location.get("city") or "")),
-    )))
-    address = ", ".join(filter(None, (street, city_line)))
-    venue = common.clean_html(str(location.get("name") or "")) or street
-    return venue[:300], address[:500]
-
-
-def _adfc_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    payload = _adfc_shoebox(document, event)
-    if payload is None:
-        return None
-    item = payload["eventItem"]
-    short = common.clean_html(str(item.get("cShortDescription") or ""))
-    full_html = richtext.sanitize_rich_text(str(item.get("description") or ""))
-    full_text = richtext.to_plain_text(full_html)
-    blocks: list[str] = []
-    if short and short.casefold() not in full_text.casefold():
-        blocks.append(f"<p>{escape(short, quote=False)}</p>")
-    if full_html:
-        blocks.append(full_html)
-
-    tour_facts = _adfc_table_facts(document) or _adfc_structured_tour_facts(item)
-    if tour_facts:
-        blocks.extend((
-            "<h3>Tourdaten</h3>",
-            "<ul>" + "".join(
-                f"<li><strong>{escape(label, quote=False)}:</strong> "
-                f"{escape(value, quote=False)}</li>"
-                for label, value in tour_facts
-            ) + "</ul>",
-        ))
-
-    tags: dict[str, list[str]] = {}
-    for tag in payload.get("itemTags") or []:
-        if not isinstance(tag, dict):
-            continue
-        category = common.clean_html(str(tag.get("category") or ""))
-        value = common.clean_html(str(tag.get("tag") or ""))
-        if category and value and value not in tags.setdefault(category, []):
-            tags[category].append(value)
-    if tags:
-        blocks.extend((
-            "<h3>Merkmale</h3>",
-            "<ul>" + "".join(
-                f"<li><strong>{escape(category, quote=False)}:</strong> "
-                f"{escape(', '.join(values), quote=False)}</li>"
-                for category, values in tags.items()
-            ) + "</ul>",
-        ))
-
-    description_html = richtext.sanitize_rich_text("".join(blocks))
-    venue, venue_address = _adfc_location(payload)
-    return {
-        "description": richtext.to_plain_text(description_html),
-        "description_html": description_html,
-        "price": _adfc_price(payload),
-        "venue": venue,
-        "venue_address": venue_address,
-    }
-
-
-def _event_hostname(event: dict) -> str:
-    try:
-        return (urlsplit(str(event.get("link") or "")).hostname or "").casefold()
-    except ValueError:
-        return ""
-
-
-def _title_key(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", common.clean_html(value).casefold())
-
-
-def _context_from_fragment(
-    fragment: str, *, price: str = "", venue: str = "", venue_address: str = "",
-) -> dict[str, str]:
-    description_html = richtext.sanitize_rich_text(fragment)
-    return {
-        "description": richtext.to_plain_text(description_html),
-        "description_html": description_html,
-        "price": common.clean_html(price)[:240],
-        "venue": common.clean_html(venue)[:300],
-        "venue_address": common.clean_html(venue_address)[:500],
-    }
-
-
-def _klimaviertel_overview_context(document: str, event: dict) -> dict[str, str] | None:
-    """Match one event on Klimaviertel's shared calendar by title and date."""
-    if _event_hostname(event) not in {"klimaviertel-beuel.de", "www.klimaviertel-beuel.de"}:
-        return None
-    wanted_title = _title_key(str(event.get("title") or ""))
-    wanted_date = str(event.get("start_date") or event.get("date") or "")[:10]
-    item = next((
-        candidate
-        for candidate in common.jsonld_event_items(document or "")
-        if isinstance(candidate, dict)
-        and _title_key(str(candidate.get("name") or "")) == wanted_title
-        and str(candidate.get("startDate") or "")[:10] == wanted_date
-    ), None)
-    if item is None:
-        # This URL contains several events. Never fall back to a neighbouring
-        # JSON-LD record when the requested occurrence is not on the page.
-        return _context_from_fragment("")
-
-    description_html = richtext.sanitize_rich_text(str(item.get("description") or ""))
-    location = item.get("location") if isinstance(item.get("location"), dict) else {}
-    address = location.get("address") if isinstance(location.get("address"), dict) else {}
-    address_parts = [
-        common.clean_html(str(address.get(key) or ""))
-        for key in ("streetAddress", "postalCode", "addressLocality")
-    ]
-    venue_address = " ".join(dict.fromkeys(part for part in address_parts if part))
-    price = common._jsonld_admission_price(item)
-    return {
-        "description": richtext.to_plain_text(description_html),
-        "description_html": description_html,
-        "price": price or "",
-        "venue": common.clean_html(str(location.get("name") or ""))[:300],
-        "venue_address": venue_address[:500],
-    }
-
-
-def _pantheon_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    if _event_hostname(event) not in {"pantheon.de", "www.pantheon.de"}:
-        return None
-    fragment = urlsplit(str(event.get("link") or "")).fragment
-    event_id = fragment.removeprefix("t") if re.fullmatch(r"t\d+", fragment) else ""
-    blocks = re.findall(r'<li\b[^>]*id=["\']t(\d+)["\'][^>]*>(.*?)</li>', document or "", re.I | re.S)
-    title_key = _title_key(str(event.get("title") or ""))
-    block = ""
-    for candidate_id, candidate in blocks:
-        title_match = re.search(r'class=["\'][^"\']*\bevent-title\b[^"\']*["\'][^>]*>(.*?)</h2>', candidate, re.I | re.S)
-        candidate_title = _title_key(title_match.group(1) if title_match else "")
-        if (event_id and candidate_id == event_id) or (title_key and candidate_title == title_key):
-            block = candidate
-            break
-    if not block:
-        return None
-    detail = re.search(
-        r'<div\b[^>]+class=["\'][^"\']*\bevent-detail\b[^"\']*["\'][^>]*>(.*?)(?=<div\b[^>]+class=["\'][^"\']*\bevent-less\b|</div>\s*</div>\s*<div\b[^>]+class=["\'][^"\']*\bevent-foot\b)',
-        block, re.I | re.S,
-    )
-    body = detail.group(1) if detail else ""
-    body = re.sub(r'<div\b[^>]+class=["\'][^"\']*\bbImage\b[^"\']*["\'][^>]*>.*?</div>', "", body, flags=re.I | re.S)
-    body = re.sub(r'<div\b[^>]+class=["\'][^"\']*\bbLink\b[^"\']*["\'][^>]*>.*?</div>', "", body, flags=re.I | re.S)
-    ticket = re.search(r'<dl\b[^>]+class=["\'][^"\']*\bevent-ticket-detail\b[^"\']*["\'][^>]*>(.*?)</dl>', block, re.I | re.S)
-    ticket_text = common.clean_html(ticket.group(1) if ticket else "")
-    amount = re.search(r"\bEUR\s*(\d+(?:[.,]\d{1,2})?)", ticket_text, re.I)
-    price = f"{amount.group(1).replace('.', ',')} € im Vorverkauf" if amount else ""
-    return _context_from_fragment(body, price=price)
-
-
-def _rheinbach_sommerkino_context(document: str, event: dict) -> dict[str, str] | None:
-    if _event_hostname(event) not in {"wir-fuer-rheinbach.de", "www.wir-fuer-rheinbach.de"}:
-        return None
-    if "sommerkino" not in str(event.get("link") or "").casefold():
-        return None
-    intro = re.search(
-        r'<h2\b[^>]*>\s*Sommerkino\s+für\s+den\s+guten\s+Zweck\s*</h2>(.*?)(?=<h2\b|<div\b[^>]+id=["\']c3190)',
-        document or "", re.I | re.S,
-    )
-    info = re.search(
-        r'<h2\b[^>]*>\s*(?:<strong>)?Informationen\s+zum\s+Rheinbacher\s+Sommerkino(?:</strong>)?\s*</h2>(.*?)(?=</div>\s*</div>|<div\b[^>]+id=["\']c3625|$)',
-        document or "", re.I | re.S,
-    )
-    fragment = "".join(filter(None, (
-        intro.group(1) if intro else "",
-        "<h3>Besuchsinformationen</h3>" + info.group(1) if info else "",
-    )))
-    if not richtext.to_plain_text(richtext.sanitize_rich_text(fragment)):
-        return None
-    info_text = common.clean_html(info.group(1) if info else "")
-    price_match = re.search(r"Karten\s+kosten\s+(?:im\s+Vorverkauf\s+)?(?:weiterhin\s+)?(\d+(?:[,.]\d+)?)\s*Euro", info_text, re.I)
-    price = f"{price_match.group(1)} Euro im Vorverkauf" if price_match else ""
-    return _context_from_fragment(
-        fragment, price=price, venue_address="Bachstraße, Rheinbach",
-    )
-
-
-def _unkel_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    if _event_hostname(event) not in {"rhein.info", "www.rhein.info"}:
-        return None
-    if "/unkel" not in urlsplit(str(event.get("link") or "")).path.casefold():
-        return None
-    wanted_title = _title_key(str(event.get("title") or ""))
-    wanted_date = str(event.get("start_date") or event.get("date") or "")
-    rows: list[tuple[bool, str]] = []
-    for row in re.findall(r"<tr\b[^>]*>(.*?)</tr>", document or "", re.I | re.S):
-        heading = re.search(r'class=["\'][^"\']*\baccordion_head\b[^"\']*["\'][^>]*>(.*?)</h3>', row, re.I | re.S)
-        if not heading:
-            continue
-        row_title = re.sub(r"\s*\+\s*$", "", common.clean_html(heading.group(1)))
-        if _title_key(row_title) != wanted_title:
-            continue
-        date_text = common.clean_html((re.search(r'class=["\'][^"\']*\bdatum\b[^"\']*["\'][^>]*>(.*?)</div>', row, re.I | re.S) or ["", ""])[1])
-        parsed_date = common.parse_date(date_text)
-        date_matches = not wanted_date or bool(
-            parsed_date and parsed_date.strftime("%Y-%m-%d") == wanted_date
-        )
-        rows.append((date_matches, row))
-    if not rows:
-        return None
-    row = max(rows, key=lambda item: item[0])[1]
-    body = re.search(
-        r'class=["\'][^"\']*\baccordion_body\b[^"\']*["\'][^>]*>(.*?)(?=<br\s*/?>\s*<div\b[^>]+class=["\']orgalink|<div\b[^>]+class=["\']orgalink|</td>)',
-        row, re.I | re.S,
-    )
-    fragment = body.group(1) if body else ""
-    location = re.search(r'class=["\']locationlink["\'][^>]*>.*?<a\b[^>]*>(.*?)</a>', row, re.I | re.S)
-    price = _visible_labeled_value(fragment, "Preis", "Preise", "Kosten", "Eintritt")
-    return _context_from_fragment(
-        fragment, price=price,
-        venue=common.clean_html(location.group(1) if location else ""),
-    )
-
-
-def _rathausmusik_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    if _event_hostname(event) not in {"rathausmusik.com", "www.rathausmusik.com"}:
-        return None
-    title = common.clean_html(str(event.get("title") or ""))
-    band = re.sub(r"\s*\([^)]*\)\s*$", "", title.split(":", 1)[1] if ":" in title else "").strip()
-    if not band:
-        return None
-    blocks: list[tuple[int, str]] = []
-    for match in re.finditer(
-        r'<div\b[^>]*class=["\'][^"\']*\bxr_txt\b[^"\']*["\'][^>]*style=["\'][^"\']*\btop:\s*(-?\d+)px[^"\']*["\'][^>]*>(.*?)</div>',
-        document or "", re.I | re.S,
-    ):
-        text = common.clean_html(match.group(2))
-        if text:
-            blocks.append((int(match.group(1)), text))
-    band_key = _title_key(band)
-    headings = [(top, text) for top, text in blocks if band_key and band_key in _title_key(text)]
-    if not headings:
-        return None
-    heading_top, _ = min(headings, key=lambda item: (len(item[1]), item[0]))
-    descriptions = [
-        (top, text) for top, text in blocks
-        if heading_top < top <= heading_top + 500 and len(text) >= 55
-    ]
-    if not descriptions:
-        return None
-    _, description = min(descriptions, key=lambda item: item[0])
-    return _context_from_fragment(richtext.from_plain_text(description))
-
-
-def _eitorf_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    if _event_hostname(event) not in {"eitorf.de", "www.eitorf.de"}:
-        return None
-    if "/veranstaltungen/" not in urlsplit(str(event.get("link") or "")).path.casefold():
-        return None
-    section = re.search(r'<section\b[^>]+class=["\'][^"\']*\bsingle-page\b[^"\']*["\'][^>]*>(.*?)</section>', document or "", re.I | re.S)
-    if not section:
-        return None
-    body = section.group(1)
-    content = re.search(r'<div\b[^>]+class=["\']content["\'][^>]*>(.*)', body, re.I | re.S)
-    fragment = content.group(1) if content else body
-    price_match = re.search(r'class=["\'][^"\']*\bevent-price\b[^"\']*["\'][^>]*>(.*?)</p>', fragment, re.I | re.S)
-    price = re.sub(r"^Preis\s*:\s*", "", common.clean_html(price_match.group(1) if price_match else ""), flags=re.I)
-    venue_match = re.search(r'class=["\'][^"\']*\bevent-place\b[^"\']*["\'][^>]*>(.*?)</p>', fragment, re.I | re.S)
-    return _context_from_fragment(
-        fragment, price=price,
-        venue=common.clean_html(venue_match.group(1) if venue_match else ""),
-    )
-
-
-def _heading_section(document: str, heading: str) -> str:
-    match = re.search(
-        rf'<h[1-6]\b[^>]*>\s*{heading}\s*</h[1-6]>(.*?)(?=<h[1-6]\b|</article>)',
-        document or "", re.I | re.S,
-    )
-    return match.group(1) if match else ""
-
-
-def _froscon_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    if _event_hostname(event) not in {"froscon.org", "www.froscon.org"}:
-        return None
-    article = re.search(r'<article\b[^>]+id=["\']content["\'][^>]*>(.*?)</article>', document or "", re.I | re.S)
-    if not article:
-        return None
-    body = article.group(1)
-    schedule = _heading_section(body, r"Ort\s*&(?:amp;)?\s*Uhrzeit")
-    tickets = _heading_section(body, "Tickets")
-    catering = _heading_section(body, "Verpflegung")
-    fragment = "<h3>Ort &amp; Uhrzeit</h3>" + schedule + "<h3>Tickets</h3>" + tickets
-    if catering:
-        fragment += "<h3>Verpflegung</h3>" + catering
-    first_paragraph = re.search(r"<p\b[^>]*>(.*?)</p>", schedule, re.I | re.S)
-    address_parts = [
-        common.clean_html(part) for part in re.split(r"<br\s*/?>", first_paragraph.group(1) if first_paragraph else "", flags=re.I)
-        if common.clean_html(part)
-    ]
-    venue = address_parts[0] if address_parts else ""
-    address = ", ".join(address_parts[1:])
-    price = "kostenlos" if re.search(r"Eintritt\s+zur\s+FrOSCon\s+ist\s+frei", common.clean_html(tickets), re.I) else ""
-    return _context_from_fragment(fragment, price=price, venue=venue, venue_address=address)
-
-
-def _bundeskunsthalle_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    """Read the editorial intro grid from an exhibition detail page.
-
-    Bundeskunsthalle pages have no Event JSON-LD or semantic description
-    attribute. Their complete introduction is split across several ``ce-wrap``
-    blocks inside the first content section; later sections are galleries,
-    accordions and related programme and must not be absorbed.
-    """
-    if _event_hostname(event) not in {"bundeskunsthalle.de", "www.bundeskunsthalle.de"}:
-        return None
-    main = re.search(r'<main\b[^>]+id=["\']main-content["\'][^>]*>(.*)', document or "", re.I | re.S)
-    if not main:
-        return None
-    intro = re.search(
-        r'<section\b[^>]+class=["\'][^"\']*\bpt-0\b[^"\']*["\'][^>]*>(.*?)</section>',
-        main.group(1), re.I | re.S,
-    )
-    if not intro:
-        return None
-    blocks = re.findall(
-        r'<div\b[^>]+class=["\'][^"\']*\bce-wrap\b[^"\']*["\'][^>]*>(.*?)</div>',
-        intro.group(1), re.I | re.S,
-    )
-    fragment = "".join(blocks)
-    price = "kostenlos" if re.search(
-        r'class=["\'][^"\']*page-header__date[^"\']*["\'][^>]*>[^<]*(?:Admission\s+free|Eintritt\s+frei)',
-        main.group(1), re.I | re.S,
-    ) else ""
-    context = _context_from_fragment(fragment, price=price)
-    return context if context["description"] else None
-
-
-def _dein_phonzimmer_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    """Read the bounded WordPress article, including one matching series date."""
-    if _event_hostname(event) not in {"dein-phonzimmer.de", "www.dein-phonzimmer.de"}:
-        return None
-    entry = re.search(
-        r'<div\b[^>]+class=["\'][^"\']*\bentry-content\b[^"\']*["\'][^>]*>'
-        r'(.*?)(?=</article>)',
-        document or "", re.I | re.S,
-    )
-    if not entry:
-        return None
-
-    body = entry.group(1)
-    # The shared Mirecourtplatz page contains a common introduction followed by
-    # several dated programme rows and galleries. Keep the common visitor facts
-    # plus only the row belonging to this occurrence.
-    schedule = re.search(
-        r'<p\b[^>]*>\s*<strong>\s*Termine:\s*</strong>\s*</p>', body, re.I | re.S,
-    )
-    if schedule:
-        intro = body[:schedule.start()]
-        wanted_date = str(event.get("start_date") or event.get("date") or "")[:10]
-        date_label = ""
-        with contextlib.suppress(ValueError):
-            date_label = datetime.strptime(wanted_date, "%Y-%m-%d").strftime("%d.%m.%Y")
-        occurrence = ""
-        if date_label:
-            match = re.search(
-                rf'<p\b[^>]*>(?:(?!</p>).)*?\b{re.escape(date_label)}\b(?:(?!</p>).)*?</p>',
-                body[schedule.end():], re.I | re.S,
-            )
-            occurrence = match.group(0) if match else ""
-        body = intro + occurrence
-
-    body = re.sub(
-        r'<p\b[^>]*>\s*<a\b[^>]*>\s*zurück\s+zur\s+Startseite\s*</a>\s*</p>',
-        "", body, flags=re.I | re.S,
-    )
-    body = re.sub(r'<figure\b.*?</figure>', "", body, flags=re.I | re.S)
-    context = _context_from_fragment(body)
-    return context if context["description"] else None
-
-
-def _bildungswerk_brotfabrik_context(document: str, event: dict) -> dict[str, str] | None:
-    """The query URL can return a shared registration page without the event."""
-    if _event_hostname(event) not in {"bildungswerk-brotfabrik.de", "www.bildungswerk-brotfabrik.de"}:
-        return None
-    if urlsplit(str(event.get("link") or "")).path.casefold().rstrip("/") != "/workshops":
-        return None
-    # Keep the authoritative calendar API copy unless title and occurrence
-    # identity prove that the document contains this event's own description.
-    # Generic extraction would promote registration terms and cancellation
-    # conditions into event facts, even when the URL has a unique IDT query.
-    _description, description_html = _exact_jsonld_description(document, event)
-    return _context_from_fragment(description_html)
-
-
-def _source_specific_detail_context(document: str, event: dict) -> dict[str, str] | None:
-    for extractor in (
-        _bildungswerk_brotfabrik_context,
-        _klimaviertel_overview_context,
-        _pantheon_detail_context,
-        _rheinbach_sommerkino_context,
-        _unkel_detail_context,
-        _rathausmusik_detail_context,
-        _eitorf_detail_context,
-        _froscon_detail_context,
-        _bundeskunsthalle_detail_context,
-        _dein_phonzimmer_detail_context,
-    ):
-        context = extractor(document, event)
-        if context is not None:
-            return context
-    return None
-
-
-def _master_data_only(event: dict) -> bool:
+def _master_data_only(event: RawEvent) -> bool:
     source_id = str(event.get("source_id") or "").casefold()
     source = str(event.get("source") or "").casefold()
     return (
@@ -1004,40 +106,11 @@ def _master_data_only(event: dict) -> bool:
     )
 
 
-def _supports_repeated_detail(event: dict) -> bool:
-    host = _event_hostname(event)
-    return host in {
-        "klimaviertel-beuel.de", "www.klimaviertel-beuel.de",
-        "pantheon.de", "www.pantheon.de",
-        "rhein.info", "www.rhein.info",
-        "rathausmusik.com", "www.rathausmusik.com",
-        "theater-marabu.de", "www.theater-marabu.de",
-        "wir-fuer-rheinbach.de", "www.wir-fuer-rheinbach.de",
-        "dein-phonzimmer.de", "www.dein-phonzimmer.de",
-    }
-
-
-def extract_detail_context(document: str, event: dict) -> dict[str, str]:
+def extract_detail_context(document: str, event: RawEvent) -> DetailContext:
     """Extract richer, auditable fields from one event detail document."""
-    adfc_context = _adfc_detail_context(document, event)
-    if adfc_context is not None:
-        return adfc_context
-    source_context = _source_specific_detail_context(document, event)
+    source_context = extract_source_context(document, event)
     if source_context is not None:
         return source_context
-    # These URLs are shared program/overview documents.  If their bounded
-    # extractor cannot identify the requested title, generic whole-document
-    # extraction would attach a neighbouring event's copy and admission.
-    host = _event_hostname(event)
-    path = urlsplit(str(event.get("link") or "")).path.casefold().rstrip("/")
-    if (
-        host in {"pantheon.de", "www.pantheon.de"}
-        or (host in {"rhein.info", "www.rhein.info"} and path == "/unkel")
-    ):
-        return {
-            "description": "", "description_html": "", "price": "",
-            "venue": "", "venue_address": "",
-        }
     parser = _SemanticHTML()
     parser.feed(document or "")
     description, description_html = _best_description(
@@ -1045,15 +118,15 @@ def extract_detail_context(document: str, event: dict) -> dict[str, str]:
     )
     exact_description, exact_description_html = _exact_jsonld_description(document, event)
     tribe_price = _tribe_price(document)
-    arp_subline_price = _arp_museum_subline_price(document, event)
-    context = {
+    arp_subline_price = source_price(document, event)
+    context: DetailContext = {
         "description": description,
         "description_html": description_html,
         "exact_description": exact_description,
         "exact_description_html": exact_description_html,
         "price": arp_subline_price or _product_meta_price(parser) or _first(parser.item_values, "price") or _visible_labeled_value(
             document, "Preis", "Preise", "Kosten", "Eintritt",
-        ) or _template_price(document),
+        ) or template_price(document),
         # A bare itemprop=name may be the event title, organizer or venue.  It
         # is only promoted below when JSON-LD proves it belongs to location.
         "venue": "",
@@ -1151,9 +224,9 @@ def _richer(candidate: str, current: str) -> bool:
     return bool(candidate_text and len(candidate_text) >= len(current_text) + max(40, len(current_text) // 5))
 
 
-def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
+def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
     """Merge only facts that improve the source record."""
-    enriched = dict(event)
+    enriched = event.copy()
     exact_description = context.get("exact_description", "")
     replaces_generated = bool(
         exact_description and event.get("description_source") == "generated"
@@ -1178,10 +251,10 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
         # evidence existed. Reopen only inferred decisions; explicit adapter
         # locks remain authoritative at the canonical boundary.
         if not str(event.get("category_reason") or "").startswith("source:locked-default:"):
-            for field in (
-                "category_key", "category_label", "category_confidence", "category_reason",
-            ):
-                enriched.pop(field, None)
+            enriched.pop("category_key", None)
+            enriched.pop("category_label", None)
+            enriched.pop("category_confidence", None)
+            enriched.pop("category_reason", None)
     elif (
         context.get("description_html")
         and richtext.text_length(context["description_html"]) >= richtext.text_length(str(event.get("description_html") or ""))
@@ -1196,7 +269,8 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
     ):
         enriched["price"] = common.clean_html(price)[:160]
         enriched["admission_basis"] = "explicit"
-    for field in ("venue", "venue_address"):
+    fields: tuple[Literal["venue", "venue_address"], ...] = ("venue", "venue_address")
+    for field in fields:
         current = str(enriched.get(field) or "").strip()
         candidate = str(context.get(field) or "").strip()
         if candidate and (not current or (field == "venue" and _invalid_short_venue(current))):
@@ -1229,8 +303,8 @@ def apply_detail_context(event: dict, context: dict[str, str]) -> dict:
     return enriched
 
 
-def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_NAMESPACE,
-                  parallel_components: bool = False) -> list[dict]:
+def enrich_events(events: list[RawEvent], *, cache_namespace: str = _GENERIC_CACHE_NAMESPACE,
+                  parallel_components: bool = False) -> list[RawEvent]:
     """Enrich unique public detail links, failing soft per event.
 
     A URL shared by several events is normally an overview or rolling article;
@@ -1257,7 +331,7 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
         if isinstance(event, dict) and id(event) in eligible_ids
     )
     if parallel_components and components.enabled():
-        groups: dict[str, list[tuple[int, dict]]] = {}
+        groups: dict[str, list[tuple[int, RawEvent]]] = {}
         for index, event in enumerate(events):
             link = str(event.get("link") or "") if isinstance(event, dict) else ""
             host = (urlsplit(link).hostname or "") if id(event) in eligible_ids else ""
@@ -1274,16 +348,16 @@ def enrich_events(events: list[dict], *, cache_namespace: str = _GENERIC_CACHE_N
     return _enrich_batch(events, cache_namespace, deadline, eligible_ids, link_counts)
 
 
-def _enrich_indexed(indexed: list, cache_namespace: str, deadline: float,
-                    eligible_ids: set[int], link_counts: Counter) -> list:
+def _enrich_indexed(indexed: list[tuple[int, RawEvent]], cache_namespace: str, deadline: float,
+                    eligible_ids: set[int], link_counts: Counter[str]) -> list[tuple[int, RawEvent]]:
     rows = _enrich_batch([event for _index, event in indexed], cache_namespace, deadline, eligible_ids, link_counts)
     return [(pair[0], row) for pair, row in zip(indexed, rows, strict=True)]
 
 
-def _enrich_batch(events: list[dict], cache_namespace: str, deadline: float,
-                  eligible_ids: set[int], link_counts: Counter) -> list[dict]:
+def _enrich_batch(events: list[RawEvent], cache_namespace: str, deadline: float,
+                  eligible_ids: set[int], link_counts: Counter[str]) -> list[RawEvent]:
     documents: dict[str, str] = {}
-    enriched: list[dict] = []
+    enriched: list[RawEvent] = []
     for event in events:
         if not isinstance(event, dict):
             enriched.append(event)
@@ -1303,7 +377,7 @@ def _enrich_batch(events: list[dict], cache_namespace: str, deadline: float,
         link = str(event.get("link") or "")
         fetch_link = urldefrag(link)[0]
         if (
-            (link_counts[fetch_link] != 1 and not _supports_repeated_detail(event))
+            (link_counts[fetch_link] != 1 and not supports_repeated_detail(event))
             or not _candidate_url(fetch_link)
         ):
             enriched.append(event)

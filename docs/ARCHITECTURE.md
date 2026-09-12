@@ -22,6 +22,27 @@ health, `import_orchestration.py` pipeline composition, and
 `snapshot_publication.py` snapshot assembly and atomic publication. A source failure is data
 in the run result; one adapter must not terminate unrelated adapters.
 
+## Import and detail boundaries
+
+`import_orchestration.py` composes `source_batch.py` (worker deadlines and
+collection), `publication_selection.py` (retention, dedupe, identity and reviewed
+summaries), and `publication_enrichment.py` (optional AI and series). Frozen
+results in `import_phases.py` carry rows, warnings and metrics. Optional outputs
+must preserve cardinality and occurrence ownership; a violation keeps original
+events and records a warning rather than truncating or failing the whole import.
+
+`detail_enrichment.py` owns networking, deadlines, cache and field application.
+`detail_parsing.py` and `detail_extractors/` parse supplied HTML without effects.
+The ordered `DetailSpec` registry groups dispatch, shared-URL and fallback policy;
+`DetailContext` distinguishes no match (`None`) from a matched but empty result
+that blocks generic fallback. Missing or empty facts never erase existing fields.
+
+Admission and reconciliation vectors in `tests/data/` are also consumed by the
+website contract generator. `reconciliation_rules.py` contains the identical
+occurrence-clock rule copied into the consumer, whose runtime does not require
+this checkout. Producer `source_links` matching remains an intentional difference
+from legacy consumer matching; the vectors record separate expectations.
+
 ## Layers and dependency direction
 
 1. **Contracts and runtime state** — `models.py`, `runtime.py`, `health.py`,

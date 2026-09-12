@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from nrw_events import detail_enrichment, http
 from nrw_events.health import EndpointOutcome, SourceFetchResult, SourceResult
+
 from tests import test_source_outage as fixtures
 
 

@@ -15,16 +15,11 @@ from . import retention_policy as _impl_retention_policy
 from .identity import event_id
 from .models import CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
+from .reconciliation_rules import occurrence_clock
 
 
 def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
     """Score corroborating fields for a same-title/date cross-run match."""
-    def start_time(value: object, start_at: object) -> str:
-        if match := re.match(r"\s*(\d{1,2}):(\d{2})", str(value or "")):
-            return f"{int(match.group(1)):02d}:{match.group(2)}"
-        iso_value = str(start_at or "")
-        return iso_value[11:16] if len(iso_value) >= 16 else ""
-
     score = 0
     def source_links(event: CanonicalEvent | dict) -> set[str]:
         links = {
@@ -40,8 +35,8 @@ def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
         score += 8
     if current.get("source_id") and current.get("source_id") == _impl_retention_policy._event_source_id(prior):
         score += 4
-    current_time = start_time(current.get("time"), current.get("start_at"))
-    prior_time = start_time(prior.get("time"), prior.get("start_at"))
+    current_time = occurrence_clock(current.get("time"), current.get("start_at"))
+    prior_time = occurrence_clock(prior.get("time"), prior.get("start_at"))
     if current_time and prior_time and current_time != prior_time:
         return -1
     if current_time and prior_time and current_time == prior_time:
@@ -71,10 +66,7 @@ def _uniquely_disambiguates_occurrence(
 ) -> bool:
     """Require a pair-specific signal when title/date groups are ambiguous."""
     def start_time(event: CanonicalEvent | dict) -> str:
-        if match := re.match(r"\s*(\d{1,2}):(\d{2})", str(event.get("time") or "")):
-            return f"{int(match.group(1)):02d}:{match.group(2)}"
-        start_at = str(event.get("start_at") or "")
-        return start_at[11:16] if len(start_at) >= 16 else ""
+        return occurrence_clock(event.get("time"), event.get("start_at"))
 
     def normalized_link(event: CanonicalEvent | dict) -> str:
         return str(event.get("link") or "").rstrip("/")

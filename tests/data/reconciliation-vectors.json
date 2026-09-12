@@ -1,0 +1,389 @@
+[
+  {
+    "name": "title-expansion",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "18:00",
+          "link": "https://example.test/event",
+          "event_id": "published-0"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein – Open Air",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "18:00",
+        "link": "https://example.test/event",
+        "event_id": "new-0"
+      }
+    ],
+    "producer": [
+      "published-0"
+    ],
+    "consumer": [
+      "published-0"
+    ],
+    "note": ""
+  },
+  {
+    "name": "venue-alias",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "18:00",
+          "link": "https://example.test/event",
+          "venue_id": "broti",
+          "event_id": "published-0"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Brotfabrik Bonn",
+        "city": "Bonn",
+        "time": "18:00",
+        "link": "https://example.test/event",
+        "venue_id": "broti",
+        "event_id": "new-0"
+      }
+    ],
+    "producer": [
+      "published-0"
+    ],
+    "consumer": [
+      "published-0"
+    ],
+    "note": ""
+  },
+  {
+    "name": "changed-time",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "18:00",
+          "link": "https://example.test/event",
+          "event_id": "published-0"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "20:00",
+        "link": "https://example.test/event",
+        "event_id": "new-0"
+      }
+    ],
+    "producer": [
+      null
+    ],
+    "consumer": [
+      null
+    ],
+    "note": ""
+  },
+  {
+    "name": "same-day-sessions",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "18:00",
+          "link": "https://example.test/event",
+          "event_id": "published-0"
+        },
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "20:00",
+          "link": "https://example.test/event",
+          "event_id": "published-1"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "20:00",
+        "link": "https://example.test/event",
+        "event_id": "new-0"
+      },
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "18:00",
+        "link": "https://example.test/event",
+        "event_id": "new-1"
+      }
+    ],
+    "producer": [
+      "published-1",
+      "published-0"
+    ],
+    "consumer": [
+      "published-1",
+      "published-0"
+    ],
+    "note": ""
+  },
+  {
+    "name": "source-change",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "18:00",
+          "link": "https://example.test/event",
+          "event_id": "published-0"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Other",
+        "source_id": "other",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "18:00",
+        "link": "https://example.test/event",
+        "event_id": "new-0"
+      }
+    ],
+    "producer": [
+      "published-0"
+    ],
+    "consumer": [
+      "published-0"
+    ],
+    "note": ""
+  },
+  {
+    "name": "ambiguous",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "",
+          "link": "",
+          "event_id": "published-0"
+        },
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "",
+          "link": "",
+          "event_id": "published-1"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "",
+        "link": "",
+        "event_id": "new-0"
+      },
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "",
+        "link": "",
+        "event_id": "new-1"
+      }
+    ],
+    "producer": [
+      null,
+      null
+    ],
+    "consumer": [
+      null,
+      null
+    ],
+    "note": ""
+  },
+  {
+    "name": "locked-identity",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "Kulturzentrum Brotfabrik",
+          "city": "Bonn",
+          "time": "18:00",
+          "link": "https://example.test/event",
+          "previous_event_ids": [
+            "old-alias"
+          ],
+          "event_id": "published-0"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Test",
+        "source_id": "test",
+        "venue": "Kulturzentrum Brotfabrik",
+        "city": "Bonn",
+        "time": "18:00",
+        "link": "https://example.test/event",
+        "identity_time": "18:00",
+        "identity_time_locked": true,
+        "identity_venue": "Original venue",
+        "identity_venue_locked": true,
+        "event_id": "new-0"
+      }
+    ],
+    "producer": [
+      "published-0"
+    ],
+    "consumer": [
+      "published-0"
+    ],
+    "note": ""
+  },
+  {
+    "name": "source-link-evidence",
+    "previous": {
+      "events": [
+        {
+          "title": "Sommerkonzert am Rhein",
+          "start_date": "2026-08-08",
+          "date": "2026-08-08",
+          "source": "Test",
+          "source_id": "test",
+          "venue": "",
+          "city": "",
+          "time": "",
+          "link": "",
+          "source_links": [
+            "https://example.test/shared"
+          ],
+          "event_id": "published-0"
+        }
+      ]
+    },
+    "current": [
+      {
+        "title": "Sommerkonzert am Rhein",
+        "start_date": "2026-08-08",
+        "date": "2026-08-08",
+        "source": "Other",
+        "source_id": "other",
+        "venue": "",
+        "city": "",
+        "time": "",
+        "link": "",
+        "source_links": [
+          "https://example.test/shared"
+        ],
+        "event_id": "new-0"
+      }
+    ],
+    "producer": [
+      "published-0"
+    ],
+    "consumer": [
+      null
+    ],
+    "note": "Producer recognizes source_links provenance; consumer compatibility matching deliberately does not."
+  }
+]
