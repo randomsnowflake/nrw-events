@@ -168,9 +168,26 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Veranstaltungen. Kalender.",
             "Barrierefreie Stadt.",
             "Gleichstellung",
+            "Kinder (10 bis 14 Jahre)",
+            "Nachhaltigkeits-Hub Region Bonn",
         }
         self.assertTrue(neutral_facets.issubset(bonn._KNOWN_SOURCE_CATEGORIES))
         self.assertFalse(neutral_facets & bonn._ALLOW)
+
+    def test_september_audience_and_hub_facets_do_not_change_admission_or_format(self):
+        for facet in ("Kinder (10 bis 14 Jahre)", "Nachhaltigkeits-Hub Region Bonn"):
+            with self.subTest(facet=facet), patch.object(common, "log_source_error") as warning:
+                self.assertNotIn(facet, bonn._FREE_ACTIVITY_ALLOW)
+                events = self._fetch_json([
+                    self._json_item([facet, "Musik/Konzert"], "Öffentliches Konzert"),
+                    self._json_item([facet], "Unbestimmtes Angebot"),
+                    self._json_item([facet, "Musik/Konzert", "Sitzung"], "Gesperrtes Angebot"),
+                ])
+                self.assertEqual([event["title"] for event in events], ["Öffentliches Konzert"])
+                self.assertEqual(events[0]["category_key"], "concert")
+                self.assertNotEqual(events[0].get("price"), "kostenlos")
+                warning.assert_not_called()
+        self.assertEqual(bonn._unknown_source_categories({"Unbekannte neue Facette"}), {"Unbekannte neue Facette"})
 
     def test_current_bonn_topic_categories_are_accepted_without_taxonomy_warning(self):
         categories = {
