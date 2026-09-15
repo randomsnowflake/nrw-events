@@ -224,6 +224,19 @@ def _events_from_pages(
     return rc.dedupe_occurrences(events)
 
 
+def _explicitly_empty(listing: str) -> bool:
+    """Only the CMS's empty programme state proves a healthy zero result."""
+    tags = re.findall(r'<div\b[^>]*>', listing or "", re.I)
+    if any(rc.tag_has_class(tag, "collection-item") for tag in tags):
+        return False
+    return bool(re.search(
+        r'<div class="events_wrapper w-dyn-list">\s*'
+        r'<div class="no_events w-dyn-empty">\s*'
+        r'<div>\s*Aktuell keine Events\s*</div>\s*</div>\s*</div>',
+        listing or "", re.I,
+    ))
+
+
 def fetch() -> list:
     try:
         listing = common.fetch_url(URL, timeout=25)
@@ -240,7 +253,7 @@ def fetch() -> list:
                     retry_attempts=1,
                 ),
             )
-        parser_empty = not events and metrics["out_of_window_count"] == 0
+        parser_empty = not events and metrics["out_of_window_count"] == 0 and not _explicitly_empty(listing)
         common._record_endpoint(URL, parser_type="webflow-cms", candidate_count=metrics["candidate_count"], out_of_window_count=metrics["out_of_window_count"], parsed_event_count=len(events), parser_empty=parser_empty)
         if parser_empty:
             common.log_source_error(SOURCE, rc.ParserEmptyError("parser returned no event records"))

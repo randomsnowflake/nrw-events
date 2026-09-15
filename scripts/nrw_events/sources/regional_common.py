@@ -10,7 +10,7 @@ from datetime import date, datetime
 from html import unescape
 from html.parser import HTMLParser
 
-from .. import common
+from .. import common, http
 from ..dates import MONTH_ALL, resolve_yearless_date
 from ..source_types import TextParser
 
@@ -302,14 +302,18 @@ def enrich_descriptions(
                     float(timeout) if remaining >= float(timeout) * 2
                     else max(1.0, remaining / 3.0)
                 )
-                html_by_link[link] = detail_fetcher(link) if detail_fetcher else common.fetch_detail_url(
-                    link,
-                    cache_namespace=cache_namespace,
-                    timeout=request_timeout,
-                )
+                with http._optional_detail_request(link):
+                    html_by_link[link] = detail_fetcher(link) if detail_fetcher else common.fetch_detail_url(
+                        link,
+                        cache_namespace=cache_namespace,
+                        timeout=request_timeout,
+                    )
             except Exception as exc:
                 failed_links.add(link)
-                common.log_source_error(source, exc)
+                common.log_source_error(
+                    f"{source} detail", exc, error_type="OptionalDetailWarning",
+                    source_id=event.get("source_id") or "",
+                )
         context = extract_context(html_by_link.get(link, ""), event) if link in html_by_link else {}
         if isinstance(context, str):
             context = {"description": context}
