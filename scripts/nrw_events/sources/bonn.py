@@ -127,6 +127,7 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Haus der Natur", "Inklusionsthemen", "Inklusiv konzipiert",
         "Integration/Migration/Interkultur", "Internationales", "Jugendliche",
         "Junge Erwachsene", "Klima", "Kunstmuseum", "Nachhaltigkeit",
+        "Kinder (10 bis 14 Jahre)", "Nachhaltigkeits-Hub Region Bonn",
         # Reading-festival umbrella, not an occurrence's format or admission.
         # Its events also carry topics such as Aktion/Workshop or Lesung.
         "Käpt´n Book",

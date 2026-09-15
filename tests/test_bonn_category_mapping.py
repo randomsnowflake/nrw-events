@@ -1,9 +1,10 @@
 import json
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
-from nrw_events import common
+from nrw_events import common, report, validation
 from nrw_events.sources import bonn
 
 from tests.helpers import patch_window
@@ -168,9 +169,67 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Veranstaltungen. Kalender.",
             "Barrierefreie Stadt.",
             "Gleichstellung",
+            "Kinder (10 bis 14 Jahre)",
+            "Nachhaltigkeits-Hub Region Bonn",
         }
         self.assertTrue(neutral_facets.issubset(bonn._KNOWN_SOURCE_CATEGORIES))
         self.assertFalse(neutral_facets & bonn._ALLOW)
+
+    def test_september_audience_and_hub_facets_do_not_change_admission_or_format(self):
+        for facet in ("Kinder (10 bis 14 Jahre)", "Nachhaltigkeits-Hub Region Bonn"):
+            with self.subTest(facet=facet), patch.object(common, "log_source_error") as warning:
+                self.assertNotIn(facet, bonn._FREE_ACTIVITY_ALLOW)
+                events = self._fetch_json([
+                    self._json_item([facet, "Musik/Konzert"], "Öffentliches Konzert"),
+                    self._json_item([facet], "Unbestimmtes Angebot"),
+                    self._json_item([facet, "Musik/Konzert", "Sitzung"], "Gesperrtes Angebot"),
+                ])
+                self.assertEqual([event["title"] for event in events], ["Öffentliches Konzert"])
+                self.assertEqual(events[0]["category_key"], "concert")
+                self.assertNotEqual(events[0].get("price"), "kostenlos")
+                warning.assert_not_called()
+        self.assertEqual(bonn._unknown_source_categories({"Unbekannte neue Facette"}), {"Unbekannte neue Facette"})
+
+    def test_captured_september_facets_preserve_each_occurrence_disposition(self):
+        # Exact records selected from https://www.bonn.de/citykey/events-json.php
+        # on 2026-09-15; all source fields and co-occurring categories preserved.
+        items = json.loads((Path(__file__).parent / "fixtures" /
+                            "bonn_september_facets_20260915.json").read_text())
+        expected = {
+            (337441, "2026-09-26"): None,
+            (337441, "2026-10-24"): None,
+            (337441, "2026-11-28"): None,
+            (337441, "2027-01-30"): None,
+            (337441, "2027-02-27"): None,
+            (337379, "2026-10-11"): "stage",
+            (337411, "2026-10-10"): None,
+            (337554, "2026-10-12"): None,
+        }
+        self.assertEqual({(item["uid"], item["startDate"][:10]) for item in items}, set(expected))
+        self.assertEqual(len(items), 8)
+        accepted = []
+        for item in items:
+            key = (item["uid"], item["startDate"][:10])
+            with self.subTest(occurrence=key), patch.object(common, "log_source_error") as warning:
+                # Place each occurrence in-window so filtering cannot pass merely
+                # because the October-to-February dates are outside September.
+                start = datetime.fromisoformat(item["startDate"])
+                patch_window(self, start - timedelta(days=1), start + timedelta(days=1))
+                events = self._fetch_json([item])
+                warning.assert_not_called()
+                if expected[key] is None:
+                    self.assertEqual(events, [])
+                else:
+                    self.assertEqual(len(events), 1)
+                    event = validation.validate_event(events[0])
+                    self.assertIsNotNone(event)
+                    self.assertEqual(event["title"], item["title"])
+                    self.assertEqual(event["start_date"], key[1])
+                    self.assertEqual(event["category_key"], expected[key])
+                    self.assertEqual(event["price"], "kostenlos")
+                    accepted.append(event)
+        self.assertEqual(len(accepted), 1)
+        self.assertEqual(len(report.deduplicate(accepted)), 1)
 
     def test_current_bonn_topic_categories_are_accepted_without_taxonomy_warning(self):
         categories = {
