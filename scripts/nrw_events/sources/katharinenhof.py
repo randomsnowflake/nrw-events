@@ -30,7 +30,8 @@ def _schema_datetime(value: str):
 
 
 def _events_from_page(html: str, *, strict: bool = False) -> list:
-    candidates = 0
+    valid_calendar_events = 0
+    invalid_market = False
     events = []
     for raw in re.findall(
         r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
@@ -41,12 +42,16 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             item = json.loads(html_lib.unescape(raw))
         except (TypeError, ValueError):
             continue
-        title = common.clean_html(str(item.get("name") or ""))
-        if item.get("@type") != "Event" or "flohmarkt" not in title.casefold():
+        if not isinstance(item, dict) or item.get("@type") != "Event":
             continue
-        candidates += 1
+        title = common.clean_html(str(item.get("name") or ""))
         start = _schema_datetime(str(item.get("startDate") or ""))
-        if not start:
+        is_market = "flohmarkt" in title.casefold()
+        if title and start:
+            valid_calendar_events += 1
+        elif is_market:
+            invalid_market = True
+        if not is_market or not start:
             continue
         locations = item.get("location") or []
         location = locations[0] if isinstance(locations, list) and locations else locations
@@ -77,7 +82,9 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             if price:
                 event["price"] = f"{price.group(1).replace(',', '.')} €"
             events.append(event)
-    if strict and candidates == 0:
+    # A valid programme containing only other formats is not parser drift.
+    # An unparseable flea-market date must remain actionable even with siblings.
+    if strict and (valid_calendar_events == 0 or invalid_market):
         raise rc.ParserEmptyError("Katharinenhof flea-market JSON-LD contract changed")
     return rc.dedupe(events)
 
