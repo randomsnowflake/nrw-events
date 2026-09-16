@@ -7,9 +7,9 @@ from urllib.error import HTTPError
 
 from nrw_events import common, http, run_state
 from nrw_events.health import SourceResult, SourceStatus
-from nrw_events.sources import bonnlive, katharinenhof, regional_sitekit, regional_common
-from tests.helpers import patch_window
+from nrw_events.sources import bonnlive, katharinenhof, regional_common, regional_sitekit
 
+from tests.helpers import patch_window
 
 BONNLIVE_EMPTY = '<div class="events_wrapper w-dyn-list"><div class="no_events w-dyn-empty"><div>Aktuell keine Events</div></div></div>'
 
