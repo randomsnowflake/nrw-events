@@ -430,6 +430,13 @@ def _titles_match(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
         return True
     if _reviewed_occurrence_alias_matches(left, right):
         return True
+    # Direct calendars omit the municipality in a named district market,
+    # while directories often insert it between the format and district.
+    if (left.get("source") != right.get("source")
+            and _normalized_city(left.get("city", "")) == _normalized_city(right.get("city", ""))):
+        left_market = _district_market_title_identity(left)
+        if left_market and left_market == _district_market_title_identity(right):
+            return True
     # Fair calendars inconsistently add a locative "in" and the edition year.
     # The funfair taxonomy plus the independent date/place guards make this a
     # narrow event-family identity rule rather than a global stop-word rewrite.
@@ -479,6 +486,20 @@ def _titles_match(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     if min(len(left_title), len(right_title)) >= 12 and word_containment:
         return True
     return SequenceMatcher(None, left_title, right_title).ratio() >= 0.88
+
+
+def _district_market_title_identity(event: Mapping[str, Any]) -> tuple[str, ...]:
+    """Ignore redundant municipality and locative words, preserving the district."""
+    if event.get("category_key") != "market":
+        return ()
+    words = tuple(comparison_text(event.get("title", "")).split())
+    if not words or words[0] not in {"dorfflohmarkt", "garagenflohmarkt", "hofflohmarkt"}:
+        return ()
+    city_words = set(_normalized_city(event.get("city", "")).split())
+    if not city_words:
+        return ()
+    place = tuple(word for word in words[1:] if word not in city_words and word not in {"in", "im"})
+    return (words[0], *place) if place else ()
 
 
 def _funfair_title_identity(event: Mapping[str, Any]) -> tuple[str, ...]:

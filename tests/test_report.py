@@ -43,6 +43,43 @@ class ReportTests(unittest.TestCase):
             {**primary, "start_at": "2026-09-18T20:00:00+02:00"},
         ])), 2)
 
+    def test_district_flea_market_directory_title_keeps_local_source(self):
+        base = {
+            "date": "2026-09-20", "start_date": "2026-09-20", "end_date": "2026-09-20",
+            "city": "Wachtberg", "description": "", "price": "", "time": "10:00–16:00",
+            "start_at": "2026-09-20T10:00+02:00", "end_at": "2026-09-20T16:00+02:00",
+            "category_key": "market", "score": 1.0,
+        }
+        directory = {**base, "title": "Dorfflohmarkt Wachtberg Pech",
+                     "venue": "Dorfflohmarkt Wachtberg Pech", "source": "marktcom",
+                     "source_id": "marktcom", "link": "https://www.marktcom.de/veranstaltung/dorfflohmarkt-wachtberg-pech-in-53343-wachtberg-pech"}
+        local = {**base, "title": "Dorfflohmarkt in Pech", "venue": "Pech",
+                 "source": "Wachtberg", "source_id": "wachtberg",
+                 "link": "https://www.wachtberg.de/kalender/dorfflohmarkt-in-pech/"}
+        for district in ("Pech", "Ließem"):
+            a = {**directory, "title": directory["title"].replace("Pech", district),
+                 "venue": directory["venue"].replace("Pech", district)}
+            b = {**local, "title": local["title"].replace("Pech", district), "venue": district}
+            for rows in ([a, b], [b, a]):
+                with self.subTest(district=district, first=rows[0]["source_id"]):
+                    [winner] = report.deduplicate(rows)
+                    self.assertEqual(winner["source_id"], "wachtberg")
+                    self.assertEqual(event_id(winner), event_id(b))
+                    self.assertIn(event_id(a), winner["previous_event_ids"])
+        for patch in (
+            {"title": "Dorfflohmarkt Wachtberg Ließem"},
+            {"title": "Kinder-Dorfflohmarkt Wachtberg Pech"},
+            {"title": "Hofflohmarkt Wachtberg Pech"},
+            {"city": "Köln"}, {"venue": "Anderer Platz"},
+            {"start_date": "2026-09-21", "date": "2026-09-21", "end_date": "2026-09-21", "start_at": "2026-09-21T10:00+02:00"},
+            {"start_at": "2026-09-20T12:00+02:00"},
+        ):
+            with self.subTest(patch=patch):
+                self.assertEqual(len(report.deduplicate([{**directory, **patch}, local])), 2)
+        from nrw_events.duplicate_identity import _district_market_title_identity
+        self.assertEqual(_district_market_title_identity({**directory, "title": "Dorfflohmarkt Wachtberg"}), ())
+        self.assertEqual(_district_market_title_identity({**local, "title": "Dorfflohmarkt in Wachtberg"}), ())
+
     def test_equal_rank_dedup_winner_is_permutation_invariant(self):
         base = {
             "date": "2026-09-12",
