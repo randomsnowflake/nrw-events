@@ -1421,6 +1421,7 @@ def fetch_press_festivals() -> list:
     )
     primary_detail_urls = _active_reviewed_map("bonn_press_primary_urls")
     primary_event_overrides = _active_reviewed_map("bonn_press_overrides")
+    withheld_occurrences = _active_reviewed_map("bonn_press_withheld_occurrences")
     for year in years:
         html = ""
         url = ""
@@ -1450,6 +1451,11 @@ def fetch_press_festivals() -> list:
                 continue
             reviewed_ranges = []
             for original_start, original_end in _press_date_ranges(text, year):
+                if withheld_occurrences.get((
+                    title, original_start.strftime("%Y-%m-%d"),
+                    original_end.strftime("%Y-%m-%d"),
+                )):
+                    continue
                 correction = occurrence_corrections.get((
                     title,
                     original_start.strftime("%Y-%m-%d"),

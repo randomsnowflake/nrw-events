@@ -1,6 +1,18 @@
 {
   "schema_version": 1,
   "groups": {
+    "bonn_press_withheld_occurrences": [
+      {
+        "match": [
+          "Street Food Festival Beuel",
+          "2026-09-18",
+          "2026-09-20"
+        ],
+        "value": true,
+        "valid_until": "2026-09-20",
+        "evidence": "Reviewed 2026-09-17 after user reported stale September listing. https://street-food-festival.de/bonn only confirms 02.–05.10.2025; https://street-food-festival.de/festivaltermine has no new Bonn date. Withhold this exact disputed press occurrence, do not infer October 2026 or cancellation. Primary adapter street-food-festival-original remains enabled."
+      }
+    ],
     "bonn_press_primary_urls": [
       {
         "match": ["BonnFest 2026", "2026-09-25", "2026-09-27"],

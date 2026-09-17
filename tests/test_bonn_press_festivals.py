@@ -12,6 +12,22 @@ class BonnPressFestivalTests(unittest.TestCase):
     def setUp(self):
         patch_window(self, datetime(2026, 8, 1), datetime(2026, 8, 31))
 
+    def test_withholds_only_disputed_september_beuel_street_food_occurrence(self):
+        patch_window(self, datetime(2026, 9, 1), datetime(2026, 10, 31))
+        html = """<ul>
+          <li>Street Food Festival Beuel, Rheinufer Beuel, 18. bis 20. September 2026</li>
+          <li>Street Food Festival Beuel, Rheinufer Beuel, 2. bis 4. Oktober 2026</li>
+          <li>Anderes Fest, Rheinufer Beuel, 18. bis 20. September 2026</li>
+        </ul>"""
+        with patch.object(common, "fetch_url", return_value=html):
+            events = bonn.fetch_press_festivals()
+        self.assertNotIn(("Street Food Festival Beuel", "2026-09-18"),
+                         [(e["title"], e["start_date"]) for e in events])
+        self.assertIn(("Street Food Festival Beuel", "2026-10-02"),
+                      [(e["title"], e["start_date"]) for e in events])
+        self.assertIn(("Anderes Fest", "2026-09-18"),
+                      [(e["title"], e["start_date"]) for e in events])
+
     def test_keeps_comma_inside_hyphenated_official_market_name(self):
         html = """
         <ul>
