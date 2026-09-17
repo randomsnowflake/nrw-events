@@ -7,6 +7,42 @@ from nrw_events.identity import event_id
 
 
 class ReportTests(unittest.TestCase):
+    def test_lengsdorf_weinfest_primary_owns_street_and_square_duplicate(self):
+        base = {
+            "title": "Weinfest Lengsdorf", "date": "2026-09-18",
+            "start_date": "2026-09-18", "end_date": "2026-09-20",
+            "city": "Bonn-Hardtberg", "description": "", "price": "",
+            "time": "", "score": 1.0,
+        }
+        civic = {**base, "venue": "Uhlgasse", "source": "Bonn district festivals",
+                 "source_id": "bonn-district-festivals", "category_key": "food",
+                 "link": "https://www.bonn.de/pressemitteilungen/jahresprogramm.php"}
+        primary = {**base, "venue": "Lengsdorfer Dorfplatz", "source": "Lengsdorfer Weinfest",
+                   "source_id": "lengsdorfer-weinfest", "category_key": "festival",
+                   "link": "https://lengsdorf-weinfest.de/"}
+        for rows in ([civic, primary], [primary, civic]):
+            with self.subTest(order=rows[0]["source_id"]):
+                [winner] = report.deduplicate(rows)
+                self.assertEqual(winner["source_id"], primary["source_id"])
+                self.assertEqual(winner["venue"], primary["venue"])
+                self.assertEqual(winner["category_key"], "festival")
+                self.assertEqual(event_id(winner), event_id(primary))
+                self.assertIn(event_id(civic), winner["previous_event_ids"])
+        for patch in (
+            {"venue": "Rheinaue"}, {"city": "Köln"},
+            {"title": "Weinfest Kohlkaul"},
+            {"date": "2027-09-18", "start_date": "2027-09-18", "end_date": "2027-09-20"},
+            {"venue_address": "Uhlgasse 100"},
+        ):
+            with self.subTest(patch=patch):
+                self.assertEqual(len(report.deduplicate([
+                    {**civic, **patch}, {**primary, "venue_address": "Uhlgasse 2"}
+                ])), 2)
+        self.assertEqual(len(report.deduplicate([
+            {**civic, "start_at": "2026-09-18T17:00:00+02:00"},
+            {**primary, "start_at": "2026-09-18T20:00:00+02:00"},
+        ])), 2)
+
     def test_equal_rank_dedup_winner_is_permutation_invariant(self):
         base = {
             "date": "2026-09-12",

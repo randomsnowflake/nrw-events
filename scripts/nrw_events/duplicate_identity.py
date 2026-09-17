@@ -131,6 +131,14 @@ def _reviewed_occurrence_alias_family(event: Mapping[str, Any]) -> str:
     place_copy = comparison_text(
         f"{event.get('venue', '')} {event.get('description', '')}"
     )
+    # The official site locates the square at Uhlgasse 2; the city's
+    # district-festival overview names only the street. Keep this equivalence
+    # bound to the reviewed festival and its two publishers.
+    if title == "weinfestlengsdorf" and (
+        (source_id == "bonn-district-festivals" and venue == "uhlgasse")
+        or (source_id == "lengsdorfer-weinfest" and venue == "lengsdorfer dorfplatz")
+    ):
+        return "bonn-lengsdorf-weinfest"
     if "rigal" in place_copy and "flohmarkt" in comparison_text(event.get("title", "")):
         return "bonn-rigalsche-wiese-flohmarkt"
     source_title_alias = _impl_dedup_rules._REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES.get(
