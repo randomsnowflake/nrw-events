@@ -44,6 +44,21 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(result.first_seen_at, "2026-09-03T05:00:00+02:00")
 
+    def test_source_switch_preserves_only_missing_content_for_same_occurrence(self):
+        prior = runner.validate_event({"title": "Theaterabend", "source": "Primary", "source_id": "primary",
+            "date": "2026-09-30", "city": "Bonn", "venue": "Theater", "score": 1,
+            "description": "Ein Schauspiel mit anschließender Diskussion.", "description_source": "scraped"})
+        fresh = replace(prior, source="Calendar", source_id="calendar", description="", description_html="",
+                        preserved_event_id=event_id(prior))
+        previous = {"events": [{**prior.to_dict(), "event_id": event_id(prior)}]}
+        [restored] = runner._attach_cross_run_fields([fresh], previous, "2026-09-17T12:00:00+02:00")
+        self.assertEqual(restored.description, prior.description)
+        self.assertEqual(restored.source_id, "calendar")
+        for changed in [replace(fresh, title="Anderes Stück"), replace(fresh, start_date="2026-10-01"),
+                        replace(fresh, source_id="bonn-de-events"), replace(fresh, description="Neuer Text")]:
+            [result] = runner._attach_cross_run_fields([changed], previous, "2026-09-17T12:00:00+02:00")
+            self.assertEqual(result.description, changed.description)
+
     def test_invalid_coordinate_is_one_validation_error(self):
         with self.assertRaisesRegex(runner.EventValidationError, "venue_coordinates_invalid"):
             runner.validate_event(

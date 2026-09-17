@@ -511,6 +511,22 @@ def _attach_cross_run_fields(
             else generated_at
         )
         current_event = canonical_event
+        # A reconciled public identity can switch calendars during an outage.
+        # Preserve permitted source prose only for the same confirmed occurrence;
+        # never replace fresh text or copy restricted calendar descriptions.
+        if (prior and prior.get("source_id") != current_event.source_id
+                and current_event.source_id not in ai_enrichment.TARGET_SOURCE_IDS
+                and prior.get("source_id") not in ai_enrichment.TARGET_SOURCE_IDS
+                and not current_event.description.strip() and not current_event.description_html.strip()
+                and prior.get("description_source") == "scraped"
+                and (prior.get("description") or prior.get("description_html"))
+                and current_event.start_date and current_event.status == "scheduled"
+                and all(str(current_event.get(field) or "") == str(prior.get(field) or "")
+                        for field in ("title", "city", "start_date", "end_date", "start_at", "end_at", "status"))
+                and report.events_are_duplicates(current_event, prior)):
+            current_event = replace(current_event, description=str(prior.get("description") or ""),
+                                    description_html=str(prior.get("description_html") or ""),
+                                    description_source="scraped")
         cancelled_at = current_event.cancelled_at
         if current_event.status == "cancelled":
             cancelled_at = str(prior.get("cancelled_at") or cancelled_at or generated_at)

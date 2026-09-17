@@ -64,7 +64,7 @@ _MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 _RESPONSE_CHUNK_BYTES = 64 * 1024
 
 
-_TRANSIENT_FAILURE_CACHE_HOURS = 24
+_TRANSIENT_FAILURE_CACHE_HOURS = 1
 
 
 _CATEGORY_KEYS = tuple(category["key"] for category in category_taxonomy.CATEGORIES)
@@ -381,7 +381,7 @@ _VISITOR_PAID_PATTERN = re.compile(
 )
 
 
-_REGISTRATION_PATTERN = re.compile(r"\b(?:anmeld\w*|reservier\w*|buch\w*)\b", re.IGNORECASE)
+_REGISTRATION_PATTERN = re.compile(r"\b(?:anmeld\w*|reservier\w*|buch(?:ung\w*|en|bar\w*|t|te|ten))\b", re.IGNORECASE)
 
 
 _NEGATIVE_REGISTRATION_PATTERN = re.compile(

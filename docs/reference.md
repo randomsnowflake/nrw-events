@@ -726,3 +726,9 @@ vollständigen Checkpoint vor dem Schreiben. So kann eine nachgelagerte Website
 nach einem Buildfehler fortsetzen, ohne die Quellen erneut abzurufen. Der
 Website-Release-Befehl übernimmt Identitäten und Wiederanlauf automatisch;
 siehe dort `docs/release-workflow.md`.
+
+### Content continuity after calendar failover
+
+A reconciled occurrence that switches sources retains missing permitted source prose only when its title, city, dates, times and scheduled status are unchanged and duplicate identity is confirmed. Fresh prose remains authoritative; restricted calendar copy is never restored.
+
+AI transport failures and incomplete responses retry after one hour. Rejected summary drafts retry after six hours using their cached facts. Legacy week-long negative-cache entries for those drafts use the same shorter window. Other refusals retain the configured negative-cache policy. Summary checks accept times documented in programme/accessibility facts and distinguish book readings from booking requirements.

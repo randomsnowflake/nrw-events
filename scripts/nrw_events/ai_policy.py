@@ -432,8 +432,13 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
     }
     if sum(word in german_stopwords for word in words) < 3:
         return "summary is not recognizably German"
-    fact_time = str(facts.get("time") or "")
-    unsupported_times = {value for value in re.findall(r"\b\d{1,2}:\d{2}\b", clean) if value not in fact_time}
+    def clock_times(text: str) -> set[tuple[int, int]]:
+        return {(int(hour), int(minute)) for hour, minute in re.findall(r"\b(\d{1,2}):(\d{2})\b", text)}
+
+    # Programme and admission times are facts too, not only the main start time.
+    time_evidence = json.dumps({key: facts.get(key) for key in
+        ("time", "time_note", "neutral_facts", "program", "accessibility")}, ensure_ascii=False)
+    unsupported_times = clock_times(clean) - clock_times(time_evidence)
     if unsupported_times:
         return "summary contains a clock time absent from the facts"
     if _mentions_date_outside_scope(clean, facts):

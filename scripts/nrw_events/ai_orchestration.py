@@ -64,6 +64,7 @@ def enrich_event(
         row = _impl_ai_cache._reuse_compatible_facts(
             connection, row, settings=configured, now=current_time,
         )
+        previous_failure = str(row["last_error"] or "")
         row = _impl_ai_cache._reset_expired_failure_window(connection, row, current_time)
         negative_until = _impl_ai_cache._parse_timestamp(row["negative_until"])
         if negative_until and negative_until > current_time:
@@ -213,7 +214,7 @@ def enrich_event(
             non_event["ai_summary"] = ""
             _impl_ai_cache._record_success(connection, row, stage=2, payload=non_event, usage=_impl_ai_contracts.Usage(), now=current_time)
             return event
-        quality_feedback = ""
+        quality_feedback = previous_failure if previous_failure.startswith("summary ") else ""
         while row["stage2_attempts"] < configured.max_attempts:
             usage = _impl_ai_contracts.Usage()
             try:

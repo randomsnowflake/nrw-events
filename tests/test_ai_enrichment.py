@@ -1154,6 +1154,21 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertGreater(negative_until, self.now)
         self.assertLessEqual(negative_until, self.now + timedelta(hours=24))
 
+    def test_legacy_rejected_summary_retries_after_six_hours_using_cached_facts(self):
+        client = FakeClient([FACTS, ai_enrichment.AIEnrichmentError("summary invents registration information"),
+                             ai_enrichment.AIEnrichmentError("summary invents registration information")])
+        ai_enrichment.enrich_event(event(), settings=self.settings, client=client, now=self.now)
+        with closing(sqlite3.connect(self.settings.cache_db)) as connection:
+            connection.execute("UPDATE ai_event_enrichment SET negative_until = ?", ((self.now + timedelta(days=7)).isoformat(),))
+            connection.commit()
+        blocked = FakeClient([])
+        ai_enrichment.enrich_event(event(), settings=self.settings, client=blocked, now=self.now + timedelta(hours=5))
+        self.assertEqual(blocked.calls, [])
+        retry = FakeClient([SUMMARY])
+        result = ai_enrichment.enrich_event(event(), settings=self.settings, client=retry, now=self.now + timedelta(hours=7))
+        self.assertEqual([call["stage"] for call in retry.calls], ["summary"])
+        self.assertEqual(result["ai_summary"], SUMMARY["ai_summary"])
+
     def test_transient_failure_backs_off_before_retrying(self):
         client = FakeClient([
             ai_enrichment.AIEnrichmentError("OpenAI HTTP 429", transient=True),
@@ -1473,6 +1488,16 @@ class AIEnrichmentTests(unittest.TestCase):
                     ai_enrichment._summary_quality(summary, event()["description"], facts),
                     expected,
                 )
+
+    def test_summary_accepts_fact_backed_program_times_and_book_reading(self):
+        facts = {**FACTS, "time": "09:00–17:00", "registration": "",
+                 "program": ["Buchlesung"], "accessibility": ["Einlass ab 8:30 Uhr"]}
+        summary = "Zum Programm gehört eine Buchlesung mit einem gemeinsamen Gespräch. Der Einlass beginnt um 08:30 Uhr."
+        self.assertEqual(ai_enrichment._summary_quality(summary, "Unabhängiger Quelltext", facts), "")
+        self.assertEqual(ai_enrichment._summary_quality(summary.replace("08:30", "07:45"), "Unabhängiger Quelltext", facts),
+                         "summary contains a clock time absent from the facts")
+        self.assertEqual(ai_enrichment._summary_quality("Eine Buchung ist erforderlich. Die Veranstaltung bietet ein gemeinsames Gespräch mit den Gästen.", "Unabhängiger Quelltext", facts),
+                         "summary invents registration information")
 
     def test_other_series_date_is_retried(self):
         unrelated_date = {

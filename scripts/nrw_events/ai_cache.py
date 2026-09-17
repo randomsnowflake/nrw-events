@@ -325,11 +325,22 @@ def _record_success(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: 
     ).fetchone()
 
 
+def _recoverable_failure_hours(message: str) -> float | None:
+    if "response incomplete:" in message:
+        return 1.0
+    if message.startswith("summary "):
+        return 6.0
+    return None
+
+
 def _record_failure(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: int, error: Exception, usage: _impl_ai_contracts.Usage, settings: _impl_ai_transport.AISettings, now: datetime, terminal: bool) -> sqlite3.Row:
     attempts = "stage1_attempts" if stage == 1 else "stage2_attempts"
     negative_until = ""
     if terminal:
-        if isinstance(error, _impl_ai_contracts.AIEnrichmentError) and error.transient:
+        recoverable_hours = _recoverable_failure_hours(str(error))
+        if recoverable_hours is not None:
+            negative_until = _timestamp(now + timedelta(hours=recoverable_hours))
+        elif isinstance(error, _impl_ai_contracts.AIEnrichmentError) and error.transient:
             negative_until = _timestamp(
                 now + timedelta(hours=_impl_ai_contracts._TRANSIENT_FAILURE_CACHE_HOURS)
             )
@@ -360,6 +371,11 @@ def _record_failure(connection: sqlite3.Connection, row: sqlite3.Row, *, stage: 
 
 def _reset_expired_failure_window(connection: sqlite3.Connection, row: sqlite3.Row, now: datetime) -> sqlite3.Row:
     negative_until = _parse_timestamp(row["negative_until"])
+    # Apply the bounded policy to failures cached by older releases as well.
+    hours = _recoverable_failure_hours(str(row["last_error"]))
+    updated = _parse_timestamp(row["updated_at"])
+    if hours is not None and updated is not None and negative_until is not None:
+        negative_until = min(negative_until, updated + timedelta(hours=hours))
     if not negative_until or negative_until > now:
         return row
     stage = 2 if row["stage1_json"] else 1
