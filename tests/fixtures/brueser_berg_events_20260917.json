@@ -1,0 +1,35 @@
+[
+  {
+    "date": "2026-10-11",
+    "end_time": "16:00",
+    "link": "https://www.hoffloh.de/events/bonn-brueser-berg-2026-10-11--1593xcbh",
+    "description": "Nachbarschaftlicher Hofflohmarkt auf dem Brüser Berg von 10 bis 16 Uhr. Statt anonymer Verkaufsflächen entsteht ein nachbarschaftlicher Rahmen zum Stöbern und Entdecken. Eintritt frei.",
+    "location": "Brüser Berg, Bonn",
+    "pdf_url": null,
+    "time": "10:00",
+    "title": "Hofflohmarkt Bonn-Brüser Berg",
+    "id": "6a89cb3145fe24812097a5f7"
+  },
+  {
+    "date": "2026-10-13",
+    "end_time": "20:00",
+    "link": "https://www.bonner-energie-agentur.de/veranstaltungen/termine/",
+    "description": "Individuelle Energieberatung der Bonner Energie Agentur im Gymnastikraum des NBB, Fahrenheitstraße 49. Eintritt frei.",
+    "location": "Nachbarschaftszentrum Brüser Berg",
+    "pdf_url": null,
+    "time": "17:00",
+    "title": "Energieberatung der Bonner Energie Agentur",
+    "id": "6a965d1bd8686a052717cde5"
+  },
+  {
+    "date": "2026-09-16",
+    "end_time": "",
+    "link": "https://www.pantheon.de/programm/",
+    "description": "Frank Goosen - „Lovely Rita\"; Lesung aus dem neuen Roman.",
+    "location": "Pantheon",
+    "pdf_url": "",
+    "time": "20:00",
+    "title": "Frank Goosen - „Lovely Rita\"",
+    "id": "6a7b18193e21781a661ca77f"
+  }
+]

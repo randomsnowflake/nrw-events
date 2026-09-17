@@ -97,7 +97,7 @@ class BrueserBergSourceTests(unittest.TestCase):
             if url == bonn_districts.BRUESER_BERG_URL:
                 return page
             if url.startswith(
-                "https://brueser-berg-puls.base44.app/api/apps/"
+                "https://brueser-berg-2026.base44.app/api/apps/"
                 "6a71c68354b14b3b2e8741d7/entities/Event?"
             ):
                 return PAYLOAD
