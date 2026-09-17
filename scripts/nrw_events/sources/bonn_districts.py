@@ -22,7 +22,8 @@ HARDTBERG_API = "https://www.hardtbergkultur.de/wp-json/wp/v2/posts"
 ROLEBER_ICAL = "https://bsvroleber.de/events/?ical=1"
 _ROLEBER_SCORE_FLOOR = 0.45
 HOLZLAR_URL = "https://bv-holzlar.de/veranstaltungen"
-BRUESER_BERG_URL = "https://brueser-berg-puls.base44.app/"
+# Official replacement linked from brueser-berg.de/veranstaltungen-2025.html.
+BRUESER_BERG_URL = "https://brueser-berg-2026.base44.app/"
 _NBB_CALENDAR_URL = "https://www.nachbarschaftszentrum.info/termine/"
 _BRUESER_BERG_SOURCE = "Veranstaltungen Brüser Berg"
 _BRUESER_BERG_SOURCE_ID = "veranstaltungen-brueser-berg"

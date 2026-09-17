@@ -98,7 +98,7 @@ _FREE_ACTIVITY_ALLOW = {
 _FREE_EVENT_SCORE_FLOOR = 0.45
 _BLOCK = {
     "Sprechstunde", "Sitzung", "Sitzungstermine Ausschüsse", "Sitzungstermine Bezirksvertretung",
-    "Informations-Veranstaltung", "Tagungen/Kongresse", "Stadtverwaltung",
+    "Informations-Veranstaltung", "Tagungen/Kongresse", "Tagung/Kongress", "Stadtverwaltung",
     # Bonn singularised its labels; keep both spellings blocked so the rename
     # cannot quietly turn professional training into importable events.
     "Fortbildungen", "Fortbildung",
