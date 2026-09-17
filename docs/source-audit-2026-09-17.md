@@ -19,8 +19,18 @@ consumer pin update, merge, deployment or publication.
 Change only the host constant (also used for missing-link fallback). Preserve
 source ID, locality gate, entity discovery, parsing, optional detail enrichment,
 retention and failure reporting. No scraping of authenticated/private data.
-The captured bootstrap and three representative public event records exercise
-real source shape; non-event account/audit fields are omitted from the JSON fixture.
+The captured bootstrap and full 90-row public response are retained as offline
+fixtures. The response was recaptured for review on September 17 at 06:30 UTC.
+All keys, record order, null/empty values and event content are preserved;
+only nonempty `created_by_id` account identifiers are replaced with a 24-character
+zero string. JSON whitespace is normalized. No fields or records are omitted.
+The raw response SHA-256 is
+`2e351d8843206c6dc02b37a08f96a64b20fd1d12680c3840f4492ef9eb23507b`;
+the sanitized fixture SHA-256 is
+`b9193b7f4bdc328c49bd2ed490c8669702c7b244e38ba667ba93e1fc85fe8344`.
+The regression suite replays both the audit window (two events) and a window
+through December 31 (all eight local occurrences), asserting the 90/8/82 split,
+canonical validation, deduplication and source identity.
 
 Offline replay of all 90 saved rows, without detail networking: 8 local / 82
 nonlocal; 8 raw / 8 canonical / 8 after global deduplication. These are adapter
@@ -89,3 +99,9 @@ not independently reproduced historical observations in this audit.
 - Generated inventories regenerated without drift; `git diff --check` passed.
 - GitHub Actions API reports `enabled: false`; local gates are the evidence,
   not absent CI checks.
+
+Review follow-up: replaced the reduced JSON fixture with the complete sanitized
+capture and added the full locality replay. All 15 focused tests and all 1,660
+offline tests passed (27.004 seconds for the full suite). Ruff, mypy (67 source
+files), generated-inventory checks and `git diff --check` passed. The official
+association link and disabled GitHub Actions setting were rechecked.

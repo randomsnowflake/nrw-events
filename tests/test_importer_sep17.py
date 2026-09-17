@@ -38,10 +38,15 @@ class ImporterSeptember17Tests(unittest.TestCase):
             raw = bonn_districts.fetch_brueser_berg()
         warning.assert_not_called()
         self.assertEqual(request.call_count, 2)
-        self.assertEqual([e["title"] for e in raw], [
+        self.assertEqual(len(raw), 8)
+        in_window = [e for e in raw if common.window_contains(
+            datetime.fromisoformat(e["start_date"]),
+            datetime.fromisoformat(e["end_date"]),
+        )]
+        self.assertEqual([e["title"] for e in in_window], [
             "Hofflohmarkt Bonn-Brüser Berg", "Energieberatung der Bonner Energie Agentur",
         ])
-        canonical = [validation.validate_event(e) for e in raw]
+        canonical = [validation.validate_event(e) for e in in_window]
         self.assertTrue(all(canonical))
         self.assertEqual(len(report.deduplicate(canonical)), 2)
         self.assertTrue(all(e["source_id"] == "veranstaltungen-brueser-berg" for e in canonical))
@@ -57,6 +62,27 @@ class ImporterSeptember17Tests(unittest.TestCase):
         warning.assert_called_once_with(
             "Veranstaltungen Brüser Berg", error, source_id="veranstaltungen-brueser-berg",
         )
+
+    def test_full_capture_reproduces_locality_and_occurrence_counts(self):
+        payload = (FIXTURES / "brueser_berg_events_20260917.json").read_text()
+        rows = json.loads(payload)
+        self.assertEqual(len(rows), 90)
+        local = [row for row in rows if bonn_districts._is_brueser_berg_row(row)]
+        self.assertEqual(len(local), 8)
+        self.assertEqual(len(rows) - len(local), 82)
+        expected_dates = [
+            "2026-10-11", "2026-10-13", "2026-10-17", "2026-11-05",
+            "2026-11-06", "2026-11-08", "2026-11-22", "2026-12-05",
+        ]
+        patch_window(self, datetime(2026, 9, 17), datetime(2026, 12, 31))
+        raw = bonn_districts.events_from_brueser_berg_json(payload)
+        self.assertEqual([event["start_date"] for event in raw], expected_dates)
+        canonical = [validation.validate_event(event) for event in raw]
+        self.assertTrue(all(canonical))
+        self.assertEqual(len(report.deduplicate(canonical)), 8)
+        self.assertTrue(all(
+            event["source_id"] == "veranstaltungen-brueser-berg" for event in canonical
+        ))
 
     def test_captured_congress_cards_follow_existing_conference_exclusion(self):
         html = (FIXTURES / "bonn_congress_20260917.html").read_text()
