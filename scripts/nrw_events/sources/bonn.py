@@ -872,9 +872,15 @@ def _is_sparse_listing_description(description: str, title: str) -> bool:
 
 
 def _enrich_listing_details(events: list[dict]) -> list[dict]:
-    """Enrich final in-window listing rows within one separate detail budget."""
-    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
-    deadline = time.monotonic() + max(batch_timeout, 0.0)
+    """Read each needed detail URL, bounded by request and source deadlines."""
+    # Venue facts live on detail pages. A fixed 45s batch cap made coverage
+    # depend on calendar size and response speed. The HTTP layer still enforces
+    # the source deadline; retain an optional explicit operator budget.
+    configured_budget = os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS")
+    deadline = (
+        time.monotonic() + max(float(configured_budget), 0.0)
+        if configured_budget is not None else float("inf")
+    )
     enriched = [dict(event) for event in events]
     ordered = sorted(
         range(len(enriched)),
@@ -905,11 +911,6 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
         link = str(event.get("link") or "").strip()
         if not needs_detail or not link or not common.event_in_window(event):
             continue
-        # This source adapter owns the detail URL for this row. Mark the
-        # attempt even when its optional batch budget is exhausted or the
-        # request fails, so the generic enrichment pass does not fetch the
-        # same URL again under a second cache namespace.
-        event["_detail_page_enriched"] = True
         remaining = deadline - time.monotonic()
         if link not in contexts and link not in failed_links:
             if remaining < 3.0:
@@ -923,6 +924,9 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
         context = contexts.get(link, {})
         if not context:
             continue
+        # Only a completed read suppresses the shared enrichment pass.
+        # Skipped or failed requests must remain eligible for recovery.
+        event["_detail_page_enriched"] = True
         if weak_description and context.get("description"):
             event["description"] = common.concise_description(context["description"], max_chars=0)
             event["description_source"] = "scraped"

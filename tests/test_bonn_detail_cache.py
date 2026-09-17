@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from nrw_events import common, validation
+from nrw_events import common, detail_enrichment, validation
 from nrw_events.sources import bonn
 
 from tests.helpers import patch_window
@@ -230,6 +230,51 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertTrue(enriched[1]["_detail_page_enriched"])
         self.assertTrue(enriched[2]["_detail_page_enriched"])
         log_error.assert_not_called()
+
+    def test_skipped_and_failed_details_remain_eligible(self):
+        event = {
+            "title": "Kraftfelder", "date": "2026-07-18",
+            "start_date": "2026-07-18", "end_date": "2026-07-18",
+            "link": DETAIL_LINK, "venue": "", "city": "Bonn",
+        }
+        for budget in ("0", "45"):
+            with self.subTest(budget=budget), patch.dict(
+                "os.environ", {"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": budget}
+            ), patch.object(bonn, "_fetch_detail_context", return_value={}) as fetch:
+                result = bonn._enrich_listing_details([event])[0]
+            self.assertNotIn("_detail_page_enriched", result)
+            self.assertTrue(detail_enrichment._needs_detail(result))
+            self.assertEqual(fetch.call_count, 0 if budget == "0" else 1)
+
+    def test_default_detail_pass_covers_unique_urls_beyond_45_seconds(self):
+        events = [{
+            "title": "Kraftfelder", "date": "2026-07-18",
+            "start_date": "2026-07-18", "end_date": "2026-07-18",
+            "link": f"https://www.bonn.de/veranstaltungskalender/{index}.php",
+            "venue": "", "city": "Bonn",
+        } for index in range(8)]
+        events.append(dict(events[-1]))
+        clock = [0.0]
+
+        def fetch_detail(link, timeout=15):
+            self.assertEqual(timeout, 15.0)
+            clock[0] += 10.0
+            return bonn._parse_detail_context(detail_html())
+
+        with patch.dict("os.environ"):
+            import os
+            os.environ.pop("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", None)
+            with patch.object(bonn.time, "monotonic", side_effect=lambda: clock[0]), patch.object(
+                bonn, "_fetch_detail_context", side_effect=fetch_detail
+            ) as fetch:
+                enriched = bonn._enrich_listing_details(events)
+        self.assertEqual(fetch.call_count, 8)
+        self.assertEqual(clock[0], 80.0)
+        self.assertEqual(len(enriched), 9)
+        for event in enriched:
+            self.assertEqual(event["venue"], "Collegium Leoninum")
+            self.assertTrue(event["_detail_page_enriched"])
+        self.assertTrue(all(not event["venue"] for event in events))
 
     def test_calendar_pagination_finishes_before_final_detail_enrichment(self):
         def listing(title: str, page_count: int = 1) -> str:

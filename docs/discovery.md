@@ -178,7 +178,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `XDG_CACHE_HOME=~/.cache` — cache base when `NRW_EVENTS_CACHE_DIR` is unset.
 - `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=24` — default TTL for successful generic detail-page fetches; `0` disables memory and disk caching.
 - `NRW_EVENTS_DETAIL_ENRICHMENT=1` — shared primary-detail enrichment; set to `0` to disable.
-- `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS=45` — whole-source budget for optional detail-page enrichment.
+- `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` — whole-source budget for optional detail-page enrichment: 45 seconds by default, 240 for Köln Open Data's large teaser feed. An explicit value overrides both defaults; the outer source deadline still applies.
 - `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS=500` — target length for meaningful Bonn.de detail summaries after logistics boilerplate is removed.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.

@@ -361,6 +361,37 @@ def _date_bounds(ev: Mapping[str, Any]) -> tuple[date, date] | None:
     return (start, max(start, end))
 
 
+def _secondary_calendar_schedule_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Allow a small Bonn.jetzt opening-time discrepancy for one named event."""
+    sources = {str(row.get("source") or "").casefold() for row in (left, right)}
+    if "bonn.jetzt" not in sources or len(sources) != 2:
+        return False
+    title = normalize_title(left.get("title", ""))
+    city = _normalized_city(left.get("city", ""))
+    if (
+        len(title) < 12 or title != normalize_title(right.get("title", ""))
+        or not city or city != _normalized_city(right.get("city", ""))
+        or not _date_bounds(left) or _date_bounds(left) != _date_bounds(right)
+        or not _venue_comparison_text(left) or not _venue_comparison_text(right)
+        or not _locations_compatible(left, right)
+        or (set(_venue_comparison_text(left).split()) - set(city.split()))
+        != (set(_venue_comparison_text(right).split()) - set(city.split()))
+    ):
+        return False
+    try:
+        starts = [datetime.fromisoformat(str(row["start_at"]).replace("Z", "+00:00"))
+                  for row in (left, right)]
+        ends = [datetime.fromisoformat(str(row["end_at"]).replace("Z", "+00:00"))
+                for row in (left, right)]
+        return bool(
+            ends[0] == ends[1] and starts[0].date() == starts[1].date()
+            and timedelta(0) < abs(starts[0] - starts[1]) <= timedelta(minutes=30)
+            and max(starts) < ends[0]
+        )
+    except (KeyError, ValueError, TypeError):
+        return False
+
+
 def _same_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Return whether two records describe the same city/date occurrence."""
     # A first-party calendar may offer the same programme several times on one
@@ -791,6 +822,7 @@ def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
     )
     return (
         same_detail_occurrence
+        or _secondary_calendar_schedule_matches(left, right)
         or _same_registered_venue_occurrence(left, right)
         or (
             _same_occurrence(left, right)

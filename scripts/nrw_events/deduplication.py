@@ -104,11 +104,13 @@ def deduplicate(
         else:
             current_rank = (
                 _impl_dedup_rules.source_authority(current.get("source", "")),
+                str(current.get("source") or "").casefold() != "bonn.jetzt",
                 current["score"],
                 _impl_duplicate_identity._duration_days(current),
             )
             candidate_rank = (
                 _impl_dedup_rules.source_authority(candidate.get("source", "")),
+                str(candidate.get("source") or "").casefold() != "bonn.jetzt",
                 candidate["score"],
                 _impl_duplicate_identity._duration_days(candidate),
             )
@@ -128,6 +130,8 @@ def deduplicate(
                 if candidate_wins else (current, candidate)
             )
         protect_authoritative_schedule = (
+            _impl_duplicate_identity._secondary_calendar_schedule_matches(winner, duplicate)
+        ) or (
             _impl_duplicate_identity._venue_qualified_aggregator_title_matches(winner, duplicate)
             and _impl_dedup_rules.source_authority(winner.get("source", ""))
             > _impl_dedup_rules.source_authority(duplicate.get("source", ""))

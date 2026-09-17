@@ -48,6 +48,10 @@ _SKIPPED_HOSTS = {
     "www.example.com", "www.example.org", "www.kihapp.com",
 }
 _GENERIC_CACHE_NAMESPACE = "universal-event-details-v2"
+# Cologne's structured feed contains hundreds of teasers. Its sequential cold
+# detail pass needs more than the generic 45s (263 rows at roughly 0.7s each).
+# Keep requests sequential and retain the outer source deadline and TTL cache.
+_SOURCE_BATCH_TIMEOUT_SECONDS = {"k-ln-open-data": 240.0}
 
 
 def enabled() -> bool:
@@ -304,7 +308,7 @@ def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
 
 
 def enrich_events(events: list[RawEvent], *, cache_namespace: str = _GENERIC_CACHE_NAMESPACE,
-                  parallel_components: bool = False) -> list[RawEvent]:
+                  parallel_components: bool = False, source_id: str = "") -> list[RawEvent]:
     """Enrich unique public detail links, failing soft per event.
 
     A URL shared by several events is normally an overview or rolling article;
@@ -312,7 +316,10 @@ def enrich_events(events: list[RawEvent], *, cache_namespace: str = _GENERIC_CAC
     """
     if not enabled():
         return events
-    batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
+    batch_timeout = float(os.environ.get(
+        "NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS",
+        str(_SOURCE_BATCH_TIMEOUT_SECONDS.get(source_id, 45.0)),
+    ))
     deadline = time.monotonic() + max(batch_timeout, 0.0)
     eligible_ids: set[int] = set()
     for event in events:

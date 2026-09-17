@@ -2,6 +2,7 @@ import json
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import components, core, detail_enrichment, richtext
@@ -578,6 +579,36 @@ class DetailEnrichmentTests(unittest.TestCase):
 
         fetch.assert_called_once()
         self.assertEqual("Kurzer Teaser.", enriched[1]["description"])
+
+    def test_koeln_late_batch_event_receives_full_sachsenturm_copy(self):
+        # Production skipped 191 of 263 Cologne rows after the generic 45s.
+        events = [self.event(link=f"https://www.stadt-koeln.de/event/{i}") for i in range(263)]
+        events[-1].update(
+            title="Daach der kölschen Sproch: Führung durch den Sachsenturm – Heimat der Blauen Funken",
+            link="http://www.stadt-koeln.de/leben-in-koeln/veranstaltungen/daten/40880/index.html",
+            description="Stadtgeschichte aus dem 12. Jahrhundert",
+        )
+        document = (Path(__file__).parent / "data/koeln-sachsenturm-40880.html").read_text()
+        with patch.dict("os.environ", {}, clear=True), patch.object(
+            detail_enrichment.time, "monotonic", side_effect=[100] + [100 + i * 0.7 for i in range(263)]
+        ), patch.object(detail_enrichment.common, "fetch_detail_url", return_value=document) as fetch:
+            enriched = detail_enrichment.enrich_events(events, source_id="k-ln-open-data")
+        self.assertEqual(fetch.call_count, 263)
+        self.assertEqual(len(enriched), len(events))
+        self.assertIn("2025 wurde", enriched[-1]["description"])
+        self.assertIn("25 bis 30 Personen", enriched[-1]["description"])
+        self.assertEqual(enriched[-1]["description_html"].count("<p>"), 3)
+        self.assertEqual(enriched[-1]["link"], events[-1]["link"])
+
+    def test_koeln_budget_still_honors_explicit_override_and_deadline(self):
+        for settings, elapsed in (({}, 241), ({"NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS": "45"}, 46)):
+            with self.subTest(settings=settings), patch.dict("os.environ", settings, clear=True), patch.object(
+                detail_enrichment.time, "monotonic", side_effect=[100, 100 + elapsed]
+            ), patch.object(detail_enrichment.common, "fetch_detail_url") as fetch:
+                event = self.event()
+                enriched = detail_enrichment.enrich_events([event], source_id="k-ln-open-data")
+            fetch.assert_not_called()
+            self.assertEqual(enriched, [event])
 
     def test_script_and_style_content_cannot_reach_stored_html(self):
         document = """

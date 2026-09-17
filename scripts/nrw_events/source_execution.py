@@ -191,6 +191,7 @@ def _run_source(
                 events = detail_enrichment.enrich_events(
                     events,
                     cache_namespace=f"universal-event-details-{SOURCE_IDS[name]}-v2",
+                    source_id=SOURCE_IDS[name],
                     **({"parallel_components": True} if name in components.COMPOSITE_SOURCES else {}),
                 )
         typed_status = result.status if isinstance(fetched, SourceFetchResult) else None
