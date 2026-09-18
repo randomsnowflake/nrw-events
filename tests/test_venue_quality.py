@@ -74,6 +74,8 @@ class SourceVenueRecoveryTests(unittest.TestCase):
             ('Hennef, Mehrzweckhalle "Meiersheide" Mädelsmarkt', 'Mehrzweckhalle "Meiersheide"'),
             ('Gummersbach, Riesen Stadtflohmarkt in der Fußgängerzone. Nur 2x im Jahr!', 'Fußgängerzone'),
             ('Bonn, Flohmarkt', ''),
+            ('Bonn, Flohmarkt im September', ''),
+            ('Bonn, Flohmarkt in der kalten Jahreszeit', ''),
         ]:
             self.assertEqual(_named_market_place(title), expected)
 

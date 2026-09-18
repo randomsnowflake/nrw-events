@@ -39,7 +39,10 @@ def _named_market_place(title: str) -> str:
     """The organizer explicitly names these places in its listing headings."""
     match = re.search(r"\b(?:im|beim|in der)\s+(?:überdachten\s+)?(.+?)(?:\.\s|$)", title, re.I)
     if match:
-        return match.group(1).strip()
+        place = match.group(1).strip()
+        if re.search(r"\b(?:Telekom Dome|Kaufland|REWE Center|[\w-]*halle|Ortskern|Fußgängerzone)\b", place, re.I):
+            return place
+        return ""
     match = re.search(r',\s*(Mehrzweckhalle\s+[^,]+?)\s+Mädelsmarkt$', title, re.I)
     return match.group(1).strip() if match else ""
 
