@@ -28,15 +28,15 @@ class ReportTests(unittest.TestCase):
                 self.assertEqual(winner["category_key"], "festival")
                 self.assertEqual(event_id(winner), event_id(primary))
                 self.assertIn(event_id(civic), winner["previous_event_ids"])
-        for patch in (
+        for overrides in (
             {"venue": "Rheinaue"}, {"city": "Köln"},
             {"title": "Weinfest Kohlkaul"},
             {"date": "2027-09-18", "start_date": "2027-09-18", "end_date": "2027-09-20"},
             {"venue_address": "Uhlgasse 100"},
         ):
-            with self.subTest(patch=patch):
+            with self.subTest(patch=overrides):
                 self.assertEqual(len(report.deduplicate([
-                    {**civic, **patch}, {**primary, "venue_address": "Uhlgasse 2"}
+                    {**civic, **overrides}, {**primary, "venue_address": "Uhlgasse 2"}
                 ])), 2)
         self.assertEqual(len(report.deduplicate([
             {**civic, "start_at": "2026-09-18T17:00:00+02:00"},
@@ -66,7 +66,7 @@ class ReportTests(unittest.TestCase):
                     self.assertEqual(winner["source_id"], "wachtberg")
                     self.assertEqual(event_id(winner), event_id(b))
                     self.assertIn(event_id(a), winner["previous_event_ids"])
-        for patch in (
+        for overrides in (
             {"title": "Dorfflohmarkt Wachtberg Ließem"},
             {"title": "Kinder-Dorfflohmarkt Wachtberg Pech"},
             {"title": "Hofflohmarkt Wachtberg Pech"},
@@ -74,8 +74,8 @@ class ReportTests(unittest.TestCase):
             {"start_date": "2026-09-21", "date": "2026-09-21", "end_date": "2026-09-21", "start_at": "2026-09-21T10:00+02:00"},
             {"start_at": "2026-09-20T12:00+02:00"},
         ):
-            with self.subTest(patch=patch):
-                self.assertEqual(len(report.deduplicate([{**directory, **patch}, local])), 2)
+            with self.subTest(patch=overrides):
+                self.assertEqual(len(report.deduplicate([{**directory, **overrides}, local])), 2)
         from nrw_events.duplicate_identity import _district_market_title_identity
         self.assertEqual(_district_market_title_identity({**directory, "title": "Dorfflohmarkt Wachtberg"}), ())
         self.assertEqual(_district_market_title_identity({**local, "title": "Dorfflohmarkt in Wachtberg"}), ())
