@@ -35,6 +35,15 @@ def _listing_city(title: str, venue: str) -> str:
     return _CITY_ALIASES.get(city.casefold(), city)
 
 
+def _named_market_place(title: str) -> str:
+    """The organizer explicitly names these places in its listing headings."""
+    match = re.search(r"\b(?:im|beim|in der)\s+(?:überdachten\s+)?(.+?)(?:\.\s|$)", title, re.I)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r',\s*(Mehrzweckhalle\s+[^,]+?)\s+Mädelsmarkt$', title, re.I)
+    return match.group(1).strip() if match else ""
+
+
 def _events_from_listing(html: str, page_url: str) -> list:
     events = []
     blocks = re.split(
@@ -89,6 +98,12 @@ def _events_from_listing(html: str, page_url: str) -> list:
             time_text,
         )
         if event:
+            if not event.get("venue"):
+                place = _named_market_place(title)
+                if place:
+                    event["identity_venue"] = ""
+                    event["identity_venue_locked"] = True
+                    event["venue"] = place
             events.append(event)
     return rc.dedupe(events)
 

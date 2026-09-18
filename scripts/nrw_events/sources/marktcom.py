@@ -220,6 +220,11 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
             ),
         )
         if event:
+            # This field sometimes contains a programme label rather than a place.
+            if re.match(r"^(?:Info- und Tauschtag|(?:Briefmarken|Münzen|Ansichtskarten)[-, &]+(?:tausch|börse))\b", venue, re.I):
+                event["identity_venue"] = event["venue"]
+                event["identity_venue_locked"] = True
+                event["venue"] = ""
             if organizer:
                 event["organizer"] = organizer
             # Keep source prose private until the common AI extraction pass.

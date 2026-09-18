@@ -79,7 +79,9 @@ class MarketSourceTests(unittest.TestCase):
         self.assertEqual(event["date"], "2026-09-13")
         self.assertEqual(event["time"], "11:00–15:00")
         self.assertEqual(event["city"], "Hennef")
-        self.assertEqual(event["venue"], "")
+        self.assertEqual(event["venue"], 'Mehrzweckhalle "Meiersheide"')
+        self.assertTrue(event["identity_venue_locked"])
+        self.assertEqual(event["identity_venue"], "")
         self.assertEqual(event["venue_address"], "53773 Hennef, Meiersheide 20")
         self.assertIn("13.09.2026", event["description"])
         self.assertEqual(

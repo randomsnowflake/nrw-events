@@ -395,6 +395,9 @@ def resolve_venue(
 ) -> VenueResolution:
     """Resolve source venue text without inventing facts for unknown places."""
     cleaned = _clean_venue_text(value)
+    # Municipal event FID=3947.731.1 confirms the same Burgstraße 5 site.
+    if comparison_text(city) == "meckenheim":
+        cleaned = re.sub(r"^Herrenhaus Burg Altendorf(?=,|$)", "Herrenhaus der Burg Altendorf", cleaned, flags=re.I)
     record = _record_for(cleaned, city, explicit_id)
     parsed_name, parsed_address = _split_venue(cleaned, city)
     location = _verified_location_for(cleaned, city)

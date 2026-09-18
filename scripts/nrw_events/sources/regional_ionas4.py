@@ -115,6 +115,7 @@ def _detail_context(html: str) -> dict:
         html or "",
         re.S | re.I,
     )
+    place = rc.explicit_place_context(parser.block_text("description"), "")
     return {
         # Handed over untrimmed, with its paragraphs: ``make_event`` infers
         # admission from the text it is given and only then shortens it for
@@ -125,7 +126,8 @@ def _detail_context(html: str) -> dict:
         "description": parser.block_text("description"),
         # Preserve the source string until the canonical event boundary so its
         # street address can be separated into ``venue_address`` there.
-        "venue": parser.text("location"),
+        "venue": parser.text("location") or place.get("venue", ""),
+        "venue_address": place.get("venue_address", "") if not parser.text("location") else "",
         "organizer": common.clean_html(organizer.group(1)) if organizer else "",
         "link": common.normalize_url(link.group(1)) if link else "",
     }
@@ -288,6 +290,8 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             source_id=source_id,
         )
         if event:
+            if context.get("venue_address"):
+                event["venue_address"] = context["venue_address"]
             if item_all_day is True:
                 # The calendar explicitly owns the schedule. Its JSON-LD
                 # detail may encode this same span as 00:00 through 23:59.

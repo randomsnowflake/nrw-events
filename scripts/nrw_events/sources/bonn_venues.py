@@ -195,6 +195,27 @@ def events_from_brotfabrik(html: str) -> list:
     return events
 
 
+def _brotfabrik_explicit_place(description: str) -> str:
+    """The API's Klima department uses `g`; only explicit copy can replace it."""
+    text = rc.clean_blocks(description)
+    labelled = re.search(
+        r"(?:^|\n)\s*(?:Wo[?:]|Treffpunkt(?:\s*\|\s*Meeting Point)?\s*:)\s*"
+        r"([^\n]+(?:\n(?!\s*\n)[^\n]+)*)", text, re.I,
+    )
+    if labelled:
+        lines = [line.strip() for line in text[labelled.start(1):].splitlines() if line.strip()]
+        parts = [lines[0]]
+        for line in lines[1:4]:
+            if re.fullmatch(r"(?:[^:]{1,80}(?:straße|str\.|weg|gasse|platz)\s*\d+[a-z]?|\d{5}\s+[^:]+|Bonn,?\s*\d{5})", line, re.I):
+                parts.append(line)
+            else:
+                break
+        return ", ".join(parts)
+    # These source phrases name the building, not the organization or a link.
+    place = re.search(r"\b(?:in der|im Studio \d+ der)\s+Brotfabrik\b", text, re.I)
+    return "Brotfabrik Bonn" if place else ""
+
+
 def events_from_brotfabrik_items(items: list) -> list:
     events = []
     for item in items if isinstance(items, list) else []:
@@ -228,6 +249,12 @@ def events_from_brotfabrik_items(items: list) -> list:
             category_locked=bool(explicit_category),
         )
         if ev:
+            if (item.get("Ort") or "").strip() == "g":
+                place = _brotfabrik_explicit_place(item.get("Beschreibung") or "")
+                if place:
+                    resolved = common.resolve_venue(place, "Bonn")
+                    ev.update(venue=resolved.venue, venue_address=resolved.venue_address,
+                              venue_id=resolved.venue_id)
             events.append(ev)
     return events
 

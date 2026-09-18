@@ -80,6 +80,7 @@ scripts/nrw_events/
   text.py
   title_normalization.py
   validation.py
+  venue_quality.py
   sources/
     registry.json
     __init__.py

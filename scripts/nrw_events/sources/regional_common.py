@@ -159,8 +159,16 @@ def explicit_place_context(text: str, city: str) -> dict[str, str]:
     """Recover an explicitly labelled venue without guessing from general prose."""
     match = _EXPLICIT_PLACE_PATTERN.search(text or "")
     if not match:
+        match = re.search(
+            r"\bTreffpunkt\s+ist\s+(?:um\s+\d{1,2}[:.]\d{2}(?:\s*Uhr)?\s+)?"
+            r"(?:auf dem|am|der|die|das)\s+([^.;\n]{4,180})", text or "", re.I,
+        )
+    if not match:
         return {}
     value = clean(match.group(1)).strip(" .;,")
+    value = re.sub(r"^(?:um\s+)?(?:\d{1,2}[:.]\d{2}(?:\s*Uhr)?|\d{1,2}\s*Uhr)\s+", "", value, flags=re.I)
+    value = re.split(r"\s+(?:Wanderstrecke|Wanderführerin|Wanderführer|Tourführer|Fahrgemeinschaft)\s*:?", value, maxsplit=1, flags=re.I)[0]
+    value = re.sub(r"\s*\(offen für jedermann\).*$", "", value, flags=re.I)
     if (
         not value
         or _VAGUE_PLACE_PATTERN.fullmatch(value)

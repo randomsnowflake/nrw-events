@@ -21,6 +21,7 @@ from .models import (
 from .normalization import canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
 from .title_normalization import normalize_event_title
+from .venue_quality import sanitize_venue_fields
 
 
 class EventValidationError(ValueError):
@@ -506,6 +507,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
                          ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
+    sanitize_venue_fields(event)
     _canonical_exhibitor(event)
     event["description"] = _visitor_description(event["description"])
     # Source price fields sometimes mix seller logistics with visitor facts.
@@ -545,6 +547,11 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     venue_input = ", ".join(
         part for part in (event["venue"], explicit_venue_address) if part
     )
+    if (event["city"].casefold() == "meckenheim"
+            and re.match(r"^Herrenhaus Burg Altendorf(?:,|$)", event["venue"], re.I)
+            and not event["identity_venue_locked"]):
+        event["identity_venue"] = "Herrenhaus Burg Altendorf"
+        event["identity_venue_locked"] = True
     venue = resolve_venue(venue_input, event["city"], explicit_id=explicit_venue_id)
     event["venue"] = venue.venue
     event["venue_id"] = venue.venue_id or explicit_venue_id

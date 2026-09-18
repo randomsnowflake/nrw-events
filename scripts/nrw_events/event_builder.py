@@ -25,6 +25,7 @@ from .normalization import VenueResolution, resolve_venue
 from .quality import QualityDecision, evaluate_event_quality
 from .scoring import category_score, distance_score
 from .title_normalization import normalize_event_title
+from .venue_quality import sanitize_venue_fields
 
 
 def keep_only_event_master_data(event: RawEvent) -> RawEvent:
@@ -860,6 +861,10 @@ def build_event(draft: EventDraft, *, _prepared: _QualityPreparation | None = No
         "category_confidence": canonical_category.get("confidence", 0),
         "category_reason": canonical_category.get("reason", ""),
     }
+    if city.casefold() == "meckenheim" and re.match(r"^Herrenhaus Burg Altendorf(?:,|$)", venue, re.I):
+        ev["identity_venue"] = "Herrenhaus Burg Altendorf"
+        ev["identity_venue_locked"] = True
+    sanitize_venue_fields(ev)
     if status == "postponed":
         replacement_dates = [
             candidate for candidate in extract_dates(f"{title} {description}")
