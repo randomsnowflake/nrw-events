@@ -812,7 +812,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     # the adapters so historical prose can never be republished.
     if _requires_master_data_only(event):
         common.keep_only_event_master_data(event)
-    if ai_enrichment.is_target_event(event):
+    # Optional gap-filling sources may still receive real prose during dedup.
+    # Only the restricted sources must lose their copy at this boundary.
+    if event["source_id"] in ai_enrichment.TARGET_SOURCE_IDS:
         ai_enrichment.strip_restricted_copy(event)
     canonical_fields: dict[str, Any] = {}
     for field, definition in CanonicalEvent.__dataclass_fields__.items():

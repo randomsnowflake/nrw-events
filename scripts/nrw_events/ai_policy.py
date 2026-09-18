@@ -17,7 +17,13 @@ from .models import RawEvent, normalize_source_id
 
 
 def is_target_event(event: Mapping[str, Any]) -> bool:
-    return normalize_source_id(event.get("source_id") or event.get("source")) in _impl_ai_contracts.TARGET_SOURCE_IDS
+    source = normalize_source_id(event.get("source_id") or event.get("source"))
+    if source in _impl_ai_contracts.TARGET_SOURCE_IDS:
+        return True
+    return source in {"b-future-festival", "lupe-events"} and (
+        event.get("description_source") == "generated"
+        or not any(str(event.get(field) or "").strip() for field in ("description", "description_html"))
+    )
 
 
 def strip_restricted_copy(event: RawEvent) -> RawEvent:
@@ -107,6 +113,12 @@ def _normalized_words(value: str) -> list[str]:
     return re.findall(r"[a-z0-9äöüß]+", value.casefold())
 
 
+def _municipality_key(value: str) -> str:
+    key = category_taxonomy.comparison_text(value)
+    # The feed uses Bonn districts as city labels; prose often names the city.
+    return "bonn" if key.startswith(("bonn ", "bonn-")) else key
+
+
 def _mentions_date_outside_scope(summary: str, facts: Mapping[str, Any]) -> bool:
     try:
         start = datetime.fromisoformat(str(facts.get("_publication_start") or facts.get("start_date"))).date()
@@ -115,21 +127,22 @@ def _mentions_date_outside_scope(summary: str, facts: Mapping[str, Any]) -> bool
         ).date()
     except ValueError:
         return False
-    allowed_dates = set()
-    for match in _impl_ai_contracts._PROSE_DATE_PATTERN.finditer(str(facts.get("registration") or "")):
-        year = int(match.group(3) or start.year)
-        try:
-            allowed_dates.add(
-                datetime(year, _impl_ai_contracts._GERMAN_MONTHS[match.group(2).casefold()], int(match.group(1))).date()
-            )
-        except ValueError:
-            continue
-    for match in _impl_ai_contracts._PROSE_DATE_PATTERN.finditer(summary):
-        year = int(match.group(3) or start.year)
-        try:
-            mentioned = datetime(year, _impl_ai_contracts._GERMAN_MONTHS[match.group(2).casefold()], int(match.group(1))).date()
-        except ValueError:
-            continue
+    def dates_in(text: str) -> set[date]:
+        values: set[date] = set()
+        for pattern, numeric in (
+            (_impl_ai_contracts._PROSE_DATE_PATTERN, False),
+            (re.compile(r"\b(\d{1,2})\.\s*(\d{1,2})\.(?:\s*(\d{4}))?"), True),
+        ):
+            for match in pattern.finditer(text):
+                month = int(match.group(2)) if numeric else _impl_ai_contracts._GERMAN_MONTHS[match.group(2).casefold()]
+                try:
+                    values.add(date(int(match.group(3) or start.year), month, int(match.group(1))))
+                except ValueError:
+                    continue
+        return values
+
+    allowed_dates = dates_in(str(facts.get("registration") or ""))
+    for mentioned in dates_in(summary):
         if not start <= mentioned <= end and mentioned not in allowed_dates:
             return True
     return False
@@ -180,6 +193,13 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
         ):
             cleaned[field] = payload.get(field) or None
         cleaned["end_date"] = payload.get("end_date") or payload.get("start_date") or None
+
+    # An overlapping exhibition range is not the selected daily occurrence.
+    if publication_start and publication_end:
+        cleaned["start_date"] = str(payload["start_date"])
+        cleaned["end_date"] = str(payload.get("end_date") or payload["start_date"])
+    if payload.get("time"):
+        cleaned["time"] = payload["time"]
 
     scope = {
         **cleaned,
@@ -273,8 +293,7 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
     if (
         source_city
         and candidate_city
-        and category_taxonomy.comparison_text(source_city)
-        != category_taxonomy.comparison_text(candidate_city)
+        and _municipality_key(source_city) != _municipality_key(candidate_city)
     ):
         cleaned["city"] = None
     for field in ("venue", "venue_address"):
@@ -283,8 +302,7 @@ def _sanitize_extracted_facts(facts: Mapping[str, Any], payload: Mapping[str, An
         if (
             source_city
             and candidate_location_city
-            and category_taxonomy.comparison_text(source_city)
-            != category_taxonomy.comparison_text(candidate_location_city)
+            and _municipality_key(source_city) != _municipality_key(candidate_location_city)
         ):
             cleaned[field] = None
             continue
@@ -438,19 +456,27 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
     # Programme and admission times are facts too, not only the main start time.
     time_evidence = json.dumps({key: facts.get(key) for key in
         ("time", "time_note", "neutral_facts", "program", "accessibility")}, ensure_ascii=False)
-    unsupported_times = clock_times(clean) - clock_times(time_evidence)
+    supported_times = clock_times(time_evidence)
+    for field in ("start_date", "end_date"):
+        value = str(facts.get(field) or "")
+        if "T" in value:
+            try:
+                timestamp = datetime.fromisoformat(value)
+                supported_times.add((timestamp.hour, timestamp.minute))
+            except ValueError:
+                pass
+    unsupported_times = clock_times(clean) - supported_times
     if unsupported_times:
         return "summary contains a clock time absent from the facts"
     if _mentions_date_outside_scope(clean, facts):
         return "summary mentions a date outside the selected event"
-    source_city = common.guess_city_from_text(source_material)
+    source_city = str(facts.get("city") or "").strip() or common.guess_city_from_text(source_material)
     summary_city = common.guess_city_from_text(clean)
     if (
         source_city
         and summary_city
-        and category_taxonomy.comparison_text(source_city)
-        != category_taxonomy.comparison_text(summary_city)
-        and category_taxonomy.comparison_text(source_city)
+        and _municipality_key(source_city) != _municipality_key(summary_city)
+        and _municipality_key(source_city)
         not in category_taxonomy.comparison_text(clean)
     ):
         return "summary contradicts the source location"
@@ -459,7 +485,13 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
     ):
         return "summary invents an organizer"
     if not facts.get("registration") and _impl_ai_contracts._REGISTRATION_PATTERN.search(clean):
-        return "summary invents registration information"
+        negative = _impl_ai_contracts._NEGATIVE_REGISTRATION_PATTERN
+        if (
+            not negative.search(source_material)
+            or not negative.search(clean)
+            or _impl_ai_contracts._REGISTRATION_PATTERN.search(negative.sub("", clean))
+        ):
+            return "summary invents registration information"
     admission = cast(dict, facts.get("admission")) if isinstance(facts.get("admission"), dict) else {}
     if admission.get("is_free") is not True and _impl_ai_contracts._VISITOR_FREE_PATTERN.search(clean):
         return "summary invents free admission"

@@ -264,6 +264,7 @@ Setze organizer nur bei einer ausdrücklichen Kennzeichnung als Veranstalter ode
 Generische Zielgruppen wie Familien, Freunde, Kollegen, alle oder Interessierte sind keine Fakten.
 Setze language nur bei einer ausdrücklichen Angabe zur Veranstaltungssprache.
 Eine nicht erforderliche Anmeldung wird nicht als registration übernommen.
+Ist ausdrücklich keine Anmeldung nötig, halte dies als neutral_facts fest; erfinde keine Buchungs- oder Reservierungspflicht.
 event_evidence dient nur der internen Klassifikation und ist niemals Schreibstoff für den späteren Text.
 Bestehende strukturierte Felder sind Kontext; korrigiere sie nicht spekulativ."""
 
@@ -385,7 +386,7 @@ _REGISTRATION_PATTERN = re.compile(r"\b(?:anmeld\w*|reservier\w*|buch(?:ung\w*|e
 
 
 _NEGATIVE_REGISTRATION_PATTERN = re.compile(
-    r"\b(?:keine\s+anmeldung|anmeldung\s+(?:ist\s+)?nicht\s+erforderlich)\b",
+    r"\b(?:ohne\s+anmeldung|keine\s+anmeldung|anmeldung\s+(?:ist\s+)?nicht\s+erforderlich)\b",
     re.IGNORECASE,
 )
 

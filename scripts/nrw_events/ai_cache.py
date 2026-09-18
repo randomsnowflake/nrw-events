@@ -247,6 +247,40 @@ def _ensure_row(connection: sqlite3.Connection, *, event_key: str, digest: str, 
     return row
 
 
+def _refresh_failed_facts(
+    connection: sqlite3.Connection, row: sqlite3.Row,
+    payload: Mapping[str, Any], now: datetime,
+) -> sqlite3.Row:
+    """Repair stale writing input once, without invalidating successful summaries."""
+    if row["stage2_json"] or not row["stage1_json"]:
+        return row
+    try:
+        previous = json.loads(row["stage1_json"])
+    except (TypeError, json.JSONDecodeError):
+        return row
+    if not isinstance(previous, dict):
+        return row
+    cleaned = _impl_ai_policy._sanitize_extracted_facts(previous, payload)
+    if cleaned == previous:
+        return row
+    # Only a changed input to a rejected summary earns a new attempt budget.
+    # Transport outages and unchanged invalid outputs keep their backoff.
+    retry = str(row["last_error"] or "").startswith("summary ")
+    connection.execute(
+        """UPDATE ai_event_enrichment SET stage1_json = ?, updated_at = ?,
+               stage2_attempts = ?, negative_until = ?
+           WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+        (json.dumps(cleaned, ensure_ascii=False), _timestamp(now),
+         0 if retry else row["stage2_attempts"], "" if retry else row["negative_until"],
+         row["event_key"], row["input_hash"], row["pipeline_version"]),
+    )
+    connection.commit()
+    return connection.execute(
+        "SELECT * FROM ai_event_enrichment WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?",
+        (row["event_key"], row["input_hash"], row["pipeline_version"]),
+    ).fetchone()
+
+
 def _reuse_compatible_facts(
     connection: sqlite3.Connection,
     row: sqlite3.Row,

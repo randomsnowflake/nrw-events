@@ -65,6 +65,7 @@ def enrich_event(
             connection, row, settings=configured, now=current_time,
         )
         previous_failure = str(row["last_error"] or "")
+        row = _impl_ai_cache._refresh_failed_facts(connection, row, payload, current_time)
         row = _impl_ai_cache._reset_expired_failure_window(connection, row, current_time)
         negative_until = _impl_ai_cache._parse_timestamp(row["negative_until"])
         if negative_until and negative_until > current_time:
@@ -220,7 +221,15 @@ def enrich_event(
             try:
                 request_payload: dict[str, Any] = dict(stage2_payload)
                 if quality_feedback:
-                    retry_detail = ""
+                    retry_detail = {
+                        "summary mentions a date outside the selected event": " Nenne keine Eröffnungs-, Abschluss- oder sonstigen Fremdtermine. Beschreibe nur den Inhalt dieses Termins.",
+                        "summary contains a clock time absent from the facts": " Lass Uhrzeiten im Beschreibungstext weg; sie werden separat angezeigt.",
+                        "summary contains sponsor or cooperation copy": " Lass Förderer, Sponsoren und Kooperationen vollständig weg.",
+                        "summary repeats a long source phrase": " Formuliere kürzer und eigenständig; übernimm keine langen Formulierungen aus den Faktenlisten.",
+                        "summary contradicts the source location": " Verwende ausschließlich den Veranstaltungsort aus facts; lass andere Ortsangaben weg.",
+                        "summary invents registration information": " Lass Anmelde- und Reservierungsangaben im Beschreibungstext weg.",
+                        "summary contains promotional language": " Schreibe kurze sachliche Sätze ohne Einladung, Empfehlung oder Wertung.",
+                    }.get(quality_feedback, "")
                     if quality_feedback == "summary invents a target group":
                         retry_detail = (
                             " Das Feld target_group ist leer. Formuliere die Altersangabe neutral, "
