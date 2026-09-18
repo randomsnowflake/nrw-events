@@ -9,6 +9,11 @@ from functools import partial
 
 from .. import common, components, http, reviewed_corrections
 from ..models import normalize_source_id
+from ..venue_quality import (
+    invalid_venue_reason,
+    retain_omitted_source_place,
+    source_venue_value,
+)
 from . import regional_common as rc
 
 _SOURCE = "ionas4 regional"
@@ -116,6 +121,8 @@ def _detail_context(html: str) -> dict:
         re.S | re.I,
     )
     place = rc.explicit_place_context(parser.block_text("description"), "")
+    location = parser.text("location")
+    usable_location = source_venue_value(location)
     return {
         # Handed over untrimmed, with its paragraphs: ``make_event`` infers
         # admission from the text it is given and only then shortens it for
@@ -126,8 +133,9 @@ def _detail_context(html: str) -> dict:
         "description": parser.block_text("description"),
         # Preserve the source string until the canonical event boundary so its
         # street address can be separated into ``venue_address`` there.
-        "venue": parser.text("location") or place.get("venue", ""),
-        "venue_address": place.get("venue_address", "") if not parser.text("location") else "",
+        "venue": usable_location or place.get("venue", ""),
+        "venue_address": place.get("venue_address", "") if not usable_location else "",
+        "source_location": location,
         "organizer": common.clean_html(organizer.group(1)) if organizer else "",
         "link": common.normalize_url(link.group(1)) if link else "",
     }
@@ -269,7 +277,8 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
                 )
 
         description = context.get("description") or tag_text
-        venue = context.get("venue") or loc.get("name") or ""
+        source_location = context.get("source_location") or loc.get("name") or ""
+        venue = context.get("venue") or source_venue_value(loc.get("name") or "")
         raw_link = (context.get("link")
                     or common.normalize_url(item.get("website") or "")
                     or calendar_url)
@@ -312,5 +321,7 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
             if "description" not in override:
                 event["description"] = _description_with_context(event)
                 event["description_source"] = common.description_source_for(event["description"])
+            if invalid_venue_reason(source_location):
+                retain_omitted_source_place(event, source_location)
             events.append(event)
     return events

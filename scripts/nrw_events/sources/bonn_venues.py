@@ -7,6 +7,7 @@ from datetime import datetime
 from .. import common, components, richtext
 from ..dates import MONTH_ALL
 from ..models import AdmissionDefault
+from ..venue_quality import retain_omitted_source_place
 from . import regional_common as rc
 
 _KULT41_URL = "https://www.kult41.de/veranstaltungen/programm"
@@ -234,11 +235,19 @@ def events_from_brotfabrik_items(items: list) -> list:
             "tanz": "stage",
             "musik": "concert",
         }.get(gewerk.casefold(), "")
+        ort = (item.get("Ort") or "").strip()
+        # The Klima department stores `g` instead of a place. Recover labelled
+        # copy first so make_event never treats the fragment as a venue.
+        venue = (
+            _brotfabrik_explicit_place(item.get("Beschreibung") or "")
+            if ort == "g"
+            else (ort or "Brotfabrik Bonn")
+        )
         ev = common.make_event(
             title,
             start,
             end,
-            item.get("Ort") or "Brotfabrik Bonn",
+            venue,
             "Bonn",
             item.get("Beschreibung") or "",
             item.get("Url") or _BROTFABRIK_URL + "#programm",
@@ -249,12 +258,8 @@ def events_from_brotfabrik_items(items: list) -> list:
             category_locked=bool(explicit_category),
         )
         if ev:
-            if (item.get("Ort") or "").strip() == "g":
-                place = _brotfabrik_explicit_place(item.get("Beschreibung") or "")
-                if place:
-                    resolved = common.resolve_venue(place, "Bonn")
-                    ev.update(venue=resolved.venue, venue_address=resolved.venue_address,
-                              venue_id=resolved.venue_id)
+            if ort == "g":
+                retain_omitted_source_place(ev, ort)
             events.append(ev)
     return events
 

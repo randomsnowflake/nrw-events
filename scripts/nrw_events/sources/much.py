@@ -13,6 +13,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from .. import common
+from ..venue_quality import retain_omitted_source_place, source_venue_value
 from . import regional_common as rc
 
 _URL = "https://www.much.de/willkommen/veranstaltungen"
@@ -64,8 +65,10 @@ def _structured_detail_context(html: str, title: str) -> dict[str, str]:
                 items[0] if items else {})
     location = item.get("location") if isinstance(item.get("location"), dict) else {}
     address = location.get("address") if isinstance(location.get("address"), dict) else {}
+    location_name = source_venue_value(location.get("name", ""))
+    omitted_place = (location.get("name") or "").strip() if not location_name else ""
     venue_parts = [
-        location.get("name", ""),
+        location_name,
         address.get("streetAddress", ""),
         " ".join(filter(None, [address.get("postalCode", ""),
                                 address.get("addressLocality", "")])),
@@ -87,6 +90,7 @@ def _structured_detail_context(html: str, title: str) -> dict[str, str]:
         "description": common.concise_description(description),
         "venue": resolved_venue.venue,
         "venue_address": resolved_venue.venue_address,
+        "omitted_source_place": omitted_place,
     }
 
 
@@ -116,14 +120,21 @@ def _restore_detail_link_start_times(events: list) -> list:
     return events
 
 
+def _extract_detail_context(html: str, event: dict) -> dict[str, str]:
+    context = _structured_detail_context(html, event.get("title") or "")
+    omitted = context.get("omitted_source_place") or ""
+    if omitted:
+        retain_omitted_source_place(event, omitted)
+    return context
+
+
 def _enrich_missing_descriptions(events: list, source: str) -> list:
     return rc.enrich_descriptions(
         events,
         source=source,
         cache_namespace="much",
         timeout=20,
-        extract_context=lambda html, event: _structured_detail_context(
-            html, event.get("title") or ""),
+        extract_context=_extract_detail_context,
         fallback=_fallback_description,
     )
 

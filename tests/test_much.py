@@ -106,6 +106,51 @@ class MuchDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["venue"], "Amb. Hospizdienst Much")
         self.assertEqual(context["venue_address"], "Dr. Wirtz Str. 6, 53804 Much")
 
+    def test_placeholder_location_is_omitted_without_publication_warning(self):
+        from nrw_events.validation import canonicalize_event
+
+        html = """
+<script type="application/ld+json">
+{
+  "@type": "Event",
+  "name": "Bergische Gartentour 2026 - Herbsttermine",
+  "startDate": "2026-09-20T11:00:00",
+  "endDate": "2026-09-20T18:00:00",
+  "description": "Die Gärten und Öffnungszeiten finden Sie auf unsere Homepage.",
+  "location": {
+    "@type": "Place",
+    "name": "wird auf der Homepage bekannt gegeben",
+    "address": {
+      "postalCode": "53804",
+      "addressLocality": "Much"
+    }
+  }
+}
+</script>
+"""
+        event = {
+            "title": "Bergische Gartentour 2026 - Herbsttermine",
+            "description": "",
+            "venue": "",
+            "city": "Much",
+            "source": "Much",
+            "start_date": "2026-09-20",
+            "end_date": "2026-09-20",
+            "link": "https://www.much.de/willkommen/veranstaltungen/detail/20-09-2026_1100/bergische-gartentour-2021-1",
+        }
+        context = much._extract_detail_context(html, event)
+
+        self.assertEqual(context["venue"], "")
+        self.assertEqual(context["venue_address"], "53804 Much")
+        self.assertEqual(event["identity_venue"], "wird auf der Homepage bekannt gegeben")
+        self.assertTrue(event["identity_venue_locked"])
+        self.assertIn("wird auf der Homepage bekannt gegeben", event["description"])
+        self.assertFalse(event.get("quality_warnings"))
+        self.assertFalse(any(
+            warning["rule_id"] == "publication.invalid-venue"
+            for warning in canonicalize_event({**event, **context, "score": 1.0}).quality_warnings
+        ))
+
     def test_detail_link_times_restore_three_audited_occurrences(self):
         events = [
             {

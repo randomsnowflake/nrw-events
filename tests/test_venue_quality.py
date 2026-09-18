@@ -61,10 +61,17 @@ class SourceVenueRecoveryTests(unittest.TestCase):
         self.assertIn('Kreuzstraße 16', rows['Wasser-Fahrradtour | Bike Tour on Water']['venue_address'])
         self.assertEqual(rows['World Life Balance']['venue'], 'Abenteuer Lernen e. V.')
         self.assertIn('Siebenmorgenweg 22', rows['World Life Balance']['venue_address'])
+        self.assertEqual(rows['Digital Independence Day']['venue'], 'Brotfabrik')
+        self.assertEqual(rows['Kleidertausch']['venue'], 'Kulturzentrum Brotfabrik')
         self.assertEqual(rows['Ein Garten für Beuel - Feierliche Einweihung']['venue'], '')
         for row in rows.values():
             self.assertEqual(row['identity_venue'], 'g')
             self.assertTrue(row['identity_venue_locked'])
+            self.assertFalse(row.get('quality_warnings'))
+            self.assertFalse(any(
+                warning['rule_id'] == 'publication.invalid-venue'
+                for warning in canonicalize_event(row).quality_warnings
+            ))
 
     def test_grote_hiller_named_places_keep_rooms_and_ignore_unlabelled_titles(self):
         from nrw_events.sources.grote_hiller import _named_market_place
@@ -93,6 +100,49 @@ class SourceVenueRecoveryTests(unittest.TestCase):
         self.assertEqual(context['venue'], 'Bahnhof Sinzig')
         contradiction = _detail_context('<div class="tvm-event--location">Rathaus</div><div class="tvm-event--description">Treffpunkt: Bahnhof Sinzig</div>')
         self.assertEqual(contradiction['venue'], 'Rathaus')
+
+    def test_ionas_journey_location_is_omitted_without_publication_warning(self):
+        from datetime import datetime
+
+        from nrw_events.sources.regional_ionas4 import _events_from_items
+
+        from tests.sources.parser_cases import patch_window
+        patch_window(self, datetime(2026, 9, 1), datetime(2026, 10, 31))
+        journey = (
+            'Gemeinsame Anfahrt mit der RB25 (Abfahrten: ca. 14:03 Uhr in Stümpen; '
+            'ca. 14:08 Uhr in Rösrath; ca. 14:18 Uhr in Hoffnungsthal)'
+        )
+        items = [{
+            'id': '19036:0',
+            'start': '2026-09-25T15:15',
+            'end': '2026-09-25T20:00',
+            'title': 'Mit der RB25 ins Eisenbahnmuseum Dieringhausen',
+            'website': 'https://www.roesrath.de/kalender/2026/q3/september/2026-09-25-mit-der-rb25-ins-eisenbahnmuseum-dieringhausen/19036:0',
+            'category': {'name': 'Wanderung'},
+            'tags': [],
+            'location': {'name': journey},
+        }]
+        detail_html = f"""
+<div class="tvm-event--description">
+  <p>Treffpunkt ist um 15:15 Uhr. Die gemeinsame Anfahrt erfolgt mit der RB25.</p>
+  <p>Im Eisenbahnmuseum erwartet die Teilnehmerinnen und Teilnehmer eine Führung.</p>
+</div>
+<p class="tvm-event--location">{journey}</p>
+"""
+        rows = _events_from_items(
+            items, 'Rösrath', 'https://www.roesrath.de/kalender/', 0.95,
+            detail_fetcher=lambda _url: detail_html,
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['venue'], '')
+        self.assertEqual(rows[0]['identity_venue'], journey)
+        self.assertTrue(rows[0]['identity_venue_locked'])
+        self.assertIn(journey, rows[0]['description'])
+        self.assertFalse(rows[0].get('quality_warnings'))
+        self.assertFalse(any(
+            warning['rule_id'] == 'publication.invalid-venue'
+            for warning in canonicalize_event(rows[0]).quality_warnings
+        ))
 
     def test_truncated_detail_can_be_replaced_without_overwriting_valid_place(self):
         from nrw_events.detail_enrichment import apply_detail_context

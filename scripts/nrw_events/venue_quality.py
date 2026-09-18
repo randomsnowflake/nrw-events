@@ -29,25 +29,25 @@ def invalid_venue_reason(value: str) -> str:
     return ''
 
 
-def sanitize_venue_fields(event: dict) -> None:
-    """Omit malformed names; retain useful source notes and the old URL identity."""
-    value = str(event.get('venue') or '').strip()
+def source_venue_value(value: str) -> str:
+    """Return a publishable place name, or empty when the source string is malformed."""
+    value = (value or '').strip()
+    return '' if invalid_venue_reason(value) else value
+
+
+def retain_omitted_source_place(event: dict, value: str) -> None:
+    """Keep identity and visitor notes after omitting a malformed source place."""
+    value = str(value or '').strip()
     reason = invalid_venue_reason(value)
-    address = str(event.get('venue_address') or '')
-    urls = list(dict.fromkeys(_URL.findall(value + ' ' + address)))
-    if not reason and not urls:
+    if not reason:
         return
-    if reason:
-        if not event.get('identity_venue_locked'):
-            event['identity_venue'] = value
-            event['identity_venue_locked'] = True
-        event['venue'] = ''
-        for key in ('venue_id', 'venue_district', 'venue_type'):
-            event[key] = ''
-        for key in ('venue_latitude', 'venue_longitude'):
-            event[key] = None
-    if urls:
-        event['venue_address'] = _URL.sub('', address).strip(' ,')
+    if not event.get('identity_venue_locked'):
+        event['identity_venue'] = value
+        event['identity_venue_locked'] = True
+    _append_place_notes(event, reason, value, [])
+
+
+def _append_place_notes(event: dict, reason: str, value: str, urls: list[str]) -> None:
     notes = [f'Karte / Ortsinformation: {url}' for url in urls]
     if reason in {'placeholder', 'journey'}:
         notes.append(('Ortsangabe: ' if reason == 'placeholder' else 'Anreise: ') + value)
@@ -57,6 +57,26 @@ def sanitize_venue_fields(event: dict) -> None:
             event['description'] = '\n\n'.join(filter(None, (description, note)))
             if event.get('description_html'):
                 event['description_html'] += '<p>' + escape(note) + '</p>'
+
+
+def sanitize_venue_fields(event: dict) -> None:
+    """Omit malformed names; retain useful source notes and the old URL identity."""
+    value = str(event.get('venue') or '').strip()
+    reason = invalid_venue_reason(value)
+    address = str(event.get('venue_address') or '')
+    urls = list(dict.fromkeys(_URL.findall(value + ' ' + address)))
+    if not reason and not urls:
+        return
+    if reason:
+        retain_omitted_source_place(event, value)
+        event['venue'] = ''
+        for key in ('venue_id', 'venue_district', 'venue_type'):
+            event[key] = ''
+        for key in ('venue_latitude', 'venue_longitude'):
+            event[key] = None
+    if urls:
+        event['venue_address'] = _URL.sub('', address).strip(' ,')
+    _append_place_notes(event, reason, value, urls)
     warnings = list(event.get('quality_warnings') or [])
     warning = {
         'rule_id': 'publication.invalid-venue',
