@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from nrw_events import ai_enrichment as ai
+
 from tests.test_ai_enrichment import FACTS, SUMMARY, FakeClient, event
 
 
