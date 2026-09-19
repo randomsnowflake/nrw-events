@@ -120,16 +120,39 @@ def fetch() -> list:
 def _fetch_optional_html(name: str, source_id: str, url: str, parser) -> list:
     return rc.fetch_html_events(
         name, url, parser, source_id=source_id,
+        empty_is_healthy=_kinemathek_regular_only if source_id == _BONNER_KINEMATHEK_SOURCE_ID else False,
+    )
+
+
+
+def _kinemathek_regular_only(html: str) -> bool:
+    """A validated regular programme may legitimately contain no curated specials."""
+    blocks = _kinemathek_blocks(html)
+    if not blocks:
+        return False
+    for body in blocks:
+        href = re.search(r'data-href="([^"]+)"', body, re.I)
+        title = re.search(r'class="[^"]*em-item-title[^"]*"[^>]*>.*?<a[^>]*>(.*?)</a>', body, re.S | re.I)
+        date = re.search(r'class="[^"]*em-event-date[^"]*"[^>]*>(.*?)</div>', body, re.S | re.I)
+        if not (href and title and date) or common.parse_date(rc.clean(date.group(1))) is None:
+            return False
+        tags = re.findall(r'class="[^"]*em-icon-tag[^"]*".*?</span>\s*(.*?)</div>', body, re.S | re.I)
+        title_text = rc.clean(title.group(1))
+        if not title_text or _is_special_format(title_text, rc.clean(" ".join(tags))) or re.match(r"^(?:Pink Movie Club|Fahrradkino)\s*:", title_text, re.I):
+            return False
+    return True
+
+
+def _kinemathek_blocks(html: str) -> list[str]:
+    return re.findall(
+        r'(<div class="em-event\s+em-item\s+em-list-item".*?)(?=<div class="em-event\s+em-item\s+em-list-item"|<h3 class="grplst"|$)',
+        html or "", re.S | re.I,
     )
 
 
 def _events_from_bonner_kinemathek(html: str, detail_fetcher=None) -> list:
     events = []
-    blocks = re.findall(
-        r'(<div class="em-event\s+em-item\s+em-list-item".*?)(?=<div class="em-event\s+em-item\s+em-list-item"|<h3 class="grplst"|$)',
-        html or "",
-        re.S | re.I,
-    )
+    blocks = _kinemathek_blocks(html)
     for body in blocks:
         href_m = re.search(r'data-href="([^"]+)"', body, re.I)
         title_m = re.search(r'class="[^"]*em-item-title[^"]*"[^>]*>.*?<a[^>]*>(.*?)</a>', body, re.S | re.I)

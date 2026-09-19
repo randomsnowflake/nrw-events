@@ -225,6 +225,17 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         self.assertEqual(event["time"], "14:00–23:00")
         self.assertEqual(event["price"], "ab 52.45 €")
 
+    def test_magiccon_metadata_short_date_range(self):
+        from pathlib import Path
+        html = (Path(__file__).parent / "fixtures/magiccon-home-metadata.html").read_text()
+        result = fedcon_events._event_from_page(html, "https://www.magiccon.de/de/")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["title"].casefold(), "magiccon 9")
+        self.assertEqual((result["start_date"], result["end_date"]), ("2026-10-02", "2026-10-04"))
+        self.assertEqual(result["venue"], "Maritim Hotel Bonn")
+        self.assertIsNone(fedcon_events._event_from_page(html.replace("02.-04.10.2026", "05.-04.10.2026"), "https://www.magiccon.de/de/"))
+        self.assertIsNone(fedcon_events._event_from_page(html.replace("Maritim Hotel Bonn", "another city"), "https://www.magiccon.de/de/"))
+
     def test_fedcon_parser_handles_both_brands_and_partial_fetch_failure(self):
         magic = "MagicCon 8 – triff vom 02.10. - 04.10.2026 im Maritim Hotel Bonn deine Stars."
         fedcon = "FedCon 35 – triff vom 14.05. - 16.05.2027 im Maritim Hotel Bonn deine Stars."

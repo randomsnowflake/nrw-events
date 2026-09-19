@@ -350,6 +350,25 @@ Treffpunkt: Jahnschule, Herseler Str. 7, 53117 Bon</strong>n</strong></p>
         self.assertEqual(result.warnings[0]["source"], "Bonner Kinemathek")
         self.assertEqual(result.warnings[0]["source_id"], "bonner-kinemathek")
 
+    def test_valid_regular_programme_is_healthy_empty_but_drift_still_warns(self):
+        from pathlib import Path
+        html = (Path(__file__).parents[1] / "fixtures/kinemathek-regular-listing.html").read_text()
+        self.assertTrue(cinema_specials._kinemathek_regular_only(html))
+        self.assertFalse(cinema_specials._kinemathek_regular_only(html.replace("Kalter Hund", "Fahrradkino: Kalter Hund")))
+        self.assertFalse(cinema_specials._kinemathek_regular_only(html.replace("em-event-date", "changed-date")))
+        result = SourceResult("Curated cinema specials")
+        common.set_source_context(result)
+        try:
+            with patch("nrw_events.common.fetch_url", return_value=html):
+                events = cinema_specials._fetch_optional_html(
+                    "Bonner Kinemathek", "bonner-kinemathek", "https://example.invalid/events",
+                    cinema_specials._events_from_bonner_kinemathek,
+                )
+        finally:
+            common.set_source_context(None)
+        self.assertEqual(events, [])
+        self.assertEqual(result.warnings, [])
+
     def test_empty_optional_cinema_page_is_reported_as_parser_drift(self):
         result = SourceResult("Curated cinema specials")
         common.set_source_context(result)

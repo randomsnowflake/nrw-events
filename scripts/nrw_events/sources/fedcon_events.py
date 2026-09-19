@@ -12,18 +12,27 @@ URLS = ("https://www.magiccon.de/de/", "https://www.fedcon.de/de/")
 
 
 def _event_from_page(html: str, link: str):
-    text = common.clean_html(html)
-    match = re.search(
-        r"\b(?P<title>(?:MagicCon|FedCon)\s+\d+)\b.*?\bvom\s+"
-        r"(?P<start>\d{1,2}\.\d{1,2}\.)\s*[-–—]\s*"
-        r"(?P<end>\d{1,2}\.\d{1,2}\.20\d{2})\b.*?\bMaritim Hotel Bonn\b",
-        text, re.I,
-    )
+    # The current MagicCon homepage keeps the date in its description metadata,
+    # with a shared month (02.-04.10.2026). Keep each evidence block separate so
+    # historical navigation titles cannot capture a later occurrence's date.
+    match = None
+    for text in (rc.meta_description(html), common.clean_html(html)):
+        match = re.search(
+            r"\b(?P<title>(?:MagicCon|FedCon)\s+\d+)\b.{0,200}?\bvom\s+"
+            r"(?P<day>\d{1,2})\.(?:(?P<month>\d{1,2})\.)?\s*[-–—]\s*"
+            r"(?P<end>\d{1,2}\.(?P<end_month>\d{1,2})\.(?P<year>20\d{2}))\b"
+            r".{0,200}?\bMaritim Hotel Bonn\b",
+            text, re.I,
+        )
+        if match:
+            break
     if not match:
         return None
-    year = re.search(r"(20\d{2})$", match.group("end")).group(1)
-    start = common.parse_date(match.group("start") + year)
+    month = match.group("month") or match.group("end_month")
+    start = common.parse_date(f"{match.group('day')}.{month}.{match.group('year')}")
     end = common.parse_date(match.group("end"))
+    if start is None or end is None or end < start:
+        return None
     title = match.group("title")
     description = common.factual_event_description(title, date_value=start, venue="Maritim Hotel Bonn", city="Bonn", calendar_name="FedCon Events")
     return common.make_event(title, start, end, "Maritim Hotel Bonn", "Bonn", description, link, SOURCE, "convention science fiction fantasy cosplay festival", 1.0, source_id="fedcon-events", description_source="generated", all_day=True)
