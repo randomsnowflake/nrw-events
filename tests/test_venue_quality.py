@@ -46,6 +46,26 @@ class VenueQualityTests(unittest.TestCase):
         self.assertEqual(warnings, [])
 
 class SourceVenueRecoveryTests(unittest.TestCase):
+    def test_prefix_matching_map_urls_each_keep_one_complete_note(self):
+        from html import escape
+
+        from nrw_events.venue_quality import retain_omitted_source_place
+
+        urls = ['https://maps.example/place?x=1&y=2', 'https://maps.example']
+        for ordered_urls in (urls, urls[::-1]):
+            with self.subTest(urls=ordered_urls):
+                value = ' '.join([*ordered_urls, ordered_urls[0]])
+                row = event(venue=value, description='Quelltext', description_html='<p>Quelltext</p>')
+                for _ in range(2):
+                    retain_omitted_source_place(row, value)
+                    sanitize_venue_fields(row)
+                for url in urls:
+                    note = f'Karte / Ortsinformation: {url}'
+                    self.assertEqual(row['description'].split('\n\n').count(note), 1)
+                    self.assertEqual(row['description_html'].count(f'<p>{escape(note)}</p>'), 1)
+                self.assertEqual(row['identity_venue'], value)
+                self.assertTrue(row['identity_venue_locked'])
+
     def test_omitted_map_urls_survive_in_plain_and_html_notes(self):
         from html import escape
 
