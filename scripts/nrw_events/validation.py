@@ -467,7 +467,16 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         raise EventValidationError("end_at_invalid")
     if start_at and start_at.astimezone(event_zone).date().isoformat() != start_date:
         raise EventValidationError("start_at_date_mismatch")
-    if end_at and not (
+    # Serialized all-day intervals use an exclusive local-midnight end while
+    # end_date remains the inclusive last calendar day (also across DST).
+    exclusive_all_day_end = bool(
+        event["all_day"] and not event.get("time") and start_at and end_at
+        and start_at.astimezone(event_zone).time() == time(0)
+        and end_at.astimezone(event_zone).time() == time(0)
+        and end_at.astimezone(event_zone).date()
+        == datetime.strptime(event["end_date"], "%Y-%m-%d").date() + timedelta(days=1)
+    )
+    if end_at and not exclusive_all_day_end and not (
         start_date <= end_at.astimezone(event_zone).date().isoformat() <= event["end_date"]
     ):
         raise EventValidationError("end_at_date_mismatch")
@@ -488,7 +497,7 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
         event["start_at"] = ""
         event["end_at"] = ""
         event["all_day"] = False
-    elif event["time"] or event["start_at"]:
+    elif (event["time"] or event["start_at"]) and not exclusive_all_day_end:
         event["all_day"] = False
 
 
@@ -577,8 +586,27 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if event["time"] and not re.fullmatch(r"\d{2}:\d{2}(?:–\d{2}:\d{2})?", event["time"]):
         raise EventValidationError("time_invalid")
     admission_basis = _text(event, "admission_basis", 16)
-    if admission_basis not in {"", "explicit", "inferred", "implicit"}:
+    if admission_basis not in {"", "explicit", "inferred", "implicit", "editorial"}:
         raise EventValidationError("admission_basis_invalid")
+    # Consumer-reviewed baselines are valid inputs on the next source outage.
+    # Preserve structured editorial decisions, including paid/unknown verdicts
+    # that contradict old prose; do not reinterpret them as scraped inference.
+    editorial_admission = None
+    if admission_basis == "editorial":
+        admission = event.get("admission")
+        expected = {"isFree", "amount", "currency", "basis", "note", "donationSuggested"}
+        if (not isinstance(admission, dict) or set(admission) != expected
+                or (admission["isFree"] is not None and not isinstance(admission["isFree"], bool))
+                or (admission["amount"] is not None and (
+                    isinstance(admission["amount"], bool)
+                    or not isinstance(admission["amount"], (int, float))
+                    or not 0 <= admission["amount"] < float("inf")))
+                or admission["currency"] != "EUR" or admission["basis"] != "editorial"
+                or not isinstance(admission["note"], str)
+                or not isinstance(admission["donationSuggested"], bool)):
+            raise EventValidationError("editorial_admission_invalid")
+        editorial_admission = dict(admission)
+    editorial_price = event["price"]
     availability = _text(event, "availability", 32)
     if availability not in {"", "InStock", "SoldOut", "LimitedAvailability", "PreOrder"}:
         raise EventValidationError("availability_invalid")
@@ -588,73 +616,78 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     )
     if event["description_source"] not in {"scraped", "generated"}:
         raise EventValidationError("description_source_invalid")
-    inferred_free_price, inferred_admission_basis = common.infer_admission(
-        event["title"],
-        event["description"],
-        event["price"],
-        admission_basis=admission_basis,
-    )
-    explicit_free_visitor = (
-        bool(_EXPLICIT_FREE_VISITOR.search(" ".join((event["description"], event["price"]))))
-        and not common.has_conditional_free_admission(event["description"])
-        and not _QUALIFIED_FREE_VISITOR.search(event["description"])
-    )
-    if inferred_admission_basis == "inferred" and (
-        explicit_free_visitor
-        or (
-            common.source_preserves_explicit_admission(event["source"], event["source_id"])
-            and common.has_explicit_free_admission_wording(event["title"], event["description"])
+    if editorial_admission is not None:
+        event["admission"] = editorial_admission
+        event["admission_basis"] = "editorial"
+        event["price"] = editorial_price
+    else:
+        inferred_free_price, inferred_admission_basis = common.infer_admission(
+            event["title"],
+            event["description"],
+            event["price"],
+            admission_basis=admission_basis,
         )
-    ):
-        inferred_admission_basis = "explicit"
-    elif inferred_admission_basis in {"implicit", "inferred"}:
-        _publication_warning(event, "publication.admission-not-explicit", "admission", "unknown", "free admission lacked explicit visitor evidence and was omitted")
-        inferred_free_price = ""
-        inferred_admission_basis = ""
-        event["price"] = ""
-    if inferred_free_price:
-        event["price"] = inferred_free_price
-    elif admission_basis == "implicit":
-        event["price"] = ""
-    event["admission_basis"] = inferred_admission_basis
-    admission_text = " ".join((
-        event["title"], event["description"], event["price"],
-    )).casefold()
-    amount = admission_amount(event["price"])
-    normalized_price = event["price"].strip().casefold()
-    donation_suggested = bool(re.search(
-        r"\b(?:spendenbasis|spende(?:n)?\s+erbeten|hut(?:kasse|spende|spenden))\b",
-        admission_text,
-    ))
-    is_free = (
-        True
-        if normalized_price in {"frei", "kostenfrei", "kostenlos", "free"}
-        or amount == 0 or (donation_suggested and amount is None)
-        else False if normalized_price or amount is not None else None
-    )
-    event["admission"] = {
-        "isFree": is_free,
-        "amount": amount,
-        "currency": "EUR",
-        "basis": (
-            "structured" if inferred_admission_basis == "explicit"
-            else inferred_admission_basis
-        ),
-        "note": event["price"],
-        "donationSuggested": donation_suggested,
-    }
-    if event["admission"]["isFree"] is True and event["admission"]["basis"] not in {"structured", "editorial"}:
-        _publication_warning(event, "publication.admission-not-explicit", "admission", "unknown", "free admission lacked explicit visitor evidence and was omitted")
-        event["price"] = ""
-        event["admission_basis"] = ""
+        explicit_free_visitor = (
+            bool(_EXPLICIT_FREE_VISITOR.search(" ".join((event["description"], event["price"]))))
+            and not common.has_conditional_free_admission(event["description"])
+            and not _QUALIFIED_FREE_VISITOR.search(event["description"])
+        )
+        if inferred_admission_basis == "inferred" and (
+            explicit_free_visitor
+            or (
+                common.source_preserves_explicit_admission(event["source"], event["source_id"])
+                and common.has_explicit_free_admission_wording(event["title"], event["description"])
+            )
+        ):
+            inferred_admission_basis = "explicit"
+        elif inferred_admission_basis in {"implicit", "inferred"}:
+            _publication_warning(event, "publication.admission-not-explicit", "admission", "unknown", "free admission lacked explicit visitor evidence and was omitted")
+            inferred_free_price = ""
+            inferred_admission_basis = ""
+            event["price"] = ""
+        if inferred_free_price:
+            event["price"] = inferred_free_price
+        elif admission_basis == "implicit":
+            event["price"] = ""
+        event["admission_basis"] = inferred_admission_basis
+        admission_text = " ".join((
+            event["title"], event["description"], event["price"],
+        )).casefold()
+        amount = admission_amount(event["price"])
+        normalized_price = event["price"].strip().casefold()
+        donation_suggested = bool(re.search(
+            r"\b(?:spendenbasis|spende(?:n)?\s+erbeten|hut(?:kasse|spende|spenden))\b",
+            admission_text,
+        ))
+        is_free = (
+            True
+            if normalized_price in {"frei", "kostenfrei", "kostenlos", "free"}
+            or amount == 0 or (donation_suggested and amount is None)
+            else False if normalized_price or amount is not None else None
+        )
         event["admission"] = {
-            "isFree": None,
-            "amount": None,
+            "isFree": is_free,
+            "amount": amount,
             "currency": "EUR",
-            "basis": "",
-            "note": "",
-            "donationSuggested": False,
+            "basis": (
+                "structured" if inferred_admission_basis == "explicit"
+                else inferred_admission_basis
+            ),
+            "note": event["price"],
+            "donationSuggested": donation_suggested,
         }
+        if event["admission"]["isFree"] is True and event["admission"]["basis"] not in {"structured", "editorial"}:
+            _publication_warning(event, "publication.admission-not-explicit", "admission", "unknown", "free admission lacked explicit visitor evidence and was omitted")
+            event["price"] = ""
+            event["admission_basis"] = ""
+            event["admission"] = {
+                "isFree": None,
+                "amount": None,
+                "currency": "EUR",
+                "basis": "",
+                "note": "",
+                "donationSuggested": False,
+            }
     if event["link"]:
         parsed = urllib.parse.urlsplit(event["link"])
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
