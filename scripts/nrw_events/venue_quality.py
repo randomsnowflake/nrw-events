@@ -44,7 +44,7 @@ def retain_omitted_source_place(event: dict, value: str) -> None:
     if not event.get('identity_venue_locked'):
         event['identity_venue'] = value
         event['identity_venue_locked'] = True
-    _append_place_notes(event, reason, value, [])
+    _append_place_notes(event, reason, value, list(dict.fromkeys(_URL.findall(value))))
 
 
 def _append_place_notes(event: dict, reason: str, value: str, urls: list[str]) -> None:
@@ -53,7 +53,7 @@ def _append_place_notes(event: dict, reason: str, value: str, urls: list[str]) -
         notes.append(('Ortsangabe: ' if reason == 'placeholder' else 'Anreise: ') + value)
     for note in notes:
         description = str(event.get('description') or '')
-        if note not in description:
+        if note not in description.split('\n\n'):
             event['description'] = '\n\n'.join(filter(None, (description, note)))
             if event.get('description_html'):
                 event['description_html'] += '<p>' + escape(note) + '</p>'
