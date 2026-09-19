@@ -44,7 +44,7 @@ def retain_omitted_source_place(event: dict, value: str) -> None:
     if not event.get('identity_venue_locked'):
         event['identity_venue'] = value
         event['identity_venue_locked'] = True
-    _append_place_notes(event, reason, value, [])
+    _append_place_notes(event, reason, value, list(dict.fromkeys(_URL.findall(value))))
 
 
 def _append_place_notes(event: dict, reason: str, value: str, urls: list[str]) -> None:
