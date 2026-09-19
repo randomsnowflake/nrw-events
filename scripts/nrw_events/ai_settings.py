@@ -87,5 +87,9 @@ def settings_from_env() -> _impl_ai_transport.AISettings:
             "NRW_EVENTS_AI_SUMMARY_REASONING_EFFORT",
             "low" if provider == "openrouter" else "none",
         ),
+        jev_enabled=_env_bool("NRW_EVENTS_AI_JEV_ENABLED", True),
+        jev_api_key=(os.environ.get("JEV_OPENROUTER_API_KEY", "").strip()
+                     or os.environ.get("OPENROUTER_API_KEY", "").strip()),
+        jev_model=os.environ.get("JEV_OPENROUTER_MODEL", "").strip() or "typesafe/jev-1.13",
         allow_data_collection=_env_bool("NRW_EVENTS_AI_ALLOW_DATA_COLLECTION", False),
     )

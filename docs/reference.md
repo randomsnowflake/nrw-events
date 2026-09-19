@@ -732,3 +732,13 @@ siehe dort `docs/release-workflow.md`.
 A reconciled occurrence that switches sources retains missing permitted source prose only when its title, city, dates, times and scheduled status are unchanged and duplicate identity is confirmed. Fresh prose remains authoritative; restricted calendar copy is never restored.
 
 AI transport failures and incomplete responses retry after one hour. Rejected summary drafts retry after six hours using their cached facts. Legacy week-long negative-cache entries for those drafts use the same shorter window. Other refusals retain the configured negative-cache policy. Summary checks accept times documented in programme/accessibility facts and distinguish book readings from booking requirements.
+
+## Optional Jev decisions
+
+`JEV_OPENROUTER_API_KEY` selects a dedicated Decisions API key (blank/unset
+falls back to `OPENROUTER_API_KEY`). `JEV_OPENROUTER_MODEL` defaults to
+`typesafe/jev-1.13`. These server-side settings configure the decision client and enrichment routing. See [Jev usage](jev-decisions.md).
+
+`NRW_EVENTS_AI_JEV_ENABLED` defaults to true; set false for legacy extraction.
+On cache misses the importer uses Jev for fact coverage and category decisions,
+with generative extraction as fallback. Existing successful caches remain valid.

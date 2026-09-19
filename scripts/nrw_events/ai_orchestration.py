@@ -10,6 +10,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, cast
 
+from . import ai_decisions
 from . import ai_cache as _impl_ai_cache
 from . import ai_contracts as _impl_ai_contracts
 from . import ai_policy as _impl_ai_policy
@@ -112,6 +113,30 @@ def enrich_event(
                     return _impl_ai_policy._apply_result(event, cached_result)
                 except (TypeError, ValueError):
                     return event
+        routing = None
+        if facts is None and configured.jev_enabled and configured.jev_api_key:
+            routing = ai_decisions.route(
+                connection, payload, model=configured.jev_model, api_key=configured.jev_api_key,
+                timeout_seconds=min(15.0, configured.timeout_seconds),
+                structured_only=not bool(str(original.get("description") or "").strip()
+                                         or _impl_ai_policy.richtext.to_plain_text(str(original.get("description_html") or "")).strip()),
+            )
+            if routing:
+                decision_usage = routing["usage"]
+                # Account for Jev even when the decision falls back to extraction.
+                connection.execute(
+                    """UPDATE ai_event_enrichment SET input_tokens = input_tokens + ?,
+                       output_tokens = output_tokens + ?, cost_usd = cost_usd + ?
+                       WHERE event_key = ? AND input_hash = ? AND pipeline_version = ?""",
+                    (decision_usage.get("input_tokens", 0), decision_usage.get("output_tokens", 0),
+                     decision_usage.get("cost", 0), row["event_key"], row["input_hash"], row["pipeline_version"]),
+                )
+                connection.commit()
+                if routing["facts"] is not None:
+                    facts = _impl_ai_policy._sanitize_extracted_facts(routing["facts"], payload)
+                    facts["_jev"] = routing["metadata"]
+                    row = _impl_ai_cache._record_success(connection, row, stage=1, payload=facts,
+                                                        usage=_impl_ai_contracts.Usage(), now=current_time)
         while facts is None and row["stage1_attempts"] < configured.max_attempts:
             usage = _impl_ai_contracts.Usage()
             try:
@@ -120,6 +145,8 @@ def enrich_event(
                     schema=_impl_ai_contracts._FACT_SCHEMA, attempt=row["stage1_attempts"] + 1,
                 )
                 facts = _impl_ai_policy._sanitize_extracted_facts(extracted_facts, payload)
+                if routing:
+                    facts["_jev"] = routing["metadata"]
                 row = _impl_ai_cache._record_success(connection, row, stage=1, payload=facts, usage=usage, now=current_time)
             except Exception as exc:
                 if isinstance(exc, _impl_ai_contracts.AIEnrichmentError) and isinstance(exc.usage, _impl_ai_contracts.Usage):
@@ -165,7 +192,7 @@ def enrich_event(
 
         writer_facts = {
             key: value for key, value in facts.items()
-            if key not in {"is_concrete_event", "event_evidence"}
+            if key not in {"is_concrete_event", "event_evidence"} and not key.startswith("_")
         }
         stage2_payload = {
             "facts": writer_facts,
@@ -215,6 +242,18 @@ def enrich_event(
             non_event["ai_summary"] = ""
             _impl_ai_cache._record_success(connection, row, stage=2, payload=non_event, usage=_impl_ai_contracts.Usage(), now=current_time)
             return event
+        decision_category = (facts.get("_jev") or {}).get("category")
+        summary_schema = _impl_ai_contracts._SUMMARY_SCHEMA
+        summary_prompt = _impl_ai_contracts._SUMMARY_PROMPT
+        if decision_category:
+            summary_schema = {
+                **summary_schema,
+                "properties": {key: value for key, value in summary_schema["properties"].items() if key != "category_key"},
+                "required": [key for key in summary_schema["required"] if key != "category_key"],
+            }
+            stage2_payload["field_policy"].pop("category_taxonomy", None)
+            summary_prompt = summary_prompt.replace(
+                "Ordne nach der Hauptaktivität ein: Wanderungen und Führungen sind\noutdoor; nightlife ist für Partys und Clubs, nicht für eine Zielgruppe wie Singles; Live-Musik ist concert.", "")
         quality_feedback = previous_failure if previous_failure.startswith("summary ") else ""
         while row["stage2_attempts"] < configured.max_attempts:
             usage = _impl_ai_contracts.Usage()
@@ -240,9 +279,11 @@ def enrich_event(
                         f"{quality_feedback}.{retry_detail} Schreibe vollständig neu und vermeide diesen Fehler."
                     )
                 result, usage = api.structured(
-                    stage="summary", system=_impl_ai_contracts._SUMMARY_PROMPT, payload=request_payload,
-                    schema=_impl_ai_contracts._SUMMARY_SCHEMA, attempt=row["stage2_attempts"] + 1,
+                    stage="summary", system=summary_prompt, payload=request_payload,
+                    schema=summary_schema, attempt=row["stage2_attempts"] + 1,
                 )
+                if decision_category:
+                    result = {**result, "category_key": decision_category}
                 result = _impl_ai_policy._clean_summary_result(
                     result,
                     admission_conflict=bool(stage2_payload["field_policy"]["admission_conflict"]),
@@ -305,7 +346,7 @@ def enrich_events(
     """
     configured = settings or _impl_ai_settings.settings_from_env()
     deadline = time.monotonic() + configured.batch_timeout_seconds
-    maximum_calls_per_event = max(2 * configured.max_attempts, 1)
+    maximum_calls_per_event = max(2 * configured.max_attempts + int(configured.jev_enabled), 1)
     capped = 0
     capped_without_summary = 0
     expired = 0

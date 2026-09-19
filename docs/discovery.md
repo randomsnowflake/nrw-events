@@ -238,3 +238,13 @@ behaviour, not a bug:
 - Songkick and Rausgegangen.de (removed; Rausgegangen blocks headless),
   Bandsintown (auth deny), Ticketmaster (no key),
   ga.de RSS (404), opendata.bonn.de CKAN (404).
+
+## Optional Jev decisions
+
+`JEV_OPENROUTER_API_KEY` selects a dedicated Decisions API key (blank/unset
+falls back to `OPENROUTER_API_KEY`). `JEV_OPENROUTER_MODEL` defaults to
+`typesafe/jev-1.13`. These server-side settings configure the decision client and enrichment routing. See [Jev usage](jev-decisions.md).
+
+`NRW_EVENTS_AI_JEV_ENABLED` defaults to true; set false for legacy extraction.
+On cache misses the importer uses Jev for fact coverage and category decisions,
+with generative extraction as fallback. Existing successful caches remain valid.

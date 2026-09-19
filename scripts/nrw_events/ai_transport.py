@@ -91,6 +91,9 @@ class AISettings:
     # Keep ZDR by default. This can be relaxed explicitly for controlled
     # provider-routing experiments, but is not needed for normal operation.
     allow_data_collection: bool = False
+    jev_enabled: bool = False
+    jev_api_key: str = ""
+    jev_model: str = "typesafe/jev-1.13"
 
 
 def _isolated_http_worker(

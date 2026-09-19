@@ -8,6 +8,7 @@ scripts/nrw_events/
   admission_amounts.py
   ai_cache.py
   ai_contracts.py
+  ai_decisions.py
   ai_enrichment.py
   ai_orchestration.py
   ai_policy.py
@@ -22,6 +23,7 @@ scripts/nrw_events/
   contract_fixtures.py
   core.py
   dates.py
+  decisions.py
   dedup_index.py
   dedup_merge.py
   dedup_rules.py
