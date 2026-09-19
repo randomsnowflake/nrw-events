@@ -142,10 +142,10 @@ def _mentions_date_outside_scope(summary: str, facts: Mapping[str, Any]) -> bool
         return values
 
     allowed_dates = dates_in(str(facts.get("registration") or ""))
-    for mentioned in dates_in(summary):
-        if not start <= mentioned <= end and mentioned not in allowed_dates:
-            return True
-    return False
+    return any(
+        not start <= mentioned <= end and mentioned not in allowed_dates
+        for mentioned in dates_in(summary)
+    )
 
 
 def _mentions_weekday_outside_scope(value: str, payload: Mapping[str, Any]) -> bool:

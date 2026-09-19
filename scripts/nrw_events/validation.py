@@ -599,7 +599,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
                 or (admission["isFree"] is not None and not isinstance(admission["isFree"], bool))
                 or (admission["amount"] is not None and (
                     isinstance(admission["amount"], bool)
-                    or not isinstance(admission["amount"], (int, float))
+                    or not isinstance(admission["amount"], int | float)
                     or not 0 <= admission["amount"] < float("inf")))
                 or admission["currency"] != "EUR" or admission["basis"] != "editorial"
                 or not isinstance(admission["note"], str)
