@@ -53,6 +53,68 @@ class SourceOutageTests(unittest.TestCase):
             self.assertNotEqual(payload["retained_sources"][0]["first_failure_at"], first)
             self.assertEqual(payload["retained_event_count"], 1)
 
+    def test_editorial_baseline_survives_outage_without_losing_admission(self):
+        # Prepared rebuilds write reviewed admission into the importer baseline.
+        for is_free, price in ((True, "kostenlos"), (False, "Eintritt frei")):
+            with self.subTest(is_free=is_free), make_runner_env() as env:
+                _, old = self.run_day(env, -1, self.sources(lambda: [event()]))
+                cached = next(e for e in old["events"] if e["source"] == "Calendar")
+                admission = {"isFree": is_free, "amount": None, "currency": "EUR",
+                             "basis": "editorial", "note": "Reviewed visitor evidence",
+                             "donationSuggested": False}
+                cached.update(admission_basis="editorial", admission=admission, price=price)
+                env.previous_path.write_text(json.dumps(old))
+                for day in (0, 5, 6, 7, 8):
+                    _, payload = self.run_day(env, day, self.sources(failed))
+                    rows = [e for e in payload["events"] if e["source"] == "Calendar"]
+                    self.assertEqual(len(rows), int(day < 7))
+                    if rows:
+                        self.assertEqual(rows[0]["event_id"], cached["event_id"])
+                        self.assertEqual(rows[0]["admission"], admission)
+                        self.assertEqual(rows[0]["admission_basis"], "editorial")
+
+    def test_all_day_exclusive_end_survives_outage(self):
+        with make_runner_env() as env:
+            _, old = self.run_day(env, -1, self.sources(lambda: [event()]))
+            cached = next(e for e in old["events"] if e["source"] == "Calendar")
+            cached.update(all_day=True, time="", start_at="2026-06-25T00:00:00+02:00",
+                          end_at="2026-06-26T00:00:00+02:00")
+            env.previous_path.write_text(json.dumps(old))
+            _, payload = self.run_day(env, 0, self.sources(failed))
+            rows = [e for e in payload["events"] if e["source"] == "Calendar"]
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["end_date"], "2026-06-25")
+            self.assertEqual(rows[0]["end_at"], cached["end_at"])
+            self.assertTrue(rows[0]["all_day"])
+
+    def test_exclusive_end_requires_exact_all_day_midnight_boundary(self):
+        from nrw_events.validation import EventValidationError, validate_event
+
+        raw = event(all_day=True, start_at="2026-06-25T00:00:00+02:00",
+                    end_at="2026-06-26T00:00:00+02:00")
+        for changes in ({"all_day": False}, {"time": "12:00"},
+                        {"start_at": "2026-06-25T01:00:00+02:00"},
+                        {"end_at": "2026-06-26T00:00:01+02:00"},
+                        {"end_at": "2026-06-27T00:00:00+02:00"}):
+            with self.subTest(changes=changes), self.assertRaises(EventValidationError):
+                validate_event({**raw, **changes})
+
+    def test_editorial_admission_requires_valid_structured_evidence(self):
+        from nrw_events.validation import EventValidationError, validate_event
+
+        admission = {"isFree": False, "amount": 12.5, "currency": "EUR",
+                     "basis": "editorial", "note": "Reviewed", "donationSuggested": False}
+        raw = event(admission_basis="editorial", admission=admission)
+        self.assertEqual(validate_event(raw).admission, admission)
+        for changes in ({"isFree": 1}, {"amount": True}, {"amount": -1},
+                        {"amount": float("nan")}, {"amount": float("inf")},
+                        {"currency": "USD"}, {"basis": "scraped"},
+                        {"note": None}, {"donationSuggested": 0}, {"extra": True}):
+            with self.subTest(changes=changes), self.assertRaises(EventValidationError):
+                validate_event({**raw, "admission": {**admission, **changes}})
+        with self.assertRaises(EventValidationError):
+            validate_event({**raw, "admission": {}})
+
     def test_no_previous_events_parser_empty_is_tracked(self):
         with make_runner_env() as env:
             for day in (0, 5, 7):
