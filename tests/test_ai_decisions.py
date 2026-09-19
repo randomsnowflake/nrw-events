@@ -4,6 +4,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -50,7 +51,7 @@ class DecisionsRoutingTests(unittest.TestCase):
         second, writer, evaluate = self.run_event(decision(), client=FakeClient([]))
         evaluate.assert_not_called()
         self.assertEqual(result, second)
-        with sqlite3.connect(self.settings.cache_db) as db:
+        with closing(sqlite3.connect(self.settings.cache_db)) as db:
             row = db.execute("SELECT input_tokens, stage1_json FROM ai_event_enrichment").fetchone()
             self.assertEqual(row[0], 421)  # Jev + one writer, counted exactly once
             self.assertTrue(json.loads(row[1])["_jev"]["facts_replaced"])
@@ -68,6 +69,15 @@ class DecisionsRoutingTests(unittest.TestCase):
         self.assertEqual([call["stage"] for call in writer.calls], ["summary"])
         self.assertIn("category_key", writer.calls[0]["schema"]["properties"])
 
+    def test_rehydrated_label_bound_material_skips_extraction(self):
+        # Publication stores private source material in description, including
+        # label-bound fallback material when the adapter supplied no prose.
+        source = event(**{**self.simple, "description": "", "description_html": ""})
+        material = ai_policy._source_material(source)
+        result, writer, _ = self.run_event(decision(probability=0.8), description=material, description_html="")
+        self.assertTrue(result["ai_summary"])
+        self.assertEqual([call["stage"] for call in writer.calls], ["summary"])
+
     def test_provider_failure_keeps_extraction(self):
         writer = FakeClient([copy.deepcopy(FACTS), copy.deepcopy(SUMMARY)])
         with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=DecisionError("timeout")):
@@ -81,7 +91,7 @@ class DecisionsRoutingTests(unittest.TestCase):
                         {"availability": "invalid"}):
             with self.subTest(changes=changes):
                 payload = ai_policy._input_payload(event(**changes), changes.get("description", "Text"))
-                with sqlite3.connect(":memory:") as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate") as evaluate:
+                with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate") as evaluate:
                     self.assertIsNone(ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1))
                     evaluate.assert_not_called()
 
@@ -95,7 +105,7 @@ class DecisionsRoutingTests(unittest.TestCase):
 
     def test_fallback_decisions_cached_by_model_rubric_and_input(self):
         payload = ai_policy._input_payload(self.simple, "Text")
-        with sqlite3.connect(":memory:") as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=decision("extract")) as evaluate:
+        with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=decision("extract")) as evaluate:
             for _ in range(2):
                 result = ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1)
                 self.assertIsNone(result["facts"])

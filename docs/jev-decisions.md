@@ -57,7 +57,10 @@ must be valid; source material is limited to 4,000 characters. Complex prices,
 vendor fees and invalid values go straight to the generative extractor. Simple
 explicit visitor prices retain their exact amount; missing admission stays unknown.
 
-Without source prose, completeness is known from construction. With prose,
+When material equals the label-bound rendering of existing fields, completeness
+is known from construction. This also covers publication reattaching that
+rendering as private description text; whitespace normalization is allowed,
+but any additional fact or different value requires semantic coverage checking. With prose,
 coverage must select `complete` with probability at least 0.98; otherwise the
 original extraction runs. A category replaces the writer's classification only
 at the same threshold. Existing locked categories still take precedence.

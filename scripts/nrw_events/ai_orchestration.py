@@ -118,8 +118,9 @@ def enrich_event(
             routing = ai_decisions.route(
                 connection, payload, model=configured.jev_model, api_key=configured.jev_api_key,
                 timeout_seconds=min(15.0, configured.timeout_seconds),
-                structured_only=not bool(str(original.get("description") or "").strip()
-                                         or _impl_ai_policy.richtext.to_plain_text(str(original.get("description_html") or "")).strip()),
+                structured_only=" ".join(source_material.split()) == " ".join(
+                    _impl_ai_policy._source_material({**original, "description": "", "description_html": ""}).split()
+                ),
             )
             if routing:
                 decision_usage = routing["usage"]
