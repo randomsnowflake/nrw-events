@@ -46,6 +46,63 @@ class VenueQualityTests(unittest.TestCase):
         self.assertEqual(warnings, [])
 
 class SourceVenueRecoveryTests(unittest.TestCase):
+    def test_prefix_matching_map_urls_each_keep_one_complete_note(self):
+        from html import escape
+
+        from nrw_events.venue_quality import retain_omitted_source_place
+
+        urls = ['https://maps.example/place?x=1&y=2', 'https://maps.example']
+        for ordered_urls in (urls, urls[::-1]):
+            with self.subTest(urls=ordered_urls):
+                value = ' '.join([*ordered_urls, ordered_urls[0]])
+                row = event(venue=value, description='Quelltext', description_html='<p>Quelltext</p>')
+                for _ in range(2):
+                    retain_omitted_source_place(row, value)
+                    sanitize_venue_fields(row)
+                for url in urls:
+                    note = f'Karte / Ortsinformation: {url}'
+                    self.assertEqual(row['description'].split('\n\n').count(note), 1)
+                    self.assertEqual(row['description_html'].count(f'<p>{escape(note)}</p>'), 1)
+                self.assertEqual(row['identity_venue'], value)
+                self.assertTrue(row['identity_venue_locked'])
+
+    def test_omitted_map_urls_survive_in_plain_and_html_notes(self):
+        from html import escape
+
+        from nrw_events.venue_quality import retain_omitted_source_place
+
+        url = 'https://www.google.com/maps/d/u/0/viewer?mid=abc&z=15'
+        row = event(venue='', description='Quelltext', description_html='<p>Quelltext</p>')
+        for _ in range(2):
+            retain_omitted_source_place(row, url)
+        self.assertEqual(row['description'].count(url), 1)
+        self.assertEqual(row['description_html'].count(escape(url)), 1)
+        self.assertEqual(row['identity_venue'], url)
+        self.assertTrue(row['identity_venue_locked'])
+        self.assertFalse(row.get('quality_warnings'))
+
+    def test_ionas_omitted_map_url_remains_available_after_publication(self):
+        from datetime import datetime
+
+        from nrw_events.sources.regional_ionas4 import _events_from_items
+
+        from tests.sources.parser_cases import patch_window
+
+        patch_window(self, datetime(2026, 9, 1), datetime(2026, 10, 31))
+        url = 'https://www.google.com/maps/d/u/0/viewer?mid=abc&z=15'
+        items = [{
+            'id': '123:0', 'start': '2026-09-25T15:15', 'end': '2026-09-25T20:00',
+            'title': 'Dorfflohmarkt Niederbachem', 'location': {'name': url},
+            'website': 'https://www.wachtberg.de/kalender/123',
+            'category': {'name': 'Flohmarkt'}, 'tags': [],
+        }]
+        rows = _events_from_items(items, 'Wachtberg', 'https://www.wachtberg.de/kalender/', 0.95)
+        self.assertEqual(len(rows), 1)
+        published = canonicalize_event(rows[0])
+        self.assertEqual(published.venue, '')
+        self.assertIn(url, published.description)
+        self.assertEqual(published.identity_venue, url)
+
     def test_brotfabrik_exact_api_fixture_recovers_only_explicit_places(self):
         import json
         from datetime import datetime
