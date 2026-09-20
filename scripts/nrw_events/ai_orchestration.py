@@ -12,7 +12,7 @@ from typing import Any, cast
 
 from . import ai_cache as _impl_ai_cache
 from . import ai_contracts as _impl_ai_contracts
-from . import ai_decisions, common
+from . import ai_decisions, ai_summary_repair, common
 from . import ai_policy as _impl_ai_policy
 from . import ai_settings as _impl_ai_settings
 from . import ai_transport as _impl_ai_transport
@@ -113,13 +113,21 @@ def enrich_event(
                 except (TypeError, ValueError):
                     return event
         routing = None
-        if facts is None and configured.jev_enabled and configured.jev_api_key:
+        jev_active = configured.jev_enabled and bool(configured.jev_api_key)
+        locked_category = (
+            str(original["category_key"])
+            if original.get("category_key") not in {None, "", "other"}
+            and _impl_ai_policy._confidence(original.get("category_confidence")) >= 0.75
+            else None
+        )
+        if jev_active:
             routing = ai_decisions.route(
                 connection, payload, model=configured.jev_model, api_key=configured.jev_api_key,
                 timeout_seconds=min(15.0, configured.timeout_seconds),
                 structured_only=" ".join(source_material.split()) == " ".join(
                     _impl_ai_policy._source_material({**original, "description": "", "description_html": ""}).split()
                 ),
+                locked_category=locked_category, facts_known=facts is not None,
             )
             if routing:
                 decision_usage = routing["usage"]
@@ -137,6 +145,8 @@ def enrich_event(
                     facts["_jev"] = routing["metadata"]
                     row = _impl_ai_cache._record_success(connection, row, stage=1, payload=facts,
                                                         usage=_impl_ai_contracts.Usage(), now=current_time)
+                elif facts is not None:
+                    facts["_jev"] = routing["metadata"]
         while facts is None and row["stage1_attempts"] < configured.max_attempts:
             usage = _impl_ai_contracts.Usage()
             try:
@@ -242,15 +252,22 @@ def enrich_event(
             non_event["ai_summary"] = ""
             _impl_ai_cache._record_success(connection, row, stage=2, payload=non_event, usage=_impl_ai_contracts.Usage(), now=current_time)
             return event
-        decision_category = (facts.get("_jev") or {}).get("category")
-        summary_schema = _impl_ai_contracts._SUMMARY_SCHEMA
-        summary_prompt = _impl_ai_contracts._SUMMARY_PROMPT
-        if decision_category:
-            summary_schema = {
-                **summary_schema,
-                "properties": {key: value for key, value in summary_schema["properties"].items() if key != "category_key"},
-                "required": [key for key in summary_schema["required"] if key != "category_key"],
-            }
+        decision_category = locked_category or ((facts.get("_jev") or {}).get("category") if jev_active else None)
+        # Metadata is already rendered deterministically by _clean_summary_result.
+        # Jev owns classification when enabled; uncertainty keeps the existing
+        # deterministic category instead of asking the writer to guess again.
+        writer_fields = {"ai_summary"}
+        if not jev_active and not decision_category:
+            writer_fields.add("category_key")
+        summary_schema = {
+            **_impl_ai_contracts._SUMMARY_SCHEMA,
+            "properties": {key: value for key, value in _impl_ai_contracts._SUMMARY_SCHEMA["properties"].items() if key in writer_fields},
+            "required": sorted(writer_fields),
+        }
+        summary_prompt = _impl_ai_contracts._SUMMARY_PROMPT.replace(
+            "Setze die übrigen Felder nur, wenn die Fakten sie eindeutig tragen; andernfalls null.",
+            "Gib ausschließlich die im Ausgabeschema geforderten Felder zurück.")
+        if "category_key" not in writer_fields:
             stage2_payload["field_policy"].pop("category_taxonomy", None)
             summary_prompt = summary_prompt.replace(
                 "Ordne nach der Hauptaktivität ein: Wanderungen und Führungen sind\noutdoor; nightlife ist für Partys und Clubs, nicht für eine Zielgruppe wie Singles; Live-Musik ist concert.", "")
@@ -282,8 +299,8 @@ def enrich_event(
                     stage="summary", system=summary_prompt, payload=request_payload,
                     schema=summary_schema, attempt=row["stage2_attempts"] + 1,
                 )
-                if decision_category:
-                    result = {**result, "category_key": decision_category}
+                result = {key: value for key, value in result.items() if key in writer_fields}
+                result["category_key"] = decision_category or result.get("category_key")
                 result = _impl_ai_policy._clean_summary_result(
                     result,
                     admission_conflict=bool(stage2_payload["field_policy"]["admission_conflict"]),
@@ -295,6 +312,23 @@ def enrich_event(
                     "_publication_end": payload["end_date"] or payload["start_date"],
                 }
                 quality_error = _impl_ai_policy._summary_quality(result.get("ai_summary"), source_material, quality_facts)
+                if quality_error and jev_active and row["stage2_attempts"] + 1 < configured.max_attempts:
+                    repaired = ai_summary_repair.repair(
+                        connection, summary=result.get("ai_summary") or "", error=quality_error, facts=quality_facts,
+                        model=configured.jev_model, api_key=configured.jev_api_key,
+                        timeout_seconds=min(15.0, configured.timeout_seconds),
+                    )
+                    used = repaired["usage"]
+                    usage = _impl_ai_contracts.Usage(
+                        input_tokens=usage.input_tokens + used.get("input_tokens", 0),
+                        cached_input_tokens=usage.cached_input_tokens,
+                        output_tokens=usage.output_tokens + used.get("output_tokens", 0),
+                        cost_usd=usage.cost_usd + used.get("cost", 0),
+                    )
+                    if repaired["summary"] and not _impl_ai_policy._summary_quality(repaired["summary"], source_material, quality_facts):
+                        result["ai_summary"] = repaired["summary"]
+                        result["_jev_repair"] = repaired["metadata"]
+                        quality_error = ""
                 if quality_error:
                     quality_feedback = quality_error
                     raise _impl_ai_contracts.AIEnrichmentError(quality_error)
@@ -346,7 +380,11 @@ def enrich_events(
     """
     configured = settings or _impl_ai_settings.settings_from_env()
     deadline = time.monotonic() + configured.batch_timeout_seconds
-    maximum_calls_per_event = max(2 * configured.max_attempts + int(configured.jev_enabled), 1)
+    maximum_calls_per_event = max(2 * configured.max_attempts, 1)
+    # Routing shares 15 seconds; each nonfinal writer attempt may use one
+    # bounded repair decision. Do not charge these short decisions a full
+    # generative timeout and prematurely starve the remaining event batch.
+    decision_reserve = 15.0 * configured.max_attempts if configured.jev_enabled and configured.jev_api_key else 0.0
     capped = 0
     capped_without_summary = 0
     expired = 0
@@ -428,7 +466,8 @@ def enrich_events(
         index, target = item
         source_id = normalize_source_id(target.get("source_id") or target.get("source"))
         remaining = deadline - time.monotonic()
-        if remaining <= 0 or remaining / maximum_calls_per_event < 20:
+        generative_budget = remaining - decision_reserve
+        if generative_budget <= 0 or generative_budget / maximum_calls_per_event < 20:
             cached = _impl_ai_cache._reuse_cached_success(target, configured)
             return index, cached, source_id, True, not str(cached.get("ai_summary", "")).strip(), False, False, False
         # One event may need facts and summary retries. Divide the remaining
@@ -436,7 +475,7 @@ def enrich_events(
         # event still finishes within the shared wall-clock batch deadline.
         request_timeout = min(
             configured.timeout_seconds,
-            remaining / maximum_calls_per_event,
+            generative_budget / maximum_calls_per_event,
         )
         try:
             outcome: dict[str, bool] = {}
