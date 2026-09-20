@@ -39,7 +39,7 @@ def candidate_facts(payload: dict[str, Any]) -> dict[str, Any] | None:
     facts["is_concrete_event"] = True
     facts["event_evidence"] = "Kalendertermin mit strukturiertem Datum."
     facts["availability"] = payload.get("availability") or None
-    facts["admission"] = {key: None for key in ai_contracts._ADMISSION_SCHEMA["required"]}
+    facts["admission"] = dict.fromkeys(ai_contracts._ADMISSION_SCHEMA["required"])
     price = str(payload.get("price") or "").strip()
     # Complex prices, donations and vendor fees still need the full extractor.
     if price:
@@ -178,7 +178,7 @@ def route(connection: sqlite3.Connection, payload: dict[str, Any], *, model: str
                                       version=CATEGORY_RUBRIC_VERSION, model=model, api_key=api_key,
                                       deadline=deadline, client=client)
         for key, value in used.items():
-            if isinstance(value, (int, float)):
+            if isinstance(value, int | float):
                 usage[key] = usage.get(key, 0) + value
         if result:
             resolved_model = result["model"]
