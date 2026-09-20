@@ -480,6 +480,12 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
         not in category_taxonomy.comparison_text(clean)
     ):
         return "summary contradicts the source location"
+    occurrence = {
+        "start_date": facts.get("_publication_start") or facts.get("start_date"),
+        "end_date": facts.get("_publication_end") or facts.get("end_date"),
+    }
+    if _mentions_weekday_outside_scope(clean, occurrence):
+        return "summary contradicts the selected occurrence weekday"
     if not facts.get("organizer") and re.search(
         r"\b(?:veranstalter\s+ist|veranstaltet\s+von|organisiert\s+von)\b", clean, re.IGNORECASE,
     ):

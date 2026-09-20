@@ -554,6 +554,13 @@ def infer_admission(
         return "", ""
     if _LIMITED_FREE_TRIAL_PATTERN.search(_impl_text.clean_html(description or "")):
         return "", ""
+    # Reviewed programme policy (2026-09-20): named Kulturrucksack activities
+    # are free. Keep explicit prices/paid participation above this rule, and
+    # never infer programme membership from an incidental description or URL.
+    if re.search(r"\bkulturrucksack\b", _impl_text.clean_html(title or ""), re.IGNORECASE):
+        if re.search(r"\b(?:teilnahme|eintritt)\s+(?:ist\s+)?kostenpflichtig\b", text, re.I):
+            return "kostenpflichtig", "explicit"
+        return "kostenlos", "explicit"
     if admission == AdmissionDefault.SOURCE_CONFIRMED_FREE:
         return "kostenlos", "explicit"
     if _FREE_TITLE_PATTERN.search(_impl_text.clean_html(title or "")):

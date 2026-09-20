@@ -256,6 +256,9 @@ Formuliere jeden Freitext als knappe atomare Tatsache, nicht als Prosa und nicht
 Halte einzelne Listenpunkte möglichst unter 18 Wörtern und löse längere Quellsätze in mehrere Fakten auf.
 Alle Felder beziehen sich ausschließlich auf den ausgewählten Termin zwischen start_date und end_date.
 Ignoriere Programmpunkte und Öffnungstage mit anderen Daten, auch wenn sie zur selben Reihe oder Ausstellung gehören.
+Wiederkehrende Angebote können je Wochentag andere Altersgruppen, Uhrzeiten und Orte haben.
+Ein widersprechender Wochentag im Fließtext überschreibt niemals den ausgewählten Kalendertermin.
+Ferienregelungen gelten nur für ausdrücklich als Ferientermin belegte Occurrences, nicht automatisch ganzjährig.
 admission, availability, registration und requirements gelten ausschließlich für Besucher. Entferne Standgebühren,
 Händlerpreise, Verkäuferbedingungen, Aufbauhinweise, Reisegewerbekarten und Standreservierungen aus allen Feldern.
 Förderer, Sponsoren und Kooperationspartner sind keine Programminhalte und werden nicht übernommen.

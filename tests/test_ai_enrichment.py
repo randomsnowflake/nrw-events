@@ -1465,6 +1465,13 @@ class AIEnrichmentTests(unittest.TestCase):
             "summary contradicts the source location",
         )
 
+    def test_summary_rejects_weekday_from_another_recurring_session(self):
+        facts = {**FACTS, "_publication_start": "2026-09-21", "_publication_end": "2026-09-21"}
+        summary = "Jede Woche am Freitag findet in der Sporthalle ein gemeinsames Fußballtraining statt."
+        self.assertEqual(ai_enrichment._summary_quality(summary, "Anderer Quelltext", facts),
+                         "summary contradicts the selected occurrence weekday")
+        self.assertEqual(ai_enrichment._summary_quality(summary.replace("Freitag", "Montag"), "Anderer Quelltext", facts), "")
+
     def test_summary_quality_rejects_contact_data_non_german_and_unsupported_time(self):
         facts = {**FACTS, "time": "19:30"}
         cases = (
