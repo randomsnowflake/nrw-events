@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from nrw_events import ai_decisions, ai_enrichment, ai_summary_repair
 from nrw_events.decisions import DecisionError
+
 from tests.test_ai_enrichment import FACTS, FakeClient, event
 
 GOOD = "Bei Klangraum steht Kammermusik auf dem Programm. Das Ensemble spielt im Alten Rathaus in Bonn."

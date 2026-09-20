@@ -178,7 +178,7 @@ def route(connection: sqlite3.Connection, payload: dict[str, Any], *, model: str
                                       version=CATEGORY_RUBRIC_VERSION, model=model, api_key=api_key,
                                       deadline=deadline, client=client)
         for key, value in used.items():
-            if isinstance(value, (int, float)):
+            if isinstance(value, int | float):
                 usage[key] = usage.get(key, 0) + value
         if result:
             resolved_model = result["model"]
