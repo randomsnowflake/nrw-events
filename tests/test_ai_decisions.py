@@ -11,7 +11,9 @@ from unittest.mock import patch
 
 from nrw_events import ai_decisions, ai_enrichment, ai_policy
 from nrw_events.decisions import DecisionError
-from tests.test_ai_enrichment import FACTS, SUMMARY as RICH_SUMMARY, FakeClient, event
+
+from tests.test_ai_enrichment import FACTS, FakeClient, event
+from tests.test_ai_enrichment import SUMMARY as RICH_SUMMARY
 
 SUMMARY = {**RICH_SUMMARY, "ai_summary": "Das Konzert Klangraum findet im Alten Rathaus statt. Der Veranstaltungsort liegt in Bonn."}
 
