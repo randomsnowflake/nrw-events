@@ -27,6 +27,12 @@ def decision(coverage="complete", category="concert", probability=0.995):
             "usage": {"input_tokens": 321, "output_tokens": 0, "cost": 0.000013482}}
 
 
+def respond(response):
+    def evaluate(*, questions, **kwargs):
+        return {**response, "answers": {key: response["answers"][key] for key in questions}}
+    return evaluate
+
+
 class DecisionsRoutingTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -37,7 +43,7 @@ class DecisionsRoutingTests(unittest.TestCase):
 
     def run_event(self, response, client=None, **overrides):
         client = client or FakeClient([copy.deepcopy(SUMMARY)])
-        with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=response) as evaluate:
+        with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(response)) as evaluate:
             result = ai_enrichment.enrich_event(event(**{**self.simple, **overrides}), settings=self.settings, client=client)
         return result, client, evaluate
 
@@ -53,7 +59,7 @@ class DecisionsRoutingTests(unittest.TestCase):
         self.assertEqual(result, second)
         with closing(sqlite3.connect(self.settings.cache_db)) as db:
             row = db.execute("SELECT input_tokens, stage1_json FROM ai_event_enrichment").fetchone()
-            self.assertEqual(row[0], 421)  # Jev + one writer, counted exactly once
+            self.assertEqual(row[0], 742)  # Two independent decisions + one writer, counted exactly once
             self.assertTrue(json.loads(row[1])["_jev"]["facts_replaced"])
 
     def test_additional_programme_and_uncertainty_keep_extraction(self):
@@ -67,7 +73,7 @@ class DecisionsRoutingTests(unittest.TestCase):
         result, writer, _ = self.run_event(decision(probability=0.8), description="", description_html="")
         self.assertTrue(result["ai_summary"])
         self.assertEqual([call["stage"] for call in writer.calls], ["summary"])
-        self.assertIn("category_key", writer.calls[0]["schema"]["properties"])
+        self.assertEqual(set(writer.calls[0]["schema"]["properties"]), {"ai_summary"})
 
     def test_rehydrated_label_bound_material_skips_extraction(self):
         # Publication stores private source material in description, including
@@ -85,14 +91,15 @@ class DecisionsRoutingTests(unittest.TestCase):
         self.assertTrue(result["ai_summary"])
         self.assertEqual([call["stage"] for call in writer.calls], ["facts", "summary"])
 
-    def test_complex_prices_invalid_dates_and_long_text_skip_jev(self):
+    def test_complex_prices_invalid_dates_and_long_text_keep_extraction(self):
         for changes in ({"price": "Standgebühr 20 €"}, {"price": "10 €, Kinder frei"},
                         {"start_date": "invalid"}, {"description": "x" * 4001},
                         {"availability": "invalid"}):
             with self.subTest(changes=changes):
                 payload = ai_policy._input_payload(event(**changes), changes.get("description", "Text"))
                 with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate") as evaluate:
-                    self.assertIsNone(ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1))
+                    result = ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1, locked_category="concert")
+                    self.assertIsNone(result["facts"])
                     evaluate.assert_not_called()
 
     def test_candidate_prices_are_exact_and_unknown_stays_unknown(self):
@@ -105,14 +112,14 @@ class DecisionsRoutingTests(unittest.TestCase):
 
     def test_fallback_decisions_cached_by_model_rubric_and_input(self):
         payload = ai_policy._input_payload(self.simple, "Text")
-        with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=decision("extract")) as evaluate:
+        with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(decision("extract"))) as evaluate:
             for _ in range(2):
                 result = ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1)
                 self.assertIsNone(result["facts"])
-            self.assertEqual(evaluate.call_count, 1)
+            self.assertEqual(evaluate.call_count, 2)
             self.assertEqual(result["usage"], {})
             ai_decisions.route(db, payload, model="changed", api_key="fake", timeout_seconds=1)
-            self.assertEqual(evaluate.call_count, 2)
+            self.assertEqual(evaluate.call_count, 4)
 
     def test_locked_category_preserved(self):
         result, _, _ = self.run_event(decision(), category_key="stage", category_confidence=1.0)
@@ -123,3 +130,55 @@ class DecisionsRoutingTests(unittest.TestCase):
         _, writer, evaluate = self.run_event(decision(), FakeClient([copy.deepcopy(FACTS), copy.deepcopy(SUMMARY)]))
         evaluate.assert_not_called()
         self.assertEqual(len(writer.calls), 2)
+
+    def test_structured_locked_event_needs_only_writer_and_no_jev(self):
+        result, writer, evaluate = self.run_event(decision(), description="", description_html="",
+                                                 category_key="concert", category_confidence=1)
+        evaluate.assert_not_called()
+        self.assertEqual([call["stage"] for call in writer.calls], ["summary"])
+        self.assertEqual(set(writer.calls[0]["schema"]["properties"]), {"ai_summary"})
+        self.assertEqual(result["category_key"], "concert")
+
+    def test_category_cache_reused_across_occurrences_but_not_changed_programme(self):
+        first = ai_policy._input_payload(self.simple, "Jazz und Kammermusik mit dem Ensemble.")
+        second = {**first, "start_date": "2026-08-10", "end_date": "2026-08-10", "time": "17:00"}
+        with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(decision())) as evaluate:
+            for item in (first, second):
+                result = ai_decisions.route(db, item, model="test", api_key="fake", timeout_seconds=1, facts_known=True)
+                self.assertEqual(result["metadata"]["category"], "concert")
+            self.assertEqual(evaluate.call_count, 1)
+            self.assertEqual(result["usage"], {})
+            ai_decisions.route(db, {**second, "source_material": "Lesung statt Konzert."}, model="test", api_key="fake", timeout_seconds=1, facts_known=True)
+            self.assertEqual(evaluate.call_count, 2)
+
+    def test_locked_category_asks_only_about_missing_facts(self):
+        _, writer, evaluate = self.run_event(decision(), category_key="stage", category_confidence=1)
+        self.assertEqual(evaluate.call_count, 1)
+        self.assertEqual(set(evaluate.call_args.kwargs["questions"]), {"coverage"})
+        self.assertNotIn("category_key", writer.calls[0]["schema"]["properties"])
+
+    def test_metadata_comes_from_facts_not_writer(self):
+        bogus = {**SUMMARY, "venue": "Berlin", "price": "100 Euro", "organizer": "Invented"}
+        result, writer, _ = self.run_event(decision(), FakeClient([bogus]))
+        self.assertEqual(result["venue"], "Altes Rathaus")
+        self.assertNotEqual(result.get("price"), "100 Euro")
+        self.assertNotEqual(result.get("organizer"), "Invented")
+        self.assertEqual(set(writer.calls[0]["schema"]["properties"]), {"ai_summary"})
+
+    def test_rich_prose_skips_predictably_negative_coverage_request(self):
+        prose = "Ein Streichquartett spielt Beethoven. Anschließend erläutert die Komponistin ihre neue Uraufführung und beantwortet Publikumsfragen."
+        writer = FakeClient([copy.deepcopy(FACTS), copy.deepcopy(SUMMARY)])
+        result, writer, evaluate = self.run_event(decision(), writer, description=prose,
+                                                category_key="concert", category_confidence=1)
+        evaluate.assert_not_called()
+        self.assertTrue(result["ai_summary"])
+        self.assertEqual([c["stage"] for c in writer.calls], ["facts", "summary"])
+
+    def test_structured_category_failure_never_causes_redundant_extraction(self):
+        writer = FakeClient([copy.deepcopy(SUMMARY)])
+        with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=DecisionError("timeout")):
+            result = ai_enrichment.enrich_event(event(**{**self.simple, "description": "", "description_html": ""}),
+                                               settings=self.settings, client=writer)
+        self.assertTrue(result["ai_summary"])
+        self.assertEqual([c["stage"] for c in writer.calls], ["summary"])
+        self.assertEqual(result["category_key"], "other")

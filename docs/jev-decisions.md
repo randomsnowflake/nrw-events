@@ -49,35 +49,55 @@ does not restart production or import events.
 
 `NRW_EVENTS_AI_JEV_ENABLED=true` enables the router when a JEV or OpenRouter
 key is present. Set it to false to use the original pipeline. Jev is called only
-after the existing summary/facts cache checks. One request asks about fact
-coverage and the category. No event is removed based on a Jev answer.
+after the existing summary/facts cache checks. Only unresolved questions are requested; classification and coverage have
+separate reusable cache keys. No event is removed based on a Jev answer.
 
 The router constructs facts only from existing structured fields. ISO dates
-must be valid; source material is limited to 4,000 characters. Complex prices,
-vendor fees and invalid values go straight to the generative extractor. Simple
-explicit visitor prices retain their exact amount; missing admission stays unknown.
+must be valid. Complex prices, vendor fees and invalid values retain generative
+extraction. Simple explicit visitor prices retain their exact amount; missing
+admission stays unknown. No source prose is shortened for routing.
 
 When material equals the label-bound rendering of existing fields, completeness
-is known from construction. This also covers publication reattaching that
-rendering as private description text; whitespace normalization is allowed,
-but any additional fact or different value requires semantic coverage checking. With prose,
-coverage must select `complete` with probability at least 0.98; otherwise the
-original extraction runs. A category replaces the writer's classification only
-at the same threshold. Existing locked categories still take precedence.
-These thresholds are conservative routing policy, not a claim of calibrated
-accuracy. A nine-case live probe retained extraction for every additional-fact,
-contradiction, non-event and injected-instruction case; even a redundant prose
-example fell back. The no-prose case skipped extraction. Broader savings must
-be measured on actual cache misses, not extrapolated from this small probe.
+is known from construction and no coverage request is made. This also covers
+publication reattaching that rendering as private description text. With real
+prose, a cheap overlap check asks Jev only about short near-repetitions; other
+prose goes directly to extraction unchanged. This heuristic only avoids a
+predictably negative routing request: it never authorizes skipping extraction.
+A semantic coverage decision must select `complete` with probability at least
+0.98. Timeouts, uncertainty and provider errors retain extraction.
 
-Accepted facts still pass the existing sanitizer. The writer receives no source
-prose and its output still passes all existing quality checks. Jev does not
-replace text generation. Errors and timeouts fall back to extraction, without
-using up extraction attempts. The batch budget reserves a slot for routing;
-Jev uses at most 15 seconds and no transport retry in this path.
+Categories are a separate cached `choice` decision, requested only when the
+existing category is not locked at confidence >= 0.75. Its cache includes source,
+title, venue, city, organizer, series and complete semantic source text. It
+excludes separate occurrence dates/times and label-bound fallback prose, allowing
+identical recurring content to reuse classification. Dates embedded in real
+prose are retained. Changes in programme, source, venue or title invalidate the
+category decision; no occurrence facts, descriptions or identity guards are
+shared by this cache. Uncertain categories retain the deterministic source
+category. A structured record with a locked category makes no Jev request at all.
+The threshold is conservative policy, not calibrated accuracy. Category and
+coverage calls share one 15-second budget with no transport retry.
+
+The writer produces only `ai_summary` when Jev is active. With Jev disabled it
+may also classify an unlocked category. Time, venue, city, organizer, admission,
+availability and series are always assembled from sanitized facts in code, as
+before, rather than generated a second time. All existing text-quality checks
+remain mandatory, and accepted cached summaries are reused unchanged.
+
+On a failed summary, Jev can replace a full writer retry with a narrowly scoped
+removal decision. Only sentences nominated by existing local promotion, sponsor,
+health-claim, unsupported admission/registration or audience checks are eligible.
+Jev must accept with >= 0.98 that deleting them loses no supported visitor fact.
+Mixed factual/promotional sentences require rewriting. Copying and incomplete
+sentences cannot use deletion. The entire edited summary then passes the original
+validator again; uncertainty, errors, or another validation failure retain the
+normal writer retry. The exact text, facts, error and rubric form the repair cache
+key. Repair usage is charged with that writer attempt, and `_jev_repair` records
+successful replacement in the internal cache only. This is not a text-length
+optimization: valid sentences are preserved.
 
 `ai_jev_decisions` caches validated answers, including extraction fallbacks, by
-input, requested model, rubric and routing mode. `_jev` in cached stage-one
+input, requested model and operation-specific rubric. `_jev` in cached stage-one
 facts records the resolved model, rubric, category and whether extraction was
 replaced; it is removed before writing. Token/cost usage is included in the
 existing enrichment totals. INFO logs report routing outcomes and usage without

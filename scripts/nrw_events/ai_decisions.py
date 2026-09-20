@@ -7,13 +7,15 @@ import json
 import logging
 import re
 import sqlite3
+import time
 from datetime import date
 from typing import Any
 
 from . import ai_contracts, category_taxonomy
 from .decisions import DecisionError, OpenRouterDecisionClient, validate_result
 
-RUBRIC_VERSION = "event-routing-v3"
+RUBRIC_VERSION = "event-routing-v4"
+CATEGORY_RUBRIC_VERSION = "event-category-v1"
 MIN_PROBABILITY = 0.98
 LOGGER = logging.getLogger(__name__)
 
@@ -84,56 +86,108 @@ def _accepted(answer: dict[str, Any]) -> str | None:
     return choice if answer["probabilities"][choice] >= MIN_PROBABILITY else None
 
 
-def route(connection: sqlite3.Connection, payload: dict[str, Any], *, model: str,
-          api_key: str, timeout_seconds: float, structured_only: bool = False, client: Any = None) -> dict[str, Any] | None:
-    """Cache all valid decisions, including extraction fallbacks; errors fail open to extraction."""
-    try:
-        facts = candidate_facts(payload)
-    except (ValueError, TypeError, ai_contracts.AIEnrichmentError):
-        return None
-    if facts is None:
-        return None
-    rubric = questions()
-    state = {"candidate_facts": {key: value for key, value in facts.items()
-                                if value not in (None, [], {}) and key not in {"is_concrete_event", "event_evidence"}},
-             "source_material": payload["source_material"]}
+def worth_checking_coverage(facts: dict[str, Any], material: str) -> bool:
+    """A cheap routing heuristic, never evidence for skipping extraction itself.
+
+    Programme-rich prose needs extraction anyway. Only ask Jev about short
+    near-repetitions of label-bound facts; all other prose goes to the extractor
+    unchanged, without paying for a predictable negative coverage decision.
+    """
+    stop = {"der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem",
+            "und", "oder", "im", "in", "am", "an", "um", "von", "vom", "zu", "zum", "zur",
+            "mit", "ist", "sind", "findet", "statt", "the", "at", "on", "and", "a"}
+    words = set(re.findall(r"\w+", material.casefold())) - stop
+    known = set(re.findall(r"\w+", json.dumps(facts, ensure_ascii=False).casefold()))
+    return len(material.split()) <= 60 and len(words - known) <= 2
+
+
+def evaluate_cached(connection: sqlite3.Connection, *, state: dict[str, Any], rubric: dict[str, Any],
+                    version: str, model: str, api_key: str, deadline: float,
+                    client: Any = None) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """One content-addressed decision; retries and all consumers share a deadline."""
+    from .ai_cache import _event_lock
+
     cache_key = hashlib.sha256(json.dumps(
-        [RUBRIC_VERSION, model, structured_only, state, rubric], ensure_ascii=False, sort_keys=True,
+        [version, model, state, rubric], ensure_ascii=False, sort_keys=True,
     ).encode()).hexdigest()
     connection.execute("""CREATE TABLE IF NOT EXISTS ai_jev_decisions (
         cache_key TEXT PRIMARY KEY, model TEXT NOT NULL, rubric_version TEXT NOT NULL,
         result_json TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
     connection.commit()
-    cached = connection.execute("SELECT result_json FROM ai_jev_decisions WHERE cache_key = ?", (cache_key,)).fetchone()
-    try:
-        result = validate_result(json.loads(cached[0]), rubric) if cached else None
-    except (ValueError, TypeError, KeyError):
-        result = None
-    hit = result is not None
-    try:
-        if result is None:
+    with _event_lock("jev:" + cache_key):
+        cached = connection.execute("SELECT result_json FROM ai_jev_decisions WHERE cache_key = ?", (cache_key,)).fetchone()
+        try:
+            result = validate_result(json.loads(cached[0]), rubric) if cached else None
+        except (ValueError, TypeError, KeyError, DecisionError):
+            result = None
+        if result is not None:
+            return result, {}
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None, {}
+        started = time.monotonic()
+        try:
             api = client or OpenRouterDecisionClient(api_key=api_key, model=model,
-                                                    timeout_ms=max(1, int(timeout_seconds * 1000)), max_retries=0)
+                                                    timeout_ms=max(1, int(remaining * 1000)), max_retries=0)
             result = validate_result(api.evaluate(state=state, questions=rubric), rubric)
             connection.execute("INSERT OR REPLACE INTO ai_jev_decisions (cache_key, model, rubric_version, result_json) VALUES (?, ?, ?, ?)",
-                               (cache_key, model, RUBRIC_VERSION, json.dumps(result, ensure_ascii=False)))
+                               (cache_key, model, version, json.dumps(result, ensure_ascii=False)))
             connection.commit()
-    except (DecisionError, ValueError, TypeError, KeyError):
-        LOGGER.warning("Jev routing failed; using generative facts extraction", extra={"run_id": "", "source": payload.get("source_id", "")})
-        return None
-    # When no source prose exists, completeness is established by the caller:
-    # source_material was built exclusively from these existing fields. Jev's
-    # confidence is not a calibrated probability and cannot add missing facts.
-    complete = structured_only or _accepted(result["answers"]["coverage"]) == "complete"
-    category = _accepted(result["answers"]["category"])
-    if category in {"unknown", "other"}:
-        category = None
-    metadata = {"model": result["model"], "rubric": RUBRIC_VERSION,
-                "category": category, "facts_replaced": complete}
-    LOGGER.info("Jev routing: facts_replaced=%s category=%s cache_hit=%s input_tokens=%s cost=%s",
-                complete, category or "fallback", hit,
-                0 if hit else result.get("usage", {}).get("input_tokens", 0),
-                0 if hit else result.get("usage", {}).get("cost", 0),
-                extra={"run_id": "", "source": payload.get("source_id", "")})
-    return {"facts": copy.deepcopy(facts) if complete else None, "metadata": metadata,
-            "usage": {} if hit else result.get("usage", {})}
+        except (DecisionError, ValueError, TypeError, KeyError):
+            LOGGER.warning("Jev decision failed: rubric=%s elapsed_ms=%d", version,
+                           round((time.monotonic() - started) * 1000))
+            return None, {}
+        usage = result.get("usage", {})
+        LOGGER.info("Jev decision: rubric=%s elapsed_ms=%d input_tokens=%s output_tokens=%s cost=%s",
+                    version, round((time.monotonic() - started) * 1000), usage.get("input_tokens", 0),
+                    usage.get("output_tokens", 0), usage.get("cost", 0))
+        return result, usage
+
+
+def route(connection: sqlite3.Connection, payload: dict[str, Any], *, model: str,
+          api_key: str, timeout_seconds: float, structured_only: bool = False,
+          locked_category: str | None = None, facts_known: bool = False,
+          client: Any = None) -> dict[str, Any]:
+    """Ask only unresolved questions; occurrence facts never share category cache keys."""
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        facts = candidate_facts(payload) if not facts_known else None
+    except (ValueError, TypeError, ai_contracts.AIEnrichmentError):
+        facts = None
+    complete = facts is not None and structured_only
+    usage: dict[str, Any] = {}
+    resolved_model = None
+    if facts is not None and not structured_only and worth_checking_coverage(facts, payload["source_material"]):
+        state = {"candidate_facts": {key: value for key, value in facts.items()
+                                    if value not in (None, [], {}) and key not in {"is_concrete_event", "event_evidence"}},
+                 "source_material": payload["source_material"]}
+        result, used = evaluate_cached(connection, state=state, rubric={"coverage": questions()["coverage"]},
+                                      version=RUBRIC_VERSION, model=model, api_key=api_key, deadline=deadline, client=client)
+        usage.update(used)
+        if result:
+            resolved_model = result["model"]
+            complete = _accepted(result["answers"]["coverage"]) == "complete"
+    category = locked_category if locked_category in category_taxonomy.CATEGORY_BY_KEY else None
+    if category is None:
+        # Keep full semantic material (including dates written in prose). Only
+        # label-bound occurrence clocks are excluded: changing programme, title,
+        # venue or source cannot reuse a different event's classification.
+        state = {key: payload.get(key) for key in ("source_id", "title", "venue", "city", "organizer", "series_title")}
+        state["source_material"] = "" if structured_only else payload["source_material"]
+        result, used = evaluate_cached(connection, state=state, rubric={"category": questions()["category"]},
+                                      version=CATEGORY_RUBRIC_VERSION, model=model, api_key=api_key,
+                                      deadline=deadline, client=client)
+        for key, value in used.items():
+            if isinstance(value, (int, float)):
+                usage[key] = usage.get(key, 0) + value
+        if result:
+            resolved_model = result["model"]
+            category = _accepted(result["answers"]["category"])
+            if category in {"unknown", "other"}:
+                category = None
+    metadata = {"model": resolved_model, "rubric": RUBRIC_VERSION,
+                "category": category, "facts_replaced": complete,
+                "structured_only": structured_only, "category_locked": bool(locked_category)}
+    LOGGER.info("Jev routing: facts_replaced=%s category=%s structured_only=%s category_locked=%s",
+                complete, category or "unchanged", structured_only, bool(locked_category))
+    return {"facts": copy.deepcopy(facts) if complete else None, "metadata": metadata, "usage": usage}
