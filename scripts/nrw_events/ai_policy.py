@@ -484,7 +484,15 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
         "start_date": facts.get("_publication_start") or facts.get("start_date"),
         "end_date": facts.get("_publication_end") or facts.get("end_date"),
     }
-    if _mentions_weekday_outside_scope(clean, occurrence):
+    # Registration deadlines can precede the occurrence. Exempt only a whole
+    # sentence that matches the supported registration fact, never all mentions
+    # of that weekday or a sentence that also claims a different event date.
+    registration = re.sub(r"\s+", " ", str(facts.get("registration") or "")).strip().rstrip(".!?").casefold()
+    occurrence_text = " ".join(
+        sentence for sentence in re.split(r"(?<=[.!?])\s+", clean)
+        if not registration or sentence.rstrip(".!?").casefold() != registration
+    )
+    if _mentions_weekday_outside_scope(occurrence_text, occurrence):
         return "summary contradicts the selected occurrence weekday"
     if not facts.get("organizer") and re.search(
         r"\b(?:veranstalter\s+ist|veranstaltet\s+von|organisiert\s+von)\b", clean, re.IGNORECASE,
