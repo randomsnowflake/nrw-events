@@ -13,6 +13,21 @@ LOGGER_NAME = "nrw_events"
 _SENSITIVE = re.compile(r"([?&](?:api[_-]?key|token|key|authorization)=)[^&\s]+", re.IGNORECASE)
 
 
+class _LoggingContextFilter(logging.Filter):
+    """Fill context at handlers, including records propagated by child loggers."""
+
+    def __init__(self, run_id: str) -> None:
+        super().__init__()
+        self.run_id = run_id
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not hasattr(record, "run_id"):
+            record.run_id = self.run_id
+        if not hasattr(record, "source"):
+            record.source = record.name
+        return True
+
+
 class _DuplicateWarningFilter(logging.Filter):
     """Keep repeated worker warnings from drowning the per-source summary."""
 
@@ -79,6 +94,8 @@ def configure_logging(run_id: str, level: str, log_path: str = "", json_log_path
         handler = logging.FileHandler(path, encoding="utf-8")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
+    for handler in logger.handlers:
+        handler.addFilter(_LoggingContextFilter(run_id))
     logger.info("run started", extra={"run_id": run_id, "source": "runner"})
     return logger
 
