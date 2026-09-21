@@ -488,6 +488,14 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
     # sentence that matches the supported registration fact, never all mentions
     # of that weekday or a sentence that also claims a different event date.
     registration = re.sub(r"\s+", " ", str(facts.get("registration") or "")).strip().rstrip(".!?").casefold()
+    # Extracted facts are model output, not evidence. Require the complete
+    # deadline sentence in the source too; a weekday elsewhere is insufficient.
+    source_sentences = {
+        sentence.rstrip(".!?").casefold()
+        for sentence in re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", source_material).strip())
+    }
+    if registration not in source_sentences:
+        registration = ""
     occurrence_text = " ".join(
         sentence for sentence in re.split(r"(?<=[.!?])\s+", clean)
         if not registration or sentence.rstrip(".!?").casefold() != registration

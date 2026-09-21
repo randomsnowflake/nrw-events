@@ -1481,7 +1481,7 @@ class AIEnrichmentTests(unittest.TestCase):
             "Bei Klangraum steht Kammermusik auf dem Programm. "
             "Das Ensemble spielt im Alten Rathaus in Bonn. Anmeldung bis Freitag erforderlich."
         )
-        self.assertEqual(ai_enrichment._summary_quality(summary, "Anderer Quelltext", facts), "")
+        self.assertEqual(ai_enrichment._summary_quality(summary, "Anmeldung bis Freitag erforderlich.", facts), "")
         for invalid in (
             summary.replace("Freitag", "Donnerstag"),
             summary + " Das Konzert findet am Freitag statt.",
@@ -1489,8 +1489,30 @@ class AIEnrichmentTests(unittest.TestCase):
                             "Anmeldung bis Freitag erforderlich, das Konzert findet am Freitag statt."),
         ):
             with self.subTest(summary=invalid):
-                self.assertEqual(ai_enrichment._summary_quality(invalid, "Anderer Quelltext", facts),
+                self.assertEqual(ai_enrichment._summary_quality(invalid, "Anmeldung bis Freitag erforderlich.", facts),
                                  "summary contradicts the selected occurrence weekday")
+
+    def test_registration_weekday_exemption_requires_source_sentence(self):
+        facts = {
+            **FACTS, "_publication_start": "2026-09-21", "_publication_end": "2026-09-21",
+            "registration": "Anmeldung bis Freitag erforderlich.",
+        }
+        summary = (
+            "Bei Klangraum steht Kammermusik auf dem Programm. "
+            "Das Ensemble spielt im Alten Rathaus in Bonn. Anmeldung bis Freitag erforderlich."
+        )
+        for source in (
+            "Anmeldung bis Donnerstag erforderlich.",
+            "Am Freitag gibt es eine Probe. Anmeldung bis Donnerstag erforderlich.",
+            "Keine Anmeldung bis Freitag erforderlich.",
+            "Anmeldung bis Freitag erforderlich war im Vorjahr.",
+            "",
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(ai_enrichment._summary_quality(summary, source, facts),
+                                 "summary contradicts the selected occurrence weekday")
+        source = "Karten sind erhältlich. ANMELDUNG  bis Freitag erforderlich! Weitere Hinweise folgen."
+        self.assertEqual(ai_enrichment._summary_quality(summary, source, facts), "")
 
     def test_summary_quality_rejects_contact_data_non_german_and_unsupported_time(self):
         facts = {**FACTS, "time": "19:30"}
