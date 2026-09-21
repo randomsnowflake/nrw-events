@@ -1472,6 +1472,26 @@ class AIEnrichmentTests(unittest.TestCase):
                          "summary contradicts the selected occurrence weekday")
         self.assertEqual(ai_enrichment._summary_quality(summary.replace("Freitag", "Montag"), "Anderer Quelltext", facts), "")
 
+    def test_summary_preserves_fact_backed_registration_weekday(self):
+        facts = {
+            **FACTS, "_publication_start": "2026-09-21", "_publication_end": "2026-09-21",
+            "registration": "Anmeldung bis Freitag erforderlich.",
+        }
+        summary = (
+            "Bei Klangraum steht Kammermusik auf dem Programm. "
+            "Das Ensemble spielt im Alten Rathaus in Bonn. Anmeldung bis Freitag erforderlich."
+        )
+        self.assertEqual(ai_enrichment._summary_quality(summary, "Anderer Quelltext", facts), "")
+        for invalid in (
+            summary.replace("Freitag", "Donnerstag"),
+            summary + " Das Konzert findet am Freitag statt.",
+            summary.replace("Anmeldung bis Freitag erforderlich.",
+                            "Anmeldung bis Freitag erforderlich, das Konzert findet am Freitag statt."),
+        ):
+            with self.subTest(summary=invalid):
+                self.assertEqual(ai_enrichment._summary_quality(invalid, "Anderer Quelltext", facts),
+                                 "summary contradicts the selected occurrence weekday")
+
     def test_summary_quality_rejects_contact_data_non_german_and_unsupported_time(self):
         facts = {**FACTS, "time": "19:30"}
         cases = (
