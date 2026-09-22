@@ -10,11 +10,14 @@ scripts/nrw_events/
   ai_contracts.py
   ai_decisions.py
   ai_enrichment.py
+  ai_fact_stage.py
   ai_orchestration.py
   ai_policy.py
   ai_settings.py
   ai_summary_repair.py
+  ai_summary_stage.py
   ai_transport.py
+  ai_writer_input.py
   benchmark.py
   category_taxonomy.py
   checkpoint.py
@@ -36,6 +39,7 @@ scripts/nrw_events/
   duplicate_identity.py
   early_publication.py
   event_builder.py
+  event_evidence.py
   event_types.py
   event_vocabulary.py
   health.py
@@ -96,6 +100,7 @@ scripts/nrw_events/
     bonn_food.py
     bonn_literature.py
     bonn_policy.py
+    bonn_press_parser.py
     bonn_sports.py
     bonn_venues.py
     bonner_weihnachtsmarkt.py

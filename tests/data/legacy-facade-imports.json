@@ -1,0 +1,315 @@
+{
+  "ai_orchestration.py": [
+    "nrw_events.common"
+  ],
+  "ai_policy.py": [
+    "nrw_events.common",
+    "nrw_events.core.keep_only_event_master_data"
+  ],
+  "benchmark.py": [
+    "nrw_events.common"
+  ],
+  "common.py": [
+    "nrw_events.core"
+  ],
+  "components.py": [
+    "nrw_events.core"
+  ],
+  "dedup_merge.py": [
+    "nrw_events.common"
+  ],
+  "deduplication.py": [
+    "nrw_events.common"
+  ],
+  "detail_enrichment.py": [
+    "nrw_events.common"
+  ],
+  "detail_extractors/sites.py": [
+    "nrw_events.common"
+  ],
+  "detail_parsing.py": [
+    "nrw_events.common"
+  ],
+  "duplicate_identity.py": [
+    "nrw_events.common"
+  ],
+  "early_publication.py": [
+    "nrw_events.common"
+  ],
+  "import_cli.py": [
+    "nrw_events.common"
+  ],
+  "import_orchestration.py": [
+    "nrw_events.common"
+  ],
+  "markdown_report.py": [
+    "nrw_events.common"
+  ],
+  "publication_selection.py": [
+    "nrw_events.common"
+  ],
+  "radio_primary_resolution.py": [
+    "nrw_events.common"
+  ],
+  "retention_policy.py": [
+    "nrw_events.common"
+  ],
+  "source_batch.py": [
+    "nrw_events.common"
+  ],
+  "source_execution.py": [
+    "nrw_events.common"
+  ],
+  "source_specs.py": [
+    "nrw_events.common"
+  ],
+  "sources/adfc_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/afterjobparty.py": [
+    "nrw_events.common"
+  ],
+  "sources/b_future_festival.py": [
+    "nrw_events.common"
+  ],
+  "sources/beethovenfest_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonn_districts.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonn_food.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonn_literature.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonn_sports.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonn_venues.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonner_weihnachtsmarkt.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonnjetzt.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonnkirmes.py": [
+    "nrw_events.common"
+  ],
+  "sources/bonnlive.py": [
+    "nrw_events.common"
+  ],
+  "sources/bundeskunsthalle.py": [
+    "nrw_events.common"
+  ],
+  "sources/cinema_specials.py": [
+    "nrw_events.common"
+  ],
+  "sources/coelln_antik_design.py": [
+    "nrw_events.common"
+  ],
+  "sources/coelln_konzept.py": [
+    "nrw_events.common"
+  ],
+  "sources/deutsches_museum_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/fedcon_events.py": [
+    "nrw_events.common"
+  ],
+  "sources/fixed_markets.py": [
+    "nrw_events.common"
+  ],
+  "sources/flohmarkt.py": [
+    "nrw_events.common"
+  ],
+  "sources/geide.py": [
+    "nrw_events.common"
+  ],
+  "sources/grote_hiller.py": [
+    "nrw_events.common"
+  ],
+  "sources/harmonie.py": [
+    "nrw_events.common"
+  ],
+  "sources/haus_der_geschichte.py": [
+    "nrw_events.common"
+  ],
+  "sources/hgv_beuel.py": [
+    "nrw_events.common"
+  ],
+  "sources/hoffloh_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/hofflohmaerkte.py": [
+    "nrw_events.common"
+  ],
+  "sources/in_guten_kreisen.py": [
+    "nrw_events.common"
+  ],
+  "sources/junges_theater_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/katharinenhof.py": [
+    "nrw_events.common"
+  ],
+  "sources/kessenicher_herbstmarkt.py": [
+    "nrw_events.common"
+  ],
+  "sources/kihapp.py": [
+    "nrw_events.common"
+  ],
+  "sources/kinderflohmarkt.py": [
+    "nrw_events.common"
+  ],
+  "sources/kleines_theater.py": [
+    "nrw_events.common"
+  ],
+  "sources/koeln.py": [
+    "nrw_events.common"
+  ],
+  "sources/koenigswinter.py": [
+    "nrw_events.common"
+  ],
+  "sources/krewelshof.py": [
+    "nrw_events.common"
+  ],
+  "sources/kunstmuseum_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/kunstrasen_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/lampert.py": [
+    "nrw_events.common"
+  ],
+  "sources/lengsdorfer_weinfest.py": [
+    "nrw_events.common"
+  ],
+  "sources/lupe_events.py": [
+    "nrw_events.common"
+  ],
+  "sources/marktcom.py": [
+    "nrw_events.common"
+  ],
+  "sources/max7.py": [
+    "nrw_events.common"
+  ],
+  "sources/mec_municipal.py": [
+    "nrw_events.common"
+  ],
+  "sources/meckenheim.py": [
+    "nrw_events.common"
+  ],
+  "sources/melan.py": [
+    "nrw_events.common"
+  ],
+  "sources/much.py": [
+    "nrw_events.common"
+  ],
+  "sources/museum_koenig.py": [
+    "nrw_events.common"
+  ],
+  "sources/naturregion_sieg.py": [
+    "nrw_events.common"
+  ],
+  "sources/ofa_duisdorf.py": [
+    "nrw_events.common"
+  ],
+  "sources/okken.py": [
+    "nrw_events.common"
+  ],
+  "sources/radiobonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/regional_common.py": [
+    "nrw_events.common"
+  ],
+  "sources/regional_feeds.py": [
+    "nrw_events.common"
+  ],
+  "sources/regional_html.py": [
+    "nrw_events.common"
+  ],
+  "sources/regional_ionas4.py": [
+    "nrw_events.common"
+  ],
+  "sources/regional_sitekit.py": [
+    "nrw_events.common"
+  ],
+  "sources/regional_tourism.py": [
+    "nrw_events.common"
+  ],
+  "sources/regional_venues.py": [
+    "nrw_events.common"
+  ],
+  "sources/requested_venues.py": [
+    "nrw_events.common"
+  ],
+  "sources/rhein_antik.py": [
+    "nrw_events.common"
+  ],
+  "sources/rheinbach_flohmarkt.py": [
+    "nrw_events.common"
+  ],
+  "sources/rheinevents.py": [
+    "nrw_events.common"
+  ],
+  "sources/rieder_markets.py": [
+    "nrw_events.common"
+  ],
+  "sources/rif_events.py": [
+    "nrw_events.common"
+  ],
+  "sources/rossel_wilberhofen.py": [
+    "nrw_events.common"
+  ],
+  "sources/ruhrguide.py": [
+    "nrw_events.common"
+  ],
+  "sources/salsainbonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/schmitt_markets.py": [
+    "nrw_events.common"
+  ],
+  "sources/search.py": [
+    "nrw_events.common"
+  ],
+  "sources/siebengebirge.py": [
+    "nrw_events.common"
+  ],
+  "sources/siegburg.py": [
+    "nrw_events.common"
+  ],
+  "sources/ssf_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/theater_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/theater_im_ballsaal.py": [
+    "nrw_events.common"
+  ],
+  "sources/theater_marabu.py": [
+    "nrw_events.common"
+  ],
+  "sources/tik_bonn.py": [
+    "nrw_events.common"
+  ],
+  "sources/tourismus_nrw_featured.py": [
+    "nrw_events.common"
+  ],
+  "sources/uni_bonn.py": [
+    "nrw_events.common"
+  ],
+  "validation.py": [
+    "nrw_events.common"
+  ]
+}

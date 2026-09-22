@@ -1,0 +1,8 @@
+# Exact offline-gate toolchain; runtime importer remains stdlib-only.
+coverage==7.9.2
+mypy==1.17.0
+mypy-extensions==1.1.0
+pathspec==1.1.1
+ruff==0.12.3
+typing-extensions==4.16.0
+tomli==2.2.1

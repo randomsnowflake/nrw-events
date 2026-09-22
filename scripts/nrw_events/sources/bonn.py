@@ -29,6 +29,15 @@ from .. import (
 )
 from . import regional_common as rc
 from .bonn_policy import _active_reviewed_map, _clean_event_href
+from .bonn_press_parser import (
+    _press_date_ranges as _press_date_ranges,
+)
+from .bonn_press_parser import (
+    _press_event_title as _press_event_title,
+)
+from .bonn_press_parser import (
+    _press_event_venue as _press_event_venue,
+)
 from .bonn_sports import (
     _apply_reviewed_sport_occurrence_corrections as _apply_reviewed_sport_occurrence_corrections,
 )
@@ -151,7 +160,7 @@ def _reset_detail_context_cache() -> None:
     common._reset_detail_page_cache("bonn-detail")
 
 
-def _loads_event_items(raw: str):
+def _loads_event_items(raw: str) -> object:
     """Parse Bonn's event payload, tolerating server log lines appended after JSON.
 
     The city endpoint has occasionally emitted a valid JSON array prefix followed
@@ -195,7 +204,7 @@ def _venue_points() -> dict:
     return pts
 
 
-def _parse_dt(value: str):
+def _parse_dt(value: str) -> datetime | None:
     """Parse the feed's 'YYYY-MM-DD HH:MM:SS' (or bare date) into a datetime."""
     return common.parse_iso_date((value or "").strip())
 
@@ -339,7 +348,7 @@ def _paragraph_aware_detail_description(parts: list[str]) -> str:
     if not max_chars:
         return _render_detail_paragraphs(paragraphs)
 
-    selected = []
+    selected: list[str] = []
     omitted = False
     for paragraph in paragraphs:
         candidate = _render_detail_paragraphs([*selected, paragraph])
@@ -524,14 +533,14 @@ def _parse_detail_context(html: str) -> dict:
             geo = location.get("geo") or {}
             if isinstance(geo, dict):
                 try:
-                    latitude = float(geo.get("latitude"))
-                    longitude = float(geo.get("longitude"))
+                    latitude = float(geo.get("latitude", ""))
+                    longitude = float(geo.get("longitude", ""))
                 except (TypeError, ValueError):
                     pass
                 else:
                     if -90 <= latitude <= 90 and -180 <= longitude <= 180:
-                        context["venue_latitude"] = latitude
-                        context["venue_longitude"] = longitude
+                        return {**context, "venue_latitude": latitude,
+                                "venue_longitude": longitude}
             return context
 
     return context
@@ -1223,7 +1232,7 @@ _MERGE_IDENTITY_FIELDS = {
 }
 
 
-def _has_fact(value) -> bool:
+def _has_fact(value: object) -> bool:
     return value not in (None, "", [], {})
 
 
@@ -1303,108 +1312,6 @@ def _drop_redundant_dated_title_variants(events: list) -> list:
     return kept
 
 
-def _press_event_title(text: str) -> str:
-    """Extract the event name before the press-release venue/date fields.
-
-    A comma normally separates the title from the venue. Some official names
-    contain a punctuation comma themselves, notably "Antik-, Kunst- &
-    Designmarkt Bonn". Keep the following segment when the text before the
-    first comma ends in a hyphen so the title is not truncated to "Antik-".
-    """
-    parts = [part.strip() for part in text.split(",")]
-    if not parts:
-        return ""
-    if parts[0].endswith("-") and len(parts) > 1:
-        return f"{parts[0]}, {parts[1]}".strip()
-    return parts[0]
-
-
-def _press_event_venue(text: str, title: str) -> str:
-    """Keep the official location text between the title and first date."""
-    remainder = text[len(title):].lstrip(" ,")
-    date_start = re.search(
-        r"\b\d{1,2}\.\s*(?:(?:bis|und)\s*\d{1,2}\.\s*)?"
-        r"(?:Januar|Februar|März|April|Mai|Juni|Juli|August|"
-        r"September|Oktober|November|Dezember)\b",
-        remainder,
-        re.I,
-    )
-    if not date_start:
-        return ""
-    return remainder[:date_start.start()].strip(" ,")
-
-
-def _press_date_ranges(text: str, default_year: int) -> list[tuple[datetime, datetime]]:
-    """Parse the date grammar used by Bonn's annual event press release."""
-    month_pattern = (
-        r"Januar|Februar|März|April|Mai|Juni|Juli|August|"
-        r"September|Oktober|November|Dezember"
-    )
-    consumed: list[tuple[int, int]] = []
-    ranges: list[tuple[datetime, datetime]] = []
-
-    def add(match, start_parts, end_parts) -> None:
-        try:
-            start = datetime(*start_parts)
-            end = datetime(*end_parts)
-        except (ValueError, KeyError):
-            return
-        consumed.append(match.span())
-        ranges.append((start, max(start, end)))
-
-    # 27. bis 29. November 2026 / 3. und 4. Oktober 2026
-    for match in re.finditer(
-        rf"(\d{{1,2}})\.\s*(?:bis|und)\s*(\d{{1,2}})\.\s*"
-        rf"({month_pattern})\s*(20\d{{2}})?",
-        text,
-        re.I,
-    ):
-        first, last, month_name, year_text = match.groups()
-        month = common.MONTH_DE.get(month_name.casefold())
-        if month:
-            year = int(year_text or default_year)
-            add(match, (year, month, int(first)), (year, month, int(last)))
-
-    # 20. November bis 23. Dezember 2026
-    for match in re.finditer(
-        rf"(\d{{1,2}})\.\s*({month_pattern})\s*(20\d{{2}})?\s*bis\s*"
-        rf"(\d{{1,2}})\.\s*({month_pattern})\s*(20\d{{2}})?",
-        text,
-        re.I,
-    ):
-        if any(start <= match.start() < end for start, end in consumed):
-            continue
-        first, first_month_name, first_year, last, last_month_name, last_year = match.groups()
-        first_month = common.MONTH_DE.get(first_month_name.casefold())
-        last_month = common.MONTH_DE.get(last_month_name.casefold())
-        if first_month and last_month:
-            end_year = int(last_year or first_year or default_year)
-            start_year = int(first_year or end_year)
-            add(
-                match,
-                (start_year, first_month, int(first)),
-                (end_year, last_month, int(last)),
-            )
-
-    for match in re.finditer(
-        rf"(\d{{1,2}})\.\s*({month_pattern})\s*(20\d{{2}})?",
-        text,
-        re.I,
-    ):
-        if any(start <= match.start() < end for start, end in consumed):
-            continue
-        day, month_name, year_text = match.groups()
-        month = common.MONTH_DE.get(month_name.casefold())
-        if not month:
-            continue
-        try:
-            value = datetime(int(year_text or default_year), month, int(day))
-        except ValueError:
-            continue
-        ranges.append((value, value))
-    return sorted(set(ranges))
-
-
 def fetch_press_festivals() -> list:
     """Parse the annual Bonn 'Veranstaltungsjahr' press release for district festivals.
 
@@ -1460,11 +1367,16 @@ def fetch_press_festivals() -> list:
                     original_end.strftime("%Y-%m-%d"),
                 )):
                     continue
-                correction = occurrence_corrections.get((
+                correction_value = occurrence_corrections.get((
                     title,
                     original_start.strftime("%Y-%m-%d"),
                     original_end.strftime("%Y-%m-%d"),
                 ))
+                correction = None
+                if correction_value:
+                    if not isinstance(correction_value, dict):
+                        raise ValueError("Bonn press occurrence correction must be an object")
+                    correction = correction_value
                 start = (
                     datetime.fromisoformat(correction["start_date"])
                     if correction else original_start

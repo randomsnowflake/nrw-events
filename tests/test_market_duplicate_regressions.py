@@ -44,6 +44,21 @@ def market(
 
 
 class MarketDuplicateRegressionTests(unittest.TestCase):
+    def test_actual_merge_records_duplicate_identity_separately_from_aliases(self):
+        from dataclasses import replace
+
+        from nrw_events.dedup_merge import _merge_duplicate_metadata
+        from nrw_events.identity import event_id
+        winner = market("Testmarkt", "Bonn.de Events", "2026-08-02", "Testplatz", "Bonn", "https://example.test/a")
+        duplicate = market("Testmarkt", "marktcom", "2026-08-02", "Testplatz", "Bonn", "https://example.test/b")
+        duplicate = replace(duplicate, previous_event_ids=["historical-alias"])
+        merged = _merge_duplicate_metadata(winner, duplicate)
+        self.assertIn(event_id(duplicate), merged.get("merged_event_ids"))
+        self.assertNotIn("historical-alias", merged.get("merged_event_ids"))
+        self.assertIn("historical-alias", merged.get("previous_event_ids"))
+        replay = _merge_duplicate_metadata(merged, duplicate)
+        self.assertEqual(replay.get("merged_event_ids"), merged.get("merged_event_ids"))
+
     def test_explicit_venue_identity_survives_canonical_validation(self):
         event = market(
             "Testmarkt",

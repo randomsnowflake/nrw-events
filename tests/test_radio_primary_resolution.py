@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
-import tomllib
 from nrw_events import config, report, runner
 from nrw_events import radio_primary_resolution as resolution
 from nrw_events.identity import event_id
@@ -14,6 +13,11 @@ from nrw_events.models import MAX_DISCOVERY_PROVENANCE_SOURCES
 from nrw_events.observability import configure_logging
 from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.validation import canonicalize_event
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10's dev-only TOML reader.
+    import tomli as tomllib
 
 RADIO_ID = "radio-bonn-rhein-sieg"
 

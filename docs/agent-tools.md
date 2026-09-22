@@ -31,9 +31,34 @@ The tool does not read metadata sidecars.
 coverage rules and exit codes. Full logs and `summary.json` are retained in a
 unique `.cache/agent-tests/` directory. Summaries include count, duration, exit
 code and log size; failure output is limited to the last 60 lines. Read the full
-log when needed. Plain mode remains available. The runner uses the repo virtual
-environment, works from any current directory and prints a heartbeat every 30s.
+log when needed. Plain mode remains available. The runner uses the repo virtual environment by default, works from any current
+directory and prints a heartbeat every 30s. The canonical gate explicitly passes
+its own interpreter through NRW_EVENTS_PYTHON, so lint, types and the covered
+suite cannot silently use different Python environments. An explicit interpreter
+must be executable; a missing one fails instead of falling back to the repo venv.
 
 Measure comparable tasks using session input tokens/tool calls, elapsed time and
 test summaries. Log bytes are output-volume evidence, not a token or cost metric.
 Do not replace the full publication gate with a successful focused run.
+
+## Canonical offline gate
+
+Install the exact tools from `requirements-dev.lock` in `.venv`.
+Run `.venv/bin/python scripts/verify.py --agent` before publication.
+The default full `bash scripts/test.sh --agent` delegates to the same gate;
+a named focused test keeps its narrow unit-test behavior.
+
+The gate runs Ruff, configured Mypy, additional Mypy on all production modules
+changed since `typecheck-baseline.ref`, documentation/task-map checks, then one
+covered unittest suite at the existing 80% coverage threshold. The fixed baseline
+records pre-existing typing debt; it is not advanced automatically. Committed,
+unstaged and untracked Python changes all remain in the additional type scope.
+No baseline suppressions or new global ignores are introduced.
+The initial broader inventory contained 1,397 diagnostics in 111 files; the
+configured 67-module gate is clean. The complete inventory is retained in the
+consumer audit evidence. Refactorings must fix the changed modules' type errors.
+
+`--checks-only` supports focused lint/type/docs development; it is not a
+release gate. GitHub Actions remain disabled. Release preparation installs the
+locked tools inside the frozen importer workspace and runs this gate once per
+verified importer identity, including toolchain and typing-policy inputs.

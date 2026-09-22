@@ -20,6 +20,7 @@ from . import highlights as highlight_selection
 from . import import_contracts as _impl_import_contracts
 from . import source_execution as _impl_source_execution
 from .category_taxonomy import CATEGORIES
+from .event_evidence import build_evidence_index
 from .health import (
     diagnostic_warning,
     sanitized_warning,
@@ -92,10 +93,14 @@ def _publish_snapshots(
         generation_dir.mkdir(parents=True, exist_ok=False)
         immutable_events = generation_dir / "events.json"
         immutable_metadata = generation_dir / "metadata.json"
+        immutable_evidence = generation_dir / "event-evidence.json"
         immutable_highlights = generation_dir / "highlights.json"
 
         metadata["events_path"] = str(immutable_events)
         _atomic_json(immutable_events, events)
+        _atomic_json(immutable_evidence, build_evidence_index(
+            events, run_id=run_id, events_path=str(immutable_events),
+        ))
         _atomic_json(immutable_metadata, metadata)
         _atomic_json(immutable_highlights, highlights or {})
 
@@ -110,6 +115,7 @@ def _publish_snapshots(
             "run_id": run_id,
             "generated_at": metadata["generated_at"],
             "events_path": str(immutable_events),
+            "evidence_path": str(immutable_evidence),
             "metadata_path": str(immutable_metadata),
             "highlights_path": str(immutable_highlights),
             "event_count": len(events),
@@ -128,6 +134,7 @@ def _publish_snapshots(
             "metadata": str(meta_path),
             "manifest": str(manifest_path),
             "immutable_events": str(immutable_events),
+            "immutable_evidence": str(immutable_evidence),
             "immutable_metadata": str(immutable_metadata),
             "highlights": str(highlights_path),
             "immutable_highlights": str(immutable_highlights),

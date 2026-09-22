@@ -52,6 +52,7 @@ class RawEvent(TypedDict, total=False):
     link_kind: str
     source_links: list[str]
     previous_event_ids: list[str]
+    merged_event_ids: list[str]
     preserved_event_id: str
     organizer: str
     description: str
@@ -186,6 +187,7 @@ class CanonicalEvent(Mapping[str, Any]):
     link_kind: str = ""
     source_links: list[str] = field(default_factory=list)
     previous_event_ids: list[str] = field(default_factory=list)
+    merged_event_ids: list[str] = field(default_factory=list)
     organizer: str = ""
     description: str = ""
     """The same copy as the allowed HTML subset; see ``richtext``."""

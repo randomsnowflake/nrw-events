@@ -5,9 +5,10 @@ from __future__ import annotations
 import math
 import re
 import urllib.parse
+from copy import deepcopy
 from dataclasses import MISSING
 from datetime import datetime, time, timedelta
-from typing import Any
+from typing import Any, TypedDict
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import ai_enrichment, category_taxonomy, common, event_types, performance, richtext
@@ -406,7 +407,22 @@ def _discovery_provenance(event: dict[str, Any]) -> None:
     event["discovered_via"] = normalized
 
 
-def _canonical_temporal_fields(event: dict[str, Any]) -> None:
+class TemporalFields(TypedDict, total=False):
+    start_date: str
+    end_date: str
+    date: str
+    ongoing: bool
+    all_day: bool
+    timezone: str
+    daily_schedule: list[dict[str, str]]
+    start_at: str
+    end_at: str
+    time: str
+    quality_warnings: list[dict[str, str]]
+
+
+def canonical_temporal_fields(raw: dict[str, Any]) -> TemporalFields:
+    event = deepcopy(raw)
     # Canonical records can be revalidated after source continuity or
     # deduplication. Recompute this invariant from the current fields instead
     # of carrying a warning that an earlier importer version already repaired.
@@ -500,91 +516,86 @@ def _canonical_temporal_fields(event: dict[str, Any]) -> None:
     elif (event["time"] or event["start_at"]) and not exclusive_all_day_end:
         event["all_day"] = False
 
+    result: TemporalFields = {
+        "start_date": event["start_date"],
+        "end_date": event["end_date"],
+        "date": event["date"],
+        "ongoing": event["ongoing"],
+        "all_day": event["all_day"],
+        "timezone": event["timezone"],
+        "daily_schedule": event["daily_schedule"],
+        "start_at": event["start_at"],
+        "end_at": event["end_at"],
+        "time": event["time"],
+    }
+    if "quality_warnings" in event:
+        result["quality_warnings"] = event["quality_warnings"]
+    return result
 
-def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
-    """Return one canonical event or raise a reason-coded validation error."""
-    if not isinstance(raw_event, dict):
-        raise EventValidationError("record_not_object")
-    event = dict(raw_event)
-    event["title"] = _text(event, "title", 500, required=True)
-    event["source"] = _text(event, "source", 160, required=True)
-    event["source_id"] = normalize_source_id(
-        _text(event, "source_id", 200) or event["source"]
-    )
-    _discovery_provenance(event)
-    inferred_description_source = common.description_source_for(event.get("description", ""))
-    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
-                         ("price", 160), ("category", 500), ("link", 2048)):
-        event[field] = _text(event, field, limit)
-    sanitize_venue_fields(event)
-    _canonical_exhibitor(event)
-    event["description"] = _visitor_description(event["description"])
-    # Source price fields sometimes mix seller logistics with visitor facts.
-    # A stall fee is explicit, but it is not an admission price and must never
-    # drive the visitor-facing price badge — regardless of which adapter found it.
-    if (
-        common.has_seller_fee(event["price"])
-        and not _VISITOR_ADMISSION.search(event["price"])
-    ):
-        event["price"] = ""
-        event["admission_basis"] = ""
-    # Re-built from the allowed vocabulary at the canonical boundary, so a
-    # source that sets this field directly cannot smuggle markup past it, and
-    # discarded outright when it no longer renders the description it belongs to.
-    rich_text = richtext.sanitize_rich_text(event["description_html"])
-    if not richtext.describes_same_copy(rich_text, event["description"]):
-        rich_text = ""
-    event["description_html"] = rich_text or richtext.from_plain_text(event["description"])
-    event["identity_venue"] = _text(event, "identity_venue", 300)
-    event["identity_venue_locked"] = bool(event.get("identity_venue_locked", False))
-    event["identity_time"] = _text(event, "identity_time", 100)
-    event["identity_time_locked"] = bool(event.get("identity_time_locked", False))
-    explicit_venue_id = _text(event, "venue_id", 160)
-    if explicit_venue_id and not re.fullmatch(
-        r"[a-z0-9]+(?:-[a-z0-9]+)*",
-        explicit_venue_id,
-    ):
-        raise EventValidationError("venue_id_invalid")
-    explicit_venue_address = _text(event, "venue_address", 500)
-    explicit_venue_district = _text(event, "venue_district", 160)
-    explicit_venue_type = _text(event, "venue_type", 80)
-    explicit_venue_latitude = event.get("venue_latitude")
-    explicit_venue_longitude = event.get("venue_longitude")
-    # Keep a source-provided address in the resolution input. Otherwise a
-    # generic venue label can wrongly acquire another branch's address and
-    # coordinates during this second canonicalization pass.
-    venue_input = ", ".join(
-        part for part in (event["venue"], explicit_venue_address) if part
-    )
-    if (event["city"].casefold() == "meckenheim"
-            and re.match(r"^Herrenhaus Burg Altendorf(?:,|$)", event["venue"], re.I)
-            and not event["identity_venue_locked"]):
-        event["identity_venue"] = "Herrenhaus Burg Altendorf"
-        event["identity_venue_locked"] = True
-    venue = resolve_venue(venue_input, event["city"], explicit_id=explicit_venue_id)
-    event["venue"] = venue.venue
-    event["venue_id"] = venue.venue_id or explicit_venue_id
-    event["venue_address"] = venue.venue_address or explicit_venue_address
-    event["venue_district"] = venue.venue_district or explicit_venue_district
-    event["venue_type"] = venue.venue_type or explicit_venue_type
-    event["venue_latitude"] = (
-        venue.venue_latitude
-        if venue.venue_latitude is not None else explicit_venue_latitude
-    )
-    event["venue_longitude"] = (
-        venue.venue_longitude
-        if venue.venue_longitude is not None else explicit_venue_longitude
-    )
-    event["venue_id"] = canonical_venue_id(event)
-    canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
-    event["time"] = canonical_time
-    event["time_note"] = common.combine_time_notes(
-        event["time_note"], inferred_time_note,
-    )
-    if len(event["time_note"]) > 500:
-        raise EventValidationError("time_note_too_long")
-    if event["time"] and not re.fullmatch(r"\d{2}:\d{2}(?:–\d{2}:\d{2})?", event["time"]):
-        raise EventValidationError("time_invalid")
+
+class IdentityProvenanceFields(TypedDict):
+    link_kind: str
+    source_links: list[str]
+    merged_event_ids: list[str]
+    previous_event_ids: list[str]
+
+
+def canonical_identity_provenance(raw: dict[str, Any]) -> IdentityProvenanceFields:
+    """Validate link/lineage fields without modifying the caller's record."""
+    event = dict(raw)
+    if event["link"]:
+        parsed = urllib.parse.urlsplit(event["link"])
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise EventValidationError("link_invalid")
+    link_kind = _text(event, "link_kind", 16)
+    if link_kind not in {"", "detail", "overview"}:
+        raise EventValidationError("link_kind_invalid")
+    event["link_kind"] = link_kind
+    source_links = event.get("source_links") or []
+    if not isinstance(source_links, list | tuple):
+        raise EventValidationError("source_links_invalid")
+    validated_source_links: list[str] = []
+    for value in source_links:
+        link = str(value or "").strip()
+        parsed = urllib.parse.urlsplit(link)
+        if not link or parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise EventValidationError("source_links_invalid")
+        if link not in validated_source_links:
+            validated_source_links.append(link)
+    if link_kind == "detail" and event["link"] and event["link"] not in validated_source_links:
+        validated_source_links.append(event["link"])
+    event["source_links"] = validated_source_links[:20]
+    merged_ids = event.get("merged_event_ids") or []
+    if not isinstance(merged_ids, list) or any(not isinstance(value, str) or not value for value in merged_ids):
+        raise EventValidationError("merged_event_ids_invalid")
+    event["merged_event_ids"] = list(dict.fromkeys(merged_ids))
+    previous_event_ids = event.get("previous_event_ids") or []
+    if not isinstance(previous_event_ids, list | tuple):
+        raise EventValidationError("previous_event_ids_invalid")
+    event["previous_event_ids"] = list(dict.fromkeys(
+        str(value or "").strip() for value in previous_event_ids
+        if str(value or "").strip()
+    ))[:20]
+    return {
+        "link_kind": event["link_kind"],
+        "source_links": event["source_links"],
+        "merged_event_ids": event["merged_event_ids"],
+        "previous_event_ids": event["previous_event_ids"],
+    }
+
+
+class VisitorFields(TypedDict, total=False):
+    admission: dict[str, Any]
+    admission_basis: str
+    price: str
+    availability: str
+    description_source: str
+    quality_warnings: list[dict[str, str]]
+
+
+def canonical_visitor_fields(raw: dict[str, Any], inferred_description_source: str) -> VisitorFields:
+    """Resolve visitor admission and disclosure, preserving all validation reasons."""
+    event = deepcopy(raw)
     admission_basis = _text(event, "admission_basis", 16)
     if admission_basis not in {"", "explicit", "inferred", "implicit", "editorial"}:
         raise EventValidationError("admission_basis_invalid")
@@ -688,36 +699,134 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
                 "note": "",
                 "donationSuggested": False,
             }
-    if event["link"]:
-        parsed = urllib.parse.urlsplit(event["link"])
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise EventValidationError("link_invalid")
-    link_kind = _text(event, "link_kind", 16)
-    if link_kind not in {"", "detail", "overview"}:
-        raise EventValidationError("link_kind_invalid")
-    event["link_kind"] = link_kind
-    source_links = event.get("source_links") or []
-    if not isinstance(source_links, list | tuple):
-        raise EventValidationError("source_links_invalid")
-    validated_source_links: list[str] = []
-    for value in source_links:
-        link = str(value or "").strip()
-        parsed = urllib.parse.urlsplit(link)
-        if not link or parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise EventValidationError("source_links_invalid")
-        if link not in validated_source_links:
-            validated_source_links.append(link)
-    if link_kind == "detail" and event["link"] and event["link"] not in validated_source_links:
-        validated_source_links.append(event["link"])
-    event["source_links"] = validated_source_links[:20]
-    previous_event_ids = event.get("previous_event_ids") or []
-    if not isinstance(previous_event_ids, list | tuple):
-        raise EventValidationError("previous_event_ids_invalid")
-    event["previous_event_ids"] = list(dict.fromkeys(
-        str(value or "").strip() for value in previous_event_ids
-        if str(value or "").strip()
-    ))[:20]
-    _canonical_temporal_fields(event)
+    result: VisitorFields = {
+        "admission": event["admission"],
+        "admission_basis": event["admission_basis"],
+        "price": event["price"],
+        "availability": event["availability"],
+        "description_source": event["description_source"],
+    }
+    if "quality_warnings" in event:
+        result["quality_warnings"] = event["quality_warnings"]
+    return result
+
+
+class VenueFields(TypedDict):
+    venue: str
+    venue_id: str
+    venue_address: str
+    venue_district: str
+    venue_type: str
+    venue_latitude: Any
+    venue_longitude: Any
+    identity_venue: str
+    identity_venue_locked: bool
+
+
+def canonical_venue_fields(raw: dict[str, Any]) -> VenueFields:
+    """Resolve explicit venue evidence; coordinate validation follows in its original order."""
+    event = dict(raw)
+    explicit_venue_id = _text(event, "venue_id", 160)
+    if explicit_venue_id and not re.fullmatch(
+        r"[a-z0-9]+(?:-[a-z0-9]+)*",
+        explicit_venue_id,
+    ):
+        raise EventValidationError("venue_id_invalid")
+    explicit_venue_address = _text(event, "venue_address", 500)
+    explicit_venue_district = _text(event, "venue_district", 160)
+    explicit_venue_type = _text(event, "venue_type", 80)
+    explicit_venue_latitude = event.get("venue_latitude")
+    explicit_venue_longitude = event.get("venue_longitude")
+    # Keep a source-provided address in the resolution input. Otherwise a
+    # generic venue label can wrongly acquire another branch's address and
+    # coordinates during this second canonicalization pass.
+    venue_input = ", ".join(
+        part for part in (event["venue"], explicit_venue_address) if part
+    )
+    if (event["city"].casefold() == "meckenheim"
+            and re.match(r"^Herrenhaus Burg Altendorf(?:,|$)", event["venue"], re.I)
+            and not event["identity_venue_locked"]):
+        event["identity_venue"] = "Herrenhaus Burg Altendorf"
+        event["identity_venue_locked"] = True
+    venue = resolve_venue(venue_input, event["city"], explicit_id=explicit_venue_id)
+    event["venue"] = venue.venue
+    event["venue_id"] = venue.venue_id or explicit_venue_id
+    event["venue_address"] = venue.venue_address or explicit_venue_address
+    event["venue_district"] = venue.venue_district or explicit_venue_district
+    event["venue_type"] = venue.venue_type or explicit_venue_type
+    event["venue_latitude"] = (
+        venue.venue_latitude
+        if venue.venue_latitude is not None else explicit_venue_latitude
+    )
+    event["venue_longitude"] = (
+        venue.venue_longitude
+        if venue.venue_longitude is not None else explicit_venue_longitude
+    )
+    event["venue_id"] = canonical_venue_id(event)
+    return {
+        "venue": event["venue"],
+        "venue_id": event["venue_id"],
+        "venue_address": event["venue_address"],
+        "venue_district": event["venue_district"],
+        "venue_type": event["venue_type"],
+        "venue_latitude": event["venue_latitude"],
+        "venue_longitude": event["venue_longitude"],
+        "identity_venue": event["identity_venue"],
+        "identity_venue_locked": event["identity_venue_locked"],
+    }
+
+
+def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
+    """Return one canonical event or raise a reason-coded validation error."""
+    if not isinstance(raw_event, dict):
+        raise EventValidationError("record_not_object")
+    event = dict(raw_event)
+    event["title"] = _text(event, "title", 500, required=True)
+    event["source"] = _text(event, "source", 160, required=True)
+    event["source_id"] = normalize_source_id(
+        _text(event, "source_id", 200) or event["source"]
+    )
+    _discovery_provenance(event)
+    inferred_description_source = common.description_source_for(event.get("description", ""))
+    for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
+                         ("price", 160), ("category", 500), ("link", 2048)):
+        event[field] = _text(event, field, limit)
+    sanitize_venue_fields(event)
+    _canonical_exhibitor(event)
+    event["description"] = _visitor_description(event["description"])
+    # Source price fields sometimes mix seller logistics with visitor facts.
+    # A stall fee is explicit, but it is not an admission price and must never
+    # drive the visitor-facing price badge — regardless of which adapter found it.
+    if (
+        common.has_seller_fee(event["price"])
+        and not _VISITOR_ADMISSION.search(event["price"])
+    ):
+        event["price"] = ""
+        event["admission_basis"] = ""
+    # Re-built from the allowed vocabulary at the canonical boundary, so a
+    # source that sets this field directly cannot smuggle markup past it, and
+    # discarded outright when it no longer renders the description it belongs to.
+    rich_text = richtext.sanitize_rich_text(event["description_html"])
+    if not richtext.describes_same_copy(rich_text, event["description"]):
+        rich_text = ""
+    event["description_html"] = rich_text or richtext.from_plain_text(event["description"])
+    event["identity_venue"] = _text(event, "identity_venue", 300)
+    event["identity_venue_locked"] = bool(event.get("identity_venue_locked", False))
+    event["identity_time"] = _text(event, "identity_time", 100)
+    event["identity_time_locked"] = bool(event.get("identity_time_locked", False))
+    event.update(canonical_venue_fields(event))
+    canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
+    event["time"] = canonical_time
+    event["time_note"] = common.combine_time_notes(
+        event["time_note"], inferred_time_note,
+    )
+    if len(event["time_note"]) > 500:
+        raise EventValidationError("time_note_too_long")
+    if event["time"] and not re.fullmatch(r"\d{2}:\d{2}(?:–\d{2}:\d{2})?", event["time"]):
+        raise EventValidationError("time_invalid")
+    event.update(canonical_visitor_fields(event, inferred_description_source))
+    event.update(canonical_identity_provenance(event))
+    event.update(canonical_temporal_fields(event))
     event["title"] = normalize_event_title(
         event["title"],
         start=common.parse_iso_date(event["start_date"]),
@@ -753,6 +862,8 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         if value is None and field == "distance_km":
             continue
         try:
+            if value is None:
+                raise TypeError("numeric value is missing")
             value = float(value)
         except (TypeError, ValueError) as exc:
             raise EventValidationError(f"{field}_invalid") from exc

@@ -4,14 +4,17 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 export PYTHONPATH="$REPO_DIR/scripts${PYTHONPATH:+:$PYTHONPATH}"
 
-python_bin="python3"
-if [[ -x "$REPO_DIR/.venv/bin/python" ]]; then
+python_bin="${NRW_EVENTS_PYTHON:-python3}"
+if [[ -z "${NRW_EVENTS_PYTHON:-}" && -x "$REPO_DIR/.venv/bin/python" ]]; then
   python_bin="$REPO_DIR/.venv/bin/python"
 fi
 
 # Agent mode wraps this exact gate; it does not choose or skip tests.
 if [[ "${1:-}" == "--agent" ]]; then
   shift
+  if (( $# == 0 )); then
+    exec "$python_bin" "$REPO_DIR/scripts/verify.py" --agent
+  fi
   exec "$python_bin" "$REPO_DIR/scripts/agent_test_runner.py" "$@"
 fi
 

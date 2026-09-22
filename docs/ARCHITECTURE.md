@@ -96,3 +96,12 @@ explain exceptional behavior, but they are not the canonical inventory.
   missing dates, admission, locations, or descriptions.
 - Add regression fixtures for the exact upstream shape and run the full offline
   suite before publication.
+
+## Compatibility migration gate
+
+The offline suite freezes direct legacy facade dependencies in
+`tests/data/legacy-facade-imports.json`. New modules and new facade symbols
+are rejected; remove entries when migrating a caller rather than expanding
+the baseline. Concrete modules retain ownership and existing public exports
+remain compatible. Bonn reviewed policy accepts an explicit `RunContext`;
+a parallel offline test verifies independent correction-expiry windows.

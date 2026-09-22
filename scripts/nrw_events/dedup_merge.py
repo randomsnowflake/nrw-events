@@ -58,6 +58,12 @@ def _merge_duplicate_metadata(
 ) -> Any:
     """Keep the authoritative record and enrich it field by field."""
     updates: dict[str, Any] = {}
+    # Actual merge lineage, distinct from aliases introduced by identity migrations.
+    updates["merged_event_ids"] = list(dict.fromkeys([
+        *(winner.get("merged_event_ids") or []),
+        *(duplicate.get("merged_event_ids") or []),
+        event_id(duplicate),
+    ]))
     link_identity_counts = link_identity_counts or {}
     def unique_detail_link(event: Mapping[str, Any]) -> list[str]:
         link = str(event.get("link") or "")

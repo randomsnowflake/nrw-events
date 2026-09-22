@@ -30,8 +30,12 @@ class ModuleBoundaryTests(unittest.TestCase):
         for filename in domain_modules:
             tree = ast.parse((package / filename).read_text(encoding="utf-8"))
             for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    if node.module.startswith(("nrw_events.sources", ".sources", "sources")):
+                if isinstance(node, ast.ImportFrom):
+                    imported_source = (node.module or "").startswith(("nrw_events.sources", ".sources", "sources"))
+                    package_import = node.module in (None, "nrw_events") and any(
+                        alias.name == "sources" for alias in node.names
+                    )
+                    if imported_source or package_import:
                         violations.append(f"{filename}:{node.lineno}")
                 elif isinstance(node, ast.Import):
                     violations.extend(

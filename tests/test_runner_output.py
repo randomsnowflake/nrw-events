@@ -2560,13 +2560,18 @@ class SnapshotPublicationTests(unittest.TestCase):
                 runner.fcntl, "flock", wraps=runner.fcntl.flock
             ) as flock:
                 paths = runner._publish_snapshots(
-                    settings, [{"title": "Event"}], metadata, "run-1",
+                    settings, [{"title": "Event", "event_id": "event-1"}], metadata, "run-1",
                     highlights=highlights, series_ledger=ledger,
                 )
             with open(paths["manifest"]) as handle:
                 manifest = json.load(handle)
             with open(manifest["events_path"]) as handle:
                 immutable_events = json.load(handle)
+            with open(manifest["evidence_path"]) as handle:
+                evidence = json.load(handle)
+            self.assertEqual(evidence["runId"], "run-1")
+            self.assertEqual(evidence["events"][0]["eventId"], "event-1")
+            self.assertEqual(evidence["events"][0]["rawPaths"], [manifest["events_path"]])
             with open(manifest["metadata_path"]) as handle:
                 immutable_metadata = json.load(handle)
             with open(manifest["highlights_path"]) as handle:
@@ -2579,7 +2584,7 @@ class SnapshotPublicationTests(unittest.TestCase):
 
         self.assertEqual(manifest["run_id"], "run-1")
         self.assertEqual(manifest["event_count"], 1)
-        self.assertEqual(immutable_events, [{"title": "Event"}])
+        self.assertEqual(immutable_events, [{"title": "Event", "event_id": "event-1"}])
         self.assertEqual(immutable_metadata["run_id"], "run-1")
         self.assertEqual(immutable_metadata["events_path"], manifest["events_path"])
         self.assertEqual(immutable_highlights["run_id"], "run-1")

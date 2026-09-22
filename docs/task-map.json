@@ -89,10 +89,14 @@
       "scripts/agent_tools.py",
       "scripts/test.sh",
       "scripts/agent_test_runner.py",
-      "scripts/generate_docs.py"
+      "scripts/generate_docs.py",
+      "scripts/verify.py",
+      "requirements-dev.lock",
+      "typecheck-baseline.ref"
     ],
     "tests": [
-      "tests/test_agent_tools.py"
+      "tests/test_agent_tools.py",
+      "tests/test_verify_gate.py"
     ],
     "docs": [
       "docs/agent-tools.md"
@@ -100,6 +104,7 @@
     "fixtures": [],
     "commands": [
       "bash scripts/test.sh --agent tests.test_agent_tools"
-    ]
+    ],
+    "final_gate": ".venv/bin/python scripts/verify.py --agent"
   }
 }

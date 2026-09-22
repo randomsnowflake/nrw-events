@@ -592,6 +592,76 @@ def _heuristic_confidence(
     return round(min(confidence, 0.95), 2)
 
 
+@dataclass(frozen=True)
+class CategoryEvidenceScore:
+    key: str
+    reason: str
+    title_matches: list[str]
+    description_matches: list[str]
+    hint_matches: list[str]
+
+
+def score_category_evidence(title_comparison: str, description_comparison: str, hint_comparison: str) -> CategoryEvidenceScore:
+    """Rank keyword evidence with deterministic priorities and source weighting."""
+    best_key = "other"
+    best_score = 0
+    best_priority = -1
+    best_reason = "other:no-match"
+    best_title_matches: list[str] = []
+    best_description_matches: list[str] = []
+    best_hint_matches: list[str] = []
+    for rule in RULES:
+        title_keywords = _matched_keywords(title_comparison, rule.keywords, is_title=True)
+        description_keywords = _matched_keywords(description_comparison, rule.keywords, is_title=False)
+        if rule.key == "kids":
+            description_keywords = _kids_description_keywords(
+                description_keywords, description_comparison
+            )
+        hint_keywords = _matched_keywords(hint_comparison, rule.keywords, is_title=False)
+        if not _has_enough_evidence(title_keywords + description_keywords + hint_keywords):
+            continue
+        title_matches = [
+            keyword if isinstance(keyword, str) else keyword.value
+            for keyword in title_keywords
+        ]
+        description_matches = [
+            keyword if isinstance(keyword, str) else keyword.value
+            for keyword in description_keywords
+        ]
+        hint_matches = [
+            keyword if isinstance(keyword, str) else keyword.value
+            for keyword in hint_keywords
+        ]
+        score = 3 * len(title_matches)
+        # A description corroborates an intent, but repeated synonyms must not
+        # snowball past an explicit title format.
+        score += 2 if description_matches else 0
+        # Source categories remain weak fallbacks. Broad bags were discarded
+        # above; focused tags may break an otherwise unsupported tie but cannot
+        # overpower title or description evidence.
+        score += 1 if hint_matches else 0
+        if score == 0:
+            continue
+        if score > best_score or (score == best_score and rule.priority > best_priority):
+            best_key = rule.key
+            best_score = score
+            best_priority = rule.priority
+            best_title_matches = title_matches
+            best_description_matches = description_matches
+            best_hint_matches = hint_matches
+            bits = []
+            if title_matches:
+                bits.append("title=" + ",".join(title_matches[:3]))
+            if description_matches:
+                bits.append("description=" + ",".join(description_matches[:3]))
+            if hint_matches:
+                bits.append("source_category=" + ",".join(hint_matches[:3]))
+            best_reason = f"{rule.key}:" + ";".join(bits)
+
+    return CategoryEvidenceScore(best_key, best_reason, best_title_matches,
+                                 best_description_matches, best_hint_matches)
+
+
 @performance.measured("canonicalization.taxonomy")
 def categorize_event(
     source_category: str,
@@ -792,60 +862,12 @@ def categorize_event(
         title_comparison = _TOURING_SHOW_TOKEN_PATTERN.sub(" ", title_comparison)
         description_comparison = _TOURING_SHOW_TOKEN_PATTERN.sub(" ", description_comparison)
 
-    best_key = "other"
-    best_score = 0
-    best_priority = -1
-    best_reason = "other:no-match"
-    best_title_matches: list[str] = []
-    best_description_matches: list[str] = []
-    best_hint_matches: list[str] = []
-    for rule in RULES:
-        title_keywords = _matched_keywords(title_comparison, rule.keywords, is_title=True)
-        description_keywords = _matched_keywords(description_comparison, rule.keywords, is_title=False)
-        if rule.key == "kids":
-            description_keywords = _kids_description_keywords(
-                description_keywords, description_comparison
-            )
-        hint_keywords = _matched_keywords(hint_comparison, rule.keywords, is_title=False)
-        if not _has_enough_evidence(title_keywords + description_keywords + hint_keywords):
-            continue
-        title_matches = [
-            keyword if isinstance(keyword, str) else keyword.value
-            for keyword in title_keywords
-        ]
-        description_matches = [
-            keyword if isinstance(keyword, str) else keyword.value
-            for keyword in description_keywords
-        ]
-        hint_matches = [
-            keyword if isinstance(keyword, str) else keyword.value
-            for keyword in hint_keywords
-        ]
-        score = 3 * len(title_matches)
-        # A description corroborates an intent, but repeated synonyms must not
-        # snowball past an explicit title format.
-        score += 2 if description_matches else 0
-        # Source categories remain weak fallbacks. Broad bags were discarded
-        # above; focused tags may break an otherwise unsupported tie but cannot
-        # overpower title or description evidence.
-        score += 1 if hint_matches else 0
-        if score == 0:
-            continue
-        if score > best_score or (score == best_score and rule.priority > best_priority):
-            best_key = rule.key
-            best_score = score
-            best_priority = rule.priority
-            best_title_matches = title_matches
-            best_description_matches = description_matches
-            best_hint_matches = hint_matches
-            bits = []
-            if title_matches:
-                bits.append("title=" + ",".join(title_matches[:3]))
-            if description_matches:
-                bits.append("description=" + ",".join(description_matches[:3]))
-            if hint_matches:
-                bits.append("source_category=" + ",".join(hint_matches[:3]))
-            best_reason = f"{rule.key}:" + ";".join(bits)
+    evidence = score_category_evidence(title_comparison, description_comparison, hint_comparison)
+    best_key = evidence.key
+    best_reason = evidence.reason
+    best_title_matches = evidence.title_matches
+    best_description_matches = evidence.description_matches
+    best_hint_matches = evidence.hint_matches
 
     if best_key == "other":
         contextual_format = _contextual_event_format(title_text, description_text)

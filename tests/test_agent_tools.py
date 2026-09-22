@@ -60,7 +60,8 @@ class AgentToolsTests(unittest.TestCase):
                 series_ledger_json=str(root / 'series.json'),
             )
             outputs = _publish_snapshots(
-                settings, [event, event],
+                settings, [event, {**event, 'event_id': 'another-published-id',
+                                   'previous_event_ids': ['another-old-id']}],
                 {'generated_at': '2026-09-06T00:00:00Z', 'run_status': 'healthy'},
                 'recorded-run',
             )
@@ -69,8 +70,11 @@ class AgentToolsTests(unittest.TestCase):
                 for query in ('published-id', 'old-id', event['link']):
                     with self.subTest(output=output, query=query):
                         result = inspect_snapshot(query, path, limit=1)
-                        self.assertEqual(result['match_count'], 2)
-                        self.assertEqual(result['omitted'], 1)
+                        # Two occurrences can share their source URL, but a
+                        # published snapshot must retain distinct current IDs.
+                        expected = 2 if query == event['link'] else 1
+                        self.assertEqual(result['match_count'], expected)
+                        self.assertEqual(result['omitted'], expected - 1)
                         self.assertEqual(result['matches'][0]['section'], 'events')
                         self.assertNotIn('description', result['matches'][0]['record'])
                         self.assertIsNone(result['run_id'])
