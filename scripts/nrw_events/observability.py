@@ -94,8 +94,8 @@ def configure_logging(run_id: str, level: str, log_path: str = "", json_log_path
         handler = logging.FileHandler(path, encoding="utf-8")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-    for handler in logger.handlers:
-        handler.addFilter(_LoggingContextFilter(run_id))
+    for configured_handler in logger.handlers:
+        configured_handler.addFilter(_LoggingContextFilter(run_id))
     logger.info("run started", extra={"run_id": run_id, "source": "runner"})
     return logger
 
