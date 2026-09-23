@@ -8,7 +8,8 @@ from html import escape
 _URL = re.compile(r'https?://[^\s<>]+', re.I)
 _PLACEHOLDER = re.compile(
     r'^(?:wird\s+(?:(?:noch|später)\s+|auf\s+der\s+(?:Homepage|Website)\s+)?'
-    r'bekannt\s*gegeben|noch\s+nicht\s+bekannt|Ort\s+folgt|siehe\s+(?:Homepage|Website))\.?$', re.I,
+    r'bekannt\s*gegeben|noch\s+nicht\s+bekannt|Ort\s+folgt|siehe\s+(?:Homepage|Website)'
+    r'|(?:Der\s+)?Veranstaltungsort\s+ist\s+(?:der\s+)?(?:Start|Ausgangs|Treff)punkt(?:\s+(?:der|des)\s+\w+)?)\.?$', re.I,
 )
 
 

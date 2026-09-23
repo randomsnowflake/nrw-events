@@ -8,7 +8,7 @@ from tests.test_venue_registry import event
 
 class VenueQualityTests(unittest.TestCase):
     def test_invalid_fields_are_omitted_with_diagnostic_and_stable_identity(self):
-        for value in ['g', 'Parkplatz an der… 20', 'wird auf der Homepage bekannt gegeben']:
+        for value in ['g', 'Parkplatz an der… 20', 'wird auf der Homepage bekannt gegeben', 'Der Veranstaltungsort ist der Startpunkt der Tour']:
             with self.subTest(value=value):
                 result = canonicalize_event(event(venue=value))
                 self.assertEqual(result.venue, '')
