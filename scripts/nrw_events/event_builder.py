@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import cast
 from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, performance, richtext
@@ -869,7 +870,7 @@ def build_event(draft: EventDraft, *, _prepared: _QualityPreparation | None = No
     if city.casefold() == "meckenheim" and re.match(r"^Herrenhaus Burg Altendorf(?:,|$)", venue, re.I):
         ev["identity_venue"] = "Herrenhaus Burg Altendorf"
         ev["identity_venue_locked"] = True
-    sanitize_venue_fields(ev)
+    sanitize_venue_fields(cast(dict, ev))
     if status == "postponed":
         replacement_dates = [
             candidate for candidate in extract_dates(f"{title} {description}")
