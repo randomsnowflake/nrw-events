@@ -61,21 +61,6 @@ class HardeningRegressionTests(unittest.TestCase):
 
         self.assertEqual(remaining.call_count, 2)
 
-    def test_search_results_use_the_bundled_event_pipeline(self):
-        with mock.patch.object(common, "TODAY", datetime(2026, 8, 3)), \
-                mock.patch.object(common, "END_DATE", datetime(2026, 8, 9)):
-            event = common.search_result_event(
-                "Album Release-Konzert in Bonn",
-                "https://münchen.example/event",
-                "5. August 2026, 20 Uhr im Pantheon Bonn.",
-                "Exa Search",
-                0.58,
-            )
-        self.assertIsNotNone(event)
-        self.assertEqual(event and event["category_key"], "concert")
-        self.assertEqual(event and event["link"], "https://xn--mnchen-3ya.example/event")
-        self.assertIn("venue_id", event or {})
-        self.assertIn("admission_basis", event or {})
 
     def test_event_draft_is_the_typed_builder_boundary(self):
         event = build_event(EventDraft(

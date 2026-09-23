@@ -75,8 +75,10 @@ prose are retained. Changes in programme, source, venue or title invalidate the
 category decision; no occurrence facts, descriptions or identity guards are
 shared by this cache. Uncertain categories retain the deterministic source
 category. A structured record with a locked category makes no Jev request at all.
-The threshold is conservative policy, not calibrated accuracy. Category and
-coverage calls share one 15-second budget with no transport retry.
+The threshold is conservative policy, not calibrated accuracy. Uncached category and
+coverage questions are sent together in one request with a 15-second budget and
+no transport retry. Cached groups are omitted. All response groups must validate
+before new answers are cached; previously cached groups survive provider failure.
 
 The writer produces only `ai_summary` when Jev is active. With Jev disabled it
 may also classify an unlocked category. Time, venue, city, organizer, admission,
@@ -87,6 +89,10 @@ remain mandatory, and accepted cached summaries are reused unchanged.
 On a failed summary, Jev can replace a full writer retry with a narrowly scoped
 removal decision. Only sentences nominated by existing local promotion, sponsor,
 health-claim, unsupported admission/registration or audience checks are eligible.
+Before any Jev request or cache lookup, the proposed remainder must pass the full
+local validator with the original source material and publication occurrence facts.
+Too-short, copied or otherwise invalid remainders go directly to the writer retry
+without paying for an unusable semantic approval.
 Jev must accept with >= 0.98 that deleting them loses no supported visitor fact.
 Mixed factual/promotional sentences require rewriting. Copying and incomplete
 sentences cannot use deletion. The entire edited summary then passes the original
@@ -103,3 +109,47 @@ replaced; it is removed before writing. Token/cost usage is included in the
 existing enrichment totals. INFO logs report routing outcomes and usage without
 source text or credentials. The website release transfers the decision cache
 alongside accepted summaries, preserving existing production decision rows.
+
+## Typesafe documentation review (20 September 2026)
+
+Reviewed the official [introduction](https://docs.typesafe.ai/introduction),
+[Choice](https://docs.typesafe.ai/primitives/choice),
+[Noul](https://docs.typesafe.ai/primitives/noul),
+[structured questions](https://docs.typesafe.ai/primitives/advanced),
+[fan-out](https://docs.typesafe.ai/patterns/fan-out) and
+[confidence](https://docs.typesafe.ai/confidence) guidance.
+
+- Keep code in control; use the typed Decisions endpoint, not chat JSON prompting.
+  Direct HTTP is supported; changing SDK or credentials is unnecessary.
+- Batch the independent unresolved category and extraction-routing questions.
+  Jev evaluates each question independently; it cannot see other question ids or
+  instructions. The shared state contains the full semantic event material.
+  Coverage has its exact candidate occurrence facts in structured instructions;
+  category cannot see those facts. This keeps the independently cached category
+  reusable across dates without weakening the occurrence-specific facts key.
+- Describe category boundaries in English, not just German display labels. Keep
+  every category and explicit `other`/`unknown` exits. Do not translate or shorten
+  original German source material. Ambiguous activity/audience combinations abstain.
+- Count usage once per API request, never once per returned question or cache group.
+  Internal routing metadata retains answers, probabilities and provider confidence
+  for diagnosis; it is stripped before generative writing and public output.
+- The category's chosen-option probability threshold remains 0.98. Probability
+  and provider `confidence` are different quantities; the official docs explicitly
+  permit using the distribution directly. This threshold is an application policy,
+  not an empirically established 98 percent accuracy guarantee.
+
+An evaluated alternative split coverage into three Nouls (missing information,
+contradiction, concrete occurrence) and converted sentence repair to a Noul about
+lost supported facts. The docs recommend Noul for binary propositions, but this
+model's conservative probability gate rejected the previously accepted safe
+repair (0.06 probability of information loss, above the 0.02 ceiling). The mixed
+fact/invalid-claim case correctly remained a rewrite. Do not enable that migration
+or relax thresholds simply to follow the primitive recommendation. The production
+Choice contracts retain the tested action routing and safe fallback. Coverage is
+restricted to short near-repetitions; complicated material goes to extraction.
+Revisit atomic Noul decomposition with a representative labeled evaluation set.
+
+Validation includes a live before/after request comparison, six synthetic safety
+and cache cases, and shadow classification of eight source-backed snapshot events.
+Shadow results are diagnostics only: they do not overwrite source categories or
+publish events. Provider probes are not a calibrated accuracy or speed benchmark.

@@ -803,20 +803,6 @@
       "region": "bonn-region",
       "adapter": "python",
       "callable": "nrw_events.sources.ruhrguide:fetch"
-    },
-    {
-      "id": "exa-search",
-      "display_name": "Exa Search",
-      "region": "bonn-region",
-      "adapter": "python",
-      "callable": "nrw_events.sources.search:fetch_exa"
-    },
-    {
-      "id": "grok-search",
-      "display_name": "Grok Search",
-      "region": "bonn-region",
-      "adapter": "python",
-      "callable": "nrw_events.sources.search:fetch_grok"
     }
   ]
 }

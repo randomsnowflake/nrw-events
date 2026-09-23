@@ -8,7 +8,8 @@ afterwards. ``Wochenmarkt`` (31), ``Garten, Pflanzenmarkt`` (43) and
 
 Two properties of the listing shape the parser:
 
-* The ``eventname`` is the *venue* ("Hit-Markt", "ASV"), not the market name, so
+* The ``eventname`` often names a venue ("Hit-Markt", "ASV"), but may instead
+  contain a generic market title. Those titles are not published as venues. Thus
   cross-source title matching against the directly integrated organizers cannot
   work. The listing does expose the organizer, so records belonging to an organizer
   we already read first hand are dropped instead — deduplicating at the source
@@ -17,12 +18,16 @@ Two properties of the listing shape the parser:
   after the reporting window. A short window therefore costs one request per
   format.
 
-Only listing pages are fetched; the per-event detail pages are never requested.
+Listing pages supply occurrences; the shared detail pass adds verified location
+data without copying the selected detail occurrence to other dates.
 """
 
 import re
+from collections.abc import Callable
+from typing import Any
 
 from .. import common
+from ..detail_extractors.marktcom import generic_market_name
 from ..models import AdmissionDefault
 from . import regional_common as rc
 
@@ -140,7 +145,7 @@ def _detail_title(html: str) -> str:
     return rc.clean(match.group(1)) if match else ""
 
 
-def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> list:
+def events_from_listing(html: str, category_id: int, detail_fetcher: Callable[[str], str] | None = None) -> list[Any]:
     """Parse one listing page. Ad blocks and integrated organizers are skipped."""
     query_category_label = WANTED_CATEGORIES.get(category_id, "Markt")
     events = []
@@ -221,7 +226,7 @@ def events_from_listing(html: str, category_id: int, detail_fetcher=None) -> lis
         )
         if event:
             # This field sometimes contains a programme label rather than a place.
-            if re.match(r"^(?:Info- und Tauschtag|(?:Briefmarken|Münzen|Ansichtskarten)[-, &]+(?:tausch|börse))\b", venue, re.I):
+            if generic_market_name(venue, city) or re.match(r"^(?:Info- und Tauschtag|(?:Briefmarken|Münzen|Ansichtskarten)[-, &]+(?:tausch|börse))\b", venue, re.I):
                 event["identity_venue"] = event["venue"]
                 event["identity_venue_locked"] = True
                 event["venue"] = ""

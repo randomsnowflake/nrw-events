@@ -279,9 +279,6 @@
   "sources/schmitt_markets.py": [
     "nrw_events.common"
   ],
-  "sources/search.py": [
-    "nrw_events.common"
-  ],
   "sources/siebengebirge.py": [
     "nrw_events.common"
   ],

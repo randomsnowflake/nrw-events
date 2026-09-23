@@ -88,6 +88,7 @@ def write_summary(
             if quality_error and jev_active and row["stage2_attempts"] + 1 < configured.max_attempts:
                 repaired = ai_summary_repair.repair(
                     connection, summary=result.get("ai_summary") or "", error=quality_error, facts=quality_facts,
+                    source_material=source_material,
                     model=configured.jev_model, api_key=configured.jev_api_key,
                     timeout_seconds=min(15.0, configured.timeout_seconds),
                 )

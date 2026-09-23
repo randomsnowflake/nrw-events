@@ -11,7 +11,7 @@ bash {baseDir}/scripts/nrw-events.sh [days_ahead]   # default: 3 (weekend)
 Every event is discovered **live** at run time — there are no hardcoded event
 names or dates anywhere in the code. The script fans out across official APIs,
 JSON-LD pages, iCal feeds, municipal/regional calendars, venue calendars,
-nightlife sources, and web-search fallbacks. Current sources include Köln Open
+and nightlife sources. Current sources include Köln Open
 Data, Bonn.de JSON + sports + annual "Veranstaltungsjahr" listings, Harmonie
 Bonn, Rheinauen-Flohmarkt, Bundeskunsthalle, Königswinter,
 VVS Siebengebirge, Siegburg, Troisdorf, Naturregion Sieg, Hennef, Meckenheim,
@@ -33,8 +33,9 @@ Siegburg landing page, Street Food Festival "Das Original", Choco Dealer),
 BV Holzlar (Bonn-Ost neighbourhood associations: Holzlar, Kohlkaul,
 Roleber-Gielgen, Mühlenverein), Rhein in Flammen Bonn,
 Literaturhaus Bonn, Parkbuchhandlung Bad Godesberg,
-Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, Ruhr-Guide, and Exa Search.
-Grok Search is permanently retired. Bonn sport-club scrape candidates discovered for
+Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, and Ruhr-Guide.
+Event discovery has no online-search provider or search API credentials.
+Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
 Bonn.de sports + annual Veranstaltungjahr pages, TGV Bonn, 1. BC Beuel, SSF
 Bonn, Bonn Rugby UC, OFC Bonn, Post-Sportverein Bonn Clubway feed, Bonner
@@ -121,22 +122,14 @@ To trim output for terse contexts, set `NRW_EVENTS_MAX_PER_SECTION=N`.
 - Poppelsdorf/Endenich/Beuel/Bad Godesberg/Ippendorf/Dransdorf are first-class
   discovery areas. Events on the Poppelsdorfer Meile/Clemens-August-Straße should be
   considered highly relevant, even if they are mostly gastro/local/neighbourhood.
-- The Exa search fallback already includes neighbourhood and province terms
-  (`Stadtteilfest`, `Dorffest`, `Kirmes`, `Genussmeile`, `Weinmeile`, `Rundgang`,
-  `Führung`, `Natur`, `Kottenforst`, `Siebengebirge`, `Königswinter`, `Drachenfels`,
-  `Ahrtal`, `Dernau`, `Mayschoss`, `Poppelsdorf`, `Endenich`, `Beuel`,
-  `Bad Godesberg`, …). Edit `sources/search.py → search_queries()` to tune.
 
 ## Ahrtal / Ahrweiler inclusion
 
 - Nearby **Ahrtal / Ahrweiler / Bad Neuenahr-Ahrweiler** wine walks, vineyard
   hikes, and valley festivals are still in scope — from Bonn they are often as
   practical as Köln and much more relevant for wine/outdoor/scenic weekends.
-- They are surfaced via the **Exa search fallback** (which includes
-  `site:ahrtal.com` and Ahr wine/walk queries) and ranked highly by the wine/outdoor
-  category weights. There is no dedicated Ahrtal scraper, because `ahrtal.com` and
-  `ahrwein.de` expose no structured (JSON-LD/iCal) event data — a bespoke HTML
-  scraper there was unreliable and was removed.
+- These events must come from registered municipal, tourism or organizer sources;
+  there is no broad-web search fallback.
 - Do **not** demote an otherwise adult/outdoor/wine event just because the
   description mentions `Kinder`, `Familie`, or a kids quiz. Demote kids-only events,
   but not wine walks, vineyard hikes, markets, outdoor festivals, or food/wine
@@ -146,7 +139,6 @@ To trim output for terse contexts, set `NRW_EVENTS_MAX_PER_SECTION=N`.
 
 Defaults favour **quantity over quality** (filter the full list yourself):
 
-- `EXA_API_KEY` — credentials for the optional Exa search fallback.
 - `NRW_EVENTS_MAX_PER_SECTION=N` — cap events shown per category (0/unset = all).
 - `NRW_EVENTS_REPORT_MAX_CHARS=N` — optionally cap the complete Markdown report (0/unset = full output).
 - `NRW_EVENTS_DAYS_AHEAD=3` — default time window when the CLI has no day argument (1–90).
@@ -159,7 +151,6 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_PREVIOUS_META_JSON` — previous published metadata used to retain unexpired events from a degraded source.
 - `NRW_EVENTS_DESCRIPTION_MAX_CHARS=700` — maximum normalized description length.
 - `NRW_EVENTS_CATEGORY_FALLBACK_CACHE=/path/cache.json` — optional reviewed category cache; the importer itself never invokes an LLM.
-- `NRW_EVENTS_EXA_QUERIES=10` — how many `search_queries()` to send to Exa (~5 results each).
 - `NRW_EVENTS_USER_AGENT` — override the default browser-like user agent.
 - `NRW_EVENTS_HTTP_RETRY_ATTEMPTS=5` — transient HTTP/network retry limit.
 - `NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS=45.0` — total request, retry, and backoff budget.
@@ -234,7 +225,7 @@ behaviour, not a bug:
 - **Tourismus Siebengebirge** (siebengebirge.com) — only ever served a stale
   past-season list, nothing forward-looking. Removed.
 - **Ahrtal / Ahrwein** (ahrtal.com, ahrwein.de) — no JSON-LD/iCal; HTML scrape was
-  unreliable. Ahr valley now comes via Exa search. Removed.
+  unreliable. Removed; coverage requires a verified source adapter.
 - Songkick and Rausgegangen.de (removed; Rausgegangen blocks headless),
   Bandsintown (auth deny), Ticketmaster (no key),
   ga.de RSS (404), opendata.bonn.de CKAN (404).

@@ -61,7 +61,7 @@ class DecisionsRoutingTests(unittest.TestCase):
         self.assertEqual(result, second)
         with closing(sqlite3.connect(self.settings.cache_db)) as db:
             row = db.execute("SELECT input_tokens, stage1_json FROM ai_event_enrichment").fetchone()
-            self.assertEqual(row[0], 742)  # Two independent decisions + one writer, counted exactly once
+            self.assertEqual(row[0], 421)  # One batched decision request + one writer, counted once
             self.assertTrue(json.loads(row[1])["_jev"]["facts_replaced"])
 
     def test_additional_programme_and_uncertainty_keep_extraction(self):
@@ -118,10 +118,10 @@ class DecisionsRoutingTests(unittest.TestCase):
             for _ in range(2):
                 result = ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1)
                 self.assertIsNone(result["facts"])
-            self.assertEqual(evaluate.call_count, 2)
+            self.assertEqual(evaluate.call_count, 1)
             self.assertEqual(result["usage"], {})
             ai_decisions.route(db, payload, model="changed", api_key="fake", timeout_seconds=1)
-            self.assertEqual(evaluate.call_count, 4)
+            self.assertEqual(evaluate.call_count, 2)
 
     def test_locked_category_preserved(self):
         result, _, _ = self.run_event(decision(), category_key="stage", category_confidence=1.0)
@@ -184,3 +184,50 @@ class DecisionsRoutingTests(unittest.TestCase):
         self.assertTrue(result["ai_summary"])
         self.assertEqual([c["stage"] for c in writer.calls], ["summary"])
         self.assertEqual(result["category_key"], "other")
+
+    def test_unresolved_questions_are_batched(self):
+        _, _, api = self.run_event(decision())
+        api.assert_called_once()
+        request = api.call_args.kwargs
+        self.assertEqual(set(request["questions"]), {"coverage", "category"})
+        self.assertNotIn("start_date", request["state"])
+        self.assertIn("candidate_facts", request["questions"]["coverage"]["instructions"])
+        self.assertIsInstance(request["questions"]["category"]["instructions"], str)
+
+    def test_occurrence_change_reuses_only_category_from_batched_cache(self):
+        first = ai_policy._input_payload(self.simple, "Klangraum: Konzert im Alten Rathaus.")
+        second = {**first, "start_date": "2026-08-10", "end_date": "2026-08-10"}
+        with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(decision())) as api:
+            for item in (first, second):
+                result = ai_decisions.route(db, item, model="test", api_key="fake", timeout_seconds=1)
+                self.assertIsNotNone(result["facts"])
+            self.assertEqual(api.call_count, 2)
+            self.assertEqual(set(api.call_args.kwargs["questions"]), {"coverage"})
+            self.assertEqual(result["facts"]["start_date"], second["start_date"])
+            self.assertEqual(result["usage"]["input_tokens"], 321)
+
+    def test_category_options_match_taxonomy_and_probability_policy(self):
+        self.assertEqual(set(ai_decisions.questions()["category"]["criteria"]),
+                         set(ai_decisions.category_taxonomy.CATEGORY_BY_KEY) | {"unknown"})
+        for probability, expected in ((.979, None), (.98, "concert")):
+            self.assertEqual(ai_decisions._accepted(decision(probability=probability)["answers"]["category"]), expected)
+
+    def test_cached_category_survives_failed_coverage_batch(self):
+        payload = ai_policy._input_payload(self.simple, "Klangraum: Konzert im Alten Rathaus.")
+        with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(decision())):
+            ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1, facts_known=True)
+            with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=DecisionError("timeout")):
+                result = ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1)
+            self.assertEqual(result["metadata"]["category"], "concert")
+            self.assertIsNone(result["facts"])
+            self.assertEqual(result["usage"], {})
+
+    def test_partial_response_does_not_authorize_or_cache_a_partial_batch(self):
+        payload = ai_policy._input_payload(self.simple, "Klangraum: Konzert im Alten Rathaus.")
+        response = decision()
+        del response["answers"]["coverage"]
+        with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=response):
+            result = ai_decisions.route(db, payload, model="test", api_key="fake", timeout_seconds=1)
+            self.assertIsNone(result["facts"])
+            self.assertIsNone(result["metadata"]["category"])
+            self.assertEqual(db.execute("SELECT count(*) FROM ai_jev_decisions").fetchone()[0], 0)

@@ -8,10 +8,7 @@
 #   bash nrw-events.sh 7      # Full week ahead
 #   bash nrw-events.sh 1      # Just today
 #
-# Optional API keys (set as real env vars or in a .env file at the repo root):
-#   EXA_API_KEY  — enables the Exa neural web-search fallback
-#   Grok event search is retired and cannot be enabled.
-# The script runs without any keys; the deterministic scrapers do the heavy lifting.
+# Event discovery uses deterministic public sources.
 
 set -euo pipefail
 
@@ -19,6 +16,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
 # The Python runner loads .env files itself while preserving real environment
-# variables. Keep the shell wrapper thin so `EXA_API_KEY=... bash ...` cannot be
-# accidentally overwritten by a blank key in a local .env file.
+# variables. Keep the shell wrapper thin so process settings cannot be
+# accidentally overwritten by blank values in a local .env file.
 python3 "$SCRIPT_DIR/nrw-events.py" "$@"

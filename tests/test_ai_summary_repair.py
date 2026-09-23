@@ -57,18 +57,22 @@ class SummaryRepairTests(unittest.TestCase):
                 self.assertEqual(result["ai_summary"], GOOD)
                 self.assertEqual(len(writer.calls), 2)
 
-    def test_locally_invalid_remainder_still_needs_full_retry(self):
+    def test_locally_invalid_remainder_skips_jev_and_keeps_full_retry(self):
         source = event(description="", description_html="", venue="Altes Rathaus", category_key="concert", category_confidence=1)
-        writer = FakeClient([{"ai_summary": "Kammermusik in Bonn. Der Eintritt ist frei."}, {"ai_summary": GOOD}])
-        with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=removal()):
+        # The original passes the ten-word minimum; deleting the unsupported
+        # admission sentence leaves a remainder that can never be published.
+        writer = FakeClient([{"ai_summary": "Kammermusik im Alten Rathaus in Bonn. Der Eintritt ist frei."}, {"ai_summary": GOOD}])
+        with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=removal()) as api:
             result = ai_enrichment.enrich_event(source, settings=self.settings, client=writer)
         self.assertEqual(result["ai_summary"], GOOD)
         self.assertEqual(len(writer.calls), 2)
+        api.assert_not_called()
 
     def test_copying_and_incomplete_sentences_are_never_deleted(self):
         for error in ("summary repeats a long source phrase", "summary ends mid-sentence"):
             with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate") as api:
                 result = ai_summary_repair.repair(db, summary=BAD, error=error, facts=FACTS,
+                                                source_material="",
                                                 model="test", api_key="fake", timeout_seconds=1)
                 self.assertIsNone(result["summary"])
                 api.assert_not_called()
@@ -77,9 +81,47 @@ class SummaryRepairTests(unittest.TestCase):
         with closing(sqlite3.connect(":memory:")) as db, patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=removal()) as api:
             for _ in range(2):
                 result = ai_summary_repair.repair(db, summary=BAD, error="summary invents free admission", facts=FACTS,
+                                                source_material="",
                                                 model="test", api_key="fake", timeout_seconds=1)
             self.assertEqual(api.call_count, 1)
             self.assertEqual(result["usage"], {})
             ai_summary_repair.repair(db, summary=BAD, error="summary invents free admission", facts={**FACTS, "price": "20 Euro"},
+                                    source_material="",
                                     model="test", api_key="fake", timeout_seconds=1)
             self.assertEqual(api.call_count, 2)
+
+    def test_remainder_is_checked_against_source_and_occurrence_before_jev(self):
+        cases = (
+            (GOOD, GOOD, FACTS),  # The retained text copies the source verbatim.
+            (GOOD + " Beginn ist um 22:45 Uhr.", "", FACTS),
+            (GOOD + " Der Termin findet am 10. August 2026 statt.", "",
+             {**FACTS, "_publication_start": "2026-08-09", "_publication_end": "2026-08-09"}),
+        )
+        for retained, source_material, facts in cases:
+            with self.subTest(retained=retained), closing(sqlite3.connect(":memory:")) as db, patch.object(
+                ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=removal(),
+            ) as api:
+                result = ai_summary_repair.repair(
+                    db, summary=retained + " Der Eintritt ist frei.",
+                    error="summary invents free admission", facts=facts, source_material=source_material,
+                    model="test", api_key="fake", timeout_seconds=1,
+                )
+                self.assertIsNone(result["summary"])
+                self.assertEqual(result["usage"], {})
+                api.assert_not_called()
+
+    def test_cached_safe_removal_cannot_bypass_changed_source_validation(self):
+        with closing(sqlite3.connect(":memory:")) as db, patch.object(
+            ai_decisions.OpenRouterDecisionClient, "evaluate", return_value=removal(),
+        ) as api:
+            accepted = ai_summary_repair.repair(
+                db, summary=BAD, error="summary invents free admission", facts=FACTS,
+                source_material="", model="test", api_key="fake", timeout_seconds=1,
+            )
+            rejected = ai_summary_repair.repair(
+                db, summary=BAD, error="summary invents free admission", facts=FACTS,
+                source_material=GOOD, model="test", api_key="fake", timeout_seconds=1,
+            )
+            self.assertEqual(accepted["summary"], GOOD)
+            self.assertIsNone(rejected["summary"])
+            self.assertEqual(api.call_count, 1)

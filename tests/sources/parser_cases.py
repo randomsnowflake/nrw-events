@@ -742,28 +742,6 @@ END:VCALENDAR
         self.assertEqual(fields["tx[endedBeforeDate]"], "2026-07-26")
         self.assertTrue(post_form.call_args.kwargs["retry_safe"])
 
-    def test_search_fallback_requires_a_concrete_date(self):
-        event = common.search_result_event(
-            "Veranstaltungen Bonn dieses Wochenende – Alle Termine",
-            "https://www.anzeigenmarkt-bonn.de/events/wochenende/",
-            "Listing page for upcoming events in Bonn without a concrete date or venue",
-            "Exa Search",
-            0.58,
-        )
-
-        self.assertIsNone(event)
-
-    def test_search_fallback_keeps_in_window_dated_events(self):
-        event = common.search_result_event(
-            "Album Release-Konzert Cumulus – Brotfabrik Bühne Bonn",
-            "https://www.brotfabrik-theater.de/album-release-konzert-cumulus/",
-            "10. Juni 2026 20.00 Uhr Konzert Theatersaal Bonn",
-            "Exa Search",
-            0.58,
-        )
-
-        self.assertIsNotNone(event)
-        self.assertEqual(event and event["date"], "2026-06-10")
 
     def test_date_for_window_rolls_over_new_year(self):
         from nrw_events.sources import regional_common as rc

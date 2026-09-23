@@ -13,7 +13,6 @@ from datetime import datetime
 
 from nrw_events import core, report
 from nrw_events.health import SourceResult
-from nrw_events.sources import search
 
 from tests.helpers import patch_window
 
@@ -39,11 +38,6 @@ class MarketDirectoryAuthorityTests(unittest.TestCase):
                     report.source_authority("Grote & Hiller"),
                 )
 
-    def test_directory_records_still_rank_above_web_search(self):
-        self.assertGreater(
-            report.source_authority("marktcom"),
-            report.source_authority("Exa Search"),
-        )
 
     def test_organizer_wins_dedup_against_higher_scoring_directory(self):
         """A directory must not publish its own link over the organizer's."""
@@ -190,19 +184,6 @@ class ProduceMarketExclusionTests(unittest.TestCase):
                       "Flohmarkt Kölner Altstadt"):
             with self.subTest(title=title):
                 self.assertFalse(core.is_junk_event(self._event(title)))
-
-
-class SearchQueryFormatTests(unittest.TestCase):
-    def test_market_search_query_targets_second_hand_formats_only(self):
-        """Do not spend search budget asking for the formats we then discard."""
-        queries = " ".join(search.search_queries()).casefold()
-
-        self.assertIn("flohmarkt", queries)
-        self.assertIn("trödelmarkt", queries)
-        self.assertIn("antikmarkt", queries)
-        self.assertIn("hofflohmarkt", queries)
-        self.assertNotIn("wochenmarkt", queries)
-        self.assertNotIn("bauernmarkt", queries)
 
 
 if __name__ == "__main__":

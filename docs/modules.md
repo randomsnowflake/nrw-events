@@ -165,7 +165,6 @@ scripts/nrw_events/
     ruhrguide.py
     salsainbonn.py
     schmitt_markets.py
-    search.py
     siebengebirge.py
     siegburg.py
     ssf_bonn.py

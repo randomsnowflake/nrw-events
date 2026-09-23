@@ -954,7 +954,6 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(report.source_authority("Bonn.de Events"), 2)
         self.assertEqual(report.source_authority("Eventbrite NRW"), 1)
         self.assertEqual(report.source_authority("Radio Bonn/Rhein-Sieg"), 1)
-        self.assertEqual(report.source_authority("EXA SEARCH fallback"), 0)
 
     def test_deduplicate_treats_free_entry_prefix_as_same_title(self):
         events = [
@@ -1377,7 +1376,7 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(deduped[0]["source"], "Choco Dealer")
         self.assertTrue(deduped[0]["link"].startswith("https://choco-dealer.com/"))
 
-    def test_deduplicate_replaces_only_radio_fallback_link_from_search_record(self):
+    def test_deduplicate_replaces_only_radio_fallback_link_from_directory_record(self):
         events = [
             {
                 "title": "Pride Bonn", "start_date": "2026-07-18",
@@ -1389,7 +1388,7 @@ class ReportTests(unittest.TestCase):
             {
                 "title": "Pride Bonn", "start_date": "2026-07-18",
                 "date": "2026-07-18", "city": "Bonn", "venue": "Hofgarten",
-                "score": 0.7, "source": "Exa Search", "description": "",
+                "score": 0.7, "source": "Eventbrite NRW", "description": "",
                 "price": "", "link": "https://pridebonn.org/",
                 "time": "", "start_at": "", "end_at": "",
             },

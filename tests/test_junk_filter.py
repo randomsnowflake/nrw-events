@@ -670,27 +670,6 @@ class JunkFilterTests(unittest.TestCase):
                     category="markt",
                 )))
 
-    def test_search_gate_accepts_dated_destination_markets_but_not_static_shops(self):
-        for title in (
-            "Flohmarkt Bonn am Samstag 15. August 2026",
-            "Trödelmarkt Bonn am 15.08.2026",
-            "Troedelmarkt Bonn am Sonntag 16. August 2026",
-            "Antikmarkt Bonn am 16.08.2026",
-        ):
-            with self.subTest(title=title):
-                self.assertFalse(common.is_junk_event(event(
-                    title,
-                    description="Konkreter Termin in Bonn",
-                    category="markt",
-                    source="Exa Search",
-                )))
-
-        self.assertTrue(common.is_junk_event(event(
-            "Antikmarkt-Shop Bonn",
-            description="Öffnungszeiten und unser Sortiment",
-            category="markt",
-            source="Grok Search",
-        )))
 
     def test_keeps_french_music_descriptions_out_of_language_course_filter(self):
         self.assertFalse(common.is_junk_event(event(

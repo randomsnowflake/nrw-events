@@ -34,9 +34,6 @@ RECURRING_DESTINATION_TERMS = _TERMS["recurring_destination"]
 ROUTINE_COURSE_TERMS = _TERMS["routine_course"]
 RECURRING_COURSE_MARKERS = _TERMS["recurring_course_marker"]
 COURSE_CONTEXT_TERMS = _TERMS["course_context"]
-SEARCH_STRONG_SIGNALS = _TERMS["search_strong_signal"]
-EXPLICIT_LOCAL_EVENT_TERMS = _TERMS["explicit_local_event"]
-SEARCH_STATIC_PAGE_TERMS = _TERMS["search_static_page"]
 
 _WEAK_RECURRENCE_TERMS = frozenset({
     "regelmäßig", "regelmaessig", "wöchentlich", "woechentlich", "wiederkehrend",
@@ -105,11 +102,6 @@ _CONDITIONAL_CANCELLATION_PATTERN = re.compile(
 _LANGUAGE_NAME = re.compile(r"\b(?:italienisch|französisch)\b")
 _LANGUAGE_COURSE_CONTEXT = re.compile(
     r"\b(?:anfänger|anfaenger|fortgeschrittene|kurs|lernen|sprachunterricht|unterricht|[abc][12])\b"
-)
-_SEARCH_DATE_SIGNAL = re.compile(
-    r"\b(20\d{2}|\d{1,2}\.\d{1,2}\.|\d{1,2}\s*(?:jan|feb|mär|mae|apr|mai|jun|jul|aug|sep|okt|nov|dez)|"
-    r"montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|wochenende|heute|morgen|am\s+\d)",
-    re.IGNORECASE,
 )
 
 
@@ -310,23 +302,6 @@ def _recurring_course(context: EventText) -> tuple[str, ...] | None:
     return None
 
 
-def _search_static(context: EventText) -> tuple[str, ...] | None:
-    if context.event.get("source") not in {"Exa Search", "Grok Search"}:
-        return None
-    matched = _first(SEARCH_STATIC_PAGE_TERMS, context.text)
-    explicit = _first(EXPLICIT_LOCAL_EVENT_TERMS, context.text)
-    return (matched,) if matched and not explicit else None
-
-
-def _search_evidence(context: EventText) -> tuple[str, ...] | None:
-    if context.event.get("source") not in {"Exa Search", "Grok Search"}:
-        return None
-    explicit = bool(_first(EXPLICIT_LOCAL_EVENT_TERMS, context.text))
-    strong = context.destination_market or bool(_first(SEARCH_STRONG_SIGNALS, context.text))
-    date_signal = bool(_SEARCH_DATE_SIGNAL.search(context.text))
-    return () if not strong or (not date_signal and not explicit) else None
-
-
 @dataclass(frozen=True, slots=True)
 class Rule:
     rule_id: str
@@ -351,8 +326,6 @@ RULES = (
     Rule("civic.course", "routine course or support offer is not a destination event", _routine_course),
     Rule("civic.language-course", "recurring language instruction is not a destination event", _language_course),
     Rule("civic.recurring-course", "recurring course series is not a destination event", _recurring_course),
-    Rule("search.static-page", "search result describes a static page rather than a dated event", _search_static),
-    Rule("search.insufficient-event-evidence", "search result lacks enough topical and dated event evidence", _search_evidence),
 )
 
 

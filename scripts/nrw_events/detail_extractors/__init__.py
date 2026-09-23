@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from ..detail_types import DetailContext
 from ..models import RawEvent
 from . import sites
+from .marktcom import location_context
 
 Extractor = Callable[[str, RawEvent], DetailContext | None]
 
@@ -21,6 +22,7 @@ class DetailSpec:
 # Order matches the original dispatch. Extractors retain their precise path,
 # source-id and occurrence checks; host matching only narrows dispatch.
 SPECS = (
+    DetailSpec("marktcom.de", location_context, repeated=True, block_generic=True),
     DetailSpec("touren-termine.adfc.de", sites._adfc_detail_context),
     DetailSpec("bildungswerk-brotfabrik.de", sites._bildungswerk_brotfabrik_context),
     DetailSpec("klimaviertel-beuel.de", sites._klimaviertel_overview_context, repeated=True),

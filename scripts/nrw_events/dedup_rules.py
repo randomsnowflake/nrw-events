@@ -69,9 +69,6 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
 }
 
 
-_SEARCH_SOURCE_MARKERS = ("exa search", "grok search")
-
-
 _REUSED_OVERVIEW_LINK_THRESHOLD = 5
 
 
@@ -114,10 +111,8 @@ _VENUE_LOCATION_FIELDS = (
 
 
 def source_authority(source: str) -> int:
-    """Rank direct/local publishers above aggregators and search discovery."""
+    """Rank direct/local publishers above aggregators."""
     normalized = " ".join((source or "").casefold().split())
-    if any(marker in normalized for marker in _SEARCH_SOURCE_MARKERS):
-        return 0
     if any(marker in normalized for marker in _AGGREGATOR_SOURCE_MARKERS):
         return 1
     if any(marker in normalized for marker in _MARKET_DIRECTORY_SOURCE_MARKERS):

@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from html import unescape
 from zoneinfo import ZoneInfo
 
 from . import category_taxonomy, performance, richtext
@@ -15,7 +14,6 @@ from .dates import parse_date, parse_iso_date
 from .junk_rules import legacy_junk_decision
 from .location import (
     canonicalize_city,
-    guess_city_from_text,
     haversine,
     refine_bonn_location,
     resolve_location,
@@ -945,38 +943,3 @@ def _legacy_is_junk_event(ev: dict) -> bool:
 def is_junk_event(ev: dict) -> bool:
     """Compatibility wrapper for callers that only need the boolean policy."""
     return evaluate_event_quality(ev).should_drop
-
-
-def search_result_event(
-    title: str,
-    link: str,
-    desc: str,
-    source: str,
-    trust: float,
-    *,
-    explicit_date: datetime | None = None,
-) -> RawEvent | None:
-    """Convert a search result through the same canonical draft pipeline as adapters."""
-    full_text = f"{title} {desc} {link}"
-    extracted_dates = [explicit_date] if explicit_date else extract_dates(full_text)
-    if not extracted_dates:
-        return None
-    if not date_range_overlaps(extracted_dates):
-        return None
-    city_guess = guess_city_from_text(full_text)
-    if not city_guess:
-        return None
-    start = extracted_dates[0]
-    return build_event(EventDraft(
-        title=unescape(_impl_text.clean_html(title)),
-        start=start,
-        end=start,
-        venue="",
-        city=city_guess,
-        description=_impl_text.clean_html(desc),
-        link=link,
-        source=source,
-        category="search fallback",
-        trust=trust,
-        all_day=True,
-    ))

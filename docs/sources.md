@@ -31,10 +31,8 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Cölln Konzept | `c-lln-konzept` | `python` |
 | bonn-region | Deskline regional | `deskline-regional` | `python` |
 | bonn-region | Deutsches Museum Bonn | `deutsches-museum-bonn` | `python` |
-| bonn-region | Exa Search | `exa-search` | `python` |
 | bonn-region | FedCon Events | `fedcon-events` | `python` |
 | bonn-region | Geide Märkte | `geide-m-rkte` | `python` |
-| bonn-region | Grok Search | `grok-search` | `python` |
 | bonn-region | Grote & Hiller | `grote-hiller` | `python` |
 | bonn-region | Hardtberg Kultur | `hardtberg-kultur` | `python` |
 | bonn-region | Harmonie Bonn | `harmonie-bonn` | `python` |

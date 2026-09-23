@@ -202,7 +202,6 @@ _OWNERS = {'DAYS_AHEAD': 'run_state',
  '_ical_recurrence_starts': 'ical',
  'fetch_ical': 'ical',
  'parse_ical': 'ical',
- 'search_result_event': 'event_builder',
  'log_source_error': 'run_state',
  'log_source_quality_skip': 'run_state'}
 _EXTERNAL = {'inspect': ('inspect', None),

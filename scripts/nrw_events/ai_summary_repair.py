@@ -6,7 +6,7 @@ import sqlite3
 import time
 from typing import Any
 
-from . import ai_contracts, ai_decisions
+from . import ai_contracts, ai_decisions, ai_policy
 
 RUBRIC_VERSION = "event-summary-repair-v2"
 # Copying, truncation and factual contradictions need rewriting, not deletion.
@@ -22,6 +22,7 @@ PATTERNS = {
 
 
 def repair(connection: sqlite3.Connection, *, summary: str, error: str, facts: dict[str, Any],
+           source_material: str,
            model: str, api_key: str, timeout_seconds: float, client: Any = None) -> dict[str, Any]:
     """Never waive a validator: the caller must revalidate the complete edited text."""
     outcome: dict[str, Any] = {"summary": None, "usage": {}, "metadata": None}
@@ -34,6 +35,10 @@ def repair(connection: sqlite3.Connection, *, summary: str, error: str, facts: d
     if not removed or not retained:
         return outcome
     candidate = " ".join(retained)
+    # A semantic approval cannot rescue a locally invalid remainder. Check the
+    # same source and occurrence facts as publication before paying for Jev.
+    if ai_policy._summary_quality(candidate, source_material, facts):
+        return outcome
     rubric = {"removal": {
         "type": "choice",
         "instructions": (

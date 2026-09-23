@@ -20,7 +20,7 @@ nur Python 3 Standardbibliothek.
 Die aufbereiteten Termine werden unter https://www.veranstaltungen-bonn.de/ veröffentlicht; jeder Eintrag verweist zur Originalquelle.
 
 > **Unabhängig und nicht verbunden.** Dieses Repository ist nicht mit Bonn.de,
-> Köln Open Data, Bundeskunsthalle, Exa, xAI oder irgendeiner
+> Köln Open Data, Bundeskunsthalle oder irgendeiner
 > anderen Quelle verbunden, gesponsert oder offiziell autorisiert. Es ist nur ein
 > freies Open-Source-Werkzeug, das öffentlich erreichbare Informationen bündelt.
 
@@ -231,15 +231,11 @@ keine Treffer.
 
 ## API-Schlüssel, optional
 
-Das Tool läuft ohne API-Schlüssel. Die deterministischen Quellen erledigen den
-wichtigsten Teil. Ein optionaler Schlüssel aktiviert den Such-Fallback:
+Die Eventsuche nutzt deterministische öffentliche Quellen und benötigt keine
+Such-API-Schlüssel. Online-Suchanbieter sind nicht registriert.
 
-| Schlüssel     | Dienst                 | Aktiviert                                           |
-|---------------|------------------------|-----------------------------------------------------|
-| `EXA_API_KEY` | [Exa](https://exa.ai)  | Websuche für schwer auffindbare lokale Eventseiten  |
-
-Schlüssel können als echte Umgebungsvariablen gesetzt werden oder über eine
-lokale `.env`:
+Schlüssel für die optionale redaktionelle KI-Anreicherung können als echte
+Umgebungsvariablen gesetzt werden oder über eine lokale `.env`:
 
 ```bash
 cp .env.example .env
@@ -311,7 +307,6 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_AI_WORKERS` | `8` | Parallel laufende, voneinander unabhängige AI-Cache-/Provider-Aufgaben für finale Zieltermine (1–16). |
 | `NRW_EVENTS_AI_MAX_EVENTS` | `0` | Optionales Pilotlimit für den finalen deduplizierten AI-Batch; `0` verarbeitet alle Zielevents. |
 | `NRW_EVENTS_AI_MAX_NEW_CACHE_ROWS_PER_DAY` | `150` | Kostenbremse für neue AI-Cache-Zeilen pro UTC-Tag; `0` hebt das Limit nur für bewusst überwachte Läufe auf. |
-| `NRW_EVENTS_EXA_QUERIES`      | `10`     | Anzahl der Exa-Suchanfragen, jeweils ca. 5 Ergebnisse. |
 | `NRW_EVENTS_USER_AGENT`       | moderner Chrome UA | Optionaler Override für HTTP-Requests an öffentliche Quellen. |
 | `NRW_EVENTS_HTTP_RETRY_ATTEMPTS` | `5` | Maximale Versuche für temporäre HTTP-/Netzwerkfehler (`429`, `5xx`, Timeouts). |
 | `NRW_EVENTS_HTTP_RETRY_BASE_SECONDS` | `1.0` | Basis für exponentielles Retry-Backoff mit Jitter. |
@@ -487,8 +482,8 @@ See the generated [sources inventory](sources.md).
   Detailseiten, und die Paginierung endet bei der ersten Seite jenseits des
   Berichtsfensters — ein kurzes Fenster kostet also einen Request pro Format.
   Datensätze von Veranstaltern, die wir bereits direkt lesen, werden verworfen.
-- **Websuche als Fallback:** Exa (`search.py`). Grok Search ist dauerhaft
-  deaktiviert; alte xAI-Schlüssel und Opt-in-Variablen werden nicht verwendet.
+- **Keine Online-Suchanbieter:** Die Quellenregistrierung enthält ausschließlich
+  konkrete Eventquellen; es gibt keinen Such-Fallback oder Such-API-Schlüssel.
 
 ### Quellenautorität bei Duplikaten
 
@@ -500,7 +495,6 @@ besitzt, wenn zwei Quellen dieselbe Veranstaltung melden. Die Stufen sind:
 | `3`   | Direkte Veranstalter und kommunale Kalender (Standard) |
 | `2`   | Civic-Aggregatoren (`bonn.de`) |
 | `1`   | Aggregatoren und **fremde Marktverzeichnisse** |
-| `0`   | Websuche (Exa, Grok) |
 
 Marktverzeichnisse listen die Termine der Veranstalter erneut und servieren dabei
 auch Termine weiter, die der Veranstalter bereits abgesagt hat. Sie stehen deshalb
