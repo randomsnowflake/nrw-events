@@ -299,6 +299,24 @@ class RunnerOutputTests(unittest.TestCase):
 
         self.assertEqual(ai_input["description"], "Private aggregate-owned source copy.")
 
+    def test_publication_ai_material_survives_ai_filled_time(self):
+        raw = {
+            "title": "Herbstmarkt", "source": "Marktcom", "source_id": "marktcom",
+            "date": "2026-10-03", "score": 1.0, "city": "Bonn",
+        }
+        pre_ai_id = event_id(runner.validate_event(raw))
+        # AI filled the time; the pipeline carries the pre-AI identity along.
+        enriched = runner.validate_event({**raw, "time": "11:00", "preserved_event_id": pre_ai_id})
+        result = SourceResult("Marktcom", source_id="marktcom")
+        result._ai_source_material = [{
+            "event_id": pre_ai_id, "source_id": "marktcom", "title": "Herbstmarkt",
+            "start_date": "2026-10-03", "score": 1.0, "material": "Eintritt frei.",
+        }]
+
+        ai_input = runner._publication_ai_input(enriched, {"Marktcom": result})
+
+        self.assertEqual(ai_input["description"], "Eintritt frei.")
+
     def test_restricted_publication_boundary_removes_copy_adopted_during_dedup(self):
         canonical = runner.validate_event({
             "title": "Stadtgartenkonzert",
@@ -985,7 +1003,7 @@ class RunnerOutputTests(unittest.TestCase):
             "score": 1.0, "city": "Bonn",
             "description": "Private disabled source material.",
         }
-        disabled_settings = mock.Mock(enabled=False)
+        disabled_settings = mock.Mock(enabled=False, jev_enabled=False)
 
         def disabled_enrichment(events, *, settings, **_kwargs):
             self.assertIs(disabled_settings, settings)

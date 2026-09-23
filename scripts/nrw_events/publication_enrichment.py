@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import sqlite3
 import time
 from collections import Counter
 from collections.abc import Sequence
+from contextlib import closing
 from dataclasses import replace
 
 from . import (
+    ai_decisions,
     ai_enrichment,
     performance,
 )
@@ -34,12 +37,14 @@ def _publication_ai_input(
     raw: dict[str, object] = event.to_dict()
     raw["description"] = ""
     raw["description_html"] = ""
-    pre_ai_id = event_id(replace(event, preserved_event_id=""))
+    # After AI enrichment filled time/venue/city, only the preserved ID still
+    # equals the key the private material was stored under.
+    keys = {event_id(replace(event, preserved_event_id="")), event.preserved_event_id} - {""}
     matches = [
         item
         for result in results.values()
         for item in result._ai_source_material
-        if item.get("event_id") == pre_ai_id
+        if item.get("event_id") in keys
         and item.get("source_id") == event.source_id
         and item.get("title") == event.title
         and item.get("start_date") == event.start_date
@@ -56,6 +61,45 @@ def _publication_ai_input(
     if len(materials) == 1:
         raw["description"] = materials.pop()
     return raw
+
+
+def _resolve_unknown_admission(events: list[CanonicalEvent], results: dict[str, SourceResult]) -> Counter[str]:
+    """Resolve unknown admission from the event's own source text with a confident Jev answer."""
+    outcomes: Counter[str] = Counter()
+    settings = ai_enrichment.settings_from_env()
+    if not (settings.enabled and settings.jev_enabled and settings.jev_api_key):
+        return outcomes
+    # ponytail: sequential with a run budget; unanswered events stay unknown
+    # until a later run. Answers are cached, so only new source text costs time.
+    deadline = time.monotonic() + 180
+    settings.cache_db.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
+        for index, event in enumerate(events):
+            if time.monotonic() >= deadline:
+                outcomes["out_of_time"] += 1
+                break
+            if event.price.strip() or event.admission_basis or event.admission["isFree"] is not None \
+                    or event.admission["amount"] is not None:
+                continue
+            raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
+            choice = ai_decisions.resolve_admission(
+                connection, raw, ai_enrichment._source_material(raw),
+                model=settings.jev_model, api_key=settings.jev_api_key,
+                timeout_seconds=min(15.0, deadline - time.monotonic()),
+            )
+            outcomes[choice or "unanswered"] += 1
+            if choice is None:
+                continue
+            price = ai_decisions.ADMISSION_PRICES.get(choice)
+            # A confident "source states no single visitor price" is a finished review, not a gap.
+            update: dict[str, object] = (
+                {"price": price, "admission_basis": "explicit"} if price else {"admission_checked": True}
+            )
+            try:
+                events[index] = validate_event({**event.to_dict(), **update})
+            except EventValidationError:
+                outcomes["rejected"] += 1
+    return outcomes
 
 
 def _record_publication_ai_metrics(
@@ -234,6 +278,16 @@ def enrich_publication(context: RunContext, batch: SourceBatch, selected: Public
         ai_candidates, source_results, ai_stats_by_source, ai_processing_duration_ms,
         ai_enriched_candidates,
     )
+    try:
+        with performance.span("admission.jev"):
+            admission_outcomes = _resolve_unknown_admission(deduped, source_results)
+        if admission_outcomes:
+            log(logger, 20, f"Jev admission: {dict(sorted(admission_outcomes.items()))}",
+                run_id=run_id, source="ai-enrichment")
+    except (sqlite3.Error, OSError) as exc:
+        # Optional enrichment: resolved events are kept, the rest stay unknown.
+        log(logger, 30, f"Jev admission skipped: {type(exc).__name__}",
+            run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
     for result in source_results.values():
         result._ai_source_material.clear()
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)

@@ -9,9 +9,11 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from nrw_events import ai_decisions, ai_enrichment, ai_policy
+from nrw_events import ai_decisions, ai_enrichment, ai_policy, publication_enrichment
 from nrw_events.decisions import DecisionError
+from nrw_events.validation import validate_event
 
+from tests.helpers import make_event
 from tests.test_ai_enrichment import FACTS, FakeClient, event
 from tests.test_ai_enrichment import SUMMARY as RICH_SUMMARY
 
@@ -231,3 +233,50 @@ class DecisionsRoutingTests(unittest.TestCase):
             self.assertIsNone(result["facts"])
             self.assertIsNone(result["metadata"]["category"])
             self.assertEqual(db.execute("SELECT count(*) FROM ai_jev_decisions").fetchone()[0], 0)
+
+
+class AdmissionDecisionTests(unittest.TestCase):
+    def ask(self, connection, material, choice="free", probability=0.99):
+        options = ai_decisions.ADMISSION_QUESTION["criteria"]
+        probabilities = {key: (1 - probability) / (len(options) - 1) for key in options}
+        probabilities[choice] = probability
+        response = {"model": "typesafe/jev-1.13", "answers": {"admission": {
+            "type": "choice", "choice": choice, "confidence": probability, "probabilities": probabilities}}}
+        with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(response)) as evaluate:
+            price = ai_decisions.resolve_admission(connection, {"title": "Lesung", "venue": "Bücherei"}, material,
+                                                   model="m", api_key="k", timeout_seconds=5)
+        return price, evaluate.call_count
+
+    def test_confident_answers_map_to_price_and_are_cached(self):
+        with closing(sqlite3.connect(":memory:")) as connection:
+            self.assertEqual(self.ask(connection, "Der Eintritt ist frei."), ("free", 1))
+            self.assertEqual(self.ask(connection, "Der Eintritt ist frei.", "paid"), ("free", 0))
+            self.assertEqual(self.ask(connection, "Karten 12 Euro.", "paid"), ("paid", 1))
+            self.assertEqual(self.ask(connection, "Spende erwünscht.", "donation"), ("donation", 1))
+
+    def test_uncertain_or_signal_free_material_has_no_answer(self):
+        with closing(sqlite3.connect(":memory:")) as connection:
+            self.assertEqual(self.ask(connection, "Frei ab 12 Jahren.", "free", 0.7), (None, 1))
+            self.assertEqual(self.ask(connection, "Tischgebühr 7 Euro.", "vendor_only"), ("vendor_only", 1))
+            self.assertEqual(self.ask(connection, "Eine Lesung für Kinder."), (None, 0))
+
+    def test_publication_fills_only_unknown_admission_and_revalidates(self):
+        unknown = validate_event(make_event(description="Lesung in der Bücherei."))
+        unstated = validate_event(make_event(title="Vortrag", description="Vortrag im Rathaus."))
+        priced = validate_event(make_event(title="Konzert", description="Karten 12 Euro.", price="12 €"))
+        events = [unknown, unstated, priced]
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(ai_enrichment, "settings_from_env", return_value=ai_enrichment.AISettings(
+                    enabled=True, api_key="", model="m", cache_db=Path(tmp) / "c.sqlite3",
+                    jev_enabled=True, jev_api_key="k")), \
+                patch.object(ai_decisions, "resolve_admission", side_effect=["free", "not_stated"]) as resolve:
+            publication_enrichment._resolve_unknown_admission(events, {})
+        self.assertEqual(resolve.call_count, 2)
+        self.assertEqual(events[0].admission["isFree"], True)
+        self.assertEqual(events[0].admission["basis"], "structured")
+        self.assertFalse(events[0].admission_checked)
+        self.assertIsNone(events[1].admission["isFree"])
+        self.assertTrue(events[1].admission_checked)
+        self.assertIs(events[2], priced)
+        # A later known price makes the review marker meaningless.
+        self.assertFalse(validate_event({**events[1].to_dict(), "price": "5 €"}).admission_checked)

@@ -376,7 +376,7 @@ class OpenIssueContractTests(unittest.TestCase):
                 mock.patch.object(
                     runner.ai_enrichment, "settings_from_env",
                     return_value=mock.Mock(
-                        enabled=True, api_key="test-key", batch_timeout_seconds=0.05,
+                        enabled=True, api_key="test-key", batch_timeout_seconds=0.05, jev_enabled=False,
                     ),
                 ), \
                 mock.patch.object(
@@ -408,7 +408,7 @@ class OpenIssueContractTests(unittest.TestCase):
                     runner.ai_enrichment,
                     "settings_from_env",
                     return_value=mock.Mock(
-                        enabled=True, api_key="test-key", batch_timeout_seconds=0.1,
+                        enabled=True, api_key="test-key", batch_timeout_seconds=0.1, jev_enabled=False,
                     ),
                 ), \
                 mock.patch.object(

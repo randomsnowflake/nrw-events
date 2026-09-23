@@ -153,3 +153,31 @@ Validation includes a live before/after request comparison, six synthetic safety
 and cache cases, and shadow classification of eight source-backed snapshot events.
 Shadow results are diagnostics only: they do not overwrite source categories or
 publish events. Provider probes are not a calibrated accuracy or speed benchmark.
+
+## Unknown admission (23 September 2026)
+
+Publication asks Jev about every event whose admission is still unknown after
+source parsing and AI enrichment, for all sources. The input is the event's own
+source text (private material for restricted sources) without occurrence dates,
+so recurring dates with identical text share one cached answer in
+`ai_jev_decisions`; the structured-label fallback includes dates and misses more. Text without a
+price word (`ADMISSION_SIGNAL`) makes no request.
+
+The `choice` options are `free`, `donation`, `paid`, `conditional`, `vendor_only`
+and `not_stated`. Only `free`, `donation` and `paid` at probability >= 0.98 set
+the price (`kostenlos`, `Spende erbeten`, `kostenpflichtig`) with explicit basis;
+Jev never sets an amount. The event is then validated again; the main guard
+against conditional prices is the 0.98 threshold, not validation. A run spends at most
+180 seconds; unanswered events stay unknown until a later run.
+
+A confident `not_stated`, `conditional` or `vendor_only` sets the additive feed
+field `admission_checked: true` while admission stays unknown. The website's
+import overview (`/neue-veranstaltungen/`) then omits its `unknown-admission`
+review flag. Uncertain answers (< 0.98) keep the flag for human review.
+Validation drops the marker as soon as admission becomes known.
+
+Evaluation on the 20 September feed: 717 distinct future events with unknown
+admission, 209 with a price word. In a hand-checked random sample of 100, all 49
+accepted answers were correct; the observed wrong answers ("Frei ab 12 Jahren",
+"kostenlos, Museumseintritt kann anfallen") stayed below 0.8. All 209 resolved
+89 events (57 paid, 29 free, 3 donation) in 86 seconds for under one cent.

@@ -888,6 +888,11 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         status = "postponed"
     event["status"] = status
     event["early_publication"] = bool(event.get("early_publication", False))
+    # Jev read the source and found no single visitor price; meaningless once admission is known.
+    event["admission_checked"] = (
+        event.get("admission_checked") is True
+        and event["admission"]["isFree"] is None and event["admission"]["amount"] is None
+    )
     # URLs contain venue slugs and navigation words such as ``museum`` or
     # ``events``; they are transport metadata, not editorial category evidence.
     try:
