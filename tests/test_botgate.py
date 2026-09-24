@@ -230,5 +230,35 @@ class BotgateTests(unittest.TestCase):
         self.assertEqual(urlopen.call_count, 3)
 
 
+    def test_budget_stops_are_not_cached_and_placeholders_expire_daily(self):
+        detail_cache._reset_detail_page_cache()
+        url = "https://www.bonn.de/slow.php"
+        calls = []
+
+        def fetcher(*_args, **_kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                raise TimeoutError("request or source time budget exhausted")
+            if len(calls) == 2:
+                raise urllib.error.URLError("connection reset")
+            return "<html>ok</html>"
+
+        with patch.object(detail_cache._impl_http, "fetch_url", side_effect=fetcher):
+            with self.assertRaises(TimeoutError):
+                detail_cache.fetch_detail_url(url, cache_namespace="bonn-detail", cache_failures=True)
+            # Own budget stop left no placeholder: the next call really fetches.
+            with self.assertRaises(urllib.error.URLError):
+                detail_cache.fetch_detail_url(url, cache_namespace="bonn-detail", cache_failures=True)
+            # A real failure is a placeholder (empty body) for one day only.
+            self.assertEqual(detail_cache.fetch_detail_url(url, cache_namespace="bonn-detail", cache_failures=True), "")
+            with patch.object(detail_cache.time, "time", return_value=time.time() + 25 * 3600):
+                self.assertEqual(
+                    detail_cache.fetch_detail_url(url, cache_namespace="bonn-detail", cache_failures=True),
+                    "<html>ok</html>",
+                )
+        detail_cache._reset_detail_page_cache()
+        self.assertEqual(len(calls), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -172,6 +172,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `XDG_CACHE_HOME=~/.cache` — cache base when `NRW_EVENTS_CACHE_DIR` is unset.
 - `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=1440` — maximum age of a cached detail page; pages are fetched once and reused while referenced. `0` disables memory and disk caching.
 - `NRW_EVENTS_DETAIL_CACHE_IDLE_HOURS=336` — drop detail pages not used for 14 days.
+- `NRW_EVENTS_DETAIL_NEGATIVE_CACHE_HOURS=24` — lifetime of empty failure placeholders from `cache_failures=True` sources; our own budget stops are never cached.
 - `NRW_EVENTS_DETAIL_FAILURE_CACHE_HOURS=168` — remember permanent 4xx detail refusals for a week; three 401/403/429 answers stop further detail requests to that host for the run.
 - `NRW_EVENTS_DETAIL_ENRICHMENT=1` — shared primary-detail enrichment; set to `0` to disable.
 - `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` — whole-source budget for optional detail-page enrichment: 45 seconds by default, 240 for Köln Open Data's large teaser feed. An explicit value overrides both defaults; the outer source deadline still applies.

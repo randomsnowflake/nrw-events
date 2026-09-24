@@ -104,6 +104,17 @@ def _detail_failure_ttl_seconds() -> float:
     return _env_hours("NRW_EVENTS_DETAIL_FAILURE_CACHE_HOURS", 7 * 24)
 
 
+def _detail_negative_ttl_seconds() -> float:
+    # ``cache_failures=True`` placeholders (empty body) stand for any failure,
+    # including slow hosts. Keep them for a day, never for the page lifetime.
+    return _env_hours("NRW_EVENTS_DETAIL_NEGATIVE_CACHE_HOURS", 24)
+
+
+def _is_own_budget_stop(exc: BaseException) -> bool:
+    """Our request/source budget ran out; the host did nothing wrong."""
+    return isinstance(exc, TimeoutError) and "budget" in str(exc)
+
+
 # Permanent client errors worth remembering. 408/425/429 are transient.
 _REMEMBERED_FAILURE_STATUSES = frozenset({400, 401, 403, 404, 405, 406, 410, 451})
 # Statuses meaning "this host does not want our detail requests right now".
@@ -139,7 +150,12 @@ def _disk_entry(entry: DetailCacheEntry) -> dict[str, Any]:
 
 
 def _entry_expired(entry: DetailCacheEntry, *, ttl_seconds: float, now: float) -> bool:
-    max_age = _detail_failure_ttl_seconds() if "failed_status" in entry else ttl_seconds
+    if "failed_status" in entry:
+        max_age = _detail_failure_ttl_seconds()
+    elif not entry["body"]:
+        max_age = min(ttl_seconds, _detail_negative_ttl_seconds())
+    else:
+        max_age = ttl_seconds
     if now - entry["fetched_at"] > max_age:
         return True
     idle = _detail_page_cache_idle_seconds()
@@ -450,7 +466,7 @@ def fetch_detail_url(
                     "failed_status": int(status),
                 }
                 state["dirty"] = True
-        if cache_failures:
+        if cache_failures and not _is_own_budget_stop(exc):
             with _DETAIL_PAGE_CACHE_LOCK:
                 state = _load_detail_page_cache(cache_namespace, ttl_seconds)
                 fetched_at = time.time()
