@@ -19,6 +19,7 @@ scripts/nrw_events/
   ai_transport.py
   ai_writer_input.py
   benchmark.py
+  botgate.py
   category_taxonomy.py
   checkpoint.py
   common.py

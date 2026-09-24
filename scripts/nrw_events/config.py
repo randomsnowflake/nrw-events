@@ -35,7 +35,8 @@ class RuntimeConfig:
     http_retry_attempts: int = 5
     http_retry_base_seconds: float = 1.0
     http_request_budget_seconds: float = 45.0
-    bonn_de_delay_seconds: float = 0.5
+    bonn_de_delay_seconds: float = 1.0
+    gated_host_delay_seconds: float = 1.0
     http_max_response_bytes: int = 10_000_000
     http_retry_max_delay_seconds: float = 60.0
     source_workers: int = 12
@@ -141,9 +142,14 @@ def runtime_config(days_ahead: int | None = None) -> RuntimeConfig:
         http_retry_base_seconds=_float("NRW_EVENTS_HTTP_RETRY_BASE_SECONDS", 1.0, 0.0, 60.0),
         http_request_budget_seconds=_float("NRW_EVENTS_HTTP_REQUEST_BUDGET_SECONDS", 45.0, 1.0, 300.0),
         # Bonn's calendar can require 50 serialized result pages for a 28-day
-        # window. Live probing confirmed that two requests per second stay
-        # healthy while cutting that fixed queue from roughly 100s to 25s.
-        bonn_de_delay_seconds=_float("NRW_EVENTS_BONN_DE_DELAY_SECONDS", 0.5, 0.0, 60.0),
+        # window. Since bonn.de moved behind the kdvz bot gate we stay at one
+        # request per second; the gated response and detail caches keep the
+        # daily volume low enough that the slower queue is affordable.
+        bonn_de_delay_seconds=_float("NRW_EVENTS_BONN_DE_DELAY_SECONDS", 1.0, 0.0, 60.0),
+        # kdvz-hosted municipal portals (bonn.de, SiteKit towns) sit behind a
+        # bot gate. Stay at one request per second per portal; the gated
+        # response cache keeps each page to one read per day.
+        gated_host_delay_seconds=_float("NRW_EVENTS_GATED_HOST_DELAY_SECONDS", 1.0, 0.0, 60.0),
         http_max_response_bytes=_int("NRW_EVENTS_HTTP_MAX_RESPONSE_BYTES", 10_000_000, 0, 50_000_000),
         http_retry_max_delay_seconds=_float("NRW_EVENTS_HTTP_RETRY_MAX_DELAY_SECONDS", 60.0, 0.0, 300.0),
         # Sources are independent and mostly live on different hosts. Match the

@@ -65,6 +65,20 @@ def _detail_page_cache_ttl_seconds() -> float:
         return 24 * 60 * 60
 
 
+# Detail pages on kdvz-gated municipal portals only enrich descriptions,
+# admission and venue facts; dates, times and removals come from the daily
+# listing read. Re-reading hundreds of rarely changing pages every day is the
+# bulk of our traffic to those hosts, so keep them for three days by default.
+_GATED_DETAIL_NAMESPACES = frozenset({"bonn-detail", "bonn-sports-detail", "regional-sitekit-detail"})
+
+
+def _gated_detail_ttl_seconds() -> float:
+    try:
+        return max(float(os.environ.get("NRW_EVENTS_GATED_DETAIL_CACHE_TTL_HOURS", "72")), 0) * 60 * 60
+    except (TypeError, ValueError):
+        return 72 * 60 * 60
+
+
 def _detail_page_cache_limit(name: str, default: int) -> int:
     try:
         return max(int(os.environ.get(name, str(default))), 0)
@@ -287,6 +301,8 @@ def fetch_detail_url(
     if retry_attempts is not None:
         transport_kwargs["retry_attempts"] = retry_attempts
     ttl_seconds = _detail_page_cache_ttl_seconds()
+    if ttl_seconds and _detail_page_cache_slug(cache_namespace) in _GATED_DETAIL_NAMESPACES:
+        ttl_seconds = max(ttl_seconds, _gated_detail_ttl_seconds())
     if not ttl_seconds:
         performance.count("detail_cache_bypasses")
         return fetcher(url, timeout=timeout, **transport_kwargs)

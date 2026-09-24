@@ -66,7 +66,7 @@ def _runtime_state() -> _RuntimeState:
         http_request_budget_seconds=_HTTP_REQUEST_BUDGET_SECONDS,
         http_retry_max_delay_seconds=_HTTP_RETRY_MAX_DELAY_SECONDS,
         http_max_response_bytes=_HTTP_MAX_RESPONSE_BYTES,
-        bonn_de_delay_seconds=_HOST_THROTTLE_SECONDS_BY_SUFFIX.get("bonn.de", 0.5),
+        bonn_de_delay_seconds=_HOST_THROTTLE_SECONDS_BY_SUFFIX.get("bonn.de", 1.0),
     )
     return _RuntimeState(settings, _RUN_ID, _LOGGER)
 
@@ -94,9 +94,12 @@ _HTTP_MAX_RESPONSE_BYTES = 10_000_000
 _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
     # Bonn.de's MyraCDN/backend intermittently returns 503 when official Bonn
     # sources fan out without a shared limit. Serialize them and space starts at
-    # two requests per second; retries still back off on transient responses.
-    "bonn.de": 0.5,
+    # one request per second (kdvz bot gate); retries back off on transient responses.
+    "bonn.de": 1.0,
 }
+
+
+_GATED_HOST_DELAY_SECONDS = 1.0
 
 
 def configure_runtime(

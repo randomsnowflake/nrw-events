@@ -42,7 +42,7 @@ class RuntimeConfigTests(unittest.TestCase):
 
     def test_default_bonn_throttle_keeps_long_calendar_crawls_bounded(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(config.runtime_config().bonn_de_delay_seconds, 0.5)
+            self.assertEqual(config.runtime_config().bonn_de_delay_seconds, 1.0)
 
     def test_contexts_keep_independent_immutable_windows(self):
         settings = config.RuntimeConfig(days_ahead=2)

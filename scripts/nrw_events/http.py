@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from typing import Any, NoReturn
 
+from . import botgate as _botgate
 from . import performance
 from . import run_state as _impl_run_state
 from .observability import redact
@@ -181,10 +182,17 @@ def _optional_detail_request(url: str) -> Iterator[None]:
 def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
     hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
     state = _RUNTIME_STATE.get()
-    delays = (
+    delays = dict(
         {"bonn.de": state.settings.bonn_de_delay_seconds}
         if state is not None else _impl_run_state._HOST_THROTTLE_SECONDS_BY_SUFFIX
     )
+    # Every kdvz-hosted municipal portal gets its own serialized, spaced queue.
+    gated_delay = (
+        state.settings.gated_host_delay_seconds if state is not None
+        else _impl_run_state._GATED_HOST_DELAY_SECONDS
+    )
+    for suffix in _botgate.GATED_HOST_SUFFIXES:
+        delays.setdefault(suffix, gated_delay)
     for suffix, delay in delays.items():
         if hostname == suffix or hostname.endswith(f".{suffix}"):
             return suffix, delay
@@ -310,6 +318,23 @@ def browser_headers(
     return hdrs
 
 
+def _decode_body(body: bytes, charset: str | None) -> str:
+    try:
+        encoding = "utf-8-sig" if not charset or charset.casefold() == "utf-8" else charset
+        return body.decode(encoding)
+    except (UnicodeDecodeError, LookupError):
+        # A few long-running regional calendars advertise UTF-8 while
+        # still mixing in individual Windows-1252 bytes. Preserve both
+        # valid UTF-8 and those legacy characters instead of corrupting
+        # the complete page or dropping its source.
+        decoded = body.decode("utf-8", errors="surrogateescape")
+        return "".join(
+            bytes((ord(char) - 0xDC00,)).decode("cp1252", errors="replace")
+            if 0xDC80 <= ord(char) <= 0xDCFF else char
+            for char in decoded
+        )
+
+
 @performance.measured("http.fetch_including_slot_and_retries")
 def fetch_url(
     url: str,
@@ -329,7 +354,78 @@ def fetch_url(
     endpoints do not return their human HTML fallback instead of data. Optional
     best-effort requests may lower ``retry_attempts`` so one broken detail page
     cannot consume a source's complete enrichment budget.
+
+    kdvz-hosted municipal portals (see ``botgate``) are read at most once per
+    day per URL, carry the persisted gate cookie, and solve an expired gate once
+    per process before failing visibly.
     """
+    kwargs: dict[str, Any] = {
+        "timeout": timeout, "accept": accept, "sec_fetch_mode": sec_fetch_mode,
+        "sec_fetch_dest": sec_fetch_dest, "expected_content_types": expected_content_types,
+        "retry_attempts": retry_attempts, "accepted_http_statuses": accepted_http_statuses,
+    }
+    bucket = _botgate.gated_bucket(url)
+    if bucket is None:
+        return _fetch_url_direct(url, headers=headers, **kwargs)
+
+    cacheable = not accepted_http_statuses
+    if cacheable:
+        cached = _botgate.RESPONSE_CACHE.get(bucket, url, accept)
+        if cached is not None:
+            performance.count("gated_response_cache_hits")
+            _record_endpoint(url, status=200, bytes=len(cached.encode("utf-8")),
+                             duration_ms=0, cache="gated-response")
+            return cached
+
+    def attempt(cookie: str | None, **overrides: Any) -> str:
+        request_headers = dict(headers or {})
+        if cookie:
+            existing = request_headers.get("Cookie")
+            request_headers["Cookie"] = f"{existing}; {cookie}" if existing else cookie
+        return _fetch_url_direct(url, headers=request_headers, **{**kwargs, **overrides})
+
+    cookie = _botgate.SESSION.cookie_header(bucket)
+    try:
+        body = attempt(cookie)
+    except UnexpectedContentTypeError:
+        # JSON/feed callers see the HTML gate as a content-type mismatch. Read
+        # the same URL once as a document to learn whether the gate is the cause.
+        probe = attempt(cookie, expected_content_types=None, retry_attempts=1,
+                        accept="text/html,application/xhtml+xml,*/*;q=0.8")
+        if not _botgate.is_challenge(probe):
+            raise
+        body = probe
+    if _botgate.is_challenge(body):
+        performance.count("botgate_challenges")
+        _record_endpoint(url, botgate_challenge=True)
+        _botgate.SESSION.pass_challenge(
+            url, body,
+            timeout=_remaining_timeout(_request_deadline(), max(timeout, 30)),
+            headers=browser_headers(accept=accept, sec_fetch_mode="navigate",
+                                    sec_fetch_dest="document", extra=headers),
+            stale_cookie=cookie,
+        )
+        body = attempt(_botgate.SESSION.cookie_header(bucket))
+        if _botgate.is_challenge(body):
+            _botgate.SESSION.forget(bucket)
+            raise _botgate.BotgateError(f"botgate challenge for {bucket} persisted after verification")
+    if cacheable:
+        _botgate.RESPONSE_CACHE.put(bucket, url, accept, body)
+    return body
+
+
+def _fetch_url_direct(
+    url: str,
+    timeout: int = 15,
+    headers: dict | None = None,
+    accept: str = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    sec_fetch_mode: str = "navigate",
+    sec_fetch_dest: str = "document",
+    expected_content_types: tuple | None = None,
+    retry_attempts: int | None = None,
+    accepted_http_statuses: tuple[int, ...] = (),
+) -> str:
+    """Uncached single-URL GET with retries; see ``fetch_url``."""
     hdrs = browser_headers(
         accept=accept,
         sec_fetch_mode=sec_fetch_mode,
@@ -374,20 +470,7 @@ def fetch_url(
                         charset = None
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
-            try:
-                encoding = "utf-8-sig" if not charset or charset.casefold() == "utf-8" else charset
-                return body.decode(encoding)
-            except (UnicodeDecodeError, LookupError):
-                # A few long-running regional calendars advertise UTF-8 while
-                # still mixing in individual Windows-1252 bytes. Preserve both
-                # valid UTF-8 and those legacy characters instead of corrupting
-                # the complete page or dropping its source.
-                decoded = body.decode("utf-8", errors="surrogateescape")
-                return "".join(
-                    bytes((ord(char) - 0xDC00,)).decode("cp1252", errors="replace")
-                    if 0xDC80 <= ord(char) <= 0xDCFF else char
-                    for char in decoded
-                )
+            return _decode_body(body, charset)
         except Exception as exc:
             if isinstance(exc, urllib.error.HTTPError) and exc.code in accepted_http_statuses:
                 headers_obj = exc.headers
