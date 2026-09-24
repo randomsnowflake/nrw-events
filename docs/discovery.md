@@ -165,7 +165,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
 - `NRW_EVENTS_GATED_HOST_DELAY_SECONDS=1.0` — minimum delay between requests per other kdvz-gated portal.
 - `NRW_EVENTS_GATED_RESPONSE_TTL_HOURS=20` — day-scoped response cache for kdvz-gated portals; `0` disables it.
-- `NRW_EVENTS_GATED_DETAIL_CACHE_TTL_HOURS=72` — minimum detail-cache TTL for Bonn.de and SiteKit detail pages.
+- `NRW_EVENTS_GATED_DETAIL_CACHE_TTL_HOURS=72` — minimum detail-cache TTL for any cached kdvz-portal detail page (bonn.de, SiteKit towns).
 - `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES=30` — safety cap for paginated Bonn.de calendars.
 - `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` — Bright Data Web Unlocker credentials; vomFASS refreshes only on Mondays and always uses this proxy. Hofflohmärkte Köln and allowlisted IONAS4 regional calendars are direct-first and use it only after selected transient failures or exhausted direct-request timeouts.
 - `NRW_EVENTS_CACHE_DIR=~/.cache/nrw-events` — persistent cache root for bounded detail-page enrichment.

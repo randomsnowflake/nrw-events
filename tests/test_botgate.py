@@ -163,17 +163,27 @@ class BotgateTests(unittest.TestCase):
         self.assertEqual(http._throttle_bucket("https://www.bonn.de/a.php")[0], "bonn.de")
         self.assertGreaterEqual(http._throttle_bucket("https://www.bonn.de/a.php")[1], 1.0)
 
-    def test_gated_detail_namespaces_keep_pages_for_three_days(self):
+    def test_gated_detail_pages_are_kept_three_days_in_any_namespace(self):
         detail_cache._reset_detail_page_cache()
         with patch.dict(os.environ, {"NRW_EVENTS_GATED_RESPONSE_TTL_HOURS": "0"}), \
                 patch("nrw_events.http.urllib.request.urlopen",
                       side_effect=lambda *_a, **_k: _Response("<html>detail</html>")) as urlopen:
-            detail_cache.fetch_detail_url("https://www.bonn.de/d.php", cache_namespace="bonn-detail")
+            for namespace in ("bonn-detail", "universal-event-details-bonn-de-events-v2"):
+                detail_cache.fetch_detail_url("https://www.bonn.de/d.php", cache_namespace=namespace)
+                detail_cache.fetch_detail_url("https://www.harmonie-bonn.de/d", cache_namespace=namespace)
+            detail_cache.flush_detail_page_caches()
+            detail_cache._reset_detail_page_cache()  # Reload from disk like the next run.
             later = time.time() + 48 * 60 * 60
             with patch.object(detail_cache.time, "time", return_value=later):
-                detail_cache.fetch_detail_url("https://www.bonn.de/d.php", cache_namespace="bonn-detail")
+                for namespace in ("bonn-detail", "universal-event-details-bonn-de-events-v2"):
+                    detail_cache.fetch_detail_url("https://www.bonn.de/d.php", cache_namespace=namespace)
+                    detail_cache.fetch_detail_url("https://www.harmonie-bonn.de/d", cache_namespace=namespace)
         detail_cache._reset_detail_page_cache()
-        self.assertEqual(urlopen.call_count, 1)
+        fetched = [call.args[0].full_url for call in urlopen.call_args_list]
+        # Gated page: read once per namespace, reused after 48 h. Ungated page:
+        # the normal 24 h TTL still refreshes it.
+        self.assertEqual(fetched.count("https://www.bonn.de/d.php"), 2)
+        self.assertEqual(fetched.count("https://www.harmonie-bonn.de/d"), 4)
 
 
 if __name__ == "__main__":

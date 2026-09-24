@@ -13,6 +13,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, TypedDict
 
+from . import botgate as _botgate
 from . import http as _impl_http
 from . import performance
 from . import run_state as _impl_run_state
@@ -69,14 +70,19 @@ def _detail_page_cache_ttl_seconds() -> float:
 # admission and venue facts; dates, times and removals come from the daily
 # listing read. Re-reading hundreds of rarely changing pages every day is the
 # bulk of our traffic to those hosts, so keep them for three days by default.
-_GATED_DETAIL_NAMESPACES = frozenset({"bonn-detail", "bonn-sports-detail", "regional-sitekit-detail"})
-
-
+# The TTL follows the URL, not the namespace: the same bonn.de page is cached
+# by both the Bonn adapter and the universal detail pass.
 def _gated_detail_ttl_seconds() -> float:
     try:
         return max(float(os.environ.get("NRW_EVENTS_GATED_DETAIL_CACHE_TTL_HOURS", "72")), 0) * 60 * 60
     except (TypeError, ValueError):
         return 72 * 60 * 60
+
+
+def _entry_ttl_seconds(cache_key: str, ttl_seconds: float) -> float:
+    if ttl_seconds and _botgate.gated_bucket(cache_key) is not None:
+        return max(ttl_seconds, _gated_detail_ttl_seconds())
+    return ttl_seconds
 
 
 def _detail_page_cache_limit(name: str, default: int) -> int:
@@ -111,7 +117,7 @@ def _prune_detail_page_cache_entries(
         except (TypeError, ValueError):
             continue
         body = entry.get("body")
-        if not isinstance(body, str) or now - fetched_at > ttl_seconds:
+        if not isinstance(body, str) or now - fetched_at > _entry_ttl_seconds(url, ttl_seconds):
             continue
         valid.append((url, {
             "fetched_at": fetched_at,
@@ -301,8 +307,6 @@ def fetch_detail_url(
     if retry_attempts is not None:
         transport_kwargs["retry_attempts"] = retry_attempts
     ttl_seconds = _detail_page_cache_ttl_seconds()
-    if ttl_seconds and _detail_page_cache_slug(cache_namespace) in _GATED_DETAIL_NAMESPACES:
-        ttl_seconds = max(ttl_seconds, _gated_detail_ttl_seconds())
     if not ttl_seconds:
         performance.count("detail_cache_bypasses")
         return fetcher(url, timeout=timeout, **transport_kwargs)
@@ -326,7 +330,7 @@ def fetch_detail_url(
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         cached = state["entries"].get(cache_key)
-        if cached is not None and time.time() - cached["fetched_at"] <= ttl_seconds:
+        if cached is not None and time.time() - cached["fetched_at"] <= _entry_ttl_seconds(cache_key, ttl_seconds):
             performance.count("detail_cache_hits")
             # Access-only LRU bump: kept in memory only, so a fully cached run
             # never rewrites multi-MB namespace files. The bump is persisted
