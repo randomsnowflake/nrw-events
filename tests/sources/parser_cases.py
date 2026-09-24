@@ -59,6 +59,23 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[1]["title"], "Eintritt frei: Ausstellung im Stadtmuseum")
         self.assertEqual(events[1]["price"], "kostenlos")
 
+    def test_bonn_events_skip_paginated_listings_by_default(self):
+        requested = []
+
+        def fake_fetch(url, *args, **kwargs):
+            requested.append(url)
+            if "sp%3Aout=rss" in url:
+                return '<?xml version="1.0"?><rss version="2.0"><channel></channel></rss>'
+            return "[]"
+
+        with patch("nrw_events.common.fetch_url", side_effect=fake_fetch), \
+             patch("nrw_events.sources.bonn._venue_points", return_value={}):
+            bonn.fetch_events()
+
+        # One RSS and one JSON request: no calendar listing pagination.
+        self.assertEqual(len(requested), 2)
+        self.assertTrue(any("citykey/events-json.php" in url for url in requested))
+
     def test_bonn_events_json_preserves_free_admission_category(self):
         payload = [
             {
@@ -114,6 +131,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[2]["category_key"], "outdoor")
         self.assertTrue(all(event["score"] >= 0.4 for event in events))
 
+    @patch.dict("os.environ", {"NRW_EVENTS_BONN_CALENDAR_LISTINGS": "1"})
     def test_bonn_events_merge_complete_json_facts_into_calendar_listing(self):
         listing_payload = """
 <nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>
@@ -196,6 +214,7 @@ class SourceParserTests(unittest.TestCase):
         self.assertTrue(any("events-json" in url for url in fetched_urls))
         self.assertTrue(any("sp%3Aout=rss" in url for url in fetched_urls))
 
+    @patch.dict("os.environ", {"NRW_EVENTS_BONN_CALENDAR_LISTINGS": "1"})
     def test_bonn_events_falls_back_when_only_free_listing_has_coverage(self):
         free_listing_payload = """
 <nav class="SP-Pagination" data-sp-pagination="{&quot;max&quot;:1}"></nav>

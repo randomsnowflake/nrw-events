@@ -2,6 +2,7 @@
 
 import hashlib
 import io
+import json
 import os
 import tempfile
 import time
@@ -163,27 +164,70 @@ class BotgateTests(unittest.TestCase):
         self.assertEqual(http._throttle_bucket("https://www.bonn.de/a.php")[0], "bonn.de")
         self.assertGreaterEqual(http._throttle_bucket("https://www.bonn.de/a.php")[1], 1.0)
 
-    def test_gated_detail_pages_are_kept_three_days_in_any_namespace(self):
+    def _detail_urlopen(self, bodies):
+        def urlopen(request, timeout=None):
+            outcome = bodies[request.full_url]
+            if isinstance(outcome, int):
+                raise urllib.error.HTTPError(request.full_url, outcome, "refused", Message(), io.BytesIO(b""))
+            return _Response(outcome)
+        return patch("nrw_events.http.urllib.request.urlopen", side_effect=urlopen)
+
+    def test_detail_pages_are_fetched_once_and_survive_a_reload(self):
         detail_cache._reset_detail_page_cache()
+        urls = ("https://www.bonn.de/d.php", "https://www.harmonie-bonn.de/d")
         with patch.dict(os.environ, {"NRW_EVENTS_GATED_RESPONSE_TTL_HOURS": "0"}), \
-                patch("nrw_events.http.urllib.request.urlopen",
-                      side_effect=lambda *_a, **_k: _Response("<html>detail</html>")) as urlopen:
-            for namespace in ("bonn-detail", "universal-event-details-bonn-de-events-v2"):
-                detail_cache.fetch_detail_url("https://www.bonn.de/d.php", cache_namespace=namespace)
-                detail_cache.fetch_detail_url("https://www.harmonie-bonn.de/d", cache_namespace=namespace)
-            detail_cache.flush_detail_page_caches()
-            detail_cache._reset_detail_page_cache()  # Reload from disk like the next run.
-            later = time.time() + 48 * 60 * 60
-            with patch.object(detail_cache.time, "time", return_value=later):
-                for namespace in ("bonn-detail", "universal-event-details-bonn-de-events-v2"):
-                    detail_cache.fetch_detail_url("https://www.bonn.de/d.php", cache_namespace=namespace)
-                    detail_cache.fetch_detail_url("https://www.harmonie-bonn.de/d", cache_namespace=namespace)
+                self._detail_urlopen(dict.fromkeys(urls, "<html>detail</html>")) as urlopen:
+            for url in urls:
+                detail_cache.fetch_detail_url(url, cache_namespace="bonn-detail")
+            detail_cache._reset_detail_page_cache()  # Flush and reload like the next run.
+            for days in (5, 12, 25):
+                with patch.object(detail_cache.time, "time", return_value=time.time() + days * 86400):
+                    for url in urls:
+                        self.assertEqual(
+                            detail_cache.fetch_detail_url(url, cache_namespace="bonn-detail"),
+                            "<html>detail</html>",
+                        )
+                    detail_cache._reset_detail_page_cache()
+        self.assertEqual(urlopen.call_count, 2)
+        # Stored compressed on disk.
+        payload = json.loads(detail_cache._detail_page_cache_path("bonn-detail").read_text())
+        self.assertTrue(all("body_gz" in entry for entry in payload["entries"].values()))
+
+    def test_unused_detail_pages_expire_after_idle_window(self):
         detail_cache._reset_detail_page_cache()
-        fetched = [call.args[0].full_url for call in urlopen.call_args_list]
-        # Gated page: read once per namespace, reused after 48 h. Ungated page:
-        # the normal 24 h TTL still refreshes it.
-        self.assertEqual(fetched.count("https://www.bonn.de/d.php"), 2)
-        self.assertEqual(fetched.count("https://www.harmonie-bonn.de/d"), 4)
+        url = "https://www.harmonie-bonn.de/gone"
+        with self._detail_urlopen({url: "<html>x</html>"}) as urlopen:
+            detail_cache.fetch_detail_url(url, cache_namespace="idle")
+            detail_cache._reset_detail_page_cache()
+            with patch.object(detail_cache.time, "time", return_value=time.time() + 15 * 86400):
+                detail_cache.fetch_detail_url(url, cache_namespace="idle")
+        detail_cache._reset_detail_page_cache()
+        self.assertEqual(urlopen.call_count, 2)
+
+    def test_permanent_detail_refusals_are_remembered(self):
+        detail_cache._reset_detail_page_cache()
+        url = "https://www.stadt-koeln.de/event/1"
+        with self._detail_urlopen({url: 404}) as urlopen:
+            with self.assertRaises(urllib.error.HTTPError):
+                detail_cache.fetch_detail_url(url, cache_namespace="koeln")
+            detail_cache._reset_detail_page_cache()
+            with self.assertRaises(detail_cache.CachedDetailFailureError):
+                detail_cache.fetch_detail_url(url, cache_namespace="koeln")
+            with patch.object(detail_cache.time, "time", return_value=time.time() + 8 * 86400):
+                with self.assertRaises(urllib.error.HTTPError):
+                    detail_cache.fetch_detail_url(url, cache_namespace="koeln")
+        detail_cache._reset_detail_page_cache()
+        self.assertEqual(urlopen.call_count, 2)
+
+    def test_host_refusing_detail_requests_is_left_alone_for_the_run(self):
+        detail_cache._reset_detail_page_cache()
+        urls = [f"https://www.stadt-koeln.de/event/{index}" for index in range(10)]
+        with self._detail_urlopen(dict.fromkeys(urls, 403)) as urlopen:
+            for url in urls:
+                with self.assertRaises((urllib.error.HTTPError, detail_cache.DetailHostRefusedError)):
+                    detail_cache.fetch_detail_url(url, cache_namespace="koeln")
+        detail_cache._reset_detail_page_cache()
+        self.assertEqual(urlopen.call_count, 3)
 
 
 if __name__ == "__main__":

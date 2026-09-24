@@ -165,12 +165,14 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_BONN_DE_DELAY_SECONDS=2.0` — minimum delay between `bonn.de` requests.
 - `NRW_EVENTS_GATED_HOST_DELAY_SECONDS=1.0` — minimum delay between requests per other kdvz-gated portal.
 - `NRW_EVENTS_GATED_RESPONSE_TTL_HOURS=20` — day-scoped response cache for kdvz-gated portals; `0` disables it.
-- `NRW_EVENTS_GATED_DETAIL_CACHE_TTL_HOURS=72` — minimum detail-cache TTL for any cached kdvz-portal detail page (bonn.de, SiteKit towns).
+- `NRW_EVENTS_BONN_CALENDAR_LISTINGS=0` — `1` also crawls Bonn.de's ~50 paginated listing pages; off by default (JSON feed covers them).
 - `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES=30` — safety cap for paginated Bonn.de calendars.
 - `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` — Bright Data Web Unlocker credentials; vomFASS refreshes only on Mondays and always uses this proxy. Hofflohmärkte Köln and allowlisted IONAS4 regional calendars are direct-first and use it only after selected transient failures or exhausted direct-request timeouts.
 - `NRW_EVENTS_CACHE_DIR=~/.cache/nrw-events` — persistent cache root for bounded detail-page enrichment.
 - `XDG_CACHE_HOME=~/.cache` — cache base when `NRW_EVENTS_CACHE_DIR` is unset.
-- `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=24` — default TTL for successful generic detail-page fetches; `0` disables memory and disk caching.
+- `NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=1440` — maximum age of a cached detail page; pages are fetched once and reused while referenced. `0` disables memory and disk caching.
+- `NRW_EVENTS_DETAIL_CACHE_IDLE_HOURS=336` — drop detail pages not used for 14 days.
+- `NRW_EVENTS_DETAIL_FAILURE_CACHE_HOURS=168` — remember permanent 4xx detail refusals for a week; three 401/403/429 answers stop further detail requests to that host for the run.
 - `NRW_EVENTS_DETAIL_ENRICHMENT=1` — shared primary-detail enrichment; set to `0` to disable.
 - `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` — whole-source budget for optional detail-page enrichment: 45 seconds by default, 240 for Köln Open Data's large teaser feed. An explicit value overrides both defaults; the outer source deadline still applies.
 - `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS=500` — target length for meaningful Bonn.de detail summaries after logistics boilerplate is removed.

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
 import json
 import os
 import re
 import threading
 import time
+import urllib.error
+import urllib.parse
 from collections.abc import Callable
 from contextlib import suppress
 from hashlib import sha256
@@ -21,7 +25,7 @@ from . import run_state as _impl_run_state
 _DETAIL_PAGE_CACHE_VERSION = 1
 
 
-_DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES = 500
+_DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES = 5000
 
 
 _DETAIL_PAGE_CACHE_DEFAULT_MAX_BYTES = 25 * 1024 * 1024
@@ -35,10 +39,26 @@ _DETAIL_PAGE_CACHE_MAX_BYTES_BY_NAMESPACE = {
 _DETAIL_PAGE_CACHE_LOCK = threading.RLock()
 
 
-class DetailCacheEntry(TypedDict):
+class _DetailCacheEntryRequired(TypedDict):
     fetched_at: float
     accessed_at: float
     body: str
+
+
+class DetailCacheEntry(_DetailCacheEntryRequired, total=False):
+    # Disk form of ``body`` (base64 gzip); kept in memory once computed so a
+    # size-capped persist never recompresses unchanged pages.
+    body_gz: str
+    # A remembered 4xx refusal: re-raised from cache instead of re-requested.
+    failed_status: int
+
+
+class CachedDetailFailureError(RuntimeError):
+    """A detail page recently refused with a permanent 4xx; not re-requested."""
+
+
+class DetailHostRefusedError(RuntimeError):
+    """A host refused several detail requests this run; skip the rest politely."""
 
 
 class DetailCacheState(TypedDict):
@@ -59,30 +79,71 @@ def _detail_page_cache_slug(namespace: str) -> str:
     return slug
 
 
+def _env_hours(name: str, default: float) -> float:
+    try:
+        return max(float(os.environ.get(name, str(default))), 0) * 60 * 60
+    except (TypeError, ValueError):
+        return default * 60 * 60
+
+
+# Detail pages are fetched once. Listings, feeds and APIs carry the dates,
+# times and removals and are read on every import; a detail page only adds
+# description, admission and venue facts, which rarely change. A page stays
+# cached for up to 60 days while events keep referencing it, and is dropped
+# after 14 days without use (the event is gone). Accepted trade-off: a later
+# edit on an organizer's detail page is not picked up within that window.
 def _detail_page_cache_ttl_seconds() -> float:
-    try:
-        return max(float(os.environ.get("NRW_EVENTS_DETAIL_CACHE_TTL_HOURS", "24")), 0) * 60 * 60
-    except (TypeError, ValueError):
-        return 24 * 60 * 60
+    return _env_hours("NRW_EVENTS_DETAIL_CACHE_TTL_HOURS", 60 * 24)
 
 
-# Detail pages on kdvz-gated municipal portals only enrich descriptions,
-# admission and venue facts; dates, times and removals come from the daily
-# listing read. Re-reading hundreds of rarely changing pages every day is the
-# bulk of our traffic to those hosts, so keep them for three days by default.
-# The TTL follows the URL, not the namespace: the same bonn.de page is cached
-# by both the Bonn adapter and the universal detail pass.
-def _gated_detail_ttl_seconds() -> float:
-    try:
-        return max(float(os.environ.get("NRW_EVENTS_GATED_DETAIL_CACHE_TTL_HOURS", "72")), 0) * 60 * 60
-    except (TypeError, ValueError):
-        return 72 * 60 * 60
+def _detail_page_cache_idle_seconds() -> float:
+    return _env_hours("NRW_EVENTS_DETAIL_CACHE_IDLE_HOURS", 14 * 24)
 
 
-def _entry_ttl_seconds(cache_key: str, ttl_seconds: float) -> float:
-    if ttl_seconds and _botgate.gated_bucket(cache_key) is not None:
-        return max(ttl_seconds, _gated_detail_ttl_seconds())
-    return ttl_seconds
+def _detail_failure_ttl_seconds() -> float:
+    return _env_hours("NRW_EVENTS_DETAIL_FAILURE_CACHE_HOURS", 7 * 24)
+
+
+# Permanent client errors worth remembering. 408/425/429 are transient.
+_REMEMBERED_FAILURE_STATUSES = frozenset({400, 401, 403, 404, 405, 406, 410, 451})
+# Statuses meaning "this host does not want our detail requests right now".
+_HOST_REFUSAL_STATUSES = frozenset({401, 403, 429})
+_HOST_REFUSAL_LIMIT = 3
+_HOST_REFUSALS: dict[str, int] = {}
+_HOST_REFUSALS_LOCK = threading.Lock()
+
+
+def _refusal_host(url: str) -> str:
+    return _botgate.gated_bucket(url) or (urllib.parse.urlsplit(url).hostname or "").lower()
+
+
+def _compress_body(body: str) -> str:
+    return base64.b64encode(gzip.compress(body.encode("utf-8"), compresslevel=6)).decode("ascii")
+
+
+def _decompress_body(value: str) -> str:
+    return gzip.decompress(base64.b64decode(value.encode("ascii"))).decode("utf-8")
+
+
+def _disk_entry(entry: DetailCacheEntry) -> dict[str, Any]:
+    disk: dict[str, Any] = {"fetched_at": entry["fetched_at"], "accessed_at": entry["accessed_at"]}
+    if "failed_status" in entry:
+        disk["failed_status"] = entry["failed_status"]
+    if entry["body"]:
+        if "body_gz" not in entry:
+            entry["body_gz"] = _compress_body(entry["body"])
+        disk["body_gz"] = entry["body_gz"]
+    else:
+        disk["body"] = ""
+    return disk
+
+
+def _entry_expired(entry: DetailCacheEntry, *, ttl_seconds: float, now: float) -> bool:
+    max_age = _detail_failure_ttl_seconds() if "failed_status" in entry else ttl_seconds
+    if now - entry["fetched_at"] > max_age:
+        return True
+    idle = _detail_page_cache_idle_seconds()
+    return bool(idle) and now - entry["accessed_at"] > idle
 
 
 def _detail_page_cache_limit(name: str, default: int) -> int:
@@ -117,13 +178,27 @@ def _prune_detail_page_cache_entries(
         except (TypeError, ValueError):
             continue
         body = entry.get("body")
-        if not isinstance(body, str) or now - fetched_at > _entry_ttl_seconds(url, ttl_seconds):
-            continue
-        valid.append((url, {
+        body_gz = entry.get("body_gz")
+        if not isinstance(body, str):
+            if not isinstance(body_gz, str):
+                continue
+            try:
+                body = _decompress_body(body_gz)
+            except (ValueError, OSError, EOFError, UnicodeDecodeError):
+                continue
+        normalized: DetailCacheEntry = {
             "fetched_at": fetched_at,
             "accessed_at": accessed_at,
             "body": body,
-        }))
+        }
+        if isinstance(body_gz, str):
+            normalized["body_gz"] = body_gz
+        failed_status = entry.get("failed_status")
+        if isinstance(failed_status, int) and not isinstance(failed_status, bool):
+            normalized["failed_status"] = failed_status
+        if _entry_expired(normalized, ttl_seconds=ttl_seconds, now=now):
+            continue
+        valid.append((url, normalized))
 
     max_entries = _detail_page_cache_limit(
         "NRW_EVENTS_DETAIL_CACHE_MAX_ENTRIES", _DETAIL_PAGE_CACHE_DEFAULT_MAX_ENTRIES,
@@ -140,7 +215,7 @@ def _prune_detail_page_cache_entries(
         if len(retained) >= max_entries:
             break
         fragment_size = len(json.dumps(
-            {url: entry}, ensure_ascii=False, separators=(",", ":"),
+            {url: _disk_entry(entry)}, ensure_ascii=False, separators=(",", ":"),
         ).encode("utf-8")) - 2
         candidate_size = serialized_size + fragment_size + (1 if retained else 0)
         if candidate_size > max_bytes:
@@ -167,6 +242,8 @@ def _reset_detail_page_cache(namespace: str | None = None) -> None:
         flush_detail_page_caches(namespace)
         if namespace is None:
             _DETAIL_PAGE_CACHE_STATES.clear()
+            with _HOST_REFUSALS_LOCK:
+                _HOST_REFUSALS.clear()
         else:
             _DETAIL_PAGE_CACHE_STATES.pop(_detail_page_cache_slug(namespace), None)
 
@@ -234,7 +311,7 @@ def _persist_detail_page_cache(state: DetailCacheState) -> dict[str, str] | None
                 {
                     "version": _DETAIL_PAGE_CACHE_VERSION,
                     "namespace": state["namespace"],
-                    "entries": entries,
+                    "entries": {url: _disk_entry(entry) for url, entry in entries.items()},
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -285,9 +362,13 @@ def fetch_detail_url(
 ) -> str:
     """Fetch a public event detail page through the persistent TTL cache.
 
-    Successful responses are cached by default. Sources that must enforce a
-    strict request ceiling can set ``cache_failures=True``; a failed attempt is
-    then represented by an empty cached body until the TTL expires. Set
+    Successful responses are cached by default and effectively fetched once
+    (see ``_detail_page_cache_ttl_seconds``). Permanent 4xx refusals are
+    remembered for a week and re-raised as ``CachedDetailFailureError``; after
+    three 401/403/429 answers from one host the rest of the run's detail
+    requests to it raise ``DetailHostRefusedError`` without a request. Sources
+    that must enforce a strict request ceiling can set ``cache_failures=True``;
+    any failed attempt is then represented by an empty cached body instead. Set
     ``retry_attempts`` controls transport behavior without changing the cached
     representation's identity. Set ``NRW_EVENTS_DETAIL_CACHE_TTL_HOURS=0`` to
     bypass both memory and disk.
@@ -310,6 +391,7 @@ def fetch_detail_url(
     if not ttl_seconds:
         performance.count("detail_cache_bypasses")
         return fetcher(url, timeout=timeout, **transport_kwargs)
+    host = _refusal_host(url)
     cache_parameters = json.dumps(
         {
             "url": url,
@@ -330,20 +412,44 @@ def fetch_detail_url(
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         cached = state["entries"].get(cache_key)
-        if cached is not None and time.time() - cached["fetched_at"] <= _entry_ttl_seconds(cache_key, ttl_seconds):
+        now = time.time()
+        if cached is not None and not _entry_expired(cached, ttl_seconds=ttl_seconds, now=now):
             performance.count("detail_cache_hits")
-            # Access-only LRU bump: kept in memory only, so a fully cached run
-            # never rewrites multi-MB namespace files. The bump is persisted
-            # alongside the next insertion in this namespace, which is the only
-            # time LRU precision matters (eviction happens during persist).
-            cached["accessed_at"] = time.time()
+            # Access bumps keep still-referenced pages from idle expiry. Persist
+            # them at most daily so a fully cached run rarely rewrites files.
+            if now - cached["accessed_at"] > 24 * 60 * 60:
+                state["dirty"] = True
+            cached["accessed_at"] = now
+            if "failed_status" in cached:
+                raise CachedDetailFailureError(
+                    f"HTTP {cached['failed_status']} remembered for {url}; not re-requested"
+                )
             return cached["body"]
         state["entries"].pop(cache_key, None)
+
+    with _HOST_REFUSALS_LOCK:
+        refused = _HOST_REFUSALS.get(host, 0) >= _HOST_REFUSAL_LIMIT
+    if refused:
+        performance.count("detail_host_refusal_skips")
+        raise DetailHostRefusedError(f"{host} refused {_HOST_REFUSAL_LIMIT} detail requests this run")
 
     performance.count("detail_cache_misses")
     try:
         body = fetcher(url, timeout=timeout, **transport_kwargs)
-    except Exception:
+    except Exception as exc:
+        status = exc.code if isinstance(exc, urllib.error.HTTPError) else None
+        if status in _HOST_REFUSAL_STATUSES:
+            with _HOST_REFUSALS_LOCK:
+                _HOST_REFUSALS[host] = _HOST_REFUSALS.get(host, 0) + 1
+        if status in _REMEMBERED_FAILURE_STATUSES and not cache_failures:
+            with _DETAIL_PAGE_CACHE_LOCK:
+                state = _load_detail_page_cache(cache_namespace, ttl_seconds)
+                failed_at = time.time()
+                state["entries"][cache_key] = {
+                    "fetched_at": failed_at, "accessed_at": failed_at, "body": "",
+                    "failed_status": int(status),
+                }
+                state["dirty"] = True
         if cache_failures:
             with _DETAIL_PAGE_CACHE_LOCK:
                 state = _load_detail_page_cache(cache_namespace, ttl_seconds)
@@ -353,6 +459,8 @@ def fetch_detail_url(
                 }
                 state["dirty"] = True
         raise
+    with _HOST_REFUSALS_LOCK:
+        _HOST_REFUSALS.pop(host, None)
     with _DETAIL_PAGE_CACHE_LOCK:
         state = _load_detail_page_cache(cache_namespace, ttl_seconds)
         fetched_at = time.time()

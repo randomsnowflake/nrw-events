@@ -1,5 +1,6 @@
 import json
 import os
+import secrets
 import tempfile
 import time
 import unittest
@@ -150,7 +151,8 @@ class DetailPageCacheTests(unittest.TestCase):
             "https://example.org/oversized": {
                 "fetched_at": now,
                 "accessed_at": now,
-                "body": "x" * 1_000,
+                # Incompressible: entries are stored gzip-compressed on disk.
+                "body": secrets.token_urlsafe(1_000),
             },
             "https://example.org/fits": {
                 "fetched_at": now - 1,

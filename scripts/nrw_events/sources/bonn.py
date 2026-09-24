@@ -676,19 +676,26 @@ def _apply_free_category_override(ev: dict, tags: set) -> dict:
     return ev
 
 
-def fetch_events() -> list:
-    """Official Bonn calendar → union of every available Bonn event feed.
+def _calendar_listings_enabled() -> bool:
+    return os.environ.get("NRW_EVENTS_BONN_CALENDAR_LISTINGS", "0").strip().lower() in {"1", "true", "yes"}
 
-    The server-rendered listings remain the coverage baseline because Bonn's
-    JSON and RSS endpoints can be incomplete.  They are enrichment sources,
-    though, not emergency-only fallbacks: structured records regularly carry
-    end times and other facts that the listing cards omit.  Detail-page fetches
-    still use the shared persistent TTL cache.
+
+def fetch_events() -> list:
+    """Official Bonn calendar → Bonn's JSON and RSS feeds, detail pages once.
+
+    bonn.de sits behind the kdvz bot gate, so requests are kept minimal. The
+    citykey JSON feed (one request) carried 4513 of 4534 occurrences on
+    2026-09-24; the ~50 paginated server-rendered listing pages added at most
+    about 20. They are therefore off by default and can be re-enabled with
+    ``NRW_EVENTS_BONN_CALENDAR_LISTINGS=1``. Detail pages use the fetch-once
+    detail cache.
     """
     source = "Bonn.de Events"
-    free_events = _fetch_free_calendar_events(source, enrich_details=False)
-    calendar_events = _fetch_calendar_listing_events(source, enrich_details=False)
-    events = _merge_fallback_events(free_events, calendar_events)
+    events: list = []
+    if _calendar_listings_enabled():
+        free_events = _fetch_free_calendar_events(source, enrich_details=False)
+        calendar_events = _fetch_calendar_listing_events(source, enrich_details=False)
+        events = _merge_fallback_events(free_events, calendar_events)
     events = _merge_fallback_events(
         events, _fetch_rss_events(source, enrich_details=False),
     )
