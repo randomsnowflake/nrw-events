@@ -7,6 +7,7 @@ from typing import cast
 from . import (
     common,
     early_publication,
+    exhibition_runs,
     performance,
     radio_primary_resolution,
     report,
@@ -150,6 +151,7 @@ def select_publication(context: RunContext, batch: SourceBatch, previous: dict) 
         publication_boundary_warnings,
     )
     deduped = report.suppress_redundant_series_umbrellas(deduped)
+    deduped = exhibition_runs.merge_exhibition_opening_days(deduped, previous)
     published_event_ids = {event_id(event) for event in deduped}
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = cast(list[CanonicalEvent], _impl_identity_reconciliation._reconcile_published_ids(deduped, previous))

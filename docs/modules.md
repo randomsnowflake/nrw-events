@@ -43,6 +43,7 @@ scripts/nrw_events/
   event_evidence.py
   event_types.py
   event_vocabulary.py
+  exhibition_runs.py
   health.py
   highlights.py
   http.py

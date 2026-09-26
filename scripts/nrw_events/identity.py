@@ -148,7 +148,7 @@ def assign_event_ids(events: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]
         record["previous_event_ids"] = [
             identifier for identifier in dict.fromkeys(record.get("previous_event_ids") or [])
             if identifier and identifier != record["event_id"]
-        ][:20]
+        ]
     by_id: dict[str, list[dict[str, Any]]] = {}
     for record in assigned:
         by_id.setdefault(record["event_id"], []).append(record)

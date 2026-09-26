@@ -379,7 +379,7 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         self.assertIn(directory, kept)
         self.assertTrue(all(not event.previous_event_ids for event in primaries))
 
-    def test_directory_copy_stays_when_primary_alias_capacity_is_exhausted(self):
+    def test_directory_copy_is_replaced_even_when_primary_has_many_aliases(self):
         directory = self._canonical(
             "Flohmarkt Niederbachem Wachtberg",
             "2026-09-12",
@@ -402,8 +402,10 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
 
         kept, replaced = partition_directory_fallbacks([directory, primary])
 
-        self.assertEqual(replaced, [])
-        self.assertEqual(kept, [directory, primary])
+        self.assertEqual(replaced, [directory])
+        [winner] = kept
+        self.assertEqual(winner.previous_event_ids[:20], primary.previous_event_ids)
+        self.assertIn(identity.event_id(directory.to_dict()), winner.previous_event_ids)
 
     def test_marktcom_is_retained_when_primary_sources_return_nothing(self):
         directory = self._directory_cohort()

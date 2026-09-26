@@ -221,7 +221,7 @@ def _reconcile_published_ids(
                 if str(candidate.get("event_id") or "").strip() != prior_id
             ),
             *(prior.get("previous_event_ids") or []),
-        ]))[:20]
+        ]))
         updates = {
             "preserved_event_id": prior_id,
             "previous_event_ids": inherited_ids,

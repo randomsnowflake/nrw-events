@@ -575,7 +575,7 @@ def canonical_identity_provenance(raw: dict[str, Any]) -> IdentityProvenanceFiel
     event["previous_event_ids"] = list(dict.fromkeys(
         str(value or "").strip() for value in previous_event_ids
         if str(value or "").strip()
-    ))[:20]
+    ))
     return {
         "link_kind": event["link_kind"],
         "source_links": event["source_links"],

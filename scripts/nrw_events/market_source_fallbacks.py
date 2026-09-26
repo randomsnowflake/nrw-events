@@ -144,15 +144,6 @@ def partition_directory_fallbacks(
             event.preserved_event_id,
             event_id(replace(event, preserved_event_id="").to_dict()),
         ))))
-        existing_aliases = list(dict.fromkeys(primary.previous_event_ids))
-        pending_aliases = aliases_by_primary_index.get(primary_index, [])
-        new_aliases = [
-            alias
-            for alias in aliases
-            if alias not in existing_aliases and alias not in pending_aliases
-        ]
-        if len(existing_aliases) + len(pending_aliases) + len(new_aliases) > 20:
-            continue
         replaced_indices.add(index)
         replaced_events.append(event)
         aliases_by_primary_index.setdefault(primary_index, []).extend(aliases)
@@ -168,7 +159,7 @@ def partition_directory_fallbacks(
                 event,
                 previous_event_ids=[
                     *dict.fromkeys([*event.previous_event_ids, *aliases]),
-                ][:20],
+                ],
             )
         kept.append(kept_event)
     return kept, replaced_events
