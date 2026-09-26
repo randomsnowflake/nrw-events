@@ -190,6 +190,22 @@ class BonnCategoryMappingTests(unittest.TestCase):
                 warning.assert_not_called()
         self.assertEqual(bonn._unknown_source_categories({"Unbekannte neue Facette"}), {"Unbekannte neue Facette"})
 
+    def test_grundschule_and_portal_are_neutral_facets_not_event_formats(self):
+        for facet, topic, category in (
+            ("Grundschule", "Ausstellungen", "exhibition"),
+            ("Portal", "Musik/Konzert", "concert"),
+        ):
+            with self.subTest(facet=facet), patch.object(common, "log_source_error") as warning:
+                self.assertIn(facet, bonn._KNOWN_SOURCE_CATEGORIES)
+                self.assertNotIn(facet, bonn._ALLOW | bonn._FREE_ACTIVITY_ALLOW)
+                events = self._fetch_json([
+                    self._json_item([facet, topic], "Öffentliches Ereignis"),
+                    self._json_item([facet], "Unbestimmtes Angebot"),
+                ])
+                self.assertEqual([event["title"] for event in events], ["Öffentliches Ereignis"])
+                self.assertEqual(events[0]["category_key"], category)
+                warning.assert_not_called()
+
     def test_captured_september_facets_preserve_each_occurrence_disposition(self):
         # Exact records selected from https://www.bonn.de/citykey/events-json.php
         # on 2026-09-15; all source fields and co-occurring categories preserved.
@@ -277,6 +293,7 @@ class BonnCategoryMappingTests(unittest.TestCase):
         source, error = log_source_error.call_args.args
         self.assertEqual(source, "Bonn.de Events category taxonomy")
         self.assertIn("Neue Stadtkategorie", str(error))
+        self.assertEqual(log_source_error.call_args.kwargs["error_type"], "CategoryTaxonomyWarning")
 
     def test_listing_guide_format_remains_classifier_driven(self):
         events = bonn._calendar_listing_events_from_html(
@@ -309,6 +326,7 @@ class BonnCategoryMappingTests(unittest.TestCase):
         source, error = log_source_error.call_args.args
         self.assertEqual(source, "Bonn.de Events category taxonomy")
         self.assertIn("Neue Stadtkategorie", str(error))
+        self.assertEqual(log_source_error.call_args.kwargs["error_type"], "CategoryTaxonomyWarning")
 
     def test_json_guide_format_remains_classifier_driven(self):
         events = self._fetch_json(
