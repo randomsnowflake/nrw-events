@@ -124,6 +124,31 @@ class SourceOutageTests(unittest.TestCase):
                 self.assertEqual(payload["retained_sources"][0]["first_failure_at"], START.isoformat(timespec="seconds"))
                 self.assertEqual(payload["retained_event_count"], 0)
 
+    def test_taxonomy_diagnostic_clears_old_false_outage_but_real_failures_still_age(self):
+        with make_runner_env() as env:
+            self.run_day(env, -1, self.sources(lambda: [event()]))
+
+            def taxonomy(kind):
+                def fetch():
+                    runner.common.log_source_error(
+                        "Calendar category taxonomy", ValueError("unknown source categories: Portal"),
+                        error_type=kind,
+                    )
+                    return [event()]
+                return fetch
+
+            _, old = self.run_day(env, 0, self.sources(taxonomy("ValueError")))
+            self.assertEqual(old["retained_sources"][0]["retained_event_count"], 0)
+            _, recovered = self.run_day(env, 5, self.sources(taxonomy("CategoryTaxonomyWarning")))
+            self.assertEqual(recovered["retained_sources"], [])
+            self.assertEqual(recovered["source_results"]["Calendar"]["status"], "degraded")
+            self.assertIn("Concert", {row["title"] for row in recovered["events"]})
+
+            _, outage = self.run_day(env, 6, self.sources(failed))
+            self.assertEqual(outage["retained_sources"][0]["retained_event_count"], 1)
+            self.assertEqual(outage["retained_sources"][0]["first_failure_at"],
+                             (START + timedelta(days=6)).isoformat(timespec="seconds"))
+
     def test_healthy_empty_resets_even_with_raw_drop_anomaly(self):
         with make_runner_env() as env:
             _, old = self.run_day(env, -1, self.sources(lambda: [event()]))

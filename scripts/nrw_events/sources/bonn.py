@@ -130,6 +130,7 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Beethoven-Orchester", "Beethovenhalle", "Beuel",
         "Bürgerschaftliches Engagement", "Demokratie", "Digitales/Bildung",
         "Erwachsene", "Europa", "Familien", "Ferienprogramm", "Frankreich",
+        "Grundschule",  # Audience/institution facet, not an event format.
         "Für Einzelgäste an festen Terminen",
         "Für Einzelgäste und Gruppen mit eigener Gästeführung",
         "Für Gruppen mit eigener Gästeführung", "Gesundheit", "Gleichstellung", "Hardtberg",
@@ -137,6 +138,7 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Integration/Migration/Interkultur", "Internationales", "Jugendliche",
         "Junge Erwachsene", "Klima", "Kunstmuseum", "Nachhaltigkeit",
         "Kinder (10 bis 14 Jahre)", "Nachhaltigkeits-Hub Region Bonn",
+        "Portal",  # Navigation label alongside actual event topics.
         # Reading-festival umbrella, not an occurrence's format or admission.
         # Its events also carry topics such as Aktion/Workshop or Lesung.
         "Käpt´n Book",
@@ -635,6 +637,7 @@ def _warn_unknown_source_categories(source: str, categories: set[str]) -> None:
         common.log_source_error(
             f"{source} category taxonomy",
             ValueError("unknown Bonn source categories: " + ", ".join(sorted(categories))),
+            error_type="CategoryTaxonomyWarning",
         )
 
 
