@@ -92,7 +92,7 @@ def _anchor_start(key: tuple[str, ...], first: str, previous: Mapping[str, Any])
 
 def _merged(
     key: tuple[str, ...], rows: Sequence[CanonicalEvent], runs: Sequence[CanonicalEvent],
-    closed: Sequence[CanonicalEvent], previous: Mapping[str, Any],
+    closed: Sequence[Mapping[str, Any]], previous: Mapping[str, Any],
 ) -> CanonicalEvent:
     ordered = sorted(rows, key=lambda row: row.start_date)
     slots = [_opening_slot(row) for row in ordered]
@@ -140,14 +140,19 @@ def merge_exhibition_opening_days(
     """Replace each exhibition's per-day opening rows by one ranged event."""
     rows_by_key: dict[tuple[str, ...], list[CanonicalEvent]] = defaultdict(list)
     runs_by_key: dict[tuple[str, ...], list[CanonicalEvent]] = defaultdict(list)
-    closed_by_key: dict[tuple[str, ...], list[CanonicalEvent]] = defaultdict(list)
+    closed_by_key: dict[tuple[str, ...], list[Mapping[str, Any]]] = defaultdict(list)
     for event in events:
         key = _run_key(event)
-        if key is None or event.status not in {"scheduled", "cancelled"}:
+        status = event.get("status", "scheduled")
+        if key is None:
             continue
-        if event.status == "cancelled":
+        if status == "cancelled":
             if not _is_run(event):
                 closed_by_key[key].append(event)
+        # Carried-over cancellations can arrive as plain snapshot records
+        # despite the annotation; only validated rows are merged.
+        elif status != "scheduled" or not isinstance(event, CanonicalEvent):
+            continue
         elif _is_run(event):
             runs_by_key[key].append(event)
         else:
@@ -161,7 +166,7 @@ def merge_exhibition_opening_days(
         runs = runs_by_key.get(key, [])
         first = min([row.start_date for row in rows] + [run.start_date for run in runs])
         last = max([row.start_date for row in rows] + [run.end_date for run in runs])
-        closed = [day for day in closed_by_key.get(key, []) if first <= day.start_date <= last]
+        closed = [day for day in closed_by_key.get(key, []) if first <= str(day.get("start_date") or "") <= last]
         members = [*rows, *runs, *closed]
         replaced[id(members[0])] = _merged(key, rows, runs, closed, previous)
         for member in members[1:]:

@@ -61,12 +61,13 @@ class ExhibitionRunTests(unittest.TestCase):
         after_run = _day("2026-10-09", time="", status="cancelled")
         published = {"events": [{"event_id": event_id(day)} for day in (*days, closing_day)]}
 
-        merged, kept = merge_exhibition_opening_days([*days, closing_day, after_run], published)
+        # A carried-over cancellation can be a plain snapshot record.
+        merged, kept = merge_exhibition_opening_days([*days, closing_day.to_dict(), after_run.to_dict()], published)
 
         self.assertEqual((merged.start_date, merged.end_date, merged.all_day), ("2026-10-01", "2026-10-03", True))
         self.assertEqual(merged.daily_schedule, [])
         self.assertIn(event_id(closing_day), merged.previous_event_ids)
-        self.assertIs(kept, after_run)
+        self.assertEqual(kept, after_run.to_dict())
 
     def test_mixed_hours_publish_no_partial_schedule(self):
         [merged] = merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02", time="")], {})
