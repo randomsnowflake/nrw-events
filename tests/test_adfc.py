@@ -169,6 +169,38 @@ class AdfcBonnSourceTests(unittest.TestCase):
         self.assertTrue(event["description"])
         self.assertEqual(event["description_source"], "generated")
 
+    def test_district_city_is_replaced_by_postcode_municipality(self):
+        # Exact API shape of 185339: the geocoder stored the Kreis as city.
+        item = {
+            **LISTING_ITEM,
+            "title": "Treffen der Ortsgruppe Bornheim",
+            "eventType": "Termin",
+            "beginning": "2026-09-08T17:00:00+00:00",
+            "end": "2026-09-08T19:00:00+00:00",
+            "cShortDescription": 'Zusammen mit der Ortsgruppe Alfter sprechen wir u.A. über Aktionen. Treffpunkt Gäststätte "Zur Krone" in Alfter.',
+            "city": "Rhein-Sieg-Kreis",
+            "latitude": 50.738013,
+            "longitude": 7.011225,
+            "cSlug": "185339-treffen-der-ortsgruppe-bornheim",
+            "cUnitName": "ADFC Bornheim",
+            "startLocation": "Kronenstraße 17 53347 Rhein-Sieg-Kreis",
+        }
+        detail = {
+            "eventItem": item,
+            "tourLocations": [{
+                "position": 0, "type": "Startpunkt", "name": "",
+                "street": "Kronenstraße 17", "city": "Rhein-Sieg-Kreis", "zipCode": "53347",
+                "latitude": 50.738013, "longitude": 7.011225,
+            }],
+            "itemTags": [], "eventItemPrices": [],
+        }
+
+        for payload in (detail, {}):
+            with self.subTest(detail=bool(payload)):
+                [event] = adfc_bonn.events_from_payload([item], detail_fetcher=lambda _slug, p=payload: p)
+                self.assertEqual(event["city"], "Alfter")
+                self.assertTrue(event["venue_address"].endswith("53347 Alfter"))
+
     def test_detail_failure_keeps_listing_details_and_location(self):
         with patch.object(adfc_bonn.common, "log_source_error") as log_error:
             [event] = adfc_bonn.events_from_payload(
