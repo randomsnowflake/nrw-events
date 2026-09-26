@@ -5,8 +5,10 @@ from nrw_events.identity import assign_event_ids, event_id
 from nrw_events.validation import validate_event
 
 
-def _day(day: str, *, time: str = "14:00–18:00", title: str = "Ausstellung 100 Jahre Bad Godesberg"):
+def _day(day: str, *, time: str = "14:00–18:00", title: str = "Ausstellung 100 Jahre Bad Godesberg",
+         status: str = "scheduled"):
     return validate_event({
+        "status": status,
         "title": title,
         "source": "Bonn.de Events",
         "source_id": "bonn-de-events",
@@ -52,6 +54,23 @@ class ExhibitionRunTests(unittest.TestCase):
         [merged] = merge_exhibition_opening_days([run, _day("2026-10-02"), _day("2026-10-03")], {})
         self.assertEqual((merged.start_date, merged.end_date), ("2026-10-01", "2026-10-03"))
         self.assertEqual(event_id(merged), event_id(run))
+
+    def test_untimed_days_and_closing_days_fold_into_an_all_day_run(self):
+        days = [_day("2026-10-01", time=""), _day("2026-10-03", time="")]
+        closing_day = _day("2026-10-02", time="", status="cancelled")
+        after_run = _day("2026-10-09", time="", status="cancelled")
+        published = {"events": [{"event_id": event_id(day)} for day in (*days, closing_day)]}
+
+        merged, kept = merge_exhibition_opening_days([*days, closing_day, after_run], published)
+
+        self.assertEqual((merged.start_date, merged.end_date, merged.all_day), ("2026-10-01", "2026-10-03", True))
+        self.assertEqual(merged.daily_schedule, [])
+        self.assertIn(event_id(closing_day), merged.previous_event_ids)
+        self.assertIs(kept, after_run)
+
+    def test_mixed_hours_publish_no_partial_schedule(self):
+        [merged] = merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02", time="")], {})
+        self.assertEqual((merged.daily_schedule, merged.all_day), ([], True))
 
 
 if __name__ == "__main__":
