@@ -306,6 +306,53 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(context["venue"], "Arithmeum - rechnen einst und heute")
         self.assertEqual(context["city"], "Bonn")
 
+    def test_bonn_events_json_repairs_venue_name_in_address_locality(self):
+        # Exact citykey feed shape from 2026-09-26: the CMS puts the venue
+        # where the town belongs ("..., 53111, Stadthaus").
+        payload = [{
+            "hasStartTime": True,
+            "hasEndTime": True,
+            "uid": 338786,
+            "title": "Martinslaternen-Ausstellung im Stadthaus",
+            "description": "Farbenfrohe Martinslaternen aus Bonner Schulen und Kindergärten sind im Foyer des Stadthauses zu sehen.",
+            "link": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/eigene-veranstaltungen/martinslaternen-Ausstellung-im-foyer-des-stadthauses.php",
+            "locationName": "Stadthaus",
+            "locationAddress": "Berliner Platz 2, 53111, Stadthaus",
+            "category": ["Bonn", "Ausstellungen", "Familien", "Kostenlos"],
+            "startDate": "2026-06-12 08:00:00",
+            "endDate": "2026-06-12 18:00:00",
+        }]
+
+        with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)), \
+             patch("nrw_events.sources.bonn._venue_points", return_value={}):
+            [event] = bonn.fetch_events_json(include_fallbacks=False, enrich_details=False)
+
+        self.assertEqual(event["city"], "Bonn")
+        self.assertEqual(event["venue"], "Stadthaus")
+        self.assertEqual(event["venue_address"], "Berliner Platz 2, 53111, Bonn")
+
+    def test_bonn_detail_context_repairs_venue_name_in_address_locality(self):
+        html = """
+<script type="application/ld+json">
+{"@context":"http://schema.org","@type":"Event","name":"Martinslaternen-Ausstellung im Foyer des Stadthauses","location":[{"@type":"Place","name":"Stadthaus","description":"Bundesstadt Bonn","address":{"@type":"PostalAddress","postalCode":"53111","addressLocality":"Stadthaus","addressCountry":"DE","streetAddress":"Berliner Platz 2"}}]}
+</script>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["venue"], "Stadthaus")
+        self.assertEqual(context["city"], "Bonn")
+        self.assertEqual(context["venue_address"], "Berliner Platz 2, 53111 Bonn")
+
+    def test_bonn_address_locality_keeps_real_towns(self):
+        for address, town in (
+            ("Hans-Arp-Allee 1, 53424, Remagen", "Remagen"),
+            ("Beethovenstraße 21, 53773, Hennef (Sieg)", "Hennef (Sieg)"),
+            ("Kölnstr 250, 53117, Bonn", "Bonn"),
+        ):
+            with self.subTest(address=address):
+                self.assertEqual(bonn._address_locality(address), (town, address))
+
     def test_kult41_events_manager_blocks_create_events(self):
         patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
         html = """

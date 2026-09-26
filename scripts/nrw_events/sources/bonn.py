@@ -27,6 +27,7 @@ from .. import (
     common,
     richtext,
 )
+from ..location import municipality_for_locality
 from . import regional_common as rc
 from .bonn_policy import _active_reviewed_map, _clean_event_href
 from .bonn_press_parser import (
@@ -427,6 +428,24 @@ def _event_admission(price: str, venue: str, detail_context: dict) -> tuple[str,
     return price, ""
 
 
+def _address_locality(address: str) -> tuple[str, str]:
+    """Return ``(town, address)`` with a non-municipal locality repaired.
+
+    Bonn.de emits the Stadthaus as ``Berliner Platz 2, 53111, Stadthaus``:
+    its CMS puts the place name where the town belongs. The postcode decides
+    the municipality, and the published address carries the same town.
+    """
+    parts = [part.strip() for part in (address or "").split(",") if part.strip()]
+    if not parts:
+        return "", address
+    town = re.sub(r"^\d{4,5}\s*", "", parts[-1]).strip()
+    municipality = municipality_for_locality(town, address)
+    if not town or municipality == town:
+        return town, address
+    parts[-1] = parts[-1][: -len(town)] + municipality
+    return municipality, ", ".join(parts)
+
+
 def _parse_detail_context(html: str) -> dict:
     """Extract description and structured location facts from a Bonn detail page."""
     context = {
@@ -525,7 +544,11 @@ def _parse_detail_context(html: str) -> dict:
             if isinstance(address, dict):
                 street = str(address.get("streetAddress") or "").strip()
                 postal_code = str(address.get("postalCode") or "").strip()
-                context["city"] = str(address.get("addressLocality") or "").strip()
+                source_locality = str(address.get("addressLocality") or "").strip()
+                context["city"] = (
+                    municipality_for_locality(source_locality, postal_code)
+                    if source_locality else ""
+                )
                 locality = " ".join(part for part in (postal_code, context["city"]) if part)
                 context["venue_address"] = ", ".join(part for part in (street, locality) if part)
             elif isinstance(address, str):
@@ -777,8 +800,10 @@ def fetch_events_json(
             venue = venue or detail_context.get("venue", "")
             location_address = location_address or detail_context.get("venue_address", "")
             price = detail_context.get("price") or price
-        parts = [p.strip() for p in location_address.split(",") if p.strip()]
-        town = re.sub(r"^\d{4,5}\s*", "", parts[-1]).strip() if parts else detail_context.get("city", "")
+        if any(part.strip() for part in location_address.split(",")):
+            town, location_address = _address_locality(location_address)
+        else:
+            town = detail_context.get("city", "")
         city = common.refine_city_from_text(
             town or "Bonn", " ".join((title, venue, description))
         )

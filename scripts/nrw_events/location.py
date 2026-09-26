@@ -106,6 +106,29 @@ def district_from_postcode(text: str) -> str:
     return ""
 
 
+def municipality_for_locality(locality: str, postcode_text: str) -> str:
+    """Repair a postal locality that names a building or district, not a town.
+
+    Some sources fill ``addressLocality`` with the venue ("Stadthaus") or the
+    Kreis ("Rhein-Sieg-Kreis"). A known city, or a locality that already
+    starts with the postcode's municipality (``Hennef (Sieg)``), is kept.
+    Otherwise a postcode owned by exactly one configured municipality wins;
+    without one the source value is returned unchanged.
+    """
+    locality = (locality or "").strip()
+    if resolve_location(locality)[1] == "known_city":
+        return locality
+    postcode = re.search(r"(?<!\d)(\d{5})(?!\d)", postcode_text or "")
+    municipality = config.POSTCODE_MUNICIPALITIES.get(postcode.group(1), "") if postcode else ""
+    if not municipality:
+        return locality
+    locality_key = comparison_text(locality)
+    municipality_key = comparison_text(municipality)
+    if locality_key == municipality_key or locality_key.startswith(municipality_key + " "):
+        return locality
+    return municipality
+
+
 def refine_bonn_location(city: str, text: str) -> str:
     """Resolve a bare "Bonn" to its district using a postcode, then a name.
 

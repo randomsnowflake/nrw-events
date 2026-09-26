@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 import urllib.parse
+from collections.abc import Callable
 from datetime import datetime
 from html import escape
 from zoneinfo import ZoneInfo
 
 from .. import common, richtext
+from ..location import municipality_for_locality
 from . import regional_common as rc
 
 SOURCE = "ADFC Bonn/Rhein-Sieg"
@@ -83,6 +85,9 @@ def _location_parts(payload: dict, listing: dict) -> tuple[str, str, str, tuple 
             name, postal, city = (part.strip(" ,") for part in match.groups())
         else:
             name = listing_location
+    # The ADFC geocoder falls back to the Kreis ("Rhein-Sieg-Kreis") when it
+    # has no municipality; the postcode still names the town.
+    city = municipality_for_locality(city, postal)
     venue = name or street or city
     city_line = " ".join(part for part in (postal, city) if part)
     address = ", ".join(part for part in (street, city_line) if part)
@@ -106,7 +111,8 @@ def _price(payload: dict) -> str:
 
 
 def _description(payload: dict, listing: dict) -> tuple[str, str]:
-    item = payload.get("eventItem") if isinstance(payload.get("eventItem"), dict) else listing
+    detail_item = payload.get("eventItem")
+    item: dict = detail_item if isinstance(detail_item, dict) else listing
     full_html = richtext.sanitize_rich_text(str(item.get("description") or ""))
     full_text = richtext.to_plain_text(full_html)
     short = _clean(item.get("cShortDescription")) or _clean(listing.get("cShortDescription"))
@@ -135,7 +141,7 @@ def _description(payload: dict, listing: dict) -> tuple[str, str]:
             for label, value in facts
         ) + "</ul>")
 
-    tags = {}
+    tags: dict[str, list[str]] = {}
     for tag in payload.get("itemTags") or []:
         if not isinstance(tag, dict):
             continue
@@ -217,7 +223,7 @@ def _event_from_payload(listing: dict, detail: dict) -> dict | None:
     return event
 
 
-def events_from_payload(items: list, *, detail_fetcher) -> list:
+def events_from_payload(items: list, *, detail_fetcher: Callable[[str], object]) -> list:
     events = []
     for listing in items:
         if not isinstance(listing, dict):
@@ -254,7 +260,7 @@ def _search_url(offset: int) -> str:
 
 
 def _listing_items() -> list:
-    items = []
+    items: list[dict] = []
     for page in range(_MAX_PAGES):
         payload = common.fetch_json(_search_url(page * _PAGE_SIZE), timeout=25)
         page_items = payload.get("items") if isinstance(payload, dict) else None

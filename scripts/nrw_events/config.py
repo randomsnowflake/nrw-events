@@ -319,3 +319,22 @@ BONN_POSTCODE_DISTRICTS = {
     # itself named Bonn. A district literally called "Zentrum" would also make
     # the everyday word in venue names such as "Max7 Zentrum" look geographic.
 }
+
+# Postleitzahlen, die genau einer konfigurierten Gemeinde gehören (Bonn und
+# Rhein-Sieg-Kreis). Nur zur Reparatur von Quell-Ortsangaben, die keine
+# Gemeinde sind — etwa ein Gebäude ("Stadthaus") oder ein Kreis
+# ("Rhein-Sieg-Kreis") im addressLocality-Feld.
+POSTCODE_MUNICIPALITIES = {
+    **dict.fromkeys((
+        "53111", "53113", "53115", "53117", "53119", "53121", "53123",
+        "53125", "53127", "53129", "53173", "53175", "53177", "53179",
+        "53225", "53227", "53229",
+    ), "Bonn"),
+    "53332": "Bornheim", "53340": "Meckenheim", "53343": "Wachtberg",
+    "53347": "Alfter", "53359": "Rheinbach", "53604": "Bad Honnef",
+    "53639": "Königswinter", "53721": "Siegburg", "53757": "Sankt Augustin",
+    "53773": "Hennef", "53783": "Eitorf", "53797": "Lohmar", "53804": "Much",
+    "53809": "Ruppichteroth", "53819": "Neunkirchen-Seelscheid",
+    "53840": "Troisdorf", "53842": "Troisdorf", "53844": "Troisdorf",
+    "53859": "Niederkassel", "53913": "Swisttal", "51570": "Windeck",
+}
