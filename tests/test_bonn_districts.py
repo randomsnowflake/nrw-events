@@ -464,10 +464,11 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(event["source_role"], "primary")
         self.assertEqual(event["discovered_via"], ["beuel-net"])
 
+        # Beuel.net is an aggregator: even confirmed primary copy is published only as AI summary.
         canonical = validation.validate_event(event)
 
-        self.assertIn("startet die Kirmes schon am Freitag", canonical.description)
-        self.assertEqual(canonical.description_source, "scraped")
+        self.assertNotIn("startet die Kirmes schon am Freitag", canonical.description)
+        self.assertEqual(canonical.description_source, "generated")
 
     def test_non_jmj_beuel_primary_stays_master_data_only(self):
         event = bonn_districts.events_from_beuel_html(BEUEL_HTML)[1]

@@ -48,6 +48,17 @@ class AIContentRecoveryTests(unittest.TestCase):
         self.assertEqual(cleaned["city"], "Bonn")
         self.assertEqual(cleaned["venue"], "Kunstmuseum Bonn")
 
+    def test_competing_platforms_never_publish_source_copy(self):
+        for source in (
+            "kinderflohmarkt-com", "bonn-jetzt", "bonnlive", "beuel-net", "ruhr-guide", "rheinevents",
+            "kihapp", "ahrtal-tourismus", "bad-muenstereifel-tourismus", "kultur-euskirchen",
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(ai.is_target_event(event(source_id=source, description_source="scraped")))
+                stripped = ai.strip_restricted_copy(event(source_id=source, description="Plattformtext.", ai_summary=""))
+                self.assertNotIn("Plattformtext", stripped["description"])
+                self.assertEqual(stripped["description_source"], "generated")
+
     def test_sparse_primary_sources_enter_ai_but_real_source_copy_is_preserved(self):
         for source in ("b-future-festival", "lupe-events"):
             with self.subTest(source=source):

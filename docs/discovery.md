@@ -49,8 +49,10 @@ exhibitions=1.4x, kids-only=0.25x). Output: markdown report grouped by category 
 JSON event list plus metadata defaulting to the user's XDG state directory
 (`~/.local/state/nrw-events` when `XDG_STATE_HOME` is unset).
 
-For the restricted sources Bonn.de Events/Sports, marktcom and Radio
-Bonn/Rhein-Sieg, source prose is never published. By default,
+For the restricted sources Bonn.de Events/Sports, marktcom, Radio
+Bonn/Rhein-Sieg and the competing platforms Kinderflohmarkt.com, Bonn.jetzt,
+BonnLive, Beuel.net, Ruhr-Guide, RheinEvents, Kihapp and the Deskline regional
+calendars, source prose is never published. By default,
 `OPENAI_API_KEY` and `NRW_EVENTS_AI_ENRICHMENT=1` run two separate
 `gpt-5.6-luna` Responses API calls that extract facts and then write
 `ai_summary`; without the selected provider's key the summary stays empty.

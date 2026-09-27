@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .ai_contracts import TARGET_SOURCE_IDS
+
 _AGGREGATOR_SOURCE_MARKERS = (
     "bonn.jetzt", "eventbrite", "meetup", "radio bonn", "ruhr-guide",
     "kinderflohmarkt.com",
@@ -22,9 +24,11 @@ _CIVIC_AGGREGATOR_SOURCE_MARKERS = (
 _CIVIC_AGGREGATOR_SOURCE_EXACT = frozenset({"ahrtal"})
 
 
+# Sources whose copy is never published: their generated fallback sentence must
+# not replace a primary duplicate's description.
 _RESTRICTED_FALLBACK_SOURCE_IDS = frozenset({
     "beuel-net", "bonn-de-events", "bonn-de-sports",
-})
+}) | TARGET_SOURCE_IDS
 
 
 _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {

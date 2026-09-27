@@ -16,6 +16,18 @@ TARGET_SOURCE_IDS = frozenset({
     "bonn-de-sports",
     "marktcom",
     "radio-bonn-rhein-sieg",
+    # Competing platforms and aggregators: publish only AI summaries, never their copy.
+    "kinderflohmarkt-com",
+    "bonn-jetzt",
+    "bonnlive",
+    "beuel-net",
+    "ruhr-guide",
+    "rheinevents",
+    "kihapp",
+    # Deskline regional components.
+    "ahrtal-tourismus",
+    "bad-muenstereifel-tourismus",
+    "kultur-euskirchen",
 })
 
 
