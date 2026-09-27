@@ -43,6 +43,28 @@ class ExhibitionRunTests(unittest.TestCase):
         self.assertEqual(next_day.start_date, "2026-10-01")
         self.assertEqual(event_id(next_day), published["event_id"])
 
+    def test_final_opening_day_keeps_published_run_identity(self):
+        for time in ("14:00–18:00", ""):
+            with self.subTest(time=time):
+                days = [_day("2026-10-01", time=time), _day("2026-10-04", time=time)]
+                [published] = assign_event_ids(merge_exhibition_opening_days(days, {}))
+                [last_day] = merge_exhibition_opening_days(days[-1:], {"events": [published]})
+                self.assertEqual((last_day.start_date, last_day.end_date), ("2026-10-01", "2026-10-04"))
+                self.assertEqual(event_id(last_day), published["event_id"])
+                self.assertEqual(last_day.all_day, not bool(time))
+
+    def test_new_standalone_day_and_unrelated_old_run_stay_separate(self):
+        day = _day("2026-11-01")
+        [old] = assign_event_ids(merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02")], {}))
+        for previous in ({}, {"events": [old]}):
+            self.assertEqual(merge_exhibition_opening_days([day], previous), [day])
+
+    def test_retained_run_absorbs_one_fresh_day(self):
+        [run] = merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02")], {})
+        [merged] = merge_exhibition_opening_days([run, _day("2026-10-03")], {})
+        self.assertEqual((merged.start_date, merged.end_date), ("2026-10-01", "2026-10-03"))
+        self.assertEqual(event_id(merged), event_id(run))
+
     def test_tours_and_same_day_sessions_keep_their_own_pages(self):
         tours = [_day("2026-10-01", time="15:00–16:00"), _day("2026-10-02", time="15:00–16:00")]
         self.assertEqual(merge_exhibition_opening_days(tours, {}), tours)
