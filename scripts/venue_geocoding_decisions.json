@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "checkedAt": "2026-08-01",
+  "checkedAt": "2026-09-28",
   "rejected": {
     "Brühler Innenstadt": "matched an unrelated restaurant, not the city centre",
     "Bürgersaal im Bergischen Hof": "matched Rathausplatz rather than the hall",
@@ -11,7 +11,10 @@
     "Nachbarschaftszentrum Brüser Berg": "matched the district rather than the centre",
     "Poppelsdorfer": "venue label is incomplete and matched a university office",
     "Spielplatz „Gustav-Stresemann-Ring“, Efferen": "matched Hürth town hall rather than the playground",
-    "Treff Max-Ernst-Brunnen": "matched Brühl town hall rather than the fountain"
+    "Treff Max-Ernst-Brunnen": "matched Brühl town hall rather than the fountain",
+    "Online-Veranstaltung": "online event, no physical place",
+    "Der Veranstaltungsort ist der Startpunkt der Tour": "generic phrase; tours start at different addresses",
+    "Spotlight Secrets": "tour operator office, not the meeting point of its tours"
   },
   "manual": [
     {
@@ -45,6 +48,166 @@
       "longitude": 7.1856549,
       "osmUrl": "https://www.openstreetmap.org/way/110134435",
       "note": "replaced restaurant match with the Schloss Eulenbroich site"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Treffpunkt: Uni Bonn (Eingang \"Mensa am Hofgarten\"), Am Hofgarten",
+      "latitude": 50.732707,
+      "longitude": 7.107563,
+      "osmUrl": "https://www.openstreetmap.org/way/1533213471",
+      "note": "Meeting point is the Mensa am Hofgarten entrance; OSM building of the Mensa am Hofgarten"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Opernhaus Bühne",
+      "latitude": 50.736672,
+      "longitude": 7.106679,
+      "osmUrl": "https://www.openstreetmap.org/way/21021161",
+      "note": "Main stage of Oper Bonn; OSM theatre building Am Boeselagerhof 1"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Oper Foyerbühne",
+      "latitude": 50.736672,
+      "longitude": 7.106679,
+      "osmUrl": "https://www.openstreetmap.org/way/21021161",
+      "note": "Foyer stage inside Oper Bonn; OSM theatre building Am Boeselagerhof 1"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Vor dem Museum Koenig",
+      "latitude": 50.722144,
+      "longitude": 7.113482,
+      "osmUrl": "https://www.openstreetmap.org/way/24873000",
+      "note": "In front of Museum Alexander Koenig, Adenauerallee 160"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Vor dem Museum Koenig in Bonn",
+      "latitude": 50.722144,
+      "longitude": 7.113482,
+      "osmUrl": "https://www.openstreetmap.org/way/24873000",
+      "note": "In front of Museum Alexander Koenig, Adenauerallee 160"
+    },
+    {
+      "city": "Bonn-Innenstadt",
+      "venue": "Martinsplatz, vor dem Bonner Münster",
+      "latitude": 50.733426,
+      "longitude": 7.100359,
+      "osmUrl": "https://www.openstreetmap.org/relation/12166222",
+      "note": "Martinsplatz pedestrian area in front of the Bonner Münster"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Schauspielhaus Foyer",
+      "latitude": 50.683129,
+      "longitude": 7.154088,
+      "osmUrl": "https://www.openstreetmap.org/way/271274983",
+      "note": "Foyer of Schauspielhaus Bad Godesberg, Am Michaelshof 9"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Botanische Gärten Bonn",
+      "latitude": 50.725071,
+      "longitude": 7.092108,
+      "osmUrl": "https://www.wfs.nrw.de/geobasis/wfs_nw_alkis_vereinfacht?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=ave:GebaeudeBauwerk&SRSNAME=urn:ogc:def:crs:EPSG::4326&BBOX=50.723814,7.090607,50.726329,7.094582,urn:ogc:def:crs:EPSG::4326",
+      "note": "Reuses the reviewed website venue point of the Botanische Gärten"
+    },
+    {
+      "city": "Bonn-Innenstadt",
+      "venue": "Kammermusiksaal Beethoven-Haus",
+      "latitude": 50.736895,
+      "longitude": 7.101275,
+      "osmUrl": "https://www.openstreetmap.org/way/123651444",
+      "note": "Chamber music hall is part of the Beethoven-Haus complex, Bonngasse 20-24"
+    },
+    {
+      "city": "Bonn",
+      "venue": "Zentrum für Neurologie und Klinik für Neuroimmunologie und Neuromuskuläre Erkrankungen Universitätsklinikum Bonn",
+      "latitude": 50.696043,
+      "longitude": 7.105322,
+      "osmUrl": "https://www.openstreetmap.org/relation/8143268",
+      "note": "UKB neurology centre is the NPP building (Neurologie, Psychiatrie, Psychosomatik) on Venusberg-Campus 1"
+    },
+    {
+      "city": "Dransdorf",
+      "venue": "Ehemalige Biskuithalle",
+      "latitude": 50.737941,
+      "longitude": 7.071155,
+      "osmUrl": "https://www.openstreetmap.org/node/3933388146",
+      "note": "Source address Siemensstraße 26 matched as OSM address node"
+    },
+    {
+      "city": "Köln (Sülz)",
+      "venue": "Stadtteilbibliothek Sülz",
+      "latitude": 50.91638,
+      "longitude": 6.925936,
+      "osmUrl": "https://www.openstreetmap.org/node/464869711",
+      "note": "OSM library node Wichterichstraße 1"
+    },
+    {
+      "city": "Eitorf",
+      "venue": "Treffpunkt Bahnhof Eitorf",
+      "latitude": 50.773572,
+      "longitude": 7.447523,
+      "osmUrl": "https://www.openstreetmap.org/node/4004958028",
+      "note": "Meeting point at Eitorf railway station"
+    },
+    {
+      "city": "Euskirchen",
+      "venue": "Stadttheater Euskirchen",
+      "latitude": 50.662247,
+      "longitude": 6.797362,
+      "osmUrl": "https://www.openstreetmap.org/way/168978850",
+      "note": "OSM theatre building Emil-Fischer-Straße 25"
+    },
+    {
+      "city": "Sinzig",
+      "venue": "Bahnhofsvorplatz Bad Bodendorf",
+      "latitude": 50.555239,
+      "longitude": 7.218768,
+      "osmUrl": "https://www.openstreetmap.org/node/458353787",
+      "note": "Station forecourt; OSM stop Bad Bodendorf Bahnhof"
+    },
+    {
+      "city": "Brühl",
+      "venue": "Zoom-Kino",
+      "latitude": 50.827215,
+      "longitude": 6.905221,
+      "osmUrl": "https://www.openstreetmap.org/node/272089111",
+      "note": "OSM cinema node Zoom Kino"
+    },
+    {
+      "city": "Frechen",
+      "venue": "Stadtbücherei Frechen",
+      "latitude": 50.908839,
+      "longitude": 6.808592,
+      "osmUrl": "https://www.openstreetmap.org/way/263358876",
+      "note": "Source address Johann-Schmitz-Platz 1-3 matched to the Altes Rathaus building"
+    },
+    {
+      "city": "Köln (Riehl)",
+      "venue": "Flora und Botanischer Garten",
+      "latitude": 50.960177,
+      "longitude": 6.970712,
+      "osmUrl": "https://www.openstreetmap.org/way/363009217",
+      "note": "OSM events venue Flora, Am Botanischen Garten 1a"
+    },
+    {
+      "city": "Rheinbreitbach",
+      "venue": "Museum für Rheinbreitbacher Alltagsgeschichte (Heimatmuseum)",
+      "latitude": 50.618091,
+      "longitude": 7.229208,
+      "osmUrl": "https://www.openstreetmap.org/node/425774243",
+      "note": "OSM museum node Heimatmuseum, Hauptstraße 29"
+    },
+    {
+      "city": "Bad Honnef",
+      "venue": "Insel Grafenwerth-1 Bad Honnef",
+      "latitude": 50.64094,
+      "longitude": 7.21518,
+      "osmUrl": "https://de.wikipedia.org/wiki/Grafenwerth",
+      "note": "Reuses the reviewed website venue point of Insel Grafenwerth"
     }
   ]
 }

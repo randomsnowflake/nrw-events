@@ -43,6 +43,12 @@ class VenueRegistryTests(unittest.TestCase):
             "siegburg-marktplatz",
         )
 
+    def test_room_or_tent_after_double_slash_uses_the_verified_place(self):
+        venue = resolve_venue("Münsterplatz // Europazelt", "Bonn")
+
+        self.assertEqual((venue.venue_latitude, venue.venue_longitude), (50.7341797, 7.099188))
+        self.assertEqual(resolve_venue("Münsterplatz // Europazelt", "Köln").venue_latitude, None)
+
     def test_mva_calendar_label_resolves_to_repair_cafe(self):
         venue = resolve_venue("MVA - Müllverwertungsanlage", "Bonn")
 

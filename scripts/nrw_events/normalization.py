@@ -266,7 +266,8 @@ def _record_for(value: str, city: str, explicit_id: str = "") -> VenueRecord | N
 
 def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | None:
     candidates = [value]
-    first_segment = value.split(",", 1)[0].strip()
+    # Calendars name rooms and tents after the place: "Münsterplatz // Europazelt".
+    first_segment = re.split(r",| // ", value, maxsplit=1)[0].strip()
     if first_segment and first_segment != value:
         candidates.append(first_segment)
     for candidate in candidates:
