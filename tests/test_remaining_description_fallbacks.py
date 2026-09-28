@@ -1,8 +1,10 @@
 import unittest
-from datetime import timedelta
+from datetime import date, timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from nrw_events import common
-from nrw_events.sources import bonn
+from nrw_events.sources import bonn, bonn_policy
 
 
 class RemainingDescriptionFallbackTests(unittest.TestCase):
@@ -27,7 +29,11 @@ class RemainingDescriptionFallbackTests(unittest.TestCase):
             "all_day": False,
             "description_html": "<p>BonnFest nur am 25. September 2026.</p>",
         })
-        events = bonn._apply_reviewed_sport_occurrence_corrections(raw_events)
+        with patch.object(
+            bonn_policy, "runtime_window",
+            return_value=SimpleNamespace(start=date(2026, 9, 27)),
+        ):
+            events = bonn._apply_reviewed_sport_occurrence_corrections(raw_events)
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["start_date"], "2026-09-25")
@@ -39,6 +45,13 @@ class RemainingDescriptionFallbackTests(unittest.TestCase):
         self.assertEqual(events[0]["description_html"], "")
         self.assertEqual(events[0]["description_source"], "generated")
         self.assertIn("25. bis 27. September 2026", events[0]["description"])
+
+        with patch.object(
+            bonn_policy, "runtime_window",
+            return_value=SimpleNamespace(start=date(2026, 9, 28)),
+        ):
+            expired = bonn._apply_reviewed_sport_occurrence_corrections(raw_events)
+        self.assertEqual(len(expired), 3)
 
     def test_bonn_sports_listing_has_factual_description(self):
         event_date = (common.TODAY + timedelta(days=1)).strftime("%d.%m.%Y")
