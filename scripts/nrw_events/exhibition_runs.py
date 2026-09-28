@@ -161,9 +161,13 @@ def merge_exhibition_opening_days(
     replaced: dict[int, CanonicalEvent | None] = {}
     for key, rows in rows_by_key.items():
         dates = Counter(row.start_date for row in rows)
-        if len(rows) < 2 or max(dates.values()) > 1 or not all(map(_is_opening_day, rows)):
+        if max(dates.values()) > 1 or not all(map(_is_opening_day, rows)):
             continue
         runs = runs_by_key.get(key, [])
+        # A published run remains a run on its final opening day. A new
+        # standalone day still keeps its original occurrence identity.
+        if len(rows) < 2 and not runs and _anchor_start(key, rows[0].start_date, previous) == rows[0].start_date:
+            continue
         first = min([row.start_date for row in rows] + [run.start_date for run in runs])
         last = max([row.start_date for row in rows] + [run.end_date for run in runs])
         closed = [day for day in closed_by_key.get(key, []) if first <= str(day.get("start_date") or "") <= last]
