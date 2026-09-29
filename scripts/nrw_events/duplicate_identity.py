@@ -657,9 +657,20 @@ def _venue_occurrence_identity(event: Mapping[str, Any]) -> str:
     return f"venue:{city}|{venue}" if venue and city else ""
 
 
+_FREE_ADMISSION_COLLECTION_TITLE = re.compile(
+    r"\s*(?:kostenloser\s+eintritt|eintritt\s+frei)\b", re.IGNORECASE,
+)
+
+
 def _same_registered_venue_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Match cross-source records by canonical venue, date, and category."""
     if not left.get("source") or left.get("source") == right.get("source"):
+        return False
+    # "Eintritt frei – Interactions 2026" is a civic collection row: one listing
+    # stamps its programme label and price onto every slot of a whole festival.
+    # Venue and time alone would fold it into an unrelated ticketed concert in
+    # that slot. Such rows may only match by title (see ``normalize_title``).
+    if any(_FREE_ADMISSION_COLLECTION_TITLE.match(str(row.get("title") or "")) for row in (left, right)):
         return False
     # A museum or theatre can host several events in the same category on one
     # day. Distinct explicit starts normally prove separate occurrences. Market

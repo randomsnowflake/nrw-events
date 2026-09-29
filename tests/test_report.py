@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 from unittest import mock
 from unittest.mock import patch
 
@@ -42,6 +44,23 @@ class ReportTests(unittest.TestCase):
             {**civic, "start_at": "2026-09-18T17:00:00+02:00"},
             {**primary, "start_at": "2026-09-18T20:00:00+02:00"},
         ])), 2)
+
+    def test_free_admission_collection_slot_stays_out_of_ticketed_concert(self):
+        # Bonn.de lists the whole Interactions 2026 programme on one "Eintritt
+        # frei" page. Its 19:30 slot shares venue, category and start with a
+        # paid Beethovenfest concert but must not donate "kostenlos" to it.
+        rows = json.loads(
+            (Path(__file__).parent / "data/bonn-de-interactions-collection.json").read_text()
+        )
+        concert, programme, collection = rows
+        for order in (rows, [collection, concert, programme]):
+            with self.subTest(first=order[0]["source_id"]):
+                result = {row["source_id"]: row for row in report.deduplicate(order)}
+                self.assertEqual(set(result), {"beethovenfest-bonn", "bundeskunsthalle"})
+                paid = result["beethovenfest-bonn"]
+                self.assertEqual(paid["price"], "")
+                self.assertNotIn(collection["link"], paid.get("source_links") or [])
+                self.assertIn(event_id(collection), result["bundeskunsthalle"]["previous_event_ids"])
 
     def test_district_flea_market_directory_title_keeps_local_source(self):
         base = {
