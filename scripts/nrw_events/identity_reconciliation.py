@@ -12,10 +12,28 @@ from . import (
     report,
 )
 from . import retention_policy as _impl_retention_policy
+from .dates import parse_iso_date
+from .duplicate_identity import events_are_duplicates
 from .identity import event_id
 from .models import CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
 from .reconciliation_rules import occurrence_clock
+from .title_normalization import normalize_event_title, strip_status_markers
+
+
+def _title_key(event: CanonicalEvent | dict) -> str:
+    """Compare titles as the current canonicalization would publish them.
+
+    A published "ABGESAGT: Konzert" or "Konzert am 12.09.2026" is now emitted
+    as "Konzert"; matching on the canonical form keeps its public URL.
+    """
+    title = normalize_event_title(
+        str(event.get("title") or ""),
+        start=parse_iso_date(str(event.get("start_date") or event.get("date") or "")),
+        end=parse_iso_date(str(event.get("end_date") or "")),
+        source=str(event.get("source") or ""),
+    )
+    return comparison_text(strip_status_markers(title, str(event.get("status") or "")))
 
 
 def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
@@ -101,8 +119,8 @@ def _uniquely_matches_renamed_occurrence(
     current: CanonicalEvent | dict, prior: dict,
 ) -> bool:
     """Match a conservative upstream title expansion to its published record."""
-    current_title = comparison_text(str(current.get("title") or ""))
-    prior_title = comparison_text(str(prior.get("title") or ""))
+    current_title = _title_key(current)
+    prior_title = _title_key(prior)
     current_display_title = " ".join(str(current.get("title") or "").casefold().split())
     prior_display_title = " ".join(str(prior.get("title") or "").casefold().split())
     explicit_short_expansion = bool(
@@ -147,28 +165,19 @@ def _reconcile_published_ids(
     for prior in previous.get("events") or []:
         if not isinstance(prior, dict) or not str(prior.get("event_id") or "").strip():
             continue
-        key = (
-            comparison_text(str(prior.get("title") or "")),
-            str(prior.get("start_date") or prior.get("date") or ""),
-        )
+        key = (_title_key(prior), str(prior.get("start_date") or prior.get("date") or ""))
         prior_groups.setdefault(key, []).append(prior)
         prior_date_source_groups.setdefault((key[1], _impl_retention_policy._event_source_id(prior)), []).append(prior)
 
     reconciled = list(events)
     current_groups: dict[tuple[str, str], list[CanonicalEvent | dict]] = {}
     for current in reconciled:
-        key = (
-            comparison_text(str(current.get("title") or "")),
-            str(current.get("start_date") or current.get("date") or ""),
-        )
+        key = (_title_key(current), str(current.get("start_date") or current.get("date") or ""))
         current_groups.setdefault(key, []).append(current)
     candidate_pairs: list[tuple[int, int, dict]] = []
     fallback_pairs: list[tuple[int, int, dict]] = []
     for index, current in enumerate(reconciled):
-        key = (
-            comparison_text(str(current.get("title") or "")),
-            str(current.get("start_date") or current.get("date") or ""),
-        )
+        key = (_title_key(current), str(current.get("start_date") or current.get("date") or ""))
         current_group = current_groups[key]
         prior_group = prior_groups.get(key, [])
         for prior in prior_group:
@@ -233,4 +242,49 @@ def _reconcile_published_ids(
         )
         used_current.add(index)
         used_prior_ids.add(prior_id)
-    return reconciled
+    return _adopt_orphaned_ids(reconciled, previous)
+
+
+def _adopt_orphaned_ids(
+    events: list[CanonicalEvent | dict], previous: dict,
+) -> list[CanonicalEvent | dict]:
+    """Point a published URL whose record was merged away at its successor.
+
+    Deduplication can fold one source's published record into another
+    source's winner ("Rachel Joyce liest aus »Sommerhaus«" into "Rachel Joyce
+    »Sommerhaus«"). The winner keeps its own id; the folded id becomes a
+    ``previous_event_ids`` alias, which the website serves as a 301. Only a
+    unique same-day successor under the deduplication predicate qualifies; a
+    record that simply disappeared keeps the website's archive handling.
+    """
+    referenced = {
+        identifier
+        for event in events
+        for identifier in (event_id(event), *(event.get("previous_event_ids") or []))
+    }
+    by_date: dict[str, list[int]] = {}
+    for index, event in enumerate(events):
+        by_date.setdefault(str(event.get("start_date") or event.get("date") or ""), []).append(index)
+    aliases: dict[int, list[str]] = {}
+    for prior in previous.get("events") or []:
+        prior_id = str(prior.get("event_id") or "").strip() if isinstance(prior, dict) else ""
+        if not prior_id or prior_id in referenced or prior.get("status", "scheduled") != "scheduled":
+            continue
+        successors = [
+            index for index in by_date.get(str(prior.get("start_date") or prior.get("date") or ""), [])
+            if events_are_duplicates(prior, events[index])
+        ]
+        if len(successors) == 1:
+            aliases.setdefault(successors[0], []).extend([prior_id, *(prior.get("previous_event_ids") or [])])
+    if not aliases:
+        return events
+    adopted = list(events)
+    for index, identifiers in aliases.items():
+        current = adopted[index]
+        inherited = list(dict.fromkeys([*(current.get("previous_event_ids") or []), *identifiers]))
+        adopted[index] = (
+            {**current, "previous_event_ids": inherited}
+            if isinstance(current, dict)
+            else replace(current, previous_event_ids=inherited)
+        )
+    return adopted

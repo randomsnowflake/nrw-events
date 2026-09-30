@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from typing import Any
@@ -645,9 +645,20 @@ def _venue_qualified_aggregator_title_matches(left: Mapping[str, Any], right: Ma
     )
 
 
+_AGE_MARKER = re.compile(
+    r"\(\s*\d{1,2}\s*\+\s*\)|\b\d{1,2}\s*\+|\bab\s+\d{1,2}(?:\s*(?:jahren|jahre|j\.))?"
+    r"|\bfsk\s*\d{1,2}\b|\b\d{1,2}\s*[-–]\s*\d{1,2}\s*jahre\b",
+    re.IGNORECASE,
+)
+
+
 def _series_tokens(title: str) -> tuple[str, ...]:
-    """Return numeric and explicit Roman-numeral episode markers in a title."""
-    words = comparison_text(title)
+    """Return numeric and explicit Roman-numeral episode markers in a title.
+
+    Age ratings such as "(10+)" or "ab 6 Jahren" describe the audience, not an
+    episode, and one calendar often omits them.
+    """
+    words = comparison_text(_AGE_MARKER.sub(" ", title or ""))
     numbers = [
         token for token in re.findall(r"\b\d+\b", words)
         if not re.fullmatch(r"(?:19|20)\d{2}", token)
@@ -804,6 +815,67 @@ def _is_radio_aggregation_link(link: str) -> bool:
     )
 
 
+_TITLE_FILLER_WORDS = frozenset({
+    "aus", "das", "dem", "den", "der", "die", "ein", "eine", "einem", "einen",
+    "einer", "für", "fuer", "im", "in", "liest", "mit", "und", "von", "vom", "zum", "zur",
+    "the", "and", "of",
+})
+
+
+def _significant_title_words(title: str) -> tuple[str, ...]:
+    return tuple(
+        word for word in comparison_text(title).split()
+        if len(word) >= 3
+        and word not in _TITLE_FILLER_WORDS
+        and not re.fullmatch(r"(?:19|20)\d{2}", word)
+    )
+
+
+def _venue_heads_overlap(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Return whether one venue's name (before its first comma) names the other."""
+    left_venue = str(left.get("venue") or "")
+    right_venue = str(right.get("venue") or "")
+    left_head = comparison_text(left_venue.split(",", 1)[0], separator="")
+    right_head = comparison_text(right_venue.split(",", 1)[0], separator="")
+    left_flat = comparison_text(left_venue, separator="")
+    right_flat = comparison_text(right_venue, separator="")
+    return (
+        (len(left_head) >= 5 and left_head in right_flat)
+        or (len(right_head) >= 5 and right_head in left_flat)
+    )
+
+
+def _same_timed_venue_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Match independent listings of one performance by minute, venue and title.
+
+    Aggregators file regional concerts under a district spelling or even the
+    wrong municipality ("Bonn" for Burg Namedy), and editors add words such as
+    "liest aus" or the ensemble type. An identical explicit start minute at the
+    same named venue is stronger place evidence than the city label, so the
+    title only needs to share its lead word and contain the shorter title's
+    significant words ("Kinderflohmarkt an der Rochus-Kirmes" still differs
+    from "Kaldauer Rochus Kirmes"). Conflicting times or venues stay separate
+    and surface in the duplicate-candidate report.
+    """
+    if left.get("source") == right.get("source") or left.get("all_day") or right.get("all_day"):
+        return False
+    left_start = str(left.get("start_at") or "")
+    right_start = str(right.get("start_at") or "")
+    if (
+        not left_start or not right_start
+        or "T00:00" in left_start
+        or not _same_explicit_start(left_start, right_start)
+        or not _venue_heads_overlap(left, right)
+    ):
+        return False
+    if normalize_title(left.get("title", "")) == normalize_title(right.get("title", "")):
+        return True
+    left_words = _significant_title_words(left.get("title", ""))
+    right_words = _significant_title_words(right.get("title", ""))
+    shorter, longer = sorted((left_words, right_words), key=len)
+    return len(shorter) >= 2 and shorter[0] == longer[0] and set(shorter) <= set(longer)
+
+
 def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Return whether two canonical records represent the same occurrence."""
     performance.count("dedup_comparisons")
@@ -856,6 +928,7 @@ def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
     )
     return (
         same_detail_occurrence
+        or _same_timed_venue_occurrence(left, right)
         or _secondary_calendar_schedule_matches(left, right)
         or _same_registered_venue_occurrence(left, right)
         or (
@@ -867,3 +940,55 @@ def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
             )
         )
     )
+
+
+def _municipality(event: Mapping[str, Any]) -> str:
+    return _normalized_city(str(event.get("city") or "").split("-", 1)[0])
+
+
+def duplicate_candidates(events: Sequence[Mapping[str, Any]], *, limit: int = 50) -> list[dict[str, Any]]:
+    """List published cross-source pairs that look like one occurrence.
+
+    Deduplication merges only on strong evidence. Pairs with the same date and
+    a matching title in one municipality or venue that it kept apart usually
+    disagree on time or venue; one source is wrong and needs review. Each
+    reviewed pair belongs in a regression test, not in a new special rule.
+    """
+    by_date: dict[str, list[Mapping[str, Any]]] = {}
+    for event in events:
+        if event.get("status", "scheduled") == "scheduled":
+            by_date.setdefault(str(event.get("start_date") or ""), []).append(event)
+    candidates = []
+    for day, day_events in sorted(by_date.items()):
+        for index, left in enumerate(day_events):
+            left_words = _significant_title_words(left.get("title", ""))
+            for right in day_events[index + 1:]:
+                if left.get("source") == right.get("source"):
+                    continue
+                right_words = _significant_title_words(right.get("title", ""))
+                shorter, longer = sorted((left_words, right_words), key=len)
+                same_title = normalize_title(left.get("title", "")) == normalize_title(right.get("title", ""))
+                contained = len(shorter) >= 2 and shorter[0] == longer[0] and set(shorter) <= set(longer)
+                same_place = _venue_heads_overlap(left, right) or (
+                    _municipality(left) and _municipality(left) == _municipality(right)
+                )
+                if not ((same_title or contained) and same_place):
+                    continue
+                left_start, right_start = left.get("start_at") or "", right.get("start_at") or ""
+                conflict = (
+                    "time" if left_start and right_start and not _same_explicit_start(left_start, right_start)
+                    else "venue" if not _venue_heads_overlap(left, right)
+                    else "title"
+                )
+                candidates.append({
+                    "date": day,
+                    "conflict": conflict,
+                    "event_ids": [left.get("event_id", ""), right.get("event_id", "")],
+                    "sources": [left.get("source", ""), right.get("source", "")],
+                    "titles": [left.get("title", ""), right.get("title", "")],
+                    "venues": [left.get("venue", ""), right.get("venue", "")],
+                    "times": [left.get("time", ""), right.get("time", "")],
+                })
+                if len(candidates) >= limit:
+                    return candidates
+    return candidates

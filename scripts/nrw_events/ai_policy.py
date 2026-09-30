@@ -462,12 +462,26 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
         if "T" in value:
             try:
                 timestamp = datetime.fromisoformat(value)
-                supported_times.add((timestamp.hour, timestamp.minute))
             except ValueError:
-                pass
+                continue
+            # Midnight and 23:59/04:59 are calendar placeholders for "all
+            # day", never a real opening or closing time worth stating.
+            if (timestamp.hour, timestamp.minute) not in {(0, 0), (23, 59), (4, 59)}:
+                supported_times.add((timestamp.hour, timestamp.minute))
     unsupported_times = clock_times(clean) - supported_times
     if unsupported_times:
         return "summary contains a clock time absent from the facts"
+    def euro_amounts(text: str) -> set[float]:
+        return {
+            float(amount.replace(".", "").replace(",", "."))
+            for amount in re.findall(r"(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+)\s*(?:€|euro\b|eur\b)", text, re.IGNORECASE)
+        }
+    price_evidence = f"{source_material} {json.dumps(facts.get('admission'), ensure_ascii=False)}"
+    supported_amounts = euro_amounts(price_evidence) | {
+        float(number.replace(",", ".")) for number in re.findall(r"\d+(?:[.,]\d{1,2})?", price_evidence)
+    }
+    if euro_amounts(clean) - supported_amounts:
+        return "summary contains a price absent from the source"
     if _mentions_date_outside_scope(clean, facts):
         return "summary mentions a date outside the selected event"
     source_city = str(facts.get("city") or "").strip() or common.guess_city_from_text(source_material)

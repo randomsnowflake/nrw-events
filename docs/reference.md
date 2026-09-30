@@ -157,8 +157,30 @@ Metadaten-Export enthält außerdem `quality_metrics` und warnende, aber nicht
 löschende `quality_warnings`. Ab mindestens zehn Events warnt der Lauf bei mehr
 als 6 % `other` insgesamt sowie je Quelle bei mehr als 50 % niedriger
 Kategorie-Konfidenz, 25 % ungeklärten Orten, 25 % fehlenden Ortsnamen oder 50 %
-redaktionell verworfenen Kandidaten. Dieselben Einträge stehen aus
-Kompatibilitätsgründen auch in `source_warnings`.
+redaktionell verworfenen Kandidaten. Steigt die Quote fehlender Orte,
+ungeklärter Orte oder niedriger Kategorie-Konfidenz einer Quelle gegenüber dem
+vorigen Lauf um mindestens 15 Prozentpunkte, warnt `quality.source-regression`.
+Dieselben Einträge stehen aus Kompatibilitätsgründen auch in `source_warnings`.
+
+`quality_metrics.duplicate_candidates` listet höchstens 50 Paare aus
+verschiedenen Quellen mit gleichem Datum, passendem Titel und gleichem Ort, die
+die Deduplizierung getrennt ließ, mit dem Widerspruch (`time`, `venue`,
+`title`). Das ist eine Prüfliste, keine Warnung: Ein geprüftes Paar wird durch
+eine Quellenkorrektur oder einen Regressionstest aufgelöst.
+
+Die kanonische Grenze repariert Veröffentlichungsfehler für alle Quellen und
+vermerkt sie als `quality_warnings` am Event: Platzhalter-Uhrzeiten (`00:00`,
+`05:00–04:59`) werden ganztägig (`publication.clock-sentinel`), unformatierte
+Beträge über 300 € entfallen (`publication.admission-implausible`),
+Listen-Teaser ohne eigenen Inhalt entfallen (`publication.description-teaser`),
+abgeschnittene Texte werden markiert (`publication.description-truncated`) und
+Zusammenfassungssätze mit 23:59/04:59 entfernt
+(`publication.summary-placeholder-clock`). Titel verlieren wiederholte
+Eventdaten und bei abgesagten oder verschobenen Terminen das Statuswort. Der
+ID-Abgleich vergleicht veröffentlichte Titel in derselben bereinigten Form, daher
+behalten solche Termine ihre URL. Führt die Deduplizierung einen bereits
+veröffentlichten Datensatz in den Gewinner einer anderen Quelle, landet dessen
+ID in `previous_event_ids`; die Website leitet sie per 301 um.
 
 Jeder Lauf veröffentlicht außerdem atomisch eine Manifest-Datei neben den
 beiden JSON-Dateien. Sie enthält die gemeinsame

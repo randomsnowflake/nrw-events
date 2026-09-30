@@ -329,7 +329,7 @@ def parse_ical(
             if name in (
                 "SUMMARY", "DTSTART", "DTEND", "DESCRIPTION", "LOCATION", "URL",
                 "CATEGORIES", "ATTACH", "RRULE", "RDATE", "EXDATE",
-                "STATUS", "UID", "RECURRENCE-ID", "DURATION",
+                "STATUS", "UID", "RECURRENCE-ID", "DURATION", "X-PRICE",
             ):
                 props.setdefault(name, val)
                 property_keys.setdefault(name, key)
@@ -402,6 +402,13 @@ def parse_ical(
             if ev:
                 if props.get("STATUS", "").strip().upper() == "CANCELLED":
                     ev["status"] = "cancelled"
+                # Municipal calendars (Siegburg, Troisdorf) publish the price
+                # per event here; their detail pages only carry a punctuation-
+                # stripped JSON-LD copy ("2200 EUR" for 22,00 €).
+                price = _ical_unescape(props.get("X-PRICE", "")).strip()
+                if price:
+                    ev["price"] = price[:160]
+                    ev["admission_basis"] = "explicit"
                 if description_max_chars is not None:
                     ev["description"] = _impl_text.concise_description(
                         full_description, max_chars=description_max_chars

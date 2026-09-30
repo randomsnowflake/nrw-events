@@ -131,3 +131,44 @@ class SiegburgDetailEnrichmentTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ICalPriceTests(unittest.TestCase):
+    """The feed's X-PRICE keeps commas and umlauts the detail JSON-LD drops."""
+
+    def test_x_price_is_the_published_admission(self):
+        from dataclasses import replace
+        from datetime import datetime
+
+        from nrw_events import common, core, validation
+        from nrw_events.runtime import EventWindow
+
+        from .helpers import make_runner_env
+
+        raw = (
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:doc-esser\r\n"
+            "SUMMARY:Doc Esser & Band\r\nDTSTART;TZID=Europe/Berlin:20260918T200000\r\n"
+            "LOCATION:Kubana\\, Siegburg\r\nX-PRICE:22\\,00 €\\, Reduziert: 19\\,00 €\r\n"
+            "END:VEVENT\r\nBEGIN:VEVENT\r\nUID:frei\r\nSUMMARY:Stadtführung\r\n"
+            "DTSTART;TZID=Europe/Berlin:20260919T110000\r\nX-PRICE:Frei\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        with make_runner_env() as environment:
+            context = replace(environment.context(), window=EventWindow(datetime(2026, 9, 3), datetime(2026, 12, 1)))
+            old_window = (common.DAYS_AHEAD, common.TODAY, common.END_DATE)
+            token = common.configure_context(context)
+            try:
+                paid, free = (
+                    validation.canonicalize_event(event).to_dict()
+                    for event in core.parse_ical(raw, "https://siegburg.example/feed.ics", "Siegburg", "Siegburg")
+                )
+            finally:
+                common.reset_runtime(token)
+                common.DAYS_AHEAD, common.TODAY, common.END_DATE = old_window
+                common._configure_date_reference(old_window[1])
+
+        self.assertEqual(paid["price"], "22,00 €, Reduziert: 19,00 €")
+        self.assertIs(paid["admission"]["isFree"], False)
+        self.assertEqual(paid["admission"]["amount"], 19)
+        self.assertEqual(free["price"], "kostenlos")
+        self.assertIs(free["admission"]["isFree"], True)
