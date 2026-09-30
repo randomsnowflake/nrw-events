@@ -20,13 +20,14 @@ from . import highlights as highlight_selection
 from . import import_contracts as _impl_import_contracts
 from . import source_execution as _impl_source_execution
 from .category_taxonomy import CATEGORIES
+from .duplicate_identity import duplicate_candidates
 from .event_evidence import build_evidence_index
 from .health import (
     diagnostic_warning,
     sanitized_warning,
 )
 from .identity import assign_event_ids
-from .quality import quality_gate_warnings, summarize_event_quality
+from .quality import quality_gate_warnings, quality_regression_warnings, summarize_event_quality
 from .runtime import RunContext
 from .sources import SOURCE_IDS
 
@@ -164,6 +165,11 @@ def build_snapshot(import_result: _impl_import_contracts.ImportResult, context: 
     early_announcements.sort(key=lambda event: (event["start_date"], event["title"]))
     issues = _impl_source_execution._import_issues(source_results)
     quality_metrics = summarize_event_quality(events)
+    # Review queue, not a warning: each pair is resolved by fixing a source or
+    # adding a regression test, and must not flip an otherwise healthy run.
+    candidates = duplicate_candidates(events)
+    quality_metrics["duplicate_candidate_count"] = len(candidates)
+    quality_metrics["duplicate_candidates"] = candidates
     source_result_payloads = {
         name: result.as_dict() for name, result in source_results.items()
     }
@@ -175,7 +181,10 @@ def build_snapshot(import_result: _impl_import_contracts.ImportResult, context: 
         research_lead_reasons.update(result.research_lead_reasons)
     quality_warnings = [
         sanitized_warning(warning)
-        for warning in quality_gate_warnings(quality_metrics, source_result_payloads)
+        for warning in (
+            *quality_gate_warnings(quality_metrics, source_result_payloads),
+            *quality_regression_warnings(quality_metrics, import_result.previous_quality_metrics),
+        )
     ]
     quality_warnings.extend(
         sanitized_warning({

@@ -122,4 +122,5 @@ def finish_import(context: RunContext, previous: dict, batch: SourceBatch,
         },
         early_announcements=tuple(early_deduped),
         generated_at=generated_at,
+        previous_quality_metrics=dict(previous.get("quality_metrics") or {}),
     )

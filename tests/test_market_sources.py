@@ -61,6 +61,33 @@ class MarketSourceTests(unittest.TestCase):
         self.assertIn("Kleidung und Spielzeug", event["description"])
         self.assertEqual(event["venue"], "Evangelische Kita Christuskirche")
 
+    def test_kinderflohmarkt_replaces_truncated_jsonld_copy_with_listing_text(self):
+        item = {
+            "@context": "https://schema.org",
+            "@type": "Event",
+            "name": "Kindersachen-Flohmarkt",
+            "startDate": "2026-09-19T09:00:00",
+            "description": "Kindersachen-Flohmarkt. Geboten wird alles rund um Kinder...",
+            "url": "https://kinderflohmarkt.com/de/bonn/lukas-10951/#t21409",
+            "location": {"@type": "Place", "name": "Lukas-Gemeindehaus", "address": {"addressLocality": "Bonn"}},
+        }
+        html = (
+            f'<script type="application/ld+json">{json.dumps(item)}</script>'
+            '<ul class="termine"><li class="termin" id="t21409"><div class="acc">'
+            '<span class="infos long">Kindersachen-Flohmarkt. Geboten wird alles rund um Kinder '
+            'und Schwangerschaft.<br/><br/>Eltern verkaufen süße und herzhafte Speisen.</span>'
+            '</div></li></ul>'
+        )
+
+        with patch.object(common, "fetch_url", return_value=html):
+            [event] = kinderflohmarkt.fetch()
+
+        self.assertEqual(
+            event["description"],
+            "Kindersachen-Flohmarkt. Geboten wird alles rund um Kinder und Schwangerschaft. "
+            "Eltern verkaufen süße und herzhafte Speisen.",
+        )
+
     def test_grote_hiller_parses_direct_detail_link_and_factual_copy(self):
         html = """
         <div id="markt1" class="row listing">

@@ -87,3 +87,21 @@ class AIContentRecoveryTests(unittest.TestCase):
                 self.assertEqual(json.loads(summary)["ai_summary"], SUMMARY["ai_summary"])
             cached = ai.enrich_event(event(), settings=settings, client=FakeClient([]), now=now)
             self.assertEqual(cached["ai_summary"], result["ai_summary"])
+
+
+class SummaryEvidenceTests(unittest.TestCase):
+    BASE = (
+        "Bei Klangraum steht Kammermusik des 20. Jahrhunderts auf dem Programm. "
+        "Das Ensemble spielt im Alten Rathaus in Bonn und beginnt um 19:30 Uhr."
+    )
+
+    def test_placeholder_end_of_day_is_not_a_supported_clock_time(self):
+        facts = dict(FACTS, end_date="2026-08-09T23:59")
+        summary = self.BASE + " Das Konzert endet um 23:59 Uhr."
+        self.assertEqual(ai._summary_quality(summary, "Konzert.", facts), "summary contains a clock time absent from the facts")
+
+    def test_price_must_come_from_source_or_admission_facts(self):
+        facts = dict(FACTS, admission={**FACTS["admission"], "is_free": False, "amount": None, "note": None})
+        summary = self.BASE + " Karten kosten 25 Euro."
+        self.assertEqual(ai._summary_quality(summary, "Konzert mit Kammermusik.", facts), "summary contains a price absent from the source")
+        self.assertEqual(ai._summary_quality(summary, "Karten kosten 25,00 € an der Abendkasse.", facts), "")

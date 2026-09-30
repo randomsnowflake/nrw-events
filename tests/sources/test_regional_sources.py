@@ -297,9 +297,9 @@ class NaturregionSiegParserTests(unittest.TestCase):
     def test_fetch_keeps_a_complete_fallback_when_detail_request_fails(self):
         listing_html = """
 <div class="tile tile--one-quarter tile--single-height">
-  <a href="/event/hofladen-alpakas-des-westens-geoeffnet" class="tile__link">
+  <a href="/event/alpaka-wanderung" class="tile__link">
     <span class="tile__label-text">15.07.2026</span>
-    <p class="header__head">Hofladen &quot;Alpakas des Westens&quot; geöffnet</p>
+    <p class="header__head">Alpaka-Wanderung</p>
     <span class="icontext__text">Alpakas des Westens, Windeck</span>
   </a>
 </div>
