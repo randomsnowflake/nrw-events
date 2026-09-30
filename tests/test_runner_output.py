@@ -957,6 +957,35 @@ class RunnerOutputTests(unittest.TestCase):
             for warning in result.warnings
         ))
 
+    def test_truncated_source_copy_is_published_only_as_ai_summary(self):
+        context = RunContext(
+            config.RuntimeConfig(series_ledger_json=""),
+            EventWindow(datetime(2026, 6, 8), datetime(2026, 6, 10)),
+            "truncated-copy", configure_logging("truncated-copy", "ERROR", "", ""),
+        )
+        raw = {
+            "title": "Liederabend", "source": "Fixture Theater",
+            "source_id": "fixture-theater", "date": "2026-06-09",
+            "score": 1.0, "city": "Bonn", "venue": "Opernhaus",
+            "description": "Ein Abend mit Liedern über Liebe, Abschied und die Stadt am Rhein, begleitet von ...",
+        }
+        materials: list[str] = []
+
+        def summarize(events, **_kwargs):
+            materials.extend(event["description"] for event in events)
+            return [{**event, "ai_summary": "Ein Liederabend im Opernhaus."} for event in events]
+
+        with mock.patch.object(
+            runner.detail_enrichment, "enrich_events", side_effect=lambda events, **_: events,
+        ), mock.patch.object(runner.ai_enrichment, "enrich_events", side_effect=summarize):
+            result = runner.run_import(context, {"Fixture Theater": lambda: [raw]})
+
+        [published] = result.events
+        self.assertEqual([raw["description"]], materials)
+        self.assertEqual("Ein Liederabend im Opernhaus.", published.ai_summary)
+        self.assertEqual(("", ""), (published.description, published.description_html))
+        self.assertNotIn("Abschied", json.dumps(runner.build_snapshot(result, context).events))
+
     def test_source_worker_defers_ai_and_telemetry_to_publication_stage(self):
         event = {
             "title": "Event", "source": "Bonn.de Events",

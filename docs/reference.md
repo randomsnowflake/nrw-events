@@ -173,7 +173,9 @@ vermerkt sie als `quality_warnings` am Event: Platzhalter-Uhrzeiten (`00:00`,
 `05:00–04:59`) werden ganztägig (`publication.clock-sentinel`), unformatierte
 Beträge über 300 € entfallen (`publication.admission-implausible`),
 Listen-Teaser ohne eigenen Inhalt entfallen (`publication.description-teaser`),
-abgeschnittene Texte werden markiert (`publication.description-truncated`) und
+abgeschnittene Texte (Ende auf „…“) werden nicht veröffentlicht, sondern dienen
+nur als privates Material für eine KI-Zusammenfassung; das Event wird dadurch
+KI-Ziel wie eine gesperrte Quelle (`publication.description-truncated`), und
 Zusammenfassungssätze mit 23:59/04:59 entfernt
 (`publication.summary-placeholder-clock`). Titel verlieren wiederholte
 Eventdaten und bei abgesagten oder verschobenen Terminen das Statuswort. Der

@@ -20,6 +20,12 @@ def is_target_event(event: Mapping[str, Any]) -> bool:
     source = normalize_source_id(event.get("source_id") or event.get("source"))
     if source in _impl_ai_contracts.TARGET_SOURCE_IDS:
         return True
+    # Validation dropped cut-off source copy; the AI writes the visitor text.
+    if any(
+        isinstance(warning, Mapping) and warning.get("rule_id") == "publication.description-truncated"
+        for warning in event.get("quality_warnings") or ()
+    ):
+        return True
     return source in {"b-future-festival", "lupe-events"} and (
         event.get("description_source") == "generated"
         or not any(str(event.get(field) or "").strip() for field in ("description", "description_html"))

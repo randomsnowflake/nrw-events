@@ -868,7 +868,12 @@ def _visitor_copy_quality(event: dict[str, Any]) -> None:
         event["description"] = description
         event["description_html"] = richtext.from_plain_text(description)
     if _TRUNCATED_TAIL.search(description):
-        _publication_warning(event, "publication.description-truncated", "description", "kept", "source copy ends with an ellipsis; the complete text should come from the detail page")
+        # Half-copied prose is worse than none. The cut-off text stays private
+        # AI material and the summary replaces it (ai_policy.is_target_event).
+        event["description"] = ""
+        event["description_html"] = ""
+        event["description_source"] = "generated"
+        _publication_warning(event, "publication.description-truncated", "description", "ai_summary", "source copy ended with an ellipsis and is replaced by an AI summary")
 
 
 def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:

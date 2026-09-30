@@ -268,12 +268,13 @@ def _run_source(
                     source_id=result.source_id,
                 )
             try:
-                private_ai_material = (
-                    ai_enrichment._source_material(event)
-                    if ai_enrichment.is_target_event(event)
-                    else ""
-                )
+                # Validation decides whether copy is truncated, so select AI
+                # targets on the canonical event but keep the raw prose.
+                raw_ai_material = ai_enrichment._source_material(event)
                 canonical_event = validate_event(event)
+                private_ai_material = (
+                    raw_ai_material if ai_enrichment.is_target_event(canonical_event) else ""
+                )
                 if not common.event_in_window(canonical_event) and not early_publication.is_eligible(canonical_event):
                     continue
                 if canonical_event.status in {"cancelled", "postponed"}:

@@ -2,6 +2,7 @@
 
 import unittest
 
+from nrw_events import ai_enrichment
 from nrw_events.validation import canonicalize_event
 
 
@@ -99,9 +100,12 @@ class VisitorCopyTests(unittest.TestCase):
         copy = "Alle die mehr erfahren möchten, sind herzlich zu dieser Wanderung eingeladen."
         self.assertEqual(_canonical(description=copy)["description"], copy)
 
-    def test_truncated_copy_is_flagged(self):
+    def test_truncated_copy_is_replaced_by_an_ai_summary(self):
         event = _canonical(description="Geboten wird alles rund um Kinder...")
         self.assertIn("publication.description-truncated", _rules(event))
+        self.assertEqual((event["description"], event["description_source"]), ("", "generated"))
+        self.assertTrue(ai_enrichment.is_target_event(event))
+        self.assertFalse(ai_enrichment.is_target_event(_canonical()))
 
 
 class SummaryPlaceholderTests(unittest.TestCase):
