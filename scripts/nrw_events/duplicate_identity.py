@@ -220,6 +220,27 @@ def _concrete_venue_units(event: Mapping[str, Any]) -> set[str]:
     return address_units or _concrete_numeric_units(str(event.get("venue", "")))
 
 
+def _title_venue_street_matches(event: Mapping[str, Any], other: Mapping[str, Any]) -> bool:
+    """An aggregator may repeat the title as place name ("Antik Markt Bonn").
+
+    Then the street of its own structured address is the real venue and may
+    match the other record's venue or street ("Friedensplatz").
+    """
+    venue_tokens = set(_venue_comparison_text(event).split())
+    if not venue_tokens or not venue_tokens <= set(comparison_text(event.get("title", "")).split()):
+        return False
+
+    def street(value: object) -> str:
+        first = str(value or "").split(",", 1)[0]
+        return comparison_text(re.sub(r"\b\d{5}\b|\b\d{1,4}\s*[a-z]?\b", " ", first, flags=re.I), separator="")
+
+    own_street = street(event.get("venue_address"))
+    return len(own_street) >= 4 and own_street in {
+        comparison_text(_venue_comparison_text(other), separator=""),
+        street(other.get("venue_address")),
+    }
+
+
 def _locations_compatible(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     left_venue_text = _venue_comparison_text(left)
     right_venue_text = _venue_comparison_text(right)
@@ -311,6 +332,8 @@ def _locations_compatible(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
         ):
             return True
         if not left_venue or not right_venue:
+            return True
+        if _title_venue_street_matches(left, right) or _title_venue_street_matches(right, left):
             return True
         return bool(
             left_venue == right_venue

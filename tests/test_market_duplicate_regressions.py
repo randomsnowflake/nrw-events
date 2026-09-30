@@ -16,6 +16,7 @@ def market(
     description="",
     score=1.0,
     venue_id="",
+    venue_address="",
     time="",
     start_at="",
     end_at="",
@@ -29,6 +30,7 @@ def market(
         "date": date,
         "venue": venue,
         "venue_id": venue_id,
+        "venue_address": venue_address,
         "city": city,
         "link": link,
         "description": description,
@@ -423,6 +425,27 @@ class MarketDuplicateRegressionTests(unittest.TestCase):
         ]
 
         self.assertEqual(len(report.deduplicate(events)), 2)
+
+    def test_aggregator_title_as_venue_matches_organizer_by_its_own_street(self):
+        # bonn.de repeats the title as place name; its structured street is the venue.
+        civic = market(
+            "Antik Markt Bonn Friedensplatz", "Bonn.de Events", "2026-10-18", "Antik Markt Bonn", "Bonn",
+            "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Antik-Markt-Bonn-Friedensplatz.php",
+            venue_address="Friedensplatz, 53111 Bonn", time="11:00–17:00", source_id="bonn-de-events",
+        )
+        organizer = market(
+            "Antikmarkt Bonn", "Cölln Konzept", "2026-10-18", "Friedensplatz", "Bonn",
+            "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html", time="11:00–17:00", source_id="c-lln-konzept",
+        )
+        deduped = report.deduplicate([civic, organizer])
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0].get("link"), organizer.get("link"))
+        # Without the street evidence the title-as-venue record stays separate.
+        other_square = market(
+            "Antikmarkt Bonn", "Cölln Konzept", "2026-10-18", "Marktplatz", "Bonn",
+            "https://www.coelln-konzept.de/markt/other.html", time="11:00–17:00", source_id="c-lln-konzept",
+        )
+        self.assertEqual(len(report.deduplicate([civic, other_square])), 2)
 
 
 if __name__ == "__main__":
