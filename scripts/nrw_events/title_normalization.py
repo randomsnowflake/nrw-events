@@ -44,6 +44,67 @@ def _strip_redundant_date_suffix(title: str, start: datetime | None, end: dateti
     return title[:suffix.start()].rstrip(" ,;|–—-")
 
 
+_INLINE_DATE = re.compile(
+    r"(?P<lead>\s*(?:[,;|]|\s[-–—])?\s*)(?:\b(?:am|vom)\s+)?"
+    r"(?P<date>(?<!\d)\d{1,2}\.\d{1,2}\.(?:\d{2}|20\d{2})(?!\d))"
+    r"(?P<trail>\s*(?::|[-–—](?=\s))?\s*)",
+    re.IGNORECASE,
+)
+
+
+def _strip_redundant_inline_dates(title: str, start: datetime | None, end: datetime | None) -> str:
+    """Remove a date inside the title when it only repeats the structured date.
+
+    "Quintetto Encuentro am 12.09.2026 im Löhrerhof" becomes "Quintetto
+    Encuentro im Löhrerhof". A different date ("verlegt auf 28.10.2027") is
+    information and stays.
+    """
+    if not start:
+        return title
+    structured = {start.strftime("%Y-%m-%d")} | ({end.strftime("%Y-%m-%d")} if end else set())
+
+    def replace(match: re.Match[str]) -> str:
+        token = _DATE_TOKEN.fullmatch(match.group("date"))
+        if not token or _date_value(token) not in structured:
+            return match.group(0)
+        separated = match.group("lead").strip() and match.group("trail").strip()
+        return " – " if separated else " "
+
+    replaced = _INLINE_DATE.sub(replace, title)
+    if replaced == title:
+        return title
+    cleaned = re.sub(r"\s+", " ", replaced).strip(" ,;|–—-:")
+    return cleaned or title
+
+
+_STATUS_WORDS = (
+    r"abgesagt|entfällt|entfaellt|fällt\s+(?:leider\s+)?aus|faellt\s+(?:leider\s+)?aus|"
+    r"verlegt|verschoben|ausgefallen"
+)
+_LEADING_STATUS = re.compile(rf"^\s*[-–—:(\[]*\s*(?:{_STATUS_WORDS})\b\s*[)\]!]*\s*[-–—:]*\s*", re.IGNORECASE)
+_TRAILING_STATUS = re.compile(rf"\s*[-–—:(\[]*\s*\b(?:{_STATUS_WORDS})\s*[)\]!]*\s*$", re.IGNORECASE)
+_TRAILING_RESCHEDULE_CLAUSE = re.compile(
+    r"\s+[-–—]\s+[^-–—]*\b(?:verlegt|verschoben)\b.*$", re.IGNORECASE,
+)
+
+
+def strip_status_markers(title: str, status: str) -> str:
+    """Drop schedule-status words once ``status`` carries them.
+
+    Sources announce a cancellation by rewriting the title ("ABGESAGT: …",
+    "… entfällt"); the badge already says so, and the clean title keeps the
+    public identity stable across the change.
+    """
+    if status not in {"cancelled", "postponed"}:
+        return title
+    cleaned = _LEADING_STATUS.sub("", title)
+    cleaned = _TRAILING_STATUS.sub("", cleaned)
+    if status == "postponed":
+        cleaned = _TRAILING_RESCHEDULE_CLAUSE.sub("", cleaned)
+    cleaned = cleaned.strip(" ,;|–—-:")
+    return cleaned if len(cleaned) >= 3 else title
+
+
 def _title_case_word(word: str, *, first: bool) -> str:
     bare = word.strip("()[]{}\"'„“”‚‘’«».,:;!?")
     if not bare:
@@ -78,6 +139,7 @@ def normalize_event_title(
         # a word. Keep the repair source-bound so ordinary phrases stay intact.
         normalized = re.sub(r"\b([A-ZÄÖÜ])\s+([a-zäöüß]{2,})\b", r"\1\2", normalized)
     normalized = _strip_redundant_date_suffix(normalized, start, end)
+    normalized = _strip_redundant_inline_dates(normalized, start, end)
     normalized = _normalize_all_caps(normalized)
     return normalized
 

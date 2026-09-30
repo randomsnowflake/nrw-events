@@ -199,13 +199,37 @@ def _governance(context: EventText) -> tuple[str, ...] | None:
     matched = _first_word_bounded(GOVERNANCE_TERMS, governance_text)
     if not matched:
         compound = re.search(
-            r"\b(?:fraktions|ausschuss|beirats?|rats?|kreistags?)sitzung\w*\b",
+            r"\b(?:fraktions|ausschuss|beirats?|rats?|kreistags?)sitzung\w*\b"
+            r"|\b\w+(?:ausschuss|sprechstunde)\b",
             governance_text,
         )
         matched = compound.group(0) if compound else ""
     cultural = _first(CULTURAL_EVENT_TERMS, context.title_description)
     if "cinema-special" not in context.category and matched and not context.destination_market and not cultural:
         return (matched,)
+    return None
+
+
+_SERVICE_OFFER_TITLE = re.compile(
+    r"\b\w+beratung\b|\bhilfestellung\b|\bblutspende\w*"
+    r"|\bcall\s+for\s+(?:ideas|papers|proposals|applications|entries)\b"
+)
+_OPENING_HOURS_TITLE = re.compile(r"\b(?:hat\s+)?geöffnet\W*$")
+
+
+def _service_offer(context: EventText) -> tuple[str, ...] | None:
+    """Advice services, blood drives, calls for entries and opening hours.
+
+    None is something a visitor attends as an event; a title-level compound
+    ("Rentenberatung", "Hauptausschuss") is enough evidence on its own.
+    """
+    opening = _OPENING_HOURS_TITLE.search(context.title)
+    if opening and not _first(RECURRING_DESTINATION_TERMS, context.title):
+        return (opening.group(0).strip(),)
+    service = _SERVICE_OFFER_TITLE.search(context.title)
+    festive = re.search(r"\w+fest\b", context.title)
+    if service and not festive and not _first(CULTURAL_EVENT_TERMS, context.title) and not context.destination_market:
+        return (service.group(0),)
     return None
 
 
@@ -324,6 +348,7 @@ RULES = (
     Rule("civic.routine-meetup", "recurring low-signal meetup is not a destination event", _routine_meetup),
     Rule("civic.routine-market", "routine produce market is civic infrastructure, not a special market event", _routine_market),
     Rule("civic.course", "routine course or support offer is not a destination event", _routine_course),
+    Rule("civic.service-offer", "advice service, blood drive, call for entries or opening hours is not a destination event", _service_offer),
     Rule("civic.language-course", "recurring language instruction is not a destination event", _language_course),
     Rule("civic.recurring-course", "recurring course series is not a destination event", _recurring_course),
 )

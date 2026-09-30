@@ -23,6 +23,7 @@ class ImportResult:
     timings: dict[str, int] = field(default_factory=dict)
     early_announcements: tuple[CanonicalEvent, ...] = ()
     generated_at: str = ""
+    previous_quality_metrics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

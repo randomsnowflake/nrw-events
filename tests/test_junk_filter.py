@@ -6,6 +6,7 @@ from nrw_events.quality import (
     QualityAction,
     evaluate_event_quality,
     quality_gate_warnings,
+    quality_regression_warnings,
     summarize_event_quality,
 )
 
@@ -783,3 +784,40 @@ class JunkFilterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ServiceOfferTests(unittest.TestCase):
+    """Non-events published in the 2026-09-09 snapshot."""
+
+    def test_non_events_are_dropped(self):
+        for title in (
+            "Hauptausschuss", "Schulausschuss", "Stadtentwicklungsausschuss",
+            "Vereinssprechstunde (Anmeldung notwendig)", "Digitalsprechstunde",
+            "Rentenberatung der Deutschen Rentenversicherung im Rathaus",
+            "Energieberatung in der Region Rhein-Voreifel in Meckenheim",
+            "Schwangerenberatung", "Persönliche Hilfestellung für eMedien",
+            "Blutspenden in Liblar", "Call for Ideas: Impact Pitch Night",
+            "Rheinbreitbacher Heimatmuseum geöffnet", 'Hofladen "Alpakas des Westens" geöffnet',
+        ):
+            with self.subTest(title=title):
+                self.assertTrue(evaluate_event_quality(event(title)).should_drop)
+
+    def test_events_with_similar_words_stay(self):
+        for title in (
+            "Impact Pitch Night", "Repair Café MVA Bonn hat geöffnet!",
+            'Volker Weininger "Der Sitzungspräsident"', "Konzert zur Beratung der Stadtgeschichte",
+            "Weinberatung beim Weinfest",
+        ):
+            with self.subTest(title=title):
+                self.assertFalse(evaluate_event_quality(event(title)).should_drop)
+
+
+class QualityRegressionTests(unittest.TestCase):
+    def test_source_whose_venue_rate_jumps_is_reported(self):
+        def metrics(rate):
+            return {"by_source": {"Siegburg": {"event_count": 40, "missing_venue_rate": rate}}}
+
+        [warning] = quality_regression_warnings(metrics(0.3), metrics(0.05))
+        self.assertEqual((warning["rule_id"], warning["source"]), ("quality.source-regression", "Siegburg"))
+        self.assertEqual(quality_regression_warnings(metrics(0.1), metrics(0.05)), [])
+        self.assertEqual(quality_regression_warnings(metrics(0.3), {}), [])

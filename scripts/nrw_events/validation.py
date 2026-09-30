@@ -21,7 +21,7 @@ from .models import (
 )
 from .normalization import canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
-from .title_normalization import normalize_event_title
+from .title_normalization import normalize_event_title, strip_status_markers
 from .venue_quality import sanitize_venue_fields
 
 
@@ -776,6 +776,101 @@ def canonical_venue_fields(raw: dict[str, Any]) -> VenueFields:
     }
 
 
+# An unformatted amount above this is far more likely a price whose decimal
+# comma was stripped ("2200 EUR" for 22,00 €) than a real visitor ticket.
+# Formatted amounts ("1.200,00 EUR") are deliberate and stay.
+_MAX_PLAUSIBLE_ADMISSION_EUR = 300
+_UNFORMATTED_AMOUNT = re.compile(r"(?<![\d.,])\d{3,}(?![\d.,])\s*(?:€|eur)", re.IGNORECASE)
+_LINK_LABEL_TAIL = re.compile(
+    r"\s*(?:[›»>]\s*)?\b(?:weiterlesen|mehr\s+(?:erfahren|infos?|lesen)|read\s+more)\b\s*(?:[›»>]|\.{3}|…)?\s*$",
+    re.IGNORECASE,
+)
+_TRUNCATED_TAIL = re.compile(r"(?:\.{3}|…)\s*$")
+
+
+def _drop_clock_sentinels(event: dict[str, Any]) -> None:
+    """Treat calendar placeholders for "all day" as untimed.
+
+    Calendars encode an untimed day as a lone 00:00 start (nightlife excepted)
+    or as a business-day span such as 05:00–04:59 that wraps a whole day.
+    Publishing either as a start time misleads visitors.
+    """
+    clock = event["time"]
+    match = re.fullmatch(r"(\d{2}):(\d{2})(?:–(\d{2}):(\d{2}))?", clock)
+    if not match:
+        return
+    start = int(match.group(1)) * 60 + int(match.group(2))
+    lone_midnight = clock == "00:00" and event.get("category_key") != "nightlife"
+    whole_day = match.group(3) is not None and (
+        int(match.group(3)) * 60 + int(match.group(4)) - start
+    ) % (24 * 60) >= 23 * 60
+    if not (lone_midnight or whole_day):
+        return
+    event["time"] = ""
+    event["start_at"] = ""
+    event["end_at"] = ""
+    event["all_day"] = True
+    _publication_warning(event, "publication.clock-sentinel", "time", "all_day", f"placeholder clock {clock} was published as all day")
+
+
+def _drop_implausible_admission(event: dict[str, Any]) -> None:
+    admission = event.get("admission") or {}
+    amount = admission.get("amount")
+    if (
+        admission.get("basis") == "editorial" or amount is None
+        or amount <= _MAX_PLAUSIBLE_ADMISSION_EUR
+        or not _UNFORMATTED_AMOUNT.search(event.get("price") or "")
+    ):
+        return
+    _publication_warning(event, "publication.admission-implausible", "admission", "unknown", f"admission amount {amount} EUR is implausible and was omitted")
+    event["price"] = ""
+    event["admission_basis"] = ""
+    event["admission"] = {
+        "isFree": None, "amount": None, "currency": "EUR", "basis": "", "note": "", "donationSuggested": False,
+    }
+
+
+_PLACEHOLDER_CLOCK_SENTENCE = re.compile(r"\b(?:23[:.]59|0?4[:.]59)\b")
+
+
+def _drop_placeholder_clock_sentences(event: dict[str, Any]) -> None:
+    """Remove summary sentences that publish a calendar end-of-day placeholder.
+
+    Cached and editorially reapplied summaries skip the generation gate, so
+    "endet um 23:59 Uhr" is removed here, at the last boundary.
+    """
+    summary = event.get("ai_summary") or ""
+    sentences = re.split(r"(?<=[.!?])\s+", summary.strip())
+    kept = [sentence for sentence in sentences if not _PLACEHOLDER_CLOCK_SENTENCE.search(sentence)]
+    if len(kept) != len(sentences):
+        event["ai_summary"] = " ".join(kept)
+        _publication_warning(event, "publication.summary-placeholder-clock", "ai_summary", "sentence_removed", "summary stated a placeholder clock time")
+
+
+def _visitor_copy_quality(event: dict[str, Any]) -> None:
+    """Remove listing-teaser debris and flag copy a source cut off.
+
+    Tourism listings end teasers with "› weiterlesen"; a teaser that only
+    repeats title, venue and date says nothing and is dropped.
+    """
+    description = _LINK_LABEL_TAIL.sub("", event["description"]).strip()
+    if description != event["description"]:
+        known = set(category_taxonomy.comparison_text(
+            " ".join((event["title"], event["venue"], event["city"]))
+        ).split())
+        remaining = [
+            word for word in category_taxonomy.comparison_text(description).split()
+            if word not in known and not word.isdigit()
+        ]
+        if len(remaining) < 3:
+            description = ""
+            _publication_warning(event, "publication.description-teaser", "description", "omitted", "listing teaser only repeated title, venue and date")
+        event["description"] = description
+        event["description_html"] = richtext.from_plain_text(description)
+    if _TRUNCATED_TAIL.search(description):
+        _publication_warning(event, "publication.description-truncated", "description", "kept", "source copy ends with an ellipsis; the complete text should come from the detail page")
+
+
 def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     """Return one canonical event or raise a reason-coded validation error."""
     if not isinstance(raw_event, dict):
@@ -824,7 +919,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         raise EventValidationError("time_note_too_long")
     if event["time"] and not re.fullmatch(r"\d{2}:\d{2}(?:–\d{2}:\d{2})?", event["time"]):
         raise EventValidationError("time_invalid")
+    _drop_clock_sentinels(event)
     event.update(canonical_visitor_fields(event, inferred_description_source))
+    _drop_implausible_admission(event)
     event.update(canonical_identity_provenance(event))
     event.update(canonical_temporal_fields(event))
     event["title"] = normalize_event_title(
@@ -833,6 +930,8 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         end=common.parse_iso_date(event["end_date"]),
         source=event["source"],
     )
+    _visitor_copy_quality(event)
+    _drop_placeholder_clock_sentences(event)
     if (
         category_taxonomy.comparison_text(event["title"]) == "veranstaltung"
         and not event["city"]
@@ -887,6 +986,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     if status == "scheduled" and common.event_status(event["title"], event["description"]) == "postponed":
         status = "postponed"
     event["status"] = status
+    event["title"] = strip_status_markers(event["title"], status)
     event["early_publication"] = bool(event.get("early_publication", False))
     # Jev read the source and found no single visitor price; meaningless once admission is known.
     event["admission_checked"] = (

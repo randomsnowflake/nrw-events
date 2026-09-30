@@ -234,6 +234,41 @@ def quality_gate_warnings(
     return warnings
 
 
+# A source whose missing-venue, unresolved-location or low-confidence rate
+# rises this much between two runs changed its markup or feed; the absolute
+# thresholds above miss sources that were good and are now merely mediocre.
+QUALITY_REGRESSION_DELTA = 0.15
+
+
+def quality_regression_warnings(
+    metrics: Mapping[str, Any],
+    previous_metrics: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Compare per-source quality rates with the previous published run."""
+    previous_by_source = previous_metrics.get("by_source") or {}
+    warnings: list[dict[str, Any]] = []
+    for source, current in sorted((metrics.get("by_source") or {}).items()):
+        previous = previous_by_source.get(source) or {}
+        if min(int(current.get("event_count") or 0), int(previous.get("event_count") or 0)) < QUALITY_GATE_MIN_EVENTS:
+            continue
+        for rate_key in ("missing_venue_rate", "unresolved_location_rate", "low_confidence_rate"):
+            before = float(previous.get(rate_key) or 0)
+            after = float(current.get(rate_key) or 0)
+            if after - before < QUALITY_REGRESSION_DELTA:
+                continue
+            warnings.append({
+                "source": source,
+                "error_type": "QualityGateWarning",
+                "error": f"{rate_key.removesuffix('_rate').replace('_', ' ')} rate rose from {before:.1%} to {after:.1%} since the previous run",
+                "rule_id": "quality.source-regression",
+                "field": rate_key,
+                "rate": round(after, 4),
+                "previous_rate": round(before, 4),
+                "threshold": QUALITY_REGRESSION_DELTA,
+            })
+    return warnings
+
+
 _WORK_TITLE = re.compile(r"[»«„““”\"']\s*\S")
 _ADVERTISING_MARKER = re.compile(
     r"^\s*(anzeige|advertorial|sponsored)\b",
