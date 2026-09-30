@@ -30,6 +30,7 @@ include = ["nrw_events*"]
 [tool.setuptools.package-data]
 nrw_events = [
     "categories.json",
+    "geocoded_addresses.json",
     "junk_rules_data.json",
     "reviewed_corrections.json",
     "verified_venue_locations.json",

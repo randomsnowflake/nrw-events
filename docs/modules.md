@@ -44,6 +44,7 @@ scripts/nrw_events/
   event_types.py
   event_vocabulary.py
   exhibition_runs.py
+  geocoding.py
   health.py
   highlights.py
   http.py

@@ -12,42 +12,28 @@ import argparse
 import json
 import re
 import time
-import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-USER_AGENT = "veranstaltungen-bonn-venue-research/1.0 (https://www.veranstaltungen-bonn.de/kontakt/)"
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+from nrw_events.geocoding import (  # noqa: F401 - shared with runtime geocoding; tests use these names
+    MIN_REQUEST_INTERVAL_SECONDS,
+    NOMINATIM_URL,
+    TRANSIENT_RETRY_ATTEMPTS,
+    TRANSIENT_RETRY_BASE_SECONDS,
+    USER_AGENT,
+    city_compatible,
+    fetch,
+    fetch_with_backoff,
+    house_number,
+    normalized,
+    postcode,
+    tokens,
+)
+
 PHOTON_URL = "https://photon.komoot.io/api/"
-MIN_REQUEST_INTERVAL_SECONDS = 1.1
-TRANSIENT_RETRY_ATTEMPTS = 3
-TRANSIENT_RETRY_BASE_SECONDS = 1.1
-
-
-def normalized(value: str) -> str:
-    folded = (value or "").casefold().translate(str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"}))
-    ascii_text = unicodedata.normalize("NFKD", folded).encode("ascii", "ignore").decode("ascii")
-    words = re.sub(r"[^a-z0-9]+", " ", ascii_text).strip()
-    words = re.sub(r"\b([a-z]+)str\b", r"\1strasse", words)
-    return re.sub(r"\bstr\b", "strasse", words)
-
-
-def tokens(value: str) -> set[str]:
-    ignored = {"am", "an", "auf", "bei", "der", "die", "das", "den", "des", "im", "in", "und", "von", "vor", "zum", "zur"}
-    return {part for part in normalized(value).split() if len(part) > 1 and part not in ignored}
-
-
-def postcode(value: str) -> str:
-    match = re.search(r"\b\d{5}\b", value or "")
-    return match.group(0) if match else ""
-
-
-def house_number(value: str) -> str:
-    match = re.search(r"\b\d{1,4}\s*[a-z]?\b", value or "", re.I)
-    return normalized(match.group(0)).replace(" ", "") if match else ""
 
 
 def osm_url(result: dict) -> str:
@@ -66,17 +52,6 @@ def place_names(result: dict) -> list[str]:
         str(result.get("display_name") or "").split(",", 1)[0],
         *(str(address.get(field) or "") for field in ("amenity", "building", "tourism", "shop", "leisure")),
     ]
-
-
-def city_compatible(city: str, result: dict) -> bool:
-    expected = tokens(city.replace("Bonn-", "Bonn "))
-    address = result.get("address") or {}
-    actual = tokens(" ".join([str(result.get("display_name") or ""), *(str(address.get(field) or "") for field in (
-        "city", "town", "village", "municipality", "city_district", "suburb", "county", "state_district",
-    ))]))
-    if "bonn" in expected and "bonn" in actual:
-        return True
-    return bool(expected & actual)
 
 
 def candidate_score(group: dict, result: dict) -> tuple[int, list[str]]:
@@ -179,21 +154,6 @@ def queries_for(group: dict) -> list[str]:
     return [", ".join((group["venue"], group["city"], "Deutschland"))]
 
 
-def fetch(query: str) -> list[dict]:
-    params = urllib.parse.urlencode({
-        "q": query,
-        "format": "jsonv2",
-        "limit": 5,
-        "addressdetails": 1,
-        "namedetails": 1,
-        "extratags": 1,
-        "countrycodes": "de",
-    })
-    request = urllib.request.Request(f"{NOMINATIM_URL}?{params}", headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
-
-
 def photon_result(feature: dict) -> dict:
     properties = feature.get("properties") or {}
     coordinates = (feature.get("geometry") or {}).get("coordinates") or [None, None]
@@ -259,17 +219,6 @@ def cache_buckets(cache: dict) -> tuple[dict, dict]:
             }
             del queries[query]
     return queries, errors
-
-
-def fetch_with_backoff(fetcher, query: str):
-    """Retry transient transport failures without turning them into no-results."""
-    for attempt in range(TRANSIENT_RETRY_ATTEMPTS):
-        try:
-            return fetcher(query)
-        except (urllib.error.URLError, TimeoutError):  # noqa: PERF203 - bounded retry loop
-            if attempt + 1 >= TRANSIENT_RETRY_ATTEMPTS:
-                raise
-            time.sleep(TRANSIENT_RETRY_BASE_SECONDS * (2 ** attempt))
 
 
 def main() -> int:

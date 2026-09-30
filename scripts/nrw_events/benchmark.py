@@ -102,6 +102,7 @@ def replay(manifest_path: Path, state: Path, *, telemetry: bool) -> dict:
     root = manifest_path.parent
     os.environ["NRW_EVENTS_CACHE_DIR"] = str(state / "cache")
     os.environ["NRW_EVENTS_AI_ENRICHMENT"] = "0"
+    os.environ["NRW_EVENTS_GEOCODING"] = "0"
     if manifest.get("detail_cache_dir"):
         shutil.copytree(root / manifest["detail_cache_dir"], state / "cache", dirs_exist_ok=True)
     for seed in manifest.get("detail_cache_seed", []):
@@ -197,6 +198,7 @@ def main() -> int:
                 "XDG_STATE_HOME": str(state), "XDG_CACHE_HOME": str(state),
                 "NRW_EVENTS_CACHE_DIR": str(state / "cache"),
                 "NRW_EVENTS_AI_ENRICHMENT": "0",
+                "NRW_EVENTS_GEOCODING": "0",
             }
             command = [sys.executable, "-m", "nrw_events.benchmark", str(args.manifest.resolve()),
                        "--worker-state", str(state)]

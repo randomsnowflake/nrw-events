@@ -12,6 +12,7 @@ from dataclasses import replace
 from . import (
     ai_decisions,
     ai_enrichment,
+    geocoding,
     performance,
 )
 from . import retention_policy as _impl_retention_policy
@@ -288,6 +289,16 @@ def enrich_publication(context: RunContext, batch: SourceBatch, selected: Public
         # Optional enrichment: resolved events are kept, the rest stay unknown.
         log(logger, 30, f"Jev admission skipped: {type(exc).__name__}",
             run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
+    try:
+        with performance.span("geocoding.nominatim"):
+            geocoding_outcomes = geocoding.geocode_missing(deduped)
+        if geocoding_outcomes:
+            log(logger, 20, f"Address geocoding: {dict(sorted(geocoding_outcomes.items()))}",
+                run_id=run_id, source="geocoding")
+    except (sqlite3.Error, OSError) as exc:
+        # Optional enrichment: events keep their town-level location.
+        log(logger, 30, f"Address geocoding skipped: {type(exc).__name__}",
+            run_id=run_id, source="geocoding", error_type=type(exc).__name__)
     for result in source_results.values():
         result._ai_source_material.clear()
     loaded_series_ledger = series_entities.load_ledger(settings.series_ledger_json)

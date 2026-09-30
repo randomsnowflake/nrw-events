@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import cast
 from zoneinfo import ZoneInfo
@@ -688,8 +688,15 @@ def _event_location(
     resolved, confidence, source = resolve_location(
         city, coords if coords is not None else registry_coords,
     )
-    if coords is None and registry_coords is not None:
+    if registry_coords is not None and resolved is not None:
+        # The published pin is the registry point, whatever the distance used.
         source = "venue_registry"
+    elif registry_coords is None and resolved is not None and source == "source_coordinates":
+        # Without a registry point the source's own venue point is the pin.
+        canonical_venue = replace(
+            canonical_venue, venue_latitude=resolved[0], venue_longitude=resolved[1],
+            coordinate_source=source,
+        )
     distance = haversine(_impl_run_state.BONN_LAT, _impl_run_state.BONN_LON, *resolved) if resolved else None
     return canonical_venue, distance, confidence, source
 

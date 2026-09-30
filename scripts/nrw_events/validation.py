@@ -814,6 +814,12 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["identity_venue_locked"] = bool(event.get("identity_venue_locked", False))
     event["identity_time"] = _text(event, "identity_time", 100)
     event["identity_time_locked"] = bool(event.get("identity_time_locked", False))
+    try:
+        explicit_point: tuple[float, float] | None = (
+            float(event["venue_latitude"]), float(event["venue_longitude"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        explicit_point = None
     event.update(canonical_venue_fields(event))
     canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
     event["time"] = canonical_time
@@ -856,7 +862,13 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
             2,
         )
         event["location_confidence"] = "exact"
-        event["location_source"] = "venue_registry"
+        # A source's own point or an address geocode keeps its provenance
+        # unless the venue registry replaced it during canonicalization.
+        if not (
+            event.get("location_source") in {"source_coordinates", "geocoded_address"}
+            and explicit_point == (latitude, longitude)
+        ):
+            event["location_source"] = "venue_registry"
     for field in ("score", "distance_km"):
         value = event.get(field)
         if value is None and field == "distance_km":

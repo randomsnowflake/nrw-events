@@ -294,6 +294,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `OPENAI_API_KEY` | nicht gesetzt | OpenAI-Projektschlüssel für die zweistufige Faktenextraktion und neutrale Zusammenfassung der rechtlich eingeschränkten Quellen. Ohne Schlüssel bleiben deren Beschreibungen leer. |
 | `OPENROUTER_API_KEY` | nicht gesetzt | OpenRouter-Schlüssel, wenn `NRW_EVENTS_AI_PROVIDER=openrouter` gewählt ist. Anfragen erzwingen ZDR, schließen sammelnde Provider aus und verwenden nur Endpunkte mit Structured Outputs. |
 | `NRW_EVENTS_AI_PROVIDER` | `openai` | `openai` nutzt die Responses API; `openrouter` nutzt Chat Completions mit providergetrenntem Cache. |
+| `NRW_EVENTS_GEOCODING` | `1` | Pinnt Events ohne Koordinaten über punktgenaues Nominatim-Adress-Geocoding mit persistentem Cache (siehe „Geprüfte Venue-Koordinaten“). `0` schaltet den Schritt ab. |
 | `NRW_EVENTS_AI_ENRICHMENT` | `1` | Aktiviert die AI-Verarbeitung ausschließlich für `bonn-de-events`, `bonn-de-sports`, `marktcom` und `radio-bonn-rhein-sieg`. Die Quellprosa wird unabhängig davon nie veröffentlicht. Zusätzlich prüft Jev bei aktivem Schalter unbekannten Eintritt aller Quellen (siehe `docs/jev-decisions.md`). |
 | `NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH` | nicht gesetzt | Optionales JSON-v1-Manifest mit lokal geprüften `content_reviewed`-Zusammenfassungen. Regeln müssen `source_id`, Titel, stabile `event_ids` und `start_dates` exakt absichern; optionale `links`/`times` werden ebenfalls exakt geprüft. Treffer werden nach finaler Deduplizierung und ID-Abgleich vor der AI angewendet und erzeugen keinen Cache- oder Provideraufruf. Ein gesetztes, fehlerhaftes Manifest bricht den Import ab. |
 | `NRW_EVENTS_AI_MODEL` | providerabhängig | Standardmäßig `gpt-5.6-luna` für OpenAI und `deepseek/deepseek-v4-flash-0731` für OpenRouter. Beide Stufen verwenden dasselbe Modell. |
@@ -663,8 +664,32 @@ wichtige Quellenzählungen, `source_warnings` und `import_issues`, weil einzelne
 
 ### Geprüfte Venue-Koordinaten
 
-Der Venue-Geocoding-Pfad ist ein reproduzierbarer, redaktionell geprüfter
-Offline-Workflow; während eines Imports werden keine Geocoder aufgerufen:
+Die geprüfte Venue-Registry bleibt die Primärquelle. Danach pinnt
+`geocoding.geocode_missing` beim Import nur noch Events ohne Koordinaten über
+Nominatim (ein Thread, ≥ 1,1 s Abstand, identifizierender User-Agent,
+SQLite-Cache `geocoding-v1.sqlite3` im Cache-Verzeichnis, 120 s Laufbudget,
+Abbruch bei Fehlern oder Rate-Limit). Einmal gefundene Pins bleiben: Treffer
+verfallen im Cache nie, nur Fehlschläge werden nach 90 Tagen erneut gefragt.
+Dauerhaft versioniert liegen Pins in
+`scripts/nrw_events/geocoded_addresses.json` (Query → Koordinate); sie gehen
+auch bei verlorenem Cache nicht verloren und werden vor jedem Lookup genutzt. Akzeptiert wird nur ein
+punktgenauer Treffer: PLZ, Ort, Straße und Hausnummer stimmen überein. Ohne
+Hausnummer gilt das nur für eine Straße oder einen Platz, der selbst der
+Veranstaltungsort ist und dessen PLZ passt (`Merler Winkel`, 53340). Solche Events tragen
+`location_source="geocoded_address"`. `NRW_EVENTS_GEOCODING=0` schaltet den
+Schritt ab; die Offline-Tests tun das immer.
+
+Backfill oder Nachpflege der versionierten Pins aus einem Feed- oder
+Archiv-Snapshot, optional mit dem Recherche-Cache als Seed (ohne Laufbudget,
+weiterhin ≤ 1 Anfrage/s):
+
+```bash
+cd scripts && NRW_EVENTS_GEOCODING=1 python3 -m nrw_events.geocoding \
+  /path/to/events-archive.json --seed ../.cache/venue-geocoding/nominatim.json
+```
+
+Neue Venues mit Namen und Aliasen kommen weiterhin über den reproduzierbaren,
+redaktionell geprüften Offline-Workflow in die Registry:
 
 ```bash
 # 1. Noch nicht aufgelöste Venue-Gruppen aus einem Feed-Snapshot erfassen
