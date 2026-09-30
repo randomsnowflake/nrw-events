@@ -876,6 +876,47 @@ def _same_timed_venue_occurrence(left: Mapping[str, Any], right: Mapping[str, An
     return len(shorter) >= 2 and shorter[0] == longer[0] and set(shorter) <= set(longer)
 
 
+def _pre_programme_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Match a venue listing that starts with its introduction.
+
+    The Bundeskunsthalle announces a concert from its 18:45 pre-concert talk
+    to 21:30; the Beethovenfest lists the same concert at 19:30. Accept the
+    later start at most an hour into the earlier listing's short interval, at
+    one registered venue, in one category, with contained title words. An
+    all-day exhibition interval is too long to absorb a tour on that day.
+    """
+    venue_id = str(left.get("venue_id") or "").strip()
+    if (
+        left.get("source") == right.get("source")
+        or not venue_id
+        or venue_id != str(right.get("venue_id") or "").strip()
+        or not left.get("category_key")
+        or left.get("category_key") != right.get("category_key")
+    ):
+        return False
+    try:
+        early, late = sorted(
+            (left, right),
+            key=lambda row: datetime.fromisoformat(str(row["start_at"]).replace("Z", "+00:00")),
+        )
+        early_start = datetime.fromisoformat(str(early["start_at"]).replace("Z", "+00:00"))
+        late_start = datetime.fromisoformat(str(late["start_at"]).replace("Z", "+00:00"))
+        early_end = datetime.fromisoformat(str(early["end_at"]).replace("Z", "+00:00"))
+    except (KeyError, ValueError, TypeError):
+        return False
+    if not (
+        timedelta(0) < late_start - early_start <= timedelta(hours=1)
+        and late_start < early_end
+        and early_end - early_start <= timedelta(hours=4)
+    ):
+        return False
+    shorter, longer = sorted(
+        (_significant_title_words(left.get("title", "")), _significant_title_words(right.get("title", ""))),
+        key=len,
+    )
+    return len(shorter) >= 2 and set(shorter) <= set(longer)
+
+
 def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Return whether two canonical records represent the same occurrence."""
     performance.count("dedup_comparisons")
@@ -929,6 +970,7 @@ def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
     return (
         same_detail_occurrence
         or _same_timed_venue_occurrence(left, right)
+        or _pre_programme_occurrence(left, right)
         or _secondary_calendar_schedule_matches(left, right)
         or _same_registered_venue_occurrence(left, right)
         or (

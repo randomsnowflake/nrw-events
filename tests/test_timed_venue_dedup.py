@@ -86,6 +86,41 @@ class TimedVenueDedupTests(unittest.TestCase):
         ))
 
 
+class PreProgrammeTests(unittest.TestCase):
+    """The venue lists its pre-concert talk; the festival only the concert."""
+
+    def _pair(self, **venue_updates):
+        venue = _event(
+            "live arts: Michael Barenboim & Nasmé Ensemble", "Bundeskunsthalle", "Bonn-Gronau", "Bundeskunsthalle",
+            "2026-09-30T18:45+02:00", end_at="2026-09-30T21:30+02:00", venue_id="bundeskunsthalle",
+            category_key="concert",
+        )
+        venue.update(venue_updates)
+        festival = _event(
+            "Michael Barenboim & Nasmé Ensemble", "Bundeskunsthalle", "Bonn", "Beethovenfest Bonn",
+            "2026-09-30T19:30+02:00", venue_id="bundeskunsthalle", category_key="concert",
+        )
+        return venue, festival
+
+    def test_performance_inside_the_venue_listing_is_one_occurrence(self):
+        venue, festival = self._pair()
+        self.assertTrue(events_are_duplicates(venue, festival))
+        self.assertTrue(events_are_duplicates(festival, venue))
+
+    def test_distinct_or_distant_listings_stay_separate(self):
+        for updates in (
+            {"start_at": "2026-09-30T18:00+02:00", "time": "18:00"},  # 90 minutes earlier
+            {"end_at": "2026-09-30T19:15+02:00"},  # ends before the concert
+            {"end_at": "2026-09-30T23:30+02:00"},  # long all-evening interval
+            {"category_key": "talk"},
+            {"venue_id": "kunstmuseum-bonn"},
+            {"title": "live arts: Kinan Azmeh Quartett"},
+            {"source": "Beethovenfest Bonn"},
+        ):
+            with self.subTest(updates=updates):
+                self.assertFalse(events_are_duplicates(*self._pair(**updates)))
+
+
 class DuplicateCandidateTests(unittest.TestCase):
     def test_conflicting_listings_are_queued_for_review(self):
         brotfabrik = _event("Gerüchteküche: Onkel Wanja", "Kulturzentrum Brotfabrik", "Bonn", "Brotfabrik Bonn",
