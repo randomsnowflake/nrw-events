@@ -8,19 +8,13 @@ import json
 from datetime import date
 from pathlib import Path
 
+from nrw_events.geocoding import street_like
+
 DEFAULT_POLICY = Path(__file__).with_name("venue_geocoding_decisions.json")
 
 
 def load(path: Path):
     return json.loads(path.read_text())
-
-
-def street_like(venue: str) -> bool:
-    value = venue.casefold()
-    return any(word in value for word in (
-        "bahnhof", "friedhof", "innenstadt", "markt", "parkplatz", "platz",
-        "rheinufer", "straße", "strasse", "treff", "ufer", "wanderparkplatz",
-    ))
 
 
 def load_policy(path: Path) -> tuple[dict[str, str], dict[tuple[str, str], dict], str]:
