@@ -966,10 +966,10 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
             2,
         )
         event["location_confidence"] = "exact"
-        # A source's own point or an address geocode keeps its provenance
-        # unless the venue registry replaced it during canonicalization.
+        # A source's own point or a geocode keeps its provenance unless the
+        # venue registry replaced it during canonicalization.
         if not (
-            event.get("location_source") in {"source_coordinates", "geocoded_address"}
+            event.get("location_source") in {"source_coordinates", "geocoded_address", "geocoded_venue"}
             and explicit_point == (latitude, longitude)
         ):
             event["location_source"] = "venue_registry"

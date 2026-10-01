@@ -291,9 +291,9 @@ def enrich_publication(context: RunContext, batch: SourceBatch, selected: Public
             run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
     try:
         with performance.span("geocoding.nominatim"):
-            geocoding_outcomes = geocoding.geocode_missing(deduped)
+            geocoding_outcomes = geocoding.geocode_missing(deduped, budget_seconds=geocoding.run_budget_seconds())
         if geocoding_outcomes:
-            log(logger, 20, f"Address geocoding: {dict(sorted(geocoding_outcomes.items()))}",
+            log(logger, 20, f"Geocoding: {dict(sorted(geocoding_outcomes.items()))}",
                 run_id=run_id, source="geocoding")
     except (sqlite3.Error, OSError) as exc:
         # Optional enrichment: events keep their town-level location.

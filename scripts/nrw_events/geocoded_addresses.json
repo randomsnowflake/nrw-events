@@ -1,5 +1,20 @@
 {
   "version": 1,
+  "rejectedVenues": {
+    "Brühler Innenstadt": "matched an unrelated restaurant, not the city centre",
+    "Bürgersaal im Bergischen Hof": "matched Rathausplatz rather than the hall",
+    "Christuskirche": "matched a kindergarten at the source address",
+    "Der Veranstaltungsort ist der Startpunkt der Tour": "generic phrase; tours start at different addresses",
+    "Festsaal Haus Wetterstein": "matched a pharmacy rather than the hall",
+    "Feuerwehrgerätehaus und Umfeld DGH/Alte Schule": "matched a bakery rather than the venue",
+    "Freizeitpark Rheinbach": "matched the adjacent water park",
+    "Nachbarschaftszentrum Brüser Berg": "matched the district rather than the centre",
+    "Online-Veranstaltung": "online event, no physical place",
+    "Poppelsdorfer": "venue label is incomplete and matched a university office",
+    "Spielplatz „Gustav-Stresemann-Ring“, Efferen": "matched Hürth town hall rather than the playground",
+    "Spotlight Secrets": "tour operator office, not the meeting point of its tours",
+    "Treff Max-Ernst-Brunnen": "matched Brühl town hall rather than the fountain"
+  },
   "points": {
     "Adelheidisstr. 19, 53225 Bonn, Deutschland": {
       "latitude": 50.7526878,
@@ -591,6 +606,12 @@
       "longitude": 6.7663183,
       "checkedAt": "2026-09-30"
     },
+    "Friedhof Sommerberg, Sommerberg, 51503 Rösrath, Deutschland": {
+      "latitude": 50.9130849,
+      "longitude": 7.1788632,
+      "method": "venue",
+      "checkedAt": "2026-10-01"
+    },
     "Friedrich-Breuer-Str. 17 53225 Bonn, Deutschland": {
       "latitude": 50.7384648,
       "longitude": 7.1150483,
@@ -1075,6 +1096,12 @@
       "latitude": 50.7388464,
       "longitude": 7.0989964,
       "checkedAt": "2026-09-30"
+    },
+    "Katholisch-Soziales Institut, Siegburg, Deutschland": {
+      "latitude": 50.7957219,
+      "longitude": 7.2102958,
+      "method": "venue",
+      "checkedAt": "2026-10-01"
     },
     "Kaufmannstr. 44, 53115 Bonn, Deutschland": {
       "latitude": 50.729879,

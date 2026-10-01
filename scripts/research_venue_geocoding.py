@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import time
 import urllib.error
 import urllib.parse
@@ -24,11 +23,13 @@ from nrw_events.geocoding import (  # noqa: F401 - shared with runtime geocoding
     TRANSIENT_RETRY_ATTEMPTS,
     TRANSIENT_RETRY_BASE_SECONDS,
     USER_AGENT,
+    candidate_score,
     city_compatible,
     fetch,
     fetch_with_backoff,
     house_number,
     normalized,
+    place_names,
     postcode,
     tokens,
 )
@@ -40,108 +41,6 @@ def osm_url(result: dict) -> str:
     osm_type = {"node": "node", "way": "way", "relation": "relation"}.get(result.get("osm_type"), "")
     osm_id = str(result.get("osm_id") or "")
     return f"https://www.openstreetmap.org/{osm_type}/{osm_id}" if osm_type and osm_id else ""
-
-
-def place_names(result: dict) -> list[str]:
-    address = result.get("address") or {}
-    names = result.get("namedetails") or {}
-    return [
-        str(result.get("name") or ""),
-        str(names.get("name") or ""),
-        str(names.get("name:de") or ""),
-        str(result.get("display_name") or "").split(",", 1)[0],
-        *(str(address.get(field) or "") for field in ("amenity", "building", "tourism", "shop", "leisure")),
-    ]
-
-
-def candidate_score(group: dict, result: dict) -> tuple[int, list[str]]:
-    reasons: list[str] = []
-    score = 0
-    address = (result.get("address") or {})
-    input_addresses = group.get("addresses") or []
-    input_postcodes = {postcode(value) for value in input_addresses} - {""}
-    result_postcode = postcode(str(address.get("postcode") or ""))
-    if input_postcodes:
-        if result_postcode in input_postcodes:
-            score += 4
-            reasons.append("postcode-match")
-        else:
-            score -= 6
-            reasons.append("postcode-conflict")
-
-    input_numbers = {house_number(value) for value in input_addresses} - {""}
-    result_number = house_number(str(address.get("house_number") or ""))
-    if input_numbers:
-        if result_number in input_numbers:
-            score += 4
-            reasons.append("house-number-match")
-        elif result_number:
-            score -= 5
-            reasons.append("house-number-conflict")
-        else:
-            score -= 2
-            reasons.append("house-number-missing")
-
-    input_street_tokens = set()
-    for value in input_addresses:
-        input_street_tokens.update(tokens(re.sub(r"\b\d{5}\b|\b\d{1,4}\s*[a-z]?\b", " ", value, flags=re.I)))
-    input_street_tokens -= tokens(group["city"])
-    result_street_tokens = tokens(str(address.get("road") or ""))
-    if input_street_tokens and result_street_tokens:
-        street_overlap = len(input_street_tokens & result_street_tokens) / min(len(input_street_tokens), len(result_street_tokens))
-        if street_overlap >= 0.8:
-            score += 3
-            reasons.append("street-match")
-        else:
-            score -= 3
-            reasons.append("street-conflict")
-
-    if city_compatible(group["city"], result):
-        score += 3
-        reasons.append("city-match")
-    else:
-        score -= 5
-        reasons.append("city-conflict")
-
-    expected_tokens = tokens(group["venue"]) - tokens(group["city"])
-    expected_compact = normalized(group["venue"]).replace(" ", "")
-    best_overlap = 0.0
-    best_containment = 0.0
-    best_intersection = 0
-    for name in place_names(result):
-        actual_tokens = tokens(name)
-        if expected_tokens and actual_tokens:
-            intersection = len(expected_tokens & actual_tokens)
-            best_intersection = max(best_intersection, intersection)
-            best_overlap = max(best_overlap, intersection / len(expected_tokens | actual_tokens))
-            best_containment = max(best_containment, intersection / min(len(expected_tokens), len(actual_tokens)))
-            actual_compact = normalized(name).replace(" ", "")
-            if len(expected_tokens) >= 2 and len(actual_tokens) >= 2 and min(len(expected_compact), len(actual_compact)) >= 6 and (
-                expected_compact in actual_compact or actual_compact in expected_compact
-            ):
-                best_containment = 1.0
-                best_intersection = max(best_intersection, 2)
-    if best_overlap >= 0.8:
-        score += 6
-        reasons.append("venue-name-exact")
-    elif best_containment >= 0.8 and best_intersection >= 2:
-        score += 6
-        reasons.append("venue-name-contained")
-    elif best_overlap >= 0.5:
-        score += 3
-        reasons.append("venue-name-partial")
-    elif input_addresses:
-        reasons.append("address-only")
-    else:
-        score -= 5
-        reasons.append("venue-name-mismatch")
-
-    result_type = str(result.get("type") or "")
-    result_class = str(result.get("class") or "")
-    if result_class == "boundary" or result_type in {"city", "town", "village", "suburb", "administrative"}:
-        score -= 8
-        reasons.append("area-not-venue")
-    return score, reasons
 
 
 def queries_for(group: dict) -> list[str]:

@@ -60,9 +60,11 @@ For model comparisons, `NRW_EVENTS_AI_PROVIDER=openrouter` uses
 `OPENROUTER_API_KEY`, strict structured Chat Completions, zero-data-retention
 routing, and a provider-specific cache namespace. Its default model is
 `deepseek/deepseek-v4-flash-0731` with reasoning disabled.
-Events still without coordinates are then geocoded from their own postal
-address through Nominatim (`NRW_EVENTS_GEOCODING=1`, default; `0` disables);
-only point-exact matches are pinned. AI runs only after canonical validation, publication filtering and global
+Events still without coordinates are then geocoded through Nominatim
+(`NRW_EVENTS_GEOCODING=1`, default; `0` disables), earliest events first within
+`NRW_EVENTS_GEOCODING_BUDGET_SECONDS` (120): their own postal address when it
+matches point-exactly, otherwise venue name and town when the result passes the
+venue research scoring. AI runs only after canonical validation, publication filtering and global
 deduplication. `NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH` may point to a strict
 version-1 export of website `content_reviewed` rules; exact final-ID matches are
 applied first and never enter the AI cache/provider batch. A malformed configured
