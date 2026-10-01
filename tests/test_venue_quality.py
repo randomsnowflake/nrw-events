@@ -30,6 +30,19 @@ class VenueQualityTests(unittest.TestCase):
         self.assertEqual(result.venue, '')
         self.assertIn(value, result.description)
 
+    def test_bare_label_is_not_a_place_name_but_keeps_the_address(self):
+        for value in ['Treffpunkt:', 'Donnerstag:', 'Ort:']:
+            with self.subTest(value=value):
+                result = canonicalize_event(event(venue=value, venue_address='Rheinallee 1, 53639 Königswinter'))
+                self.assertEqual(result.venue, '')
+                self.assertEqual(result.venue_address, 'Rheinallee 1, 53639 Königswinter')
+                self.assertTrue(any(w['rule_id'] == 'publication.invalid-venue' for w in result.quality_warnings))
+
+    def test_labelled_meeting_point_keeps_its_place(self):
+        row = event(venue='Treffpunkt: Villa Hammerschmidt', venue_address='Adenauerallee 135, 53113 Bonn')
+        sanitize_venue_fields(row)
+        self.assertEqual(row['venue'], 'Treffpunkt: Villa Hammerschmidt')
+
     def test_valid_unregistered_places_and_addresses_survive(self):
         for value in ['H7', 'B 9', 'Studio 5', 'Sülz & Klettenberg', 'Verschiedene Veranstaltungsorte in Köln', 'Parkplatz an der Grundschule']:
             with self.subTest(value=value):

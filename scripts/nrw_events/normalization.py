@@ -210,6 +210,12 @@ for _location in VERIFIED_VENUE_LOCATIONS:
 _TAG = re.compile(r"<[^>]+>")
 _SPACE = re.compile(r"\s+")
 _POSTCODE = re.compile(r"\b\d{5}\b")
+# "Donnerstag: Rabinstraße 8 …; Freitag: CERC, …" names one place per day, not one venue.
+_DAY_LABEL = re.compile(
+    r"(?:^|;)\s*(?:Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag|Mo|Di|Mi|Do|Fr|Sa|So)\.?"
+    r"(?:,?\s*\d{1,2}\.\d{1,2}\.(?:\d{2,4})?)?\s*:",
+    re.IGNORECASE,
+)
 _COUNTRY_OR_REGION = re.compile(
     r"^(?:d|de|deutschland|germany|nrw|nordrhein-westfalen|rlp|rheinland-pfalz)\.?$",
     re.IGNORECASE,
@@ -396,6 +402,10 @@ def resolve_venue(
 ) -> VenueResolution:
     """Resolve source venue text without inventing facts for unknown places."""
     cleaned = _clean_venue_text(value)
+    # Several days at several places: splitting would merge their addresses and pin neither.
+    # The whole text stays the visible place, without an address or a point.
+    if len(_DAY_LABEL.findall(cleaned)) >= 2:
+        return VenueResolution(cleaned)
     # Municipal event FID=3947.731.1 confirms the same Burgstraße 5 site.
     if comparison_text(city) == "meckenheim":
         cleaned = re.sub(r"^Herrenhaus Burg Altendorf(?=,|$)", "Herrenhaus der Burg Altendorf", cleaned, flags=re.I)

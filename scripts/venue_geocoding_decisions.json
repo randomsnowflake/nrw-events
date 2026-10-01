@@ -208,6 +208,14 @@
       "longitude": 7.21518,
       "osmUrl": "https://de.wikipedia.org/wiki/Grafenwerth",
       "note": "Reuses the reviewed website venue point of Insel Grafenwerth"
+    },
+    {
+      "city": "Bonn-Tannenbusch",
+      "venue": "Quartiersmanagement Neu-Tannenbusch",
+      "latitude": 50.7501925,
+      "longitude": 7.0469546,
+      "osmUrl": "https://www.openstreetmap.org/way/1203760335",
+      "note": "OSM building Oppelner Straße 126b, 53119 Bonn; the bonn.de calendar misspells it as Opplener Str., which no geocoder finds"
     }
   ]
 }

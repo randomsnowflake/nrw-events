@@ -27,6 +27,9 @@ def invalid_venue_reason(value: str) -> str:
         return 'placeholder'
     if re.match(r'^Gemeinsame\s+Anfahrt\b', value, re.I):
         return 'journey'
+    # A label left over from a "Treffpunkt: …" or "Donnerstag: …" field, with the place after it lost.
+    if re.fullmatch(r'[^\W\d_][\w .-]{0,24}:', value):
+        return 'label'
     return ''
 
 

@@ -3626,6 +3626,19 @@
     },
     {
       "city": "Bonn-Tannenbusch",
+      "venue": "Quartiersmanagement Neu-Tannenbusch",
+      "address": "Opplener Str. 126b, 53119 Bonn",
+      "latitude": 50.7501925,
+      "longitude": 7.0469546,
+      "checkedAt": "2026-09-28",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Komm-vorbei-.php",
+        "osmUrl": "https://www.openstreetmap.org/way/1203760335",
+        "method": "OSM building Oppelner Straße 126b, 53119 Bonn; the bonn.de calendar misspells it as Opplener Str., which no geocoder finds"
+      }
+    },
+    {
+      "city": "Bonn-Tannenbusch",
       "venue": "Stadtbibliothek Bonn",
       "address": "Oppelner Str. 128, 53119 Bonn",
       "latitude": 50.7503787,

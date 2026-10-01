@@ -109,6 +109,20 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertEqual(venue.venue_id, "werkstattbuehne-bonn")
         self.assertAlmostEqual(venue.venue_latitude or 0, 50.7363281468)
 
+    def test_place_per_day_stays_one_visible_text_without_a_merged_address(self):
+        # Universität Bonn, "Fragmente im Fokus" (2026-10-01/02): two days, two places.
+        value = "Donnerstag: Rabinstraße 8, 53111 Bonn, Seminarraum 4; Freitag: CERC, Konrad-Zuse-Platz 1-3, 53227 Bonn"
+        venue = resolve_venue(value, "Bonn")
+        self.assertEqual((venue.venue, venue.venue_address, venue.venue_latitude), (value, "", None))
+        single = resolve_venue("Donnerstag: Rabinstraße 8, 53111 Bonn", "Bonn")
+        self.assertEqual(single.venue_address, "Rabinstraße 8, 53111 Bonn")
+
+    def test_misspelled_source_street_resolves_through_the_reviewed_venue(self):
+        # bonn.de spells Oppelner Straße "Opplener Str."; geocoders find nothing for it.
+        venue = resolve_venue("Quartiersmanagement Neu-Tannenbusch, Opplener Str. 126b, 53119 Bonn", "Bonn-Tannenbusch")
+        self.assertEqual(venue.coordinate_source, "verified_venue_locations")
+        self.assertAlmostEqual(venue.venue_latitude or 0, 50.7501925)
+
     def test_registry_rebuild_is_diff_free(self):
         root = Path(__file__).resolve().parents[1]
         completed = subprocess.run(
