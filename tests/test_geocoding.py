@@ -98,6 +98,20 @@ class VenueNameTests(unittest.TestCase):
             with self.subTest(rejected=rejected):
                 self.assertIsNone(geocoding.accepted_venue_point(library, [rejected]))
 
+    def test_a_shared_word_is_not_the_same_town(self):
+        kurhaus = validate_event(make_event(city="Bad Honnef", venue="Kurhaus am Park", venue_address=""))
+        elsewhere = place("Kurhaus am Park", town="Bad Münstereifel", lat=50.556, lon=6.763)
+        self.assertIsNone(geocoding.accepted_venue_point(kurhaus, [elsewhere]))
+        here = place("Kurhaus am Park", town="Bad Honnef", lat=50.64, lon=7.22)
+        self.assertEqual(geocoding.accepted_venue_point(kurhaus, [here]), (50.64, 7.22))
+
+    def test_district_labels_match_their_town(self):
+        self.assertEqual(geocoding.municipality("Bonn-Beuel"), "Bonn")
+        self.assertEqual(geocoding.municipality("Köln (Braunsfeld)"), "Köln")
+        self.assertEqual(geocoding.municipality("Bad Neuenahr-Ahrweiler"), "Bad Neuenahr-Ahrweiler")
+        beuel = validate_event(make_event(city="Bonn-Beuel", venue="Brückenhofmuseum Test", venue_address=""))
+        self.assertTrue(geocoding.accepted_venue_point(beuel, [place("Brückenhofmuseum Test", town="Bonn", lat=50.74, lon=7.13)]))
+
     def test_source_address_must_not_conflict(self):
         library = event(LIBRARY, "Klosterweg 3, 53340 Meckenheim")
         self.assertEqual(
@@ -245,6 +259,24 @@ class GeocodeMissingTests(unittest.TestCase):
         # A rejected name keeps only the street rule, which pins no library.
         with mock.patch.object(geocoding, "fetch", return_value=[place(LIBRARY)]):
             self.assertEqual(geocoding.geocode_missing([event(LIBRARY, "")]), {"unmatched": 1})
+
+    def test_venue_pin_does_not_override_the_source_address(self, _sleep):
+        library = event(LIBRARY, "Merler Straße 12, 53340 Meckenheim")
+        self.points.write_text(json.dumps({"version": 1, "points": {
+            "Bücherei am Klosterhof, Meckenheim, Deutschland": {"latitude": 50.6, "longitude": 7.05, "method": "venue"},
+        }}))
+        events = [library]
+        with mock.patch.object(geocoding, "fetch", return_value=[result("Merler Straße", "12")]) as fetch:
+            self.assertEqual(geocoding.geocode_missing(events), {"geocoded": 1})
+        fetch.assert_called_once_with("Merler Straße 12, 53340 Meckenheim, Deutschland")
+        self.assertEqual((events[0].venue_latitude, events[0].location_source), (50.63, "geocoded_address"))
+        # When the address misses, the stored venue pin answers without another request.
+        with mock.patch.object(geocoding, "fetch") as fetch:
+            self.store("Merler Straße 12, 53340 Meckenheim, Deutschland", [], "2026-09-30T00:00:00+00:00")
+            events = [event(LIBRARY, "Merler Straße 12, 53340 Meckenheim")]
+            self.assertEqual(geocoding.geocode_missing(events), {"geocoded_venue": 1})
+        fetch.assert_not_called()
+        self.assertEqual(events[0].venue_latitude, 50.6)
 
     def test_earliest_events_are_looked_up_first(self, _sleep):
         late = event(address="Merler Straße 12, 53340 Meckenheim", date="2026-06-20", start_date="2026-06-20", end_date="2026-06-20")

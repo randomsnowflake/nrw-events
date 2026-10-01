@@ -104,6 +104,22 @@ def city_compatible(city: str, result: dict) -> bool:
     return bool(expected & actual)
 
 
+def municipality(city: str) -> str:
+    """The town a city label names: ``Bonn-Beuel`` is Bonn, ``Köln (Braunsfeld)`` is Köln."""
+    town = re.sub(r"\s*\(.*\)\s*$", "", city or "").strip()
+    return "Bonn" if re.match(r"^Bonn-", town) else town
+
+
+def municipality_match(city: str, result: dict) -> bool:
+    """Every word of the town must appear in the result; one shared "Bad" is not the same town."""
+    expected = tokens(municipality(city))
+    address = result.get("address") or {}
+    actual = tokens(" ".join([str(result.get("display_name") or ""), *(str(address.get(field) or "") for field in (
+        "city", "town", "village", "municipality", "city_district", "suburb", "county", "state_district",
+    ))]))
+    return bool(expected) and expected <= actual
+
+
 def place_names(result: dict) -> list[str]:
     address = result.get("address") or {}
     names = result.get("namedetails") or {}
@@ -336,6 +352,8 @@ def accepted_venue_point(event: CanonicalEvent, results: list[dict]) -> tuple[fl
             continue
         if result_type in AMBIGUOUS_VENUE_TYPES and not street_like(event.venue):
             continue
+        if not municipality_match(event.city, result):
+            continue
         score, reasons = candidate_score(group, result)
         if score < VENUE_MIN_SCORE or not VENUE_NAME_MATCHES & set(reasons) or VENUE_CONFLICTS & set(reasons):
             continue
@@ -474,13 +492,19 @@ def geocode_missing(
             lookups = lookups_for(event, rejected)
             if not lookups:
                 continue
-            # Versioned pins answer before any cache read or request.
+            # Versioned pins answer before any request, but never ahead of a
+            # source address: a venue pin is only the fallback when it misses.
+            first_scan = lookups[:1] if _street(event)[1] else lookups
             point, location_source = next(
-                ((pin, source) for query, source in lookups if (pin := _known_point(known, query, source))),
+                ((pin, source) for query, source in first_scan if (pin := _known_point(known, query, source))),
                 (None, ""),
             )
             outcome = "unmatched"
             for query, source in lookups if point is None else ():
+                point = _known_point(known, query, source)
+                if point is not None:
+                    location_source = source
+                    break
                 results = _cached(connection, event, query, source)
                 fetched_at = ""
                 if results is None and seed and isinstance(seed.get(query), dict):
