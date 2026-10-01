@@ -8,8 +8,10 @@ cache and failures degrade to the still-useful iCal record.
 """
 
 import re
-from datetime import timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from html.parser import HTMLParser
+from typing import Any
 
 from .. import category_taxonomy, common
 from . import regional_common as rc
@@ -29,7 +31,7 @@ _VOID_TAGS = frozenset({
 })
 
 
-def _fetch_calendar(url: str, **kwargs) -> str:
+def _fetch_calendar(url: str, **kwargs: Any) -> str:
     return common.fetch_url_with_brightdata_fallback(
         url,
         allowed_hosts=_ALLOWED_HOSTS,
@@ -62,7 +64,7 @@ class _ContentItemParser(HTMLParser):
         self._item_depth = 0
         self._capture = ""
         self._capture_depth = 0
-        self._parts = {"label": [], "value": []}
+        self._parts: dict[str, list[str]] = {"label": [], "value": []}
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         classes = set((dict(attrs).get("class") or "").split())
@@ -130,7 +132,7 @@ def _address_last(value: str) -> str:
 def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
     parser = _ContentItemParser()
     parser.feed(html or "")
-    venue_parts = []
+    venue_parts: list[str] = []
     for raw_part in (parser.fields.get("ort", ""), parser.fields.get("raum", "")):
         part = _address_last(raw_part)
         key = re.sub(r"\s*\([^)]*\)", "", part).strip(" ,").casefold()
@@ -146,7 +148,7 @@ def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
     }
 
 
-def _valid_duration(props: dict, start, end) -> bool:
+def _valid_duration(props: dict, start: datetime, end: datetime) -> bool:
     """Reject visibly corrupt centuries-long Plone end dates without hiding exhibitions."""
     if not start <= end <= start + _MAX_DURATION:
         return False
@@ -176,7 +178,7 @@ def _merge_context(event: dict, context: dict) -> dict:
     return enriched
 
 
-def _enrich_details(events: list, detail_fetcher=None) -> list:
+def _enrich_details(events: list, detail_fetcher: Callable[..., str] | None = None) -> list:
     return rc.enrich_descriptions(
         events,
         source=f"{_SOURCE} detail",
