@@ -146,6 +146,11 @@
       "longitude": 7.0967647,
       "checkedAt": "2026-09-30"
     },
+    "Am Hauptbahnhof 6, 53111 Bonn, Deutschland": {
+      "latitude": 50.7328123,
+      "longitude": 7.0966519,
+      "checkedAt": "2026-10-01"
+    },
     "Am Herrenwingert, 53347 Alfter, Deutschland": {
       "latitude": 50.7393093,
       "longitude": 7.0100746,
@@ -1228,6 +1233,11 @@
       "longitude": 7.1065031,
       "checkedAt": "2026-09-30"
     },
+    "Konviktstraße 9, 53113 Bonn, Deutschland": {
+      "latitude": 50.7353586,
+      "longitude": 7.1065031,
+      "checkedAt": "2026-10-01"
+    },
     "Kreuzbergweg 24, 53115 Bonn, Deutschland": {
       "latitude": 50.7281158,
       "longitude": 7.0907298,
@@ -1737,6 +1747,11 @@
       "latitude": 50.6425871,
       "longitude": 7.2197312,
       "checkedAt": "2026-09-30"
+    },
+    "Rabinstraße 8, 53111 Bonn, Deutschland": {
+      "latitude": 50.7348588,
+      "longitude": 7.0917416,
+      "checkedAt": "2026-10-01"
     },
     "Rathausplatz 1, 53604 Bad Honnef, Deutschland": {
       "latitude": 50.6446597,
