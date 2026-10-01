@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common
+from nrw_events.normalization import resolve_venue
 from nrw_events.sources import SOURCE_IDS, SOURCES, uni_bonn
 
 from tests.helpers import patch_window
@@ -164,6 +165,21 @@ class UniBonnSourceTests(unittest.TestCase):
             context["venue"],
             "Transfer Center enaCom, Brühler Str. 7, 53119 Bonn",
         )
+
+    def test_detail_parser_reads_parenthesised_address_with_pipe(self):
+        # uni-bonn.de "Abendveranstaltung: Ein Funken Pluriversum", format since 2026-10-01.
+        html = """
+        <div class="content-item">
+          <div class="item-title">Ort:</div>
+          <div class="item-value">Universitätsclub Bonn (Konviktstraße 9 | 53113 Bonn)</div>
+        </div>
+        """
+
+        venue = uni_bonn._parse_detail_context(html)["venue"]
+
+        self.assertEqual(venue, "Universitätsclub Bonn, Konviktstraße 9, 53113 Bonn")
+        resolved = resolve_venue(venue, "Bonn")
+        self.assertEqual((resolved.venue, resolved.venue_address), ("Universitätsclub Bonn", "Konviktstraße 9, 53113 Bonn"))
 
     def test_reviewed_hands_on_series_are_workshops(self):
         events = [

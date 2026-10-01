@@ -107,8 +107,15 @@ class _ContentItemParser(HTMLParser):
             self._parts[self._capture].append(data)
 
 
+_PARENTHESISED_ADDRESS = re.compile(r"^(?P<name>[^()]+?)\s*\((?P<address>[^()]*\b\d{5}\b[^()]*)\)$")
+
+
 def _address_last(value: str) -> str:
     """Put Plone's occasional ``street, city, venue`` value in canonical order."""
+    # Since 2026-10-01 Plone also writes ``Universitätsclub Bonn (Konviktstraße 9 | 53113 Bonn)``.
+    value = re.sub(r"\s*\|\s*", ", ", value).strip()
+    if match := _PARENTHESISED_ADDRESS.match(value):
+        value = f"{match['name']}, {match['address']}"
     parts = [part.strip() for part in value.split(",") if part.strip()]
     if (
         len(parts) >= 3
