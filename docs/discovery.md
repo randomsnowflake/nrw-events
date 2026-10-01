@@ -62,7 +62,7 @@ routing, and a provider-specific cache namespace. Its default model is
 `deepseek/deepseek-v4-flash-0731` with reasoning disabled.
 Events still without coordinates are then geocoded through Nominatim
 (`NRW_EVENTS_GEOCODING=1`, default; `0` disables), earliest events first within
-`NRW_EVENTS_GEOCODING_BUDGET_SECONDS` (120): their own postal address when it
+`NRW_EVENTS_GEOCODING_BUDGET_SECONDS` (600): their own postal address when it
 matches point-exactly, otherwise venue name and town when the result passes the
 venue research scoring. AI runs only after canonical validation, publication filtering and global
 deduplication. `NRW_EVENTS_REVIEWED_AI_SUMMARIES_PATH` may point to a strict

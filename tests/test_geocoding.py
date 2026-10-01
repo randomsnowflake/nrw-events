@@ -143,7 +143,7 @@ class VenueNameTests(unittest.TestCase):
         ])
 
     def test_budget_comes_from_the_environment(self):
-        for value, expected in (("", 120.0), ("600", 600.0), ("-5", 0.0), ("viel", 120.0)):
+        for value, expected in (("", 600.0), ("120", 120.0), ("-5", 0.0), ("viel", 600.0)):
             with self.subTest(value=value), mock.patch.dict(os.environ, {"NRW_EVENTS_GEOCODING_BUDGET_SECONDS": value}):
                 self.assertEqual(geocoding.run_budget_seconds(), expected)
 

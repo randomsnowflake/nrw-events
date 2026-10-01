@@ -44,7 +44,9 @@ TRANSIENT_RETRY_BASE_SECONDS = 1.1
 # Misses are retried after this; lookups that produced a pin never expire.
 CACHE_TTL = timedelta(days=90)
 # ponytail: sequential run budget; addresses left over are looked up next run.
-RUN_BUDGET_SECONDS = 120.0
+# One import a day at <= 1 request/s: ten minutes clear a day's new addresses plus a backlog,
+# which 120 s did not (82 of 113 unpinned app addresses were never looked up on 2026-10-01).
+RUN_BUDGET_SECONDS = 600.0
 LOCATION_SOURCE = "geocoded_address"
 VENUE_LOCATION_SOURCE = "geocoded_venue"
 POINTS_PATH = Path(__file__).with_name("geocoded_addresses.json")
