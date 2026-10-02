@@ -19,6 +19,87 @@ from nrw_events.event_vocabulary import (
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
+    def test_recognizes_source_backed_formats_missing_from_other(self):
+        cases = [
+            ("BV Holzlar: Vortragsreihe Thema Fusion", "", "talk"),
+            ("Gemeinsame Jahrestagung: Funktionelle Neurologische Störungen", "", "talk"),
+            ("Informationsabend Amateurfunk", "", "talk"),
+            ("Infoveranstaltung Studium und Praktikum im Ausland", "", "talk"),
+            ("Poster-Session", "Forschungsarbeiten vorstellen und Feedback erhalten.", "talk"),
+            ("Brühl spricht! – Moderierter Bürgerdialog", "", "talk"),
+            ("Tauschmarkt", "", "market"),
+            ("Stoffencircus: Stoff- und Tuchmarkt", "", "market"),
+            ("Kleidertauschparty", "", "market"),
+            ("Pflanzentauschtag auf dem Kölner Platz", "", "market"),
+            ("Kräuterwanderung", "", "outdoor"),
+            ("Vor Ort: Aquarienbau", "Bei dieser Betriebsbesichtigung erhalten Sie Einblicke.", "outdoor"),
+            ("Kardinalfehler | Komödie", "Eine Komödie in zwei Akten.", "stage"),
+            ("Der tut's noch", "Polit-Kabarettist Winfried Schmickler zu Gast.", "stage"),
+            ("Groovin‘", "Die DJs legen feinstes Vinyl auf.", "nightlife"),
+            ("De Knippschaff – Ensemble", "Geschichten durch Mitsingkonzerte lebendig halten.", "concert"),
+            ("Masterclass zu Gravitationswellen", "Interaktive Aufgaben mit Forschungsdaten.", "workshop"),
+            ("Wachstücher herstellen", "Anmeldung erforderlich.", "workshop"),
+            ("Natürliche Reinigungsmittel selbst herstellen", "", "workshop"),
+            ("3. Spieltag: Dragons Rhöndorf vs BG Hessing Leitershofen", "Tickets im Vorverkauf.", "sports"),
+            ("Hoftag – Im Zeichen der Apfelernte", "Feiere gemeinsam Erntedank an unserer langen Tafel.", "festival"),
+            ("Müllsammelaktion", "Mitmachen kann jede und jeder.", "activities"),
+            ("World Clean Up Day 2026", "", "activities"),
+            ("Nippes spielt!", "Der Brettspielnachmittag für Spielbegeisterte.", "activities"),
+            ("Nippeser Strickmamsellcher", "Stricken und Klönen in der Stadtteilbibliothek.", "activities"),
+            ("Café Interkult", "Ein offenes Café zum Austausch und Kennenlernen.", "activities"),
+            ("Bücherplausch", "Offener Treffpunkt rund ums Lesen.", "talk"),
+            ("Finissage – #ifeelyou", "", "exhibition"),
+            ("Jubiläum der Schützenbruderschaft", "Großer Zapfenstreich auf dem Kirchplatz.", "festival"),
+        ]
+        for title, description, expected in cases:
+            with self.subTest(title=title):
+                result = categorize_event("kommunal kultur markt ausstellung konzert führung", title, description)
+                self.assertEqual(result["key"], expected)
+                self.assertGreaterEqual(result["confidence"], taxonomy.HEURISTIC_CONFIDENCE_THRESHOLD)
+
+    def test_new_formats_do_not_classify_ambiguous_topics_or_venues(self):
+        for title, description in [
+            ("Unklare Veranstaltung", "Treffpunkt: Café am Markt"),
+            ("Alltag", "Meine Großmutter strickte früher oft."),
+            ("Unklare Veranstaltung", "Eine interessante Firma."),
+            ("Arbeitsmarktentwicklung", ""),
+            ("Einwanderungsbewegungen", ""),
+            ("Tagungsband zur Forschung", ""),
+            ("Hauptausschuss", "Sitzung des Hauptausschusses."),
+            ("Gemeinsamer Abend", ""),
+            ("Kontakte herstellen", ""),
+            ("Unklare Veranstaltung", "Gemeinsamer Abend im Café am Markt."),
+        ]:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event("", title, description)["key"], "other")
+
+    def test_fallback_signals_preserve_existing_formats(self):
+        cases = [
+            ("Theaterstück", "Zu den Konzerten tritt auch ein Kabarettist auf.", "stage"),
+            ("Live-Band", "Jubiläum der Initiative und Infoveranstaltung.", "concert"),
+            ("Workshop", "Bücherplausch mit einem Referenten.", "workshop"),
+            ("Käptn Book: Hip-Hop-Tanzworkshop", "", "workshop"),
+            ("Fahrradversteigerung", "Vorherige Besichtigung der Fahrräder möglich.", "market"),
+            ("Betriebsbesichtigung", "Besichtigung moderner Industrieöfen.", "outdoor"),
+        ]
+        for title, description, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event("", title, description)["key"], expected)
+
+    def test_fallback_discards_broad_bags_and_prefers_the_event_over_biography(self):
+        self.assertEqual(categorize_event(
+            "Konzerte Komödie Finissage", "Unklare Veranstaltung",
+        )["key"], "other")
+        self.assertEqual(categorize_event(
+            "", "Two-Night-Stand in Hürth",
+            "Zu den beiden Konzerten bringt der Kölsch-Kabarettist seine Jazzgitarre mit.",
+        )["key"], "concert")
+
+    def test_recognizes_children_reading_series_spelling_variants(self):
+        for prefix in ("Käptn Book", "Käpt'n Book", "Käpt’n Book", "Kaeptn Book"):
+            with self.subTest(prefix=prefix):
+                self.assertEqual(categorize_event("", prefix + ": Bea Davies – Eine Schachtel voll Geheimnis")["key"], "kids")
+
     def tearDown(self):
         configure_fallback_cache()
 
@@ -30,6 +111,7 @@ class CategoryTaxonomyTests(unittest.TestCase):
         keyword_groups = [entry["keywords"] for entry in payload["forced_rules"]]
         keyword_groups.extend(payload["contexts"].values())
         keyword_groups.extend(entry["keywords"] for entry in payload["rules"])
+        keyword_groups.extend(entry["keywords"] for entry in payload["fallback_rules"])
         self.assertTrue(all(required <= keyword.keys() for group in keyword_groups for keyword in group))
         priorities = [rule.priority for rule in taxonomy.RULES]
         self.assertEqual(priorities, sorted(priorities, reverse=True))

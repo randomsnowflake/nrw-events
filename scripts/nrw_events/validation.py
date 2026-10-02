@@ -1019,11 +1019,14 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     current_reason = str(event.get("category_reason") or "")
     category_locked = current_reason.startswith("source:locked-default:")
     category_incomplete = not event.get("category_key") or not event.get("category_label")
-    # Adapter-produced canonical records without an evidence decision are
-    # already complete and stay on the hot path. Reconsider only incomplete
+    # An "other" decision has no positive category evidence, even if an
+    # adapter or AI attached high confidence. Revisit it after detail enrichment.
+    category_unknown = event.get("category_key") == "other" and not category_locked
+    # Adapter-produced positive canonical records without an evidence decision
+    # are already complete and stay on the hot path. Reconsider only incomplete
     # records or records whose earlier classification exposes a confidence and
     # reason that richer detail copy can legitimately improve.
-    should_reconsider = category_incomplete or bool(current_reason and not category_locked)
+    should_reconsider = category_incomplete or category_unknown or bool(current_reason and not category_locked)
     if should_reconsider:
         canonical = category_taxonomy.categorize_event(
             event["category"],
@@ -1045,6 +1048,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         )
         if (
             category_incomplete
+            or (category_unknown and canonical["key"] != "other")
             or canonical_confidence > current_confidence
             or (
                 canonical_confidence == current_confidence

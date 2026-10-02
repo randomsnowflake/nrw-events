@@ -688,6 +688,7 @@ def _apply_result(event: RawEvent, result: Mapping[str, Any]) -> RawEvent:
     category_key = result.get("category_key")
     if (
         (current_key == "other" or confidence < 0.75) and isinstance(category_key, str)
+        and category_key != "other"
         and category_key in category_taxonomy.CATEGORY_BY_KEY
     ):
         category = category_taxonomy.CATEGORY_BY_KEY[category_key]

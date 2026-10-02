@@ -3296,5 +3296,429 @@
         }
       ]
     }
+  ],
+  "fallback_rules": [
+    {
+      "key": "market",
+      "priority": 14,
+      "keywords": [
+        {
+          "value": "tauschmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "tuchmarkt",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "kleidertausch",
+          "match_mode": "word_prefix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "pflanzentausch",
+          "match_mode": "word_prefix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "briefmarkentauschtag",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "versteigerung",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "versteigerung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "kids",
+      "priority": 12,
+      "keywords": [
+        {
+          "value": "käptn book",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "käpt'n book",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "käpt’n book",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "käpt‘n book",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "workshop",
+      "priority": 11,
+      "keywords": [
+        {
+          "value": "masterclass",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "schreibretreat",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "talk",
+      "priority": 10,
+      "keywords": [
+        {
+          "value": "vortragsreihe",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "vortragsankündigung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "tagung",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "tagungen",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "informationsabend",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "infoveranstaltung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "bürgerdialog",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "poster-session",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "bücherplausch",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "wissenschaft im rathaus",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "energie-dialog",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "gelesen von",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "referenten",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "sports",
+      "priority": 9,
+      "keywords": [
+        {
+          "value": "radwandern",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "spieltag",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "selbstverteidigung",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "concert",
+      "priority": 7,
+      "keywords": [
+        {
+          "value": "konzerte",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "screamo",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "a-cappella",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "konzerten",
+          "match_mode": "word_suffix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Inflected plural of an explicit concert format; outranks incidental performer biography."
+        }
+      ]
+    },
+    {
+      "key": "nightlife",
+      "priority": 6,
+      "keywords": [
+        {
+          "value": "djs",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "stage",
+      "priority": 5,
+      "keywords": [
+        {
+          "value": "komödie",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "kabarettist",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "exhibition",
+      "priority": 4,
+      "keywords": [
+        {
+          "value": "finissage",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "activities",
+      "priority": 3,
+      "keywords": [
+        {
+          "value": "müllsammelaktion",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "clean up",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "brettspielnachmittag",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "handarbeitstreff",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "nachbarschaftscafé",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "häkelabend",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "outdoor",
+      "priority": 2,
+      "keywords": [
+        {
+          "value": "wanderung",
+          "match_mode": "word_suffix",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "unternehmensbesuch",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "besichtigung",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "betriebsbesichtigung",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    },
+    {
+      "key": "festival",
+      "priority": 1,
+      "keywords": [
+        {
+          "value": "jubiläum",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "erntedank",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        },
+        {
+          "value": "jubiläumsfeier",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "Explicit event format; reviewed against other-category records and negative cases."
+        }
+      ]
+    }
   ]
 }

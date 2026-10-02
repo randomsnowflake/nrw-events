@@ -1638,6 +1638,15 @@ class AIEnrichmentTests(unittest.TestCase):
         self.assertEqual("Bestehende Reihe", result["series_title"])
         self.assertNotIn("Eintritt ist frei", result["ai_summary"])
 
+    def test_ai_other_does_not_erase_a_supported_category(self):
+        source = event(category_key="concert", category_confidence=0.72)
+        result = ai_enrichment.enrich_event(
+            source, settings=self.settings,
+            client=FakeClient([FACTS, {**SUMMARY, "category_key": "other"}]), now=self.now,
+        )
+        self.assertEqual(result["category_key"], "concert")
+        self.assertEqual(result["category_confidence"], 0.72)
+
     def test_ai_filled_identity_fields_do_not_move_the_public_event_id(self):
         source = event(
             time="", start_at="", venue="", city="",

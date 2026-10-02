@@ -9,6 +9,30 @@ from tests.helpers import patch_window
 
 
 class DataIntegrityTests(unittest.TestCase):
+    def test_validation_revisits_other_even_with_high_confidence_or_missing_reason(self):
+        for reason in ("", "explicit Google Form category", "ai:extracted-facts", "source:canonical:other"):
+            with self.subTest(reason=reason):
+                event = validate_event({
+                    "title": "Recht gut geraten – Das Quiz rund um Recht & Gesetz",
+                    "source": "Test", "date": "2026-10-02", "score": 1.0, "city": "Bonn",
+                    "category": "Sonstiges", "category_key": "other", "category_label": "Sonstiges",
+                    "category_confidence": 1.0, "category_reason": reason,
+                })
+                self.assertEqual(event.category_key, "activities")
+                self.assertIn("title=quiz", event.category_reason)
+                self.assertEqual(validate_event(event.to_dict()).category_key, "activities")
+
+    def test_validation_preserves_unknown_and_locked_other(self):
+        for title, reason in (("Unklare Veranstaltung", "ai:extracted-facts"),
+                              ("Quizabend", "source:locked-default:other")):
+            with self.subTest(title=title):
+                event = validate_event({
+                    "title": title, "source": "Test", "date": "2026-10-02", "score": 1.0, "city": "Bonn",
+                    "category": "Sonstiges", "category_key": "other", "category_label": "Sonstiges",
+                    "category_confidence": 1.0, "category_reason": reason,
+                })
+                self.assertEqual(event.category_key, "other")
+
     def test_validation_rejects_inverted_date_ranges(self):
         with self.assertRaisesRegex(EventValidationError, "end_before_start"):
             validate_event({

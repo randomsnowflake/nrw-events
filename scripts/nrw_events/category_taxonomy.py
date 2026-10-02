@@ -148,7 +148,7 @@ def _load_policy() -> dict:
     payload = json.loads(_POLICY_PATH.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or payload.get("version") != 1:
         raise ValueError("category policy must use schema version 1")
-    for field in ("forced_rules", "contexts", "rules"):
+    for field in ("forced_rules", "contexts", "rules", "fallback_rules"):
         if field not in payload:
             raise ValueError(f"category policy is missing {field!r}")
     return payload
@@ -169,18 +169,25 @@ DESTINATION_TITLE_CONTEXT = tuple(
 STRONG_MARKET_TITLE_CONTEXT = tuple(
     comparison_text(keyword["value"]) for keyword in _CATEGORY_POLICY["contexts"]["strong_market_title"]
 )
-RULES = tuple(sorted(
-    (
-        Rule(
-            entry["key"],
-            int(entry["priority"]),
-            tuple(_keyword_from_spec(keyword) for keyword in entry["keywords"]),
-        )
-        for entry in _CATEGORY_POLICY["rules"]
-    ),
-    key=lambda rule: rule.priority,
-    reverse=True,
-))
+def _policy_rules(field: str) -> tuple[Rule, ...]:
+    return tuple(sorted(
+        (
+            Rule(
+                entry["key"],
+                int(entry["priority"]),
+                tuple(_keyword_from_spec(keyword) for keyword in entry["keywords"]),
+            )
+            for entry in _CATEGORY_POLICY[field]
+        ),
+        key=lambda rule: rule.priority,
+        reverse=True,
+    ))
+
+
+RULES = _policy_rules("rules")
+# Additional, less universal signals fill unknown categories without competing
+# with an existing format (e.g. a theatre performance mentioning concerts).
+FALLBACK_RULES = _policy_rules("fallback_rules")
 _FALLBACK_CACHE: dict[str, CategoryResult] = {}
 
 
@@ -287,10 +294,10 @@ def _has_enough_evidence(matches: Iterable[str | Keyword]) -> bool:
     return any(isinstance(keyword, str) or not keyword.weak for keyword in matches)
 
 
-def _category_keys_for_hint(hint_text: str) -> set[str]:
+def _category_keys_for_hint(hint_text: str, *, rules: Iterable[Rule] = RULES) -> set[str]:
     """Return canonical intents represented by a source category string."""
     keys = set()
-    for rule in RULES:
+    for rule in rules:
         matches = _matched_keywords(hint_text, rule.keywords, is_title=False)
         if matches and _has_enough_evidence(matches):
             keys.add(rule.key)
@@ -412,6 +419,29 @@ def _contextual_event_format(
     """
 
     content = f"{title_text} {description_text}"
+    # A shared craft or café activity needs participation evidence. A café
+    # address or a biographical mention of knitting does not describe a meetup.
+    shared_activity = _contains_any(
+        content,
+        (r"\b(?:stricken|häkeln|haekeln)\b",),
+    ) or bool(re.search(r"\bcaf(?:é|e)\b", title_text))
+    social_participation = _contains_any(
+        description_text,
+        (
+            r"\b(?:klönen|kloenen|kennenlernen|austausch|austauschen|vernetzen)\b",
+            r"\b(?:gemeinsam|gemütliche runde|gemuetliche runde)\b",
+            r"\b(?:stricken und häkeln|stricken und haekeln)\b",
+        ),
+    )
+    if shared_activity and social_participation:
+        return ("activities", "format:shared-craft-or-cafe", 0.9)
+
+    if (
+        re.search(r"\bherstellen\b", title_text)
+        and re.search(r"\b(?:wachstücher|wachstuecher|reinigungsmittel|seifen?|kerzen?|kosmetik|papier)\b", title_text)
+    ):
+        return ("workshop", "format:practical-making", 0.85)
+
     if re.search(r"\b(?:gesundheits|herz)[ -]?check\b|\bscreening\b", title_text):
         return ("activities", "format:public-health-check", 0.95)
     child_program = _contains_any(
@@ -601,7 +631,10 @@ class CategoryEvidenceScore:
     hint_matches: list[str]
 
 
-def score_category_evidence(title_comparison: str, description_comparison: str, hint_comparison: str) -> CategoryEvidenceScore:
+def score_category_evidence(
+    title_comparison: str, description_comparison: str, hint_comparison: str,
+    *, rules: Iterable[Rule] = RULES,
+) -> CategoryEvidenceScore:
     """Rank keyword evidence with deterministic priorities and source weighting."""
     best_key = "other"
     best_score = 0
@@ -610,7 +643,7 @@ def score_category_evidence(title_comparison: str, description_comparison: str, 
     best_title_matches: list[str] = []
     best_description_matches: list[str] = []
     best_hint_matches: list[str] = []
-    for rule in RULES:
+    for rule in rules:
         title_keywords = _matched_keywords(title_comparison, rule.keywords, is_title=True)
         description_keywords = _matched_keywords(description_comparison, rule.keywords, is_title=False)
         if rule.key == "kids":
@@ -863,6 +896,15 @@ def categorize_event(
         description_comparison = _TOURING_SHOW_TOKEN_PATTERN.sub(" ", description_comparison)
 
     evidence = score_category_evidence(title_comparison, description_comparison, hint_comparison)
+    if evidence.key == "other":
+        fallback_hint = hint_comparison
+        if fallback_hint and len(_category_keys_for_hint(
+            fallback_hint, rules=(*RULES, *FALLBACK_RULES),
+        )) > 2:
+            fallback_hint = ""
+        evidence = score_category_evidence(
+            title_comparison, description_comparison, fallback_hint, rules=FALLBACK_RULES,
+        )
     best_key = evidence.key
     best_reason = evidence.reason
     best_title_matches = evidence.title_matches
