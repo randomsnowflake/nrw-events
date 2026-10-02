@@ -1,6 +1,16 @@
 {
   "schema_version": 1,
   "groups": {
+    "bonn_press_blocked_titles": [
+      {
+        "match": [
+          "Auftaktveranstaltung zur Haus- und Straßensammlung VdK"
+        ],
+        "value": true,
+        "valid_until": "9999-12-31",
+        "evidence": "User instruction 2026-10-02: block this event from bonn-district-festivals. Only the annual planning list supports the Bonn 28 October 2026 occurrence; no current independent confirmation found. This source-local editorial block remains until explicitly lifted and does not suppress another source or declare cancellation."
+      }
+    ],
     "bonn_press_withheld_occurrences": [
       {
         "match": [
@@ -25,6 +35,16 @@
         "value": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Poppelsdorfer-Strassenfest-.php",
         "valid_until": "2026-09-19",
         "evidence": "Reviewed Bonn event calendar detail page"
+      },
+      {
+        "match": [
+          "Tag der Feuerwehr",
+          "2026-10-17",
+          "2026-10-17"
+        ],
+        "value": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/eigene-veranstaltungen/tag-der-feuerwehr-2026.php",
+        "valid_until": "2026-10-17",
+        "evidence": "Verified 2026-10-02: current city event detail confirms 17 October 2026, 10–17 on Münsterplatz with a concrete programme."
       }
     ],
     "ionas4_occurrence_overrides": [
@@ -93,6 +113,47 @@
         },
         "valid_until": "2026-09-27",
         "evidence": "Reviewed Bonn event calendar occurrence"
+      },
+      {
+        "match": [
+          "Antik-, Kunst- & Designmarkt Bonn",
+          "2026-10-18",
+          "2026-10-18"
+        ],
+        "value": {
+          "time": "11:00–17:00",
+          "start_at": "2026-10-18T11:00:00+02:00",
+          "end_at": "2026-10-18T17:00:00+02:00",
+          "all_day": false,
+          "preserved_event_id": "antikmarkt-bonn-8aa0363a00",
+          "description_source": "generated"
+        },
+        "valid_until": "2026-10-18",
+        "evidence": "Verified 2026-10-02 on Cölln Konzept organizer page: 18 October, Friedensplatz, 11–17. Reuse the existing organizer occurrence identity; stand prices are not visitor admission."
+      },
+      {
+        "match": [
+          "Tag der Feuerwehr",
+          "2026-10-17",
+          "2026-10-17"
+        ],
+        "value": {
+          "title": "Tag der Feuerwehr 2026",
+          "venue": "Münsterplatz",
+          "venue_address": "Münsterplatz 1, 53111 Bonn",
+          "time": "10:00–17:00",
+          "start_at": "2026-10-17T10:00:00+02:00",
+          "end_at": "2026-10-17T17:00:00+02:00",
+          "all_day": false,
+          "description": "Feuerwehr und Rettungsdienst Bonn laden am Samstag, 17. Oktober 2026, von 10 bis 17 Uhr auf den Münsterplatz ein. Angekündigt sind Fahrzeuge und Einsatztechnik, Mitmachangebote und Vorführungen zu Brandschutz, Wiederbelebung und Unfallrettung.",
+          "description_source": "generated",
+          "previous_event_ids": [
+            "tag-der-feuerwehr-6945670d11",
+            "tag-der-feuerwehr-2026-7ad2e56b3d"
+          ]
+        },
+        "valid_until": "2026-10-17",
+        "evidence": "Verified 2026-10-02: https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/eigene-veranstaltungen/tag-der-feuerwehr-2026.php. Replace annual planning prose with reviewed organizer facts; keep both published occurrence aliases."
       }
     ],
     "bonn_press_occurrence_corrections": [
@@ -108,6 +169,29 @@
         },
         "valid_until": "2026-09-06",
         "evidence": "Reviewed organizer announcement"
+      },
+      {
+        "match": [
+          "Antik-, Kunst- & Designmarkt Bonn",
+          "2026-10-11",
+          "2026-10-11"
+        ],
+        "value": {
+          "start_date": "2026-10-18",
+          "end_date": "2026-10-18",
+          "title": "Antikmarkt Bonn",
+          "venue": "Friedensplatz",
+          "city": "Bonn",
+          "source": "Cölln Konzept",
+          "source_id": "c-lln-konzept",
+          "link": "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
+          "description": "Der Antikmarkt auf dem Friedensplatz in Bonn ist für Sonntag, 18. Oktober 2026, von 11 bis 17 Uhr angekündigt.",
+          "previous_event_ids": [
+            "antik-kunst-designmarkt-bonn-bba2e07428"
+          ]
+        },
+        "valid_until": "2026-10-18",
+        "evidence": "Verified 2026-10-02: https://www.coelln-konzept.de/markt/antikmarkt_bonn.html and https://rhein-antik.de/wp-content/uploads/2026/01/2026-Anmeldebogen.pdf name 18 October 2026 in Bonn, contradicting 11 October in the annual permissions list. Preserve the published wrong-date URL as an alias of the corrected occurrence."
       }
     ],
     "beuel_primary_url_replacements": [

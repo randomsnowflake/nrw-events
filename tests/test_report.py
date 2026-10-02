@@ -1518,8 +1518,8 @@ class ReportTests(unittest.TestCase):
         deduped = report.deduplicate(events)
 
         self.assertEqual(len(deduped), 1)
-        self.assertEqual(deduped[0]["source"], "Bonn district festivals")
-        self.assertEqual(deduped[0]["end_date"], "2026-08-02")
+        self.assertEqual(deduped[0]["source"], "Radio Bonn/Rhein-Sieg")
+        self.assertEqual(deduped[0]["end_date"], "2026-08-03")
 
     def test_deduplicate_keeps_cross_source_events_with_materially_different_end_dates(self):
         base = {

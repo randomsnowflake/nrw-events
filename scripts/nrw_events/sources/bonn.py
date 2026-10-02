@@ -1368,6 +1368,11 @@ def fetch_press_festivals() -> list:
     primary_detail_urls = _active_reviewed_map("bonn_press_primary_urls")
     primary_event_overrides = _active_reviewed_map("bonn_press_overrides")
     withheld_occurrences = _active_reviewed_map("bonn_press_withheld_occurrences")
+    blocked_titles = {
+        title.casefold()
+        for (title,), blocked in _active_reviewed_map("bonn_press_blocked_titles").items()
+        if blocked
+    }
     for year in years:
         html = ""
         url = ""
@@ -1391,6 +1396,8 @@ def fetch_press_festivals() -> list:
             if len(text) < 6:
                 continue
             title = _press_event_title(text)
+            if title.casefold() in blocked_titles:
+                continue
             if title.casefold() == "bonn-fest":
                 title = f"BonnFest {year}"
             if len(title) < 3:
@@ -1428,10 +1435,13 @@ def fetch_press_festivals() -> list:
             city = common.guess_city_from_text(text) or "Bonn"
             for start, end, correction in reviewed_ranges:
                 ev = common.make_event(
-                    title, start, end, venue, city,
+                    correction.get("title", title) if correction else title,
+                    start, end,
+                    correction.get("venue", venue) if correction else venue,
+                    correction["city"] if correction else city,
                     correction["description"] if correction else text[:240],
                     correction["link"] if correction else url,
-                    "Beuel.net" if correction else source,
+                    correction.get("source", "Beuel.net") if correction else source,
                     "stadtteilfest market kirmes outdoor local", 1.0,
                     default_category_key="festival",
                 )
@@ -1440,7 +1450,7 @@ def fetch_press_festivals() -> list:
                         ev.update({
                             "city": correction["city"],
                             "link_kind": "detail",
-                            "source_id": "beuel-net",
+                            "source_id": correction.get("source_id", "beuel-net"),
                             "discovered_via": ["bonn-district-festivals"],
                             "previous_event_ids": correction["previous_event_ids"],
                         })

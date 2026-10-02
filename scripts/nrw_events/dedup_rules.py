@@ -123,6 +123,10 @@ _VENUE_LOCATION_FIELDS = (
 def source_authority(source: str) -> int:
     """Rank direct/local publishers above aggregators."""
     normalized = " ".join((source or "").casefold().split())
+    # Annual district permissions are discovery leads, not current event
+    # confirmations. Every independently imported duplicate takes precedence.
+    if "bonn district festivals" in normalized:
+        return 0
     if any(marker in normalized for marker in _AGGREGATOR_SOURCE_MARKERS):
         return 1
     if any(marker in normalized for marker in _MARKET_DIRECTORY_SOURCE_MARKERS):
