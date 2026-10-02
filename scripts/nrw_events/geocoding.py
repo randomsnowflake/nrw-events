@@ -113,13 +113,13 @@ def municipality(city: str) -> str:
 
 
 def municipality_match(city: str, result: dict) -> bool:
-    """Every word of the town must appear in the result; one shared "Bad" is not the same town."""
+    """Match one structured municipality, never words from the venue or street."""
     expected = tokens(municipality(city))
     address = result.get("address") or {}
-    actual = tokens(" ".join([str(result.get("display_name") or ""), *(str(address.get(field) or "") for field in (
-        "city", "town", "village", "municipality", "city_district", "suburb", "county", "state_district",
-    ))]))
-    return bool(expected) and expected <= actual
+    return bool(expected) and any(
+        expected <= tokens(str(address.get(field) or ""))
+        for field in ("city", "town", "village", "municipality")
+    )
 
 
 def place_names(result: dict) -> list[str]:
