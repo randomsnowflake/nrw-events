@@ -130,7 +130,24 @@ class VenueNameTests(unittest.TestCase):
                 self.assertEqual(geocoding.accepted_venue_point(event(LIBRARY, ""), [here]), (50.631, 7.021))
         unstructured = place(LIBRARY)
         unstructured["address"] = {}
+        unstructured["display_name"] = f"{LIBRARY}, Klosterhof, Rhein-Sieg-Kreis"
         self.assertIsNone(geocoding.accepted_venue_point(event(LIBRARY, ""), [unstructured]))
+
+    def test_village_without_municipality_key_matches_its_display_component(self):
+        # Checked-in Nominatim response (scripts/venue_geocoding_proposals.json).
+        hall = "Evangelisches Gemeindehaus Niederbachem"
+        response = {
+            "category": "amenity", "type": "place_of_worship", "name": hall,
+            "lat": "50.6448786", "lon": "7.1778364",
+            "display_name": f"{hall}, 18, Bondorfer Straße, Niederbachem, Wachtberg, Rhein-Sieg-Kreis, "
+                            "Nordrhein-Westfalen, 53343, Deutschland",
+            "address": {"amenity": hall, "house_number": "18", "road": "Bondorfer Straße",
+                        "village": "Niederbachem", "county": "Rhein-Sieg-Kreis", "postcode": "53343"},
+        }
+        self.assertTrue(geocoding.municipality_match("Wachtberg", response))
+        self.assertFalse(geocoding.municipality_match("Rhein-Sieg-Kreis", response))
+        conflicting = {**response, "address": {**response["address"], "town": "Bornheim"}}
+        self.assertFalse(geocoding.municipality_match("Wachtberg", conflicting))
 
     def test_district_labels_match_their_town(self):
         self.assertEqual(geocoding.municipality("Bonn-Beuel"), "Bonn")
