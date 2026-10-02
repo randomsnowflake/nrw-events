@@ -9,6 +9,41 @@ from nrw_events.identity import event_id
 
 
 class ReportTests(unittest.TestCase):
+    def test_telekom_market_primary_owns_both_early_bird_calendar_duplicates(self):
+        rows = json.loads(
+            (Path(__file__).parent / "data/telekom-dome-maedelsflohmarkt.json").read_text()
+        )
+        for order in (rows, list(reversed(rows))):
+            with self.subTest(first=order[0]["source_id"]):
+                merged = report.deduplicate(order)
+                self.assertEqual(len(merged), 2)
+                for winner in merged:
+                    primary = next(row for row in rows if row["source_id"] == "grote-hiller"
+                                   and row["start_date"] == winner["start_date"])
+                    civic = next(row for row in rows if row["source_id"] == "bonn-de-events"
+                                 and row["start_date"] == winner["start_date"])
+                    self.assertEqual(winner["source_id"], "grote-hiller")
+                    self.assertEqual(event_id(winner), event_id(primary))
+                    self.assertEqual(winner["event_id"], primary["event_id"])
+                    self.assertEqual(event_id(civic), civic["event_id"])
+                    self.assertEqual(winner["series_id"], primary["series_id"])
+                    self.assertEqual(winner["start_at"], primary["start_at"])
+                    self.assertEqual(winner["end_at"], primary["end_at"])
+                    self.assertEqual(winner["time_note"], primary["time_note"])
+                    self.assertIn(event_id(civic), winner["previous_event_ids"])
+                    self.assertIn(civic["link"], winner["source_links"])
+        civic, _, primary, _ = rows
+        for changes in (
+            {"venue": "Brückenforum"}, {"city": "Köln"},
+            {"title": "2. Mädelsflohmarkt mit Kinderspielzeug im TelekomDome in Bonn"},
+            {"source_id": "anderer-kalender"}, {"link": "https://www.bonn.de/other.php"},
+            {"start_at": "2026-10-03T09:30+02:00"},
+            {"end_at": "2026-10-03T17:30+02:00"},
+            {"start_date": "2026-10-04", "date": "2026-10-04", "end_date": "2026-10-04"},
+        ):
+            with self.subTest(changes=changes):
+                self.assertEqual(len(report.deduplicate([{**civic, **changes}, primary])), 2)
+
     def test_lengsdorf_weinfest_primary_owns_street_and_square_duplicate(self):
         base = {
             "title": "Weinfest Lengsdorf", "date": "2026-09-18",
