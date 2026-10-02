@@ -189,6 +189,27 @@
       "callable": "nrw_events.sources.uni_bonn:fetch"
     },
     {
+      "id": "institut-francais-bonn",
+      "display_name": "Institut français Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.uni_bonn:fetch_institut_francais"
+    },
+    {
+      "id": "beethoven-haus-bonn",
+      "display_name": "Beethoven-Haus Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.beethoven_haus:fetch"
+    },
+    {
+      "id": "contra-kreis-theater",
+      "display_name": "Contra-Kreis-Theater",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.contra_kreis:fetch"
+    },
+    {
       "id": "harmonie-bonn",
       "display_name": "Harmonie Bonn",
       "region": "bonn-region",

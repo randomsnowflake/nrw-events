@@ -7,6 +7,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | ADFC Bonn/Rhein-Sieg | `adfc-bonn` | `python` |
 | bonn-region | AfterJobParty Bonn | `afterjobparty-bonn` | `python` |
 | bonn-region | Bad Godesberg Stadtmarketing | `bad-godesberg-stadtmarketing` | `python` |
+| bonn-region | Beethoven-Haus Bonn | `beethoven-haus-bonn` | `python` |
 | bonn-region | Beethovenfest Bonn | `beethovenfest-bonn` | `python` |
 | bonn-region | Beuel.net | `beuel-net` | `python` |
 | bonn-region | BFF Bonner Schifffahrt | `bff-bonner-schifffahrt` | `python` |
@@ -25,6 +26,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Bürgerverein Rossel-Wilberhofen | `rossel-wilberhofen-dorfflohmarkt` | `python` |
 | bonn-region | Bürgerverein Vilich-Müldorf | `b-rgerverein-vilich-m-ldorf` | `python` |
 | bonn-region | Choco Dealer | `choco-dealer` | `python` |
+| bonn-region | Contra-Kreis-Theater | `contra-kreis-theater` | `python` |
 | bonn-region | Craftquelle Bonn | `craftquelle-bonn` | `python` |
 | bonn-region | Curated cinema specials | `curated-cinema-specials` | `python` |
 | bonn-region | Cölln Antik&Design | `c-lln-antik-design` | `python` |
@@ -43,6 +45,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | HofFloh Bonn | `hoffloh-bonn` | `python` |
 | bonn-region | Hofflohmärkte Köln | `hofflohm-rkte-k-ln` | `python` |
 | bonn-region | In guten Kreisen | `in-guten-kreisen` | `python` |
+| bonn-region | Institut français Bonn | `institut-francais-bonn` | `python` |
 | bonn-region | ionas4 regional | `ionas4-regional` | `python` |
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |

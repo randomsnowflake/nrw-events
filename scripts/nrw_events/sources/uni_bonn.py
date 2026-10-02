@@ -5,6 +5,9 @@ classification data, then enriches in-window events from their detail pages.
 The Plone iCal feed deliberately omits locations, while the detail pages expose
 venue, room, and price fields. Detail responses use the shared persistent TTL
 cache and failures degrade to the still-useful iCal record.
+
+The Institut français Bonn runs on the same university Plone, so its calendar
+reuses this pipeline under its own source identity.
 """
 
 import re
@@ -25,6 +28,10 @@ _RECOVERABLE_HTTP_STATUSES = (403, 408, 429, 500, 502, 503, 504)
 _MAX_DURATION = timedelta(days=366 * 5)
 _ORDINARY_EVENT_MAX_DURATION = timedelta(days=31)
 _LONG_RUNNING_RE = re.compile(r"\b(?:ausstellung|exhibition|museum|kunstkammer)\b", re.I)
+_IFB_ICAL_URL = "https://www.ifb.uni-bonn.de/kultur/veranstaltungen/ics_view"
+_IFB_SOURCE = "Institut français Bonn"
+_IFB_SOURCE_ID = "institut-francais-bonn"
+_IFB_CACHE_NAMESPACE = "institut-francais-bonn-detail"
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
@@ -109,6 +116,7 @@ class _ContentItemParser(HTMLParser):
             self._parts[self._capture].append(data)
 
 
+_STREET_FIRST = re.compile(r"^[^,]*(?:stra(?:ß|ss)e|str\.?|weg|allee|platz)\s*\d[^,]*,\s*\d{5}\b", re.I)
 _PARENTHESISED_ADDRESS = re.compile(r"^(?P<name>[^()]+?)\s*\((?P<address>[^()]*\b\d{5}\b[^()]*)\)$")
 
 
@@ -133,7 +141,12 @@ def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
     parser = _ContentItemParser()
     parser.feed(html or "")
     venue_parts: list[str] = []
-    for raw_part in (parser.fields.get("ort", ""), parser.fields.get("raum", "")):
+    place, room = parser.fields.get("ort", ""), parser.fields.get("raum", "")
+    if _STREET_FIRST.match(place) and room and not re.search(r"\b\d{5}\b", room):
+        # "Ort" holds only the street address and "Raum" names the place
+        # (LVR-LandesMuseum for an off-site walk): lead with the name.
+        place, room = room, place
+    for raw_part in (place, room):
         part = _address_last(raw_part)
         key = re.sub(r"\s*\([^)]*\)", "", part).strip(" ,").casefold()
         existing_keys = {
@@ -178,11 +191,21 @@ def _merge_context(event: dict, context: dict) -> dict:
     return enriched
 
 
-def _enrich_details(events: list, detail_fetcher: Callable[..., str] | None = None) -> list:
+def _fetch_ifb_detail(url: str) -> str:
+    return common.fetch_detail_url(url, cache_namespace=_IFB_CACHE_NAMESPACE, timeout=15)
+
+
+def _enrich_details(
+    events: list,
+    detail_fetcher: Callable[..., str] | None = None,
+    *,
+    source: str = _SOURCE,
+    cache_namespace: str = _CACHE_NAMESPACE,
+) -> list:
     return rc.enrich_descriptions(
         events,
-        source=f"{_SOURCE} detail",
-        cache_namespace=_CACHE_NAMESPACE,
+        source=f"{source} detail",
+        cache_namespace=cache_namespace,
         extract_context=_parse_detail_context,
         fallback=lambda event: event.get("description", ""),
         timeout=15,
@@ -200,6 +223,9 @@ def _correct_categories(events: list) -> list:
         key = ""
         if "welcome days" in category_text:
             key = "talk"
+        elif re.match(r"cin[ée](?:club|f[êe]te)\b", title_text, re.I):
+            # Institut français film series; synopses otherwise read as children's events.
+            key = "cinema"
         elif re.search(r"\b(?:ausstellung|exhibition)\b", event_text, re.I):
             key = "exhibition"
         elif re.search(r"\bcake baking evening\b", title_text, re.I):
@@ -233,4 +259,26 @@ def fetch() -> list:
         return _correct_categories(_enrich_details(events))
     except Exception as exc:
         common.log_source_error(_SOURCE, exc, source_id=_SOURCE_ID)
+        return []
+
+
+def fetch_institut_francais() -> list:
+    try:
+        events = common.fetch_ical(
+            _IFB_ICAL_URL,
+            _IFB_SOURCE,
+            "Bonn",
+            trust=1.0,
+            source_id=_IFB_SOURCE_ID,
+            # Also drops the quarterly "Kulturkalender zum Download" pseudo-event.
+            event_filter=_valid_duration,
+        )
+        return _correct_categories(_enrich_details(
+            events,
+            _fetch_ifb_detail,
+            source=_IFB_SOURCE,
+            cache_namespace=_IFB_CACHE_NAMESPACE,
+        ))
+    except Exception as exc:
+        common.log_source_error(_IFB_SOURCE, exc, source_id=_IFB_SOURCE_ID)
         return []

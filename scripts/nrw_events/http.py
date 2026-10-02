@@ -740,8 +740,22 @@ def post_form(url: str, fields: Any, timeout: int = 45,
               headers: dict[str, str] | None = None,
               retry_safe: bool = False) -> dict[str, Any]:
     """POST URL-encoded form fields and parse a JSON response."""
+    body = _post_form_body(url, fields, timeout, headers, retry_safe, accept="application/json")
+    return json.loads(body.decode("utf-8"))
+
+
+def post_form_text(url: str, fields: Any, timeout: int = 45,
+                   headers: dict[str, str] | None = None,
+                   retry_safe: bool = False) -> str:
+    """POST URL-encoded form fields and return the decoded text (AJAX HTML fragments)."""
+    body = _post_form_body(url, fields, timeout, headers, retry_safe, accept="text/html,*/*;q=0.8")
+    return body.decode("utf-8", errors="replace")
+
+
+def _post_form_body(url: str, fields: Any, timeout: int,
+                    headers: dict[str, str] | None, retry_safe: bool, *, accept: str) -> bytes:
     hdrs = browser_headers(
-        accept="application/json",
+        accept=accept,
         sec_fetch_mode="cors",
         sec_fetch_dest="empty",
         extra={"Content-Type": "application/x-www-form-urlencoded", **(headers or {})},
@@ -760,9 +774,9 @@ def post_form(url: str, fields: Any, timeout: int = 45,
                     body = _read_response_body(
                         resp, settings.http_max_response_bytes, deadline=deadline,
                     )
-                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type="application/json",
+                    _record_endpoint(url, status=getattr(resp, "status", 200), content_type=accept.split(",")[0],
                                      bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
-            return json.loads(body.decode("utf-8"))
+            return body
         except Exception as exc:  # noqa: PERF203 - retry attempts must isolate transport failures
             _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
             retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)

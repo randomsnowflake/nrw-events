@@ -241,6 +241,11 @@ def _title_venue_street_matches(event: Mapping[str, Any], other: Mapping[str, An
     }
 
 
+def _street_key(address: str) -> str:
+    """Expand the "Str." abbreviation so "Koblenzer Str. 78" equals "Koblenzer Straße 78"."""
+    return re.sub(r"str\b", "strasse", address)
+
+
 def _locations_compatible(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     left_venue_text = _venue_comparison_text(left)
     right_venue_text = _venue_comparison_text(right)
@@ -271,8 +276,8 @@ def _locations_compatible(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
         # a concrete unit is stronger place evidence than those differing labels.
         left_address_raw = str(left.get("venue_address") or "")
         right_address_raw = str(right.get("venue_address") or "")
-        left_address = comparison_text(left_address_raw)
-        right_address = comparison_text(right_address_raw)
+        left_address = _street_key(comparison_text(left_address_raw))
+        right_address = _street_key(comparison_text(right_address_raw))
         if (
             left_address
             and left_address == right_address
@@ -940,8 +945,12 @@ def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
             " ".join(left_without_year),
         )
     )
+    # Only two stated years can conflict: "Tag der Feuerwehr 2026" and an
+    # undated "Tag der Feuerwehr" on the same date are one occurrence.
     if (
         same_yearless_title
+        and left_years
+        and right_years
         and left_years != right_years
         and not recurring_edition
         and not _same_funfair_title_identity(left, right)

@@ -1,0 +1,42 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Plone.org//NONSGML plone.app.event//EN
+X-WR-TIMEZONE:Europe/Berlin
+BEGIN:VEVENT
+SUMMARY:Unser Kulturkalender Oktober-Dezember zum Download
+DTSTART;TZID=Europe/Berlin:20261002T100000
+DTEND;TZID=Europe/Berlin:20261214T200000
+DTSTAMP:20261002T100147Z
+UID:bcf546389f6b4ecab5057a6c19c05187@www.ifb.uni-bonn.de
+CREATED:20251222T125812Z
+DESCRIPTION:Unser Kulturkalender Oktober-Dezember Download als PDF Version
+ .\nBitte informieren Sie sich vor jeder Veranstaltung auf unserer Homepage
+ \, ob diese definitiv stattfindet.
+LAST-MODIFIED:20260929T084229Z
+URL:https://www.ifb.uni-bonn.de/kultur/veranstaltungen/copy_of_unser-kultu
+ rkalender-juli-september-zum-download-1
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Cinéclub: Petite nature
+DTSTART;TZID=Europe/Berlin:20261014T190000
+DTEND;TZID=Europe/Berlin:20261014T204500
+DTSTAMP:20261002T100147Z
+UID:d8399ee28d7f49fe9e66a970382fa5ba@www.ifb.uni-bonn.de
+CREATED:20260825T133218Z
+DESCRIPTION:Sozialdrama/Komödie von Samuel Theis (F\, 2021\, 93 Min.) mit
+  Antoine Reinartz\, Melissa Olexa und Aliocha Reinert\n\nWeil es mit dem a
+ ktuellen Mann im Leben von Sonja wieder einmal nicht geklappt hat\, müsse
+ n der zehnjährige Sohn Johnny\, die jüngere Schwester Melissa und der ä
+ ltere Bruder Dajan umziehen\, diesmal in eine Sozialwohnung am Stadtrand d
+ es lothringischen Forbach. \nJohnny muss mit der Betreuung seiner kleinen 
+ Schwester und dem Haushalt bereits viel Verantwortung übernehmen und hat 
+ kaum Zeit für seine eigenen Bedürfnisse. Deshalb ist er am ersten Schult
+ ag\, als der neue Lehrer Herr Adamski die Kinder nach ihren Zukunftsträum
+ en fragt\, überrascht und fühlt sich ernst genommen. Schritt für Schrit
+ t eröffnen ihm der Lehrer und seine Freundin neue emotionale und intellek
+ tuelle Welten und eine lebensverändernde Entwicklung beginnt.
+LAST-MODIFIED:20260825T133350Z
+URL:https://www.ifb.uni-bonn.de/kultur/veranstaltungen/cineclub-petite-nat
+ ure
+END:VEVENT
+END:VCALENDAR

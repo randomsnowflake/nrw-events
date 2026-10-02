@@ -16,6 +16,8 @@ CHOIR_URL = (
 FIXTURES = Path(__file__).parent / "fixtures" / "uni-bonn"
 ICAL = (FIXTURES / "calendar.ics").read_text(encoding="utf-8")
 DETAIL_HTML = (FIXTURES / "choir-detail.html").read_text(encoding="utf-8")
+IFB_FIXTURES = Path(__file__).parent / "fixtures" / "institut-francais-bonn"
+IFB_CINECLUB_URL = "https://www.ifb.uni-bonn.de/kultur/veranstaltungen/cineclub-petite-nature"
 
 
 class UniBonnSourceTests(unittest.TestCase):
@@ -232,6 +234,57 @@ class UniBonnSourceTests(unittest.TestCase):
     def test_source_is_registered_with_stable_id(self):
         self.assertIs(SOURCES["Universität Bonn"], uni_bonn.fetch)
         self.assertEqual(SOURCE_IDS["Universität Bonn"], "uni-bonn")
+
+
+class InstitutFrancaisSourceTests(unittest.TestCase):
+    def setUp(self):
+        patch_window(self, datetime(2026, 10, 1), datetime(2026, 10, 31))
+
+    def test_plone_calendar_reads_venue_from_detail_and_drops_download_entry(self):
+        requested = []
+
+        def fake_fetch(url, **_kwargs):
+            requested.append(url)
+            if url == uni_bonn._IFB_ICAL_URL:
+                return (IFB_FIXTURES / "calendar.ics").read_text(encoding="utf-8")
+            if url == IFB_CINECLUB_URL:
+                return (IFB_FIXTURES / "cineclub-detail.html").read_text(encoding="utf-8")
+            raise AssertionError(f"unexpected URL {url}")
+
+        with patch.dict("os.environ", {"NRW_EVENTS_DETAIL_CACHE_TTL_HOURS": "0"}), \
+                patch("nrw_events.http.fetch_url", side_effect=fake_fetch):
+            events = uni_bonn.fetch_institut_francais()
+
+        self.assertEqual([event["title"] for event in events], ["Cinéclub: Petite nature"])
+        event = events[0]
+        self.assertEqual(event["start_at"], "2026-10-14T19:00+02:00")
+        self.assertEqual(event["end_at"], "2026-10-14T20:45+02:00")
+        self.assertEqual(
+            event["venue"],
+            "Institut français Bonn, Adenauerallee 35, 53113 Bonn, Robert-Schuman-Saal (UG)",
+        )
+        self.assertEqual(event["price"], "kostenlos")
+        self.assertEqual(event["link"], IFB_CINECLUB_URL)
+        self.assertEqual(event["source_id"], "institut-francais-bonn")
+        self.assertEqual(event["category_key"], "cinema")
+        self.assertEqual(requested, [uni_bonn._IFB_ICAL_URL, IFB_CINECLUB_URL])
+
+    def test_address_only_place_leads_with_the_room_name(self):
+        html = (
+            '<div class="content-item"><div class="item-title"><span>Ort</span></div>'
+            '<div class="item-value"><span>Colmantstraße 14-16, 53115 Bonn</span></div></div>'
+            '<div class="content-item"><div class="item-title"><span>Raum</span></div>'
+            '<div class="item-value"><span>LVR Landesmuseum bis Mediathek des Institut français Bonn'
+            '</span></div></div>'
+        )
+        self.assertEqual(
+            uni_bonn._parse_detail_context(html)["venue"],
+            "LVR Landesmuseum bis Mediathek des Institut français Bonn, Colmantstraße 14-16, 53115 Bonn",
+        )
+
+    def test_source_is_registered_with_stable_id(self):
+        self.assertIs(SOURCES["Institut français Bonn"], uni_bonn.fetch_institut_francais)
+        self.assertEqual(SOURCE_IDS["Institut français Bonn"], "institut-francais-bonn")
 
 
 if __name__ == "__main__":

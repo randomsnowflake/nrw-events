@@ -135,5 +135,40 @@ class DuplicateCandidateTests(unittest.TestCase):
         self.assertEqual((candidate["conflict"], candidate["event_ids"]), ("time", ["a", "b"]))
 
 
+class AbbreviatedStreetAndUndatedTitleTests(unittest.TestCase):
+    """Pairs published twice in the 2026-10-01 production feed."""
+
+    def test_abbreviated_street_matches_the_venue_calendar_address(self):
+        title = "MACBETH – William Shakespeare – Bearbeitung und Übersetzung von John von Düffel"
+        aggregator = _event(
+            title, "Kleines Theater Nachfolger 2019 e.V.", "Bonn", "Bonn.de Events",
+            start="2026-10-05T19:30+02:00", venue_address="Koblenzer Str. 78, 53177 Bonn",
+        )
+        venue = _event(
+            title.replace("–", "-"), "Kleines Theater Bad Godesberg", "Bonn-Bad Godesberg",
+            "Kleines Theater Bad Godesberg", start="2026-10-05T19:30+02:00",
+            venue_address="Koblenzer Straße 78, 53177 Bonn",
+        )
+        self.assertTrue(events_are_duplicates(aggregator, venue))
+        self.assertTrue(events_are_duplicates(venue, aggregator))
+        # The Sunday matinee conflict (19:30 vs 15:30) stays separate for review.
+        venue_matinee = {**venue, "start_at": "2026-10-18T15:30+02:00", "date": "2026-10-18",
+                         "start_date": "2026-10-18", "end_date": "2026-10-18"}
+        aggregator_evening = {**aggregator, "start_at": "2026-10-18T19:30+02:00", "date": "2026-10-18",
+                              "start_date": "2026-10-18", "end_date": "2026-10-18"}
+        self.assertFalse(events_are_duplicates(aggregator_evening, venue_matinee))
+
+    def test_one_sided_year_is_not_a_different_edition(self):
+        dated = _event("Tag der Feuerwehr 2026", "Münsterplatz", "Bonn", "Bonn.de Events",
+                       start="2026-10-17T10:00+02:00")
+        undated = _event("Tag der Feuerwehr", "", "Bonn", "Bonn district festivals",
+                         start="2026-10-17", start_at="", time="", all_day=True)
+        self.assertTrue(events_are_duplicates(dated, undated))
+        self.assertFalse(events_are_duplicates(
+            _event("Stadtfest 2025", "Markt", "Bonn", "Bonn.de Events"),
+            _event("Stadtfest 2026", "Markt", "Bonn", "Bonn district festivals"),
+        ))
+
+
 if __name__ == "__main__":
     unittest.main()

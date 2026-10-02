@@ -97,6 +97,7 @@ scripts/nrw_events/
     adfc_bonn.py
     afterjobparty.py
     b_future_festival.py
+    beethoven_haus.py
     beethovenfest_bonn.py
     bonn.py
     bonn_districts.py
@@ -114,6 +115,7 @@ scripts/nrw_events/
     cinema_specials.py
     coelln_antik_design.py
     coelln_konzept.py
+    contra_kreis.py
     deutsches_museum_bonn.py
     fedcon_events.py
     fixed_markets.py
