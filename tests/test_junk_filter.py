@@ -26,6 +26,21 @@ def event(title, description="", category="", source="Test"):
 
 
 class JunkFilterTests(unittest.TestCase):
+    def test_standalone_voucher_products_are_not_events(self):
+        for title in ("Gutscheine", " Gutschein ", "Wertgutscheine", "Geschenkgutschein",
+                      "Ticketgutschein", "Voucher", "Gift vouchers", "Gift Cards"):
+            with self.subTest(title=title):
+                decision = evaluate_event_quality(event(title))
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "commercial.voucher-product")
+
+    def test_voucher_mentions_in_real_event_titles_stay(self):
+        for title in ("Konzert mit Gutscheinaktion", "Gutschein – das Musical",
+                      "Workshop: Gutscheine gestalten", "Voucher Quartet",
+                      "Die Fantastischen Vier"):
+            with self.subTest(title=title):
+                self.assertFalse(evaluate_event_quality(event(title)).should_drop)
+
     def test_recurring_service_reports_the_actual_longest_matches(self):
         decision = evaluate_event_quality(event(
             "Kleiderverkauf im Bürgerhaus",

@@ -170,6 +170,17 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         fetch_detail.assert_called_once()
         self.assertEqual(fetch_detail.call_args.kwargs["retry_attempts"], 1)
 
+    def test_kunstrasen_excludes_voucher_products_but_keeps_concerts(self):
+        base = {"start": "2026-09-10T00:00:00.000Z", "end": "2027-12-31T23:00:00.000Z",
+                "locationName": "KUNST!RASEN GmbH", "locationCity": "Bonn"}
+        items = [
+            {**base, "name": "Gutscheine", "url": "gutschein-jy1481",
+             "slogan": "Sichern Sie sich jetzt Ihren Gutschein!"},
+            {**base, "name": "Die Fantastischen Vier", "url": "die-fantastischen-vier-mu4e8n"},
+        ]
+        self.assertEqual([row["title"] for row in kunstrasen_bonn._events_from_listing(next_data(items))],
+                         ["Die Fantastischen Vier"])
+
     def test_kunstrasen_reads_vivenu_next_data_time_price_and_sold_out(self):
         payload = {"props": {"pageProps": {"sellerPage": {"events": [
             {"name": "Die Fantastischen Vier ", "url": "die-fantastischen-vier-mu4e8n", "start": "2027-07-23T17:00:00.000Z", "end": "2027-07-23T20:00:00.000Z", "locationName": "KUNST!RASEN BONN", "locationCity": "Bonn", "startingPrice": 282.4, "saleStatus": "soldOut"},

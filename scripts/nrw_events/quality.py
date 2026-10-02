@@ -369,6 +369,20 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     description = str(event.get("description") or "").lower()
     text = f"{title} {description}"
 
+    # Ticket shops expose voucher products in their event inventory. Match only
+    # standalone product names; concerts or workshops mentioning vouchers stay.
+    voucher_product = re.fullmatch(
+        r"(?:(?:geschenk|wert|ticket)?gutscheine?|(?:gift\s+)?vouchers?|gift\s+cards?)",
+        title.strip(),
+    )
+    if voucher_product:
+        return QualityDecision(
+            QualityAction.DROP,
+            "commercial.voucher-product",
+            "standalone voucher product is not a destination event",
+            (voucher_product.group(0),),
+        )
+
     advertising_marker = next(
         (match for content in (title, description) if (match := _ADVERTISING_MARKER.match(content))),
         None,
