@@ -33,10 +33,37 @@ _CHRISTMAS_MARKET_TITLE = re.compile(
 )
 _CHRISTMAS_MARKET_CATEGORIES = frozenset({"market", "festival"})
 
-# Halloween names itself. Gruselnacht, Kuerbisfest and the like stay out until a
-# source proves the occasion instead of the mood. "St. Martin" is a church name
-# before it is a lantern parade, so no season word infers a type on its own.
+# A title is explicit evidence. A seasonal source description can also establish
+# the programme; spooky words alone or an artist's past gigs cannot.
 _HALLOWEEN_TITLE = re.compile(r"(?<!\w)\w*halloween\w*(?!\w)", re.IGNORECASE)
+_HALLOWEEN_PROGRAMME = re.compile(
+    r"\bhalloween\s*(?:party\w*|parties|disco\w*|dragshow\w*|workshop\w*"
+    r"|action|stimmung|motive\w*|familie\w*)\b"
+    r"|\b(?:bald|passend\s+an|einstimmung\s+auf)\s+halloween\b"
+    r"|\b(?:wissen|fragen|quiz|raetsel)\b.{0,40}\b(?:ueber|zu)\s+halloween\b"
+    r"|\bhalloween\s+feiern\b"
+)
+_HALLOWEEN_INCIDENTAL = re.compile(
+    r"\b(?:kein\w*|nicht|ohne|statt|vorjahr|letztes\s+jahr|vergangenen\s+jahr"
+    r"|bekannt\s+fuer|frueher|normalerweise)\b.{0,100}\bhalloween"
+)
+
+
+def _description_is_halloween_programme(event: Mapping[str, Any]) -> bool:
+    if event.get("description_source") == "generated":
+        return False
+    start = str(event.get("start_date") or event.get("date") or "")[:10]
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", start) or not "09-15" <= start[5:] <= "11-02":
+        return False
+    for sentence in re.split(r"[.!?\n]+", str(event.get("description") or "")):
+        text = re.sub(r"[-\u2010-\u2015]", " ", comparison_text(sentence))
+        if _HALLOWEEN_INCIDENTAL.search(text):
+            continue
+        if any(year != start[:4] for year in re.findall(r"\b20\d{2}\b", text)):
+            continue
+        if _HALLOWEEN_PROGRAMME.search(text):
+            return True
+    return False
 
 
 def classify_event_types(event: Mapping[str, Any]) -> list[str]:
@@ -66,7 +93,7 @@ def classify_event_types(event: Mapping[str, Any]) -> list[str]:
         "category_key"
     ) in _CHRISTMAS_MARKET_CATEGORIES and _CHRISTMAS_MARKET_TITLE.search(title):
         event_types.add("christmas-market")
-    if _HALLOWEEN_TITLE.search(title):
+    if _HALLOWEEN_TITLE.search(title) or _description_is_halloween_programme(event):
         event_types.add("halloween")
 
     return sorted(event_types)

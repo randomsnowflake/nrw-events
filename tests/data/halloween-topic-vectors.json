@@ -1,0 +1,250 @@
+[
+  {
+    "name": "kult41-halloween-mood",
+    "event": {
+      "title": "Theater Tumult: Im Dunkeln ... + Reggae",
+      "description": "Theater-Tumult-Abend in Halloween-Stimmung: kurze Theatererlebnisse im Dunkeln mit Reggae im Anschluss.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "contra-kreis-seasonal-programme",
+    "event": {
+      "title": "Die wilde Geisterbahn!",
+      "description": "Steigen Sie ein in die Geisterbahn. Aber keine Angst! Es ist ja bald Halloween und die Geister werden wieder verscheucht.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "kunstmuseum-halloween-crafts",
+    "event": {
+      "title": "HEIMSPIEL",
+      "description": "In diesem HEIMSPIEL bringen wir fantasievolle Halloween-Motive aufs Papier: Grinsende Kürbisse und flatternde Fledermäuse.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "brotfabrik-dragshow",
+    "event": {
+      "title": "Into the Casket - A Haunting Drag Experience",
+      "description": "Halloween-Dragshow in der Brotfabrik Bühne Bonn.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "reviewed-pumpkin-workshop",
+    "event": {
+      "title": "Kreativer Kürbis-Spaß - Bemalen statt Schnitzen",
+      "description": "Halloween-Workshop zum Bemalen von Kürbissen für Kinder ab 3 Jahren.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "koeln-childrens-quiz",
+    "event": {
+      "title": "Let's Quiz! – Grusel Edition",
+      "description": "Quizze und Rätsel der besonderen Form – testet euer Wissen über Halloween und mehr in der Stadtteilbibliothek Chorweiler.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "koeln-family-concert",
+    "event": {
+      "title": "Gruselplansch mit Planschemalöör",
+      "description": "Gruseliges Familienkonzert mit Planschemalöör, Halloween-Action, Spielstationen, Snacks und Getränken.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "family-weekend",
+    "event": {
+      "title": "Gruselfest am Rhein 2026",
+      "description": "Driedaags Halloween-familiearrangement met creatieve werkplaats en Halloweenparty.",
+      "start_date": "2026-10-24"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "explicit-early-title",
+    "event": {
+      "title": "Halloween-Party im Club",
+      "description": "Ein Konzert.",
+      "start_date": "2026-08-14"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "explicit-series",
+    "event": {
+      "title": "Kostümball",
+      "description": "Ein Konzert.",
+      "start_date": "2026-10-24",
+      "series_title": "Halloween im Club"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "no-theme",
+    "event": {
+      "title": "Gruselnacht im Schloss",
+      "description": "Ein öffentlicher Termin.",
+      "start_date": "2026-10-24"
+    },
+    "expected": []
+  },
+  {
+    "name": "costumes-on-sale",
+    "event": {
+      "title": "Kindersachenbasar",
+      "description": "Wir verkaufen Karnevals- und Halloweenkostüme.",
+      "start_date": "2026-10-24",
+      "category_key": "market"
+    },
+    "expected": []
+  },
+  {
+    "name": "artist-biography",
+    "event": {
+      "title": "90er Party",
+      "description": "DJ H2O-LEE, bekannt für seine legendären DJ-Sets auf 80er-, Halloween- und Silvester-Partys, hat die 90er als DJ miterlebt.",
+      "start_date": "2026-10-24"
+    },
+    "expected": []
+  },
+  {
+    "name": "artist-biography-compound",
+    "event": {
+      "title": "90er Party",
+      "description": "Der DJ ist bekannt für seine legendären Halloweenpartys.",
+      "start_date": "2026-10-24"
+    },
+    "expected": []
+  },
+  {
+    "name": "last-years-programme",
+    "event": {
+      "title": "Herbstfest",
+      "description": "Im vergangenen Jahr gab es eine Halloweenparty. Dieses Jahr feiern wir ein Erntedankfest.",
+      "start_date": "2026-10-24"
+    },
+    "expected": []
+  },
+  {
+    "name": "other-year",
+    "event": {
+      "title": "Herbstfest",
+      "description": "Rückblick auf unsere Halloweenparty 2025.",
+      "start_date": "2026-10-24"
+    },
+    "expected": []
+  },
+  {
+    "name": "negated-theme",
+    "event": {
+      "title": "Herbstfest",
+      "description": "Wir feiern keine Halloweenparty, sondern ein Erntedankfest.",
+      "start_date": "2026-10-24"
+    },
+    "expected": []
+  },
+  {
+    "name": "instead-of-halloween",
+    "event": {
+      "title": "Lichterfest",
+      "description": "Statt einer Halloweenparty gibt es dieses Mal ein Lichterfest.",
+      "start_date": "2026-10-24"
+    },
+    "expected": []
+  },
+  {
+    "name": "generated-text",
+    "event": {
+      "title": "Kostümball",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": "2026-10-24",
+      "description_source": "generated"
+    },
+    "expected": []
+  },
+  {
+    "name": "summary-not-evidence",
+    "event": {
+      "title": "Kostümball",
+      "description": "Ein öffentlicher Termin.",
+      "start_date": "2026-10-24",
+      "ai_summary": "Halloweenparty mit Musik."
+    },
+    "expected": []
+  },
+  {
+    "name": "outside-season",
+    "event": {
+      "title": "90er Party",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": "2026-08-14"
+    },
+    "expected": []
+  },
+  {
+    "name": "season-start",
+    "event": {
+      "title": "Kostümball",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": "2026-09-15"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "before-season",
+    "event": {
+      "title": "Kostümball",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": "2026-09-14"
+    },
+    "expected": []
+  },
+  {
+    "name": "season-end",
+    "event": {
+      "title": "Kostümball",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": "2026-11-02"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "after-season",
+    "event": {
+      "title": "Kostümball",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": "2026-11-03"
+    },
+    "expected": []
+  },
+  {
+    "name": "unknown-date",
+    "event": {
+      "title": "Kostümball",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": ""
+    },
+    "expected": []
+  },
+  {
+    "name": "existing-other-type",
+    "event": {
+      "title": "Kostümball",
+      "description": "Halloweenparty mit Musik.",
+      "start_date": "2026-10-24",
+      "event_types": ["funfair"]
+    },
+    "expected": ["funfair", "halloween"]
+  }
+]

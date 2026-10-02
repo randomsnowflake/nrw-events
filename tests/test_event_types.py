@@ -1,5 +1,8 @@
+import json
 import unittest
+from pathlib import Path
 
+from nrw_events.event_types import classify_event_types
 from nrw_events.validation import EventValidationError, validate_event
 
 
@@ -25,6 +28,12 @@ def event(**overrides):
 
 
 class EventTypeTests(unittest.TestCase):
+    def test_source_backed_halloween_topic_vectors(self):
+        vectors = json.loads((Path(__file__).parent / "data/halloween-topic-vectors.json").read_text())
+        for vector in vectors:
+            with self.subTest(name=vector["name"]):
+                self.assertEqual(classify_event_types(vector["event"]), vector["expected"])
+
     def test_classifies_kirmes_and_rummel_titles_as_funfairs(self):
         for title in ("Kirmes Röttgen", "Herbstkirmes Duisdorf", "Frühlingsrummel"):
             with self.subTest(title=title):
