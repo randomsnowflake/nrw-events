@@ -113,13 +113,30 @@ def municipality(city: str) -> str:
 
 
 def municipality_match(city: str, result: dict) -> bool:
-    """Every word of the town must appear in the result; one shared "Bad" is not the same town."""
+    """Match one structured municipality, never words from the venue or street.
+
+    Nominatim omits the municipality key for some villages (``village=Niederbachem``
+    with Wachtberg only in ``display_name``). Without a conflicting city, town or
+    municipality key, a whole ``display_name`` component that is not the place name
+    or a county/district label may stand in for it.
+    """
     expected = tokens(municipality(city))
+    if not expected:
+        return False
     address = result.get("address") or {}
-    actual = tokens(" ".join([str(result.get("display_name") or ""), *(str(address.get(field) or "") for field in (
-        "city", "town", "village", "municipality", "city_district", "suburb", "county", "state_district",
-    ))]))
-    return bool(expected) and expected <= actual
+    if any(expected <= tokens(str(address.get(field) or "")) for field in ("city", "town", "village", "municipality")):
+        return True
+    if any(address.get(field) for field in ("city", "town", "municipality")):
+        return False
+    regional = {
+        normalized(str(address.get(field) or ""))
+        for field in ("county", "state_district", "state", "suburb", "city_district")
+    }
+    components = [part.strip() for part in str(result.get("display_name") or "").split(",")][1:]
+    return any(
+        tokens(part) == expected and normalized(part) not in regional
+        for part in components
+    )
 
 
 def place_names(result: dict) -> list[str]:

@@ -105,6 +105,50 @@ class VenueNameTests(unittest.TestCase):
         here = place("Kurhaus am Park", town="Bad Honnef", lat=50.64, lon=7.22)
         self.assertEqual(geocoding.accepted_venue_point(kurhaus, [here]), (50.64, 7.22))
 
+    def test_venue_and_street_names_cannot_override_a_conflicting_town(self):
+        venue = LIBRARY + " Meckenheim"
+        library = event(venue, "")
+        elsewhere = place(venue, town="Rheinbach")
+        self.assertIsNone(geocoding.accepted_venue_point(library, [elsewhere]))
+
+        library = event(LIBRARY, "")
+        elsewhere = place(LIBRARY, town="Rheinbach", road="Meckenheim Weg")
+        elsewhere["display_name"] = f"{LIBRARY}, Meckenheim Weg, Rheinbach"
+        self.assertIsNone(geocoding.accepted_venue_point(library, [elsewhere]))
+
+    def test_municipality_evidence_is_not_combined_with_a_county_or_suburb(self):
+        elsewhere = place("Kurhaus am Park", town="Bad Münstereifel", suburb="Honnef")
+        self.assertFalse(geocoding.municipality_match("Bad Honnef", elsewhere))
+        elsewhere = place(LIBRARY, town="Rheinbach", county="Meckenheim")
+        self.assertFalse(geocoding.municipality_match("Meckenheim", elsewhere))
+
+    def test_one_structured_municipality_is_required(self):
+        for field in ("city", "town", "village", "municipality"):
+            with self.subTest(field=field):
+                here = place(LIBRARY)
+                here["address"] = {field: "Meckenheim"}
+                self.assertEqual(geocoding.accepted_venue_point(event(LIBRARY, ""), [here]), (50.631, 7.021))
+        unstructured = place(LIBRARY)
+        unstructured["address"] = {}
+        unstructured["display_name"] = f"{LIBRARY}, Klosterhof, Rhein-Sieg-Kreis"
+        self.assertIsNone(geocoding.accepted_venue_point(event(LIBRARY, ""), [unstructured]))
+
+    def test_village_without_municipality_key_matches_its_display_component(self):
+        # Checked-in Nominatim response (scripts/venue_geocoding_proposals.json).
+        hall = "Evangelisches Gemeindehaus Niederbachem"
+        response = {
+            "category": "amenity", "type": "place_of_worship", "name": hall,
+            "lat": "50.6448786", "lon": "7.1778364",
+            "display_name": f"{hall}, 18, Bondorfer Straße, Niederbachem, Wachtberg, Rhein-Sieg-Kreis, "
+                            "Nordrhein-Westfalen, 53343, Deutschland",
+            "address": {"amenity": hall, "house_number": "18", "road": "Bondorfer Straße",
+                        "village": "Niederbachem", "county": "Rhein-Sieg-Kreis", "postcode": "53343"},
+        }
+        self.assertTrue(geocoding.municipality_match("Wachtberg", response))
+        self.assertFalse(geocoding.municipality_match("Rhein-Sieg-Kreis", response))
+        conflicting = {**response, "address": {**response["address"], "town": "Bornheim"}}
+        self.assertFalse(geocoding.municipality_match("Wachtberg", conflicting))
+
     def test_district_labels_match_their_town(self):
         self.assertEqual(geocoding.municipality("Bonn-Beuel"), "Bonn")
         self.assertEqual(geocoding.municipality("Köln (Braunsfeld)"), "Köln")
