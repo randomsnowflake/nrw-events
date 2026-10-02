@@ -227,7 +227,16 @@ def _merge_duplicate_metadata(
         duplicate.get("source_id") in _impl_dedup_rules._RESTRICTED_FALLBACK_SOURCE_IDS
         and winner.get("source_id") not in _impl_dedup_rules._RESTRICTED_FALLBACK_SOURCE_IDS
     )
-    if not duplicate_is_restricted_fallback and ((duplicate_has_charge and not winner_has_charge) or (
+    # A reviewed annual overview must not displace a usable detail description
+    # merely because its generic festival/date sentence happens to be longer.
+    duplicate_is_reviewed_overview = (
+        duplicate.get("link_kind") == "overview"
+        and winner.get("link_kind") == "detail"
+        and bool(str(winner.get("description") or "").strip())
+        and not (duplicate_has_charge and not winner_has_charge)
+        and _impl_duplicate_identity._reviewed_occurrence_alias_matches(winner, duplicate)
+    )
+    if not (duplicate_is_restricted_fallback or duplicate_is_reviewed_overview) and ((duplicate_has_charge and not winner_has_charge) or (
         len(duplicate.get("description", "").strip())
         > len(winner.get("description", "").strip())
         and not (winner_has_charge and not duplicate_has_charge)

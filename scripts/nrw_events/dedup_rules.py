@@ -32,6 +32,12 @@ _RESTRICTED_FALLBACK_SOURCE_IDS = frozenset({
 
 
 _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
+    # Festival identity reviewed against b-future.org on 2026-10-02. Keep
+    # the detailed public calendar slot over the sparse annual press overview.
+    ("bonn-district-festivals", "bfuturejournalismusfestival"):
+        "bonn-bfuture-festival",
+    ("bonn-de-events", "bfuturefestival"):
+        "bonn-bfuture-festival",
     ("marktcom", "familienferienflohmarktbonn"):
         "bonn-rigalsche-wiese-flohmarkt",
     ("beuel-net", "festderbeuelervereinepromenadenfest"):
