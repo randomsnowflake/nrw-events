@@ -132,6 +132,8 @@ def deduplicate(
         protect_authoritative_schedule = (
             _impl_duplicate_identity._secondary_calendar_schedule_matches(winner, duplicate)
         ) or (
+            _impl_duplicate_identity._reviewed_telekom_market_occurrence_matches(winner, duplicate)
+        ) or (
             _impl_duplicate_identity._venue_qualified_aggregator_title_matches(winner, duplicate)
             and _impl_dedup_rules.source_authority(winner.get("source", ""))
             > _impl_dedup_rules.source_authority(duplicate.get("source", ""))

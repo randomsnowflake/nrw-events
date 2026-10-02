@@ -13,6 +13,18 @@ from . import common, performance
 from . import dedup_rules as _impl_dedup_rules
 from .normalization import comparison_text
 
+_TELEKOM_MARKET_PUBLISHERS = {
+    "grote-hiller": (
+        "bonnmaedelsflohmarktimtelekomdome",
+        "https://www.grote-hiller.de/unsere-maerkte/bonn-maedelsflohmarkt-im-telekom-dome",
+    ),
+    "bonn-de-events": (
+        "1maedelsflohmarktmitkinderspielzeugimtelekomdomeinbonn",
+        "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/1.Maedelsflohmarkt-mit-Kinderspielzeug-im-TelekomDome-in-Bonn.php",
+    ),
+}
+
+
 
 def normalize_title(title: str) -> str:
     """Aggressively normalize a title for near-duplicate comparison."""
@@ -131,6 +143,16 @@ def _reviewed_occurrence_alias_family(event: Mapping[str, Any]) -> str:
     place_copy = comparison_text(
         f"{event.get('venue', '')} {event.get('description', '')}"
     )
+    # Reviewed 2026-10-02 against the organiser's two-day listing. Bonn.de
+    # includes Early Bird and the edition number in its title/start time.
+    expected = _TELEKOM_MARKET_PUBLISHERS.get(source_id)
+    if (
+        expected
+        and (title, _normalized_link_key(event.get("link", ""))) == expected
+        and comparison_text(venue, separator="") == "telekomdome"
+        and str(event.get("start_date") or event.get("date")) in {"2026-10-03", "2026-10-04"}
+    ):
+        return "bonn-telekom-dome-maedelsflohmarkt-2026"
     # The official site locates the square at Uhlgasse 2; the city's
     # district-festival overview names only the street. Keep this equivalence
     # bound to the reviewed festival and its two publishers.
@@ -418,6 +440,30 @@ def _secondary_calendar_schedule_matches(left: Mapping[str, Any], right: Mapping
         )
     except (KeyError, ValueError, TypeError):
         return False
+
+
+def _reviewed_telekom_market_occurrence_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Match only the reviewed regular/Early Bird clocks of the same market day."""
+    if (
+        {left.get("source_id"), right.get("source_id")} != {"grote-hiller", "bonn-de-events"}
+        or _reviewed_occurrence_alias_family(left) != "bonn-telekom-dome-maedelsflohmarkt-2026"
+        or _reviewed_occurrence_alias_family(right) != "bonn-telekom-dome-maedelsflohmarkt-2026"
+        or _date_bounds(left) != _date_bounds(right)
+        or not _locations_compatible(left, right)
+    ):
+        return False
+    bounds = _date_bounds(left)
+    if not bounds or bounds[0] != bounds[1]:
+        return False
+    day = bounds[0].isoformat()
+    return all(
+        _same_explicit_start(row.get("start_at"), f"{day}T{clock}+02:00")
+        and _same_explicit_start(row.get("end_at"), f"{day}T15:30+02:00")
+        for row, clock in (
+            (left, "11:00" if left.get("source_id") == "grote-hiller" else "10:30"),
+            (right, "11:00" if right.get("source_id") == "grote-hiller" else "10:30"),
+        )
+    )
 
 
 def _same_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
@@ -925,6 +971,8 @@ def _pre_programme_occurrence(left: Mapping[str, Any], right: Mapping[str, Any])
 def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Return whether two canonical records represent the same occurrence."""
     performance.count("dedup_comparisons")
+    if _reviewed_telekom_market_occurrence_matches(left, right):
+        return True
     left_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(left.get("title", ""))))
     right_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(right.get("title", ""))))
     left_without_year = tuple(
