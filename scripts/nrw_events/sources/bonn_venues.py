@@ -2,10 +2,11 @@
 
 import json
 import re
+from collections.abc import Callable
 from datetime import datetime
 
-from .. import common, components, richtext
-from ..dates import MONTH_ALL
+from .. import common, components, http, richtext, run_state
+from ..dates import MONTH_ALL, parse_iso_date
 from ..models import AdmissionDefault
 from ..venue_quality import retain_omitted_source_place
 from . import regional_common as rc
@@ -254,6 +255,7 @@ def events_from_brotfabrik_items(items: list) -> list:
             "Brotfabrik Bonn",
             f"brotfabrik {gewerk}",
             0.86,
+            source_id="brotfabrik-bonn",
             default_category_key=explicit_category,
             category_locked=bool(explicit_category),
         )
@@ -282,7 +284,7 @@ def _botgart_detail_description(html: str) -> str:
         rc.clean(metadata.group(1) if metadata else ""), max_chars=360)
 
 
-def _botgart_fallback_description(title: str, kind: str, start) -> str:
+def _botgart_fallback_description(title: str, kind: str, start: datetime | None) -> str:
     schedule = f" am {start:%d.%m.%Y}" if start else ""
     if start and start.strftime("%H:%M") != "00:00":
         schedule += f" um {start:%H:%M} Uhr"
@@ -293,7 +295,7 @@ def _botgart_fallback_description(title: str, kind: str, start) -> str:
     )
 
 
-def events_from_botgart(html: str, detail_fetcher=None) -> list:
+def events_from_botgart(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for href, body in re.findall(r'<a[^>]+href="([^"]+/de/ihr-besuch/veranstaltungen/[^"]+)"[^>]*>(.*?)</a>', html, re.S | re.I):
         text = rc.clean(body)
@@ -385,20 +387,44 @@ def _fetch_volkssternwarte() -> list:
 
 
 def _fetch_brotfabrik() -> list:
+    document = None
     try:
-        items = json.loads(common.fetch_url(
+        document = common.fetch_url(
             _BROTFABRIK_EVENTS_API,
             timeout=20,
             accept="application/json,*/*;q=0.8",
             sec_fetch_mode="cors",
             sec_fetch_dest="empty",
             headers={"Referer": _BROTFABRIK_URL},
-        ))
-        events = events_from_brotfabrik_items(items)
-        if events:
-            return events
+        )
+        items = json.loads(document)
+        if not isinstance(items, list) or (items and not any(
+            isinstance(item, dict) and item.get("Titel")
+            and parse_iso_date(item.get("Datum") or "") is not None
+            for item in items
+        )):
+            raise rc.ParserEmptyError("Brotfabrik API event contract changed")
+        with run_state.capture_parser_metrics() as metrics:
+            events = events_from_brotfabrik_items(items)
+        if items and metrics["candidate_count"] == 0:
+            raise rc.ParserEmptyError("Brotfabrik API parser returned no trustworthy candidates")
+        http._record_endpoint(
+            _BROTFABRIK_EVENTS_API, source_id="brotfabrik-bonn", parser_type="json",
+            legacy_source_ids=["brotfabrik-bonn-api"],
+            candidate_count=metrics["candidate_count"],
+            out_of_window_count=metrics["out_of_window_count"],
+            parsed_event_count=len(events), parser_empty=False,
+        )
+        # A valid empty calendar, off-window programme or editorial-only cohort
+        # is authoritative; do not turn it into a failing HTML fallback.
+        return events
     except Exception as e:
-        common.log_source_error("Brotfabrik Bonn API", e)
+        http._record_endpoint(
+            _BROTFABRIK_EVENTS_API, source_id="brotfabrik-bonn",
+            legacy_source_ids=["brotfabrik-bonn-api"],
+            **({"parser_type": "json", "parser_empty": True} if document is not None else {}),
+        )
+        common.log_source_error("Brotfabrik Bonn API", e, source_id="brotfabrik-bonn")
     return rc.fetch_html_events("Brotfabrik Bonn", _BROTFABRIK_URL, events_from_brotfabrik, source_id="brotfabrik-bonn")
 
 
@@ -435,7 +461,7 @@ def _fetch_bonner_muenster() -> list:
     return rc.dedupe(events)
 
 
-def _parse_short_date(value: str):
+def _parse_short_date(value: str) -> datetime | None:
     match = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})", value or "")
     if not match:
         return None
@@ -444,7 +470,7 @@ def _parse_short_date(value: str):
     return common.parse_date(f"{day}.{month}.{normalized_year}")
 
 
-def _with_end_time(start, text: str):
+def _with_end_time(start: datetime | None, text: str) -> datetime | None:
     if not start:
         return None
     times = re.findall(r"(\d{1,2}):(\d{2})", text or "")
@@ -482,7 +508,7 @@ def _months_in_window() -> list[tuple[int, int]]:
     return months
 
 
-def _parse_muenster_datetime(text: str):
+def _parse_muenster_datetime(text: str) -> tuple[datetime | None, datetime | None]:
     match = re.search(
         r"(\d{1,2})\.\s*([A-Za-zÄÖÜäöüß]+)\.?\s*(20\d{2})\s+"
         r"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})",
@@ -516,7 +542,7 @@ def _vox_bona_city(location: str) -> str:
     return ""
 
 
-def _coords_from_google_maps(text: str):
+def _coords_from_google_maps(text: str) -> tuple[float, float] | None:
     match = re.search(r"daddr=([0-9.]+)N,([0-9.]+)E", text or "")
     if not match:
         return None

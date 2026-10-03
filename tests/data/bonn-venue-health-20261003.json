@@ -1,0 +1,281 @@
+{
+  "evidence": "Read-only nightly metadata and composed feed, 2026-10-03",
+  "run_id": "2514d44443df4807865c1d7d0c405269",
+  "generated_at": "2026-10-03T05:11:17+02:00",
+  "composed_run_id": "2514d44443df4807865c1d7d0c405269",
+  "composed_generated_at": "2026-10-03T05:11:17+02:00",
+  "composed_brotfabrik_count": 40,
+  "source_id": "bonn-venue-calendars",
+  "source_results": {
+    "Bonn venue calendars": {
+      "source": "Bonn venue calendars",
+      "status": "degraded",
+      "raw_event_count": 211,
+      "accepted_event_count": 109,
+      "rejected_event_count": 11,
+      "rejection_reasons": {
+        "quality:civic.course": 8,
+        "link_invalid": 1,
+        "filter:score_floor": 2
+      },
+      "rejection_samples": {
+        "link_invalid": {
+          "source": "Bonn venue calendars",
+          "source_id": "bonn-venue-calendars",
+          "title": "Käptn Book - Rheinisches Lesefest für Kinder u Jugendliche",
+          "date": "2026-10-04",
+          "start_date": "2026-10-04",
+          "end_date": "2026-10-04",
+          "in_window": true
+        },
+        "filter:score_floor": {
+          "source": "Bonn venue calendars",
+          "source_id": "bonn-venue-calendars",
+          "record_type": "CanonicalEvent",
+          "in_window": true
+        }
+      },
+      "endpoints": {
+        "https://www.kult41.de/veranstaltungen/programm?mo=10&yr=2026": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 370522,
+          "duration_ms": 3432,
+          "parser_type": "html",
+          "candidate_count": 39,
+          "out_of_window_count": 14,
+          "parsed_event_count": 39,
+          "parser_empty": false
+        },
+        "https://www.repaircafesbonn.de/termine/?time=month&yr=2026&month=10": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 438656,
+          "duration_ms": 1461,
+          "parser_type": "html",
+          "candidate_count": 38,
+          "out_of_window_count": 6,
+          "parsed_event_count": 38,
+          "parser_empty": false
+        },
+        "https://brotfabrik-bonn.de/wp-content/themes/totochildelementor/alleVer.php": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "application/json",
+          "bytes": 125986,
+          "duration_ms": 190
+        },
+        "https://www.volkssternwarte-bonn.de/wordpress/kalender/liste/?ical=1": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/calendar",
+          "bytes": 12142,
+          "duration_ms": 2263,
+          "parser_type": "ical",
+          "candidate_count": 8,
+          "parsed_event_count": 8,
+          "parser_empty": false
+        },
+        "https://www.botgart.uni-bonn.de/de/ihr-besuch/veranstaltungen": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 56790,
+          "duration_ms": 504,
+          "parser_type": "html",
+          "candidate_count": 1,
+          "out_of_window_count": 0,
+          "parsed_event_count": 1,
+          "parser_empty": false
+        },
+        "https://vox-bona.de/kalender/?ical=1": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/calendar",
+          "bytes": 3844,
+          "duration_ms": 3235,
+          "parser_type": "ical",
+          "candidate_count": 5,
+          "parsed_event_count": 3,
+          "parser_empty": false
+        },
+        "https://www.bonner-muenster.de/musik/": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 40051,
+          "duration_ms": 316
+        },
+        "https://www.bonner-muenster.de/musik/index.html?reloaded&sort=date_asc&page=2": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 39672,
+          "duration_ms": 254
+        },
+        "https://www.bonner-muenster.de/musik/index.html?reloaded&sort=date_asc&page=3": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 40538,
+          "duration_ms": 172
+        },
+        "https://www.bonner-muenster.de/musik/index.html?reloaded&sort=date_asc&page=4": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 39758,
+          "duration_ms": 178
+        },
+        "https://www.bonner-muenster.de/musik/index.html?reloaded&sort=date_asc&page=5": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 40579,
+          "duration_ms": 203
+        },
+        "https://www.bonner-muenster.de/musik/index.html?reloaded&sort=date_asc&page=6": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 40580,
+          "duration_ms": 354
+        },
+        "https://www.rhein-in-flammen.com/": {
+          "attempts": 1,
+          "status": 200,
+          "content_type": "text/html",
+          "bytes": 59173,
+          "duration_ms": 430,
+          "parser_type": "html",
+          "candidate_count": 1,
+          "out_of_window_count": 1,
+          "parsed_event_count": 1,
+          "parser_empty": false
+        }
+      },
+      "baseline": {
+        "previous_raw_event_count": 213
+      },
+      "last_nonempty_raw_event_count": 211,
+      "anomalies": [],
+      "duration_ms": 76468,
+      "ai_duration_ms": 0,
+      "ai_candidate_event_count": 0,
+      "ai_enriched_event_count": 0,
+      "ai_skipped_event_count": 0,
+      "ai_skipped_without_summary_event_count": 0,
+      "detail_deadline_skipped_event_count": 83,
+      "event_sources": [
+        "Bonner Münster Musik",
+        "Botanische Gärten Bonn",
+        "Brotfabrik Bonn",
+        "KULT41",
+        "Repair Cafés Bonn",
+        "Volkssternwarte Bonn",
+        "Vox Bona"
+      ],
+      "event_source_ids": [
+        "bonner-m-nster-musik",
+        "botanische-gaerten-bonn",
+        "brotfabrik-bonn",
+        "kult41",
+        "repair-cafes-bonn",
+        "volkssternwarte-bonn",
+        "vox-bona"
+      ],
+      "cancelled_event_count": 0,
+      "announced_event_count": 101,
+      "research_lead_count": 0,
+      "research_lead_reasons": {},
+      "cancelled_rate": 0.0,
+      "warnings": [],
+      "error": null,
+      "status_reason": ""
+    }
+  },
+  "retained_sources": [
+    {
+      "source": "Bonner Münster Musik",
+      "source_id": "bonner-m-nster-musik",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 0,
+      "last_success_at": "2026-09-30T16:28:43+02:00",
+      "first_failure_at": "2026-10-01T04:25:38+00:00",
+      "consecutive_failures": 8
+    },
+    {
+      "source": "Botanische Gärten Bonn",
+      "source_id": "botanische-gaerten-bonn",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 0,
+      "last_success_at": "2026-09-30T16:28:43+02:00",
+      "first_failure_at": "2026-10-01T04:25:38+00:00",
+      "consecutive_failures": 8
+    },
+    {
+      "source": "Brotfabrik Bonn",
+      "source_id": "brotfabrik-bonn",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 1,
+      "last_success_at": "2026-09-30T16:28:43+02:00",
+      "first_failure_at": "2026-10-01T04:25:38+00:00",
+      "consecutive_failures": 8
+    },
+    {
+      "source": "Brotfabrik Bonn API",
+      "source_id": "brotfabrik-bonn-api",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 0,
+      "last_success_at": "2026-09-27T07:52:17+02:00",
+      "first_failure_at": "2026-09-27T17:17:17+00:00",
+      "consecutive_failures": 17
+    },
+    {
+      "source": "KULT41",
+      "source_id": "kult41",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 1,
+      "last_success_at": "2026-09-30T16:28:43+02:00",
+      "first_failure_at": "2026-10-01T04:25:38+00:00",
+      "consecutive_failures": 8
+    },
+    {
+      "source": "Repair Cafés Bonn",
+      "source_id": "repair-cafes-bonn",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 3,
+      "last_success_at": "2026-09-30T16:28:43+02:00",
+      "first_failure_at": "2026-10-01T04:25:38+00:00",
+      "consecutive_failures": 8
+    },
+    {
+      "source": "Volkssternwarte Bonn",
+      "source_id": "volkssternwarte-bonn",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 0,
+      "last_success_at": "2026-09-30T16:28:43+02:00",
+      "first_failure_at": "2026-10-01T04:25:38+00:00",
+      "consecutive_failures": 8
+    },
+    {
+      "source": "Vox Bona",
+      "source_id": "vox-bona",
+      "runner_source": "Bonn venue calendars",
+      "retained_event_count": 0,
+      "expired_event_count": 0,
+      "last_success_at": "2026-09-30T16:28:43+02:00",
+      "first_failure_at": "2026-10-01T04:25:38+00:00",
+      "consecutive_failures": 8
+    }
+  ]
+}

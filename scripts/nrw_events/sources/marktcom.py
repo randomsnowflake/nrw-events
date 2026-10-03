@@ -23,6 +23,7 @@ data without copying the selected detail occurrence to other dates.
 """
 
 import re
+import urllib.error
 from collections.abc import Callable
 from typing import Any
 
@@ -84,6 +85,10 @@ _INTEGRATED_ORGANIZERS = (
 
 # Safety stop for pagination; reaching it is logged rather than silently truncated.
 _MAX_PAGES = 12
+
+# One format may fail independently. Two consecutive exhausted server/transport
+# failures on this single listing host stop the cascade, not the shared retries.
+_HOST_OUTAGE_CATEGORY_LIMIT = 2
 
 _BLOCK_SPLIT = re.compile(r"(?=<li class='p-2'>)")
 _EVENTNAME = re.compile(
@@ -289,15 +294,39 @@ def _fetch_category(category_id: int) -> list:
     return events
 
 
+def _is_host_outage(exc: Exception) -> bool:
+    if isinstance(exc, urllib.error.HTTPError):
+        return 500 <= exc.code < 600
+    return isinstance(exc, urllib.error.URLError | TimeoutError | ConnectionError)
+
+
 def fetch() -> list:
     events = []
-    for category_id in WANTED_CATEGORIES:
+    consecutive_outages = 0
+    for index, category_id in enumerate(WANTED_CATEGORIES):
         try:
             events.extend(_fetch_category(category_id))
+            # A valid empty category is a success too, not host-outage evidence.
+            consecutive_outages = 0
         except Exception as exc:  # noqa: PERF203 - categories must fail independently
             common.log_source_error(
                 f"{_SOURCE} (category {category_id})",
                 exc,
                 source_id=_SOURCE_ID,
             )
+            consecutive_outages = consecutive_outages + 1 if _is_host_outage(exc) else 0
+            if consecutive_outages >= _HOST_OUTAGE_CATEGORY_LIMIT:
+                # Explicit runner identity protects all cached formats, including
+                # unattempted ones, while keeping events from healthy categories.
+                common.log_source_error(
+                    _SOURCE,
+                    RuntimeError(
+                        f"www.marktcom.de listing circuit opened after {consecutive_outages} "
+                        "consecutive categories exhausted server/transport retries; "
+                        f"skipped {len(WANTED_CATEGORIES) - index - 1} remaining categories; "
+                        f"category coverage is unconfirmed ({type(exc).__name__}: {exc})"
+                    ),
+                    source_id=_SOURCE_ID,
+                )
+                break
     return rc.dedupe(events)

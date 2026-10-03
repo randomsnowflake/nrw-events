@@ -5,12 +5,17 @@ in the ``eventname`` slot, the organizer in ``p.cat`` and the format encoded in 
 badge icon path.
 """
 
+import logging
 import unittest
+import urllib.error
 from datetime import datetime
+from email.message import Message
+from io import BytesIO
 from unittest import mock
 
-from nrw_events import common, report
+from nrw_events import common, config, http, report, retention_policy, source_execution
 from nrw_events.health import SourceResult, SourceStatus
+from nrw_events.runtime import ACTIVE_RUNTIME, EventWindow, RunContext, RuntimeState
 from nrw_events.sources import SOURCES, marktcom
 from nrw_events.validation import validate_event
 
@@ -383,6 +388,206 @@ class MarktcomPaginationTests(unittest.TestCase):
                 for endpoint in result.endpoints.values()
             )
         )
+
+
+class MarktcomOutageTests(unittest.TestCase):
+    """Exercise only marktcom, through real retry/runner health boundaries."""
+
+    def setUp(self):
+        self.window = EventWindow(datetime(2026, 7, 26), datetime(2026, 8, 23))
+        self.settings = config.RuntimeConfig(http_retry_attempts=5, http_retry_base_seconds=0)
+        self.logger = logging.getLogger("marktcom-offline-tests")
+        self.logger.disabled = True
+        self.addCleanup(setattr, self.logger, "disabled", False)
+        token = ACTIVE_RUNTIME.set(RuntimeState(
+            self.settings, "marktcom-offline", self.logger, self.window,
+        ))
+        self.addCleanup(ACTIVE_RUNTIME.reset, token)
+        self.categories = list(marktcom.WANTED_CATEGORIES)
+
+    @staticmethod
+    def _response(html):
+        response = BytesIO(html.encode())
+        response.status = 200
+        response.headers = Message()
+        response.headers["Content-Type"] = "text/html; charset=UTF-8"
+        return response
+
+    @staticmethod
+    def _server_error(request):
+        raise urllib.error.HTTPError(request.full_url, 500, "Internal Server Error", {}, None)
+
+    def _run(self, transport):
+        # Universal enrichment is unrelated to this listing budget; keep it offline.
+        with mock.patch.object(http.urllib.request, "urlopen", side_effect=transport) as opened, \
+                mock.patch.object(source_execution.detail_enrichment, "enrich_events",
+                                  side_effect=lambda events, **_kwargs: events):
+            result, events = source_execution._run_source("marktcom", marktcom.fetch)
+        return result, events, opened
+
+    def test_widespread_server_outage_stops_after_two_exhausted_categories(self):
+        result, events, opened = self._run(lambda request, **_kwargs: self._server_error(request))
+
+        self.assertEqual(opened.call_count, 10)  # Two categories, unchanged five retries each.
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertTrue(result.has_outage_evidence())
+        listing_endpoints = {url: data for url, data in result.endpoints.items()
+                             if url.startswith("https://")}
+        self.assertEqual(set(listing_endpoints), {
+            marktcom.listing_url(category) for category in self.categories[:2]
+        })
+        self.assertTrue(all(data["attempts"] == 5 for data in listing_endpoints.values()))
+        [warning] = [warning for warning in result.warnings if warning["source"] == "marktcom"]
+        self.assertEqual(warning["source_id"], "marktcom")
+        self.assertIn("circuit", warning["error"])
+        self.assertIn("11", warning["error"])  # Unattempted formats, not fabricated endpoints.
+
+    def test_healthy_categories_keep_all_events_and_do_not_open_circuit(self):
+        result, events, opened = self._run(lambda _request, **_kwargs: self._response(FIXTURE))
+
+        self.assertEqual(opened.call_count, len(self.categories))
+        self.assertEqual(len(events), 2)  # Duplicate directory listings are still deduped.
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertFalse(result.warnings)
+        self.assertFalse(result.has_outage_evidence())
+
+    def test_valid_empty_categories_are_authoritative_and_all_attempted(self):
+        result, events, opened = self._run(lambda _request, **_kwargs: self._response(_listing()))
+
+        self.assertEqual(opened.call_count, len(self.categories))
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
+        self.assertFalse(result.has_outage_evidence())
+        self.assertFalse(result.warnings)
+        self.assertFalse(retention_policy._retention_labels(
+            {"marktcom": result}, {"source_results": {"marktcom": {"event_source_ids": ["marktcom"]}}},
+        ))
+
+    def test_one_exhausted_category_does_not_block_later_healthy_category(self):
+        def transport(request, **_kwargs):
+            if request.full_url == marktcom.listing_url(self.categories[0]):
+                self._server_error(request)
+            return self._response(FIXTURE)
+
+        result, events, opened = self._run(transport)
+
+        self.assertEqual(opened.call_count, 5 + len(self.categories) - 1)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertFalse(any(warning["source"] == "marktcom" for warning in result.warnings))
+        self.assertIn(marktcom.listing_url(self.categories[-1]), result.endpoints)
+
+    def test_valid_empty_category_resets_consecutive_outage_count(self):
+        def transport(request, **_kwargs):
+            if request.full_url in {marktcom.listing_url(self.categories[index]) for index in (0, 2)}:
+                self._server_error(request)
+            return self._response(_listing())
+
+        result, events, opened = self._run(transport)
+
+        self.assertEqual(opened.call_count, 10 + len(self.categories) - 2)
+        self.assertEqual(events, [])
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertIn(marktcom.listing_url(self.categories[-1]), result.endpoints)
+        self.assertFalse(any(warning["source"] == "marktcom" for warning in result.warnings))
+
+    def test_category_specific_errors_do_not_trip_host_circuit(self):
+        for failure in (ValueError("category parse error"),
+                        urllib.error.HTTPError("https://www.marktcom.de", 404, "Not Found", {}, None)):
+            with self.subTest(failure=type(failure).__name__):
+                result, events, opened = self._run(lambda _request, failure=failure, **_kwargs: self._raise(failure))
+                self.assertEqual(opened.call_count, len(self.categories))
+                self.assertEqual(events, [])
+                self.assertEqual(result.status, SourceStatus.DEGRADED)
+                self.assertFalse(any(warning["source"] == "marktcom" for warning in result.warnings))
+
+    @staticmethod
+    def _raise(failure):
+        raise failure
+
+    def test_transport_outage_is_bounded_without_changing_shared_retries(self):
+        for failure in (TimeoutError("timed out"), ConnectionError("connection reset"),
+                        urllib.error.URLError("host unavailable")):
+            with self.subTest(failure=type(failure).__name__):
+                result, events, opened = self._run(lambda _request, failure=failure, **_kwargs: self._raise(failure))
+                self.assertEqual(opened.call_count, 10)
+                self.assertEqual(events, [])
+                self.assertEqual(result.status, SourceStatus.DEGRADED)
+                self.assertTrue(result.has_outage_evidence())
+
+    def test_slow_timeouts_use_at_most_two_existing_request_budgets(self):
+        clock = [0.0]
+
+        def transport(_request, *, timeout):
+            clock[0] += timeout
+            raise TimeoutError("timed out")
+
+        with mock.patch.object(http.time, "perf_counter", side_effect=lambda: clock[0]):
+            result, events, opened = self._run(transport)
+
+        self.assertEqual(clock[0], 2 * self.settings.http_request_budget_seconds)
+        self.assertEqual(opened.call_count, 4)  # 25s + remaining 20s per category.
+        self.assertEqual(events, [])
+        self.assertTrue(result.has_outage_evidence())
+
+    def test_transient_success_preserves_retry_telemetry_and_is_not_an_outage(self):
+        attempts = {}
+
+        def transport(request, **_kwargs):
+            attempts[request.full_url] = attempts.get(request.full_url, 0) + 1
+            if attempts[request.full_url] == 1:
+                self._server_error(request)
+            return self._response(FIXTURE)
+
+        result, events, opened = self._run(transport)
+
+        self.assertEqual(opened.call_count, 2 * len(self.categories))
+        self.assertEqual(len(events), 2)
+        self.assertEqual(result.status, SourceStatus.HEALTHY)
+        self.assertFalse(result.warnings)
+        self.assertFalse(result.has_outage_evidence())
+        self.assertTrue(all(data["attempts"] == 2 for data in result.endpoints.values()))
+        self.assertFalse(any("error_type" in data for data in result.endpoints.values()))
+
+    def test_breaker_keeps_healthy_prior_categories_and_retains_all_cached_formats(self):
+        first_url = marktcom.listing_url(self.categories[0])
+
+        def transport(request, **_kwargs):
+            if request.full_url == first_url:
+                return self._response(FIXTURE)
+            self._server_error(request)
+
+        result, events, opened = self._run(transport)
+
+        self.assertEqual(opened.call_count, 11)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(result.status, SourceStatus.DEGRADED)
+        self.assertEqual(result.endpoints[first_url]["status"], 200)
+        # Prior events from early, failing and skipped formats share the real
+        # marktcom source identity; a runner-wide warning must protect all three.
+        cached = [validate_event(marktcom.events_from_listing(_listing(_event_block(
+            f"cached-{category}", f"Flohmarkt {category}", "53111", "Bonn",
+            "Lokaler Verein", "02.08.2026", category,
+        )), category)[0]).to_dict() for category in (42, 2, 11)]
+        previous = {"events": cached, "source_results": {
+            "marktcom": {"event_source_ids": ["marktcom"]},
+        }}
+        context = RunContext(self.settings, self.window, "retention-offline", self.logger,
+                             clock=lambda: datetime(2026, 7, 26))
+        retained, summary = retention_policy._retain_previous_events(
+            {"marktcom": result}, previous, context,
+        )
+        self.assertEqual({event.link for event in retained}, {event["link"] for event in cached})
+        self.assertEqual(summary["retained_event_count"], 3)
+        self.assertEqual(retention_policy._retention_labels({"marktcom": result}, previous), {"marktcom"})
+
+    def test_open_circuit_does_not_leak_into_next_fetch(self):
+        self._run(lambda request, **_kwargs: self._server_error(request))
+        result, _events, opened = self._run(lambda _request, **_kwargs: self._response(_listing()))
+
+        self.assertEqual(opened.call_count, len(self.categories))
+        self.assertEqual(result.status, SourceStatus.HEALTHY_EMPTY)
 
 
 if __name__ == "__main__":

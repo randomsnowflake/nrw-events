@@ -187,6 +187,17 @@ class SourceResult:
             normalize_source_id(self.source_id or self.source), 100
         ) or "unknown-source"
 
+    def has_structural_outage(self) -> bool:
+        """Distinguish broken records from publication-only link/quality rejection.
+
+        A bad visitor link still degrades diagnostics and rejects that row, but
+        cannot establish a continuous source-availability incident for siblings.
+        """
+        return any(
+            reason != "link_invalid" and not reason.startswith(("quality:", "filter:"))
+            for reason in self.rejection_reasons
+        )
+
     def has_outage_evidence(self) -> bool:
         """Use the same outage evidence for retention and the publication guard."""
         if self.status in {SourceStatus.FAILED, SourceStatus.PARSER_EMPTY}:
@@ -197,7 +208,7 @@ class SourceResult:
             or any((endpoint.get("error_type") or endpoint.get("parser_empty"))
                    and endpoint.get("optional_detail") is not True
                    for endpoint in self.endpoints.values())
-            or any(not reason.startswith(("quality:", "filter:")) for reason in self.rejection_reasons)
+            or self.has_structural_outage()
         )
 
     def warning(self, source: str, error_type: str, message: str, *, source_id: str = "") -> bool:
@@ -260,10 +271,12 @@ class SourceResult:
             return
         parser_empty = any(
             endpoint.get("parser_empty") is True
+            and endpoint.get("optional_detail") is not True
             for endpoint in self.endpoints.values()
         )
         parser_measured = any(
             "parser_empty" in endpoint
+            and endpoint.get("optional_detail") is not True
             for endpoint in self.endpoints.values()
         )
         if self.error:

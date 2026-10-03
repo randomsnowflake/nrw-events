@@ -144,6 +144,7 @@ def _run_source(
             raise TypeError(f"source returned {type(events).__name__}, expected list")
         if not any(
             endpoint.get("parser_type")
+            and endpoint.get("optional_detail") is not True
             for endpoint in result.endpoints.values()
         ):
             result.endpoint(
@@ -200,6 +201,7 @@ def _run_source(
         result.finish(health_events)
         explicit_parser_empty = any(
             endpoint.get("parser_empty") is True
+            and endpoint.get("optional_detail") is not True
             for endpoint in result.endpoints.values()
         )
         endpoint_errors = any(

@@ -129,6 +129,40 @@ def _outage_instant(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _previous_retained_sources(results: dict[str, SourceResult], previous: dict) -> list[dict]:
+    """Migrate explicitly declared child aliases without restarting an outage.
+
+    Healthy runs still discard these episodes. A continuing real failure keeps
+    the earliest observed clock when old endpoint and canonical IDs coexist.
+    """
+    aliases: dict[tuple[str, str], str] = {}
+    for runner_source, result in results.items():
+        for endpoint in result.endpoints.values():
+            source_id = normalize_source_id(endpoint.get("source_id"))
+            legacy_ids = endpoint.get("legacy_source_ids")
+            if source_id and isinstance(legacy_ids, list):
+                for legacy_id in legacy_ids:
+                    aliases[runner_source, normalize_source_id(legacy_id)] = source_id
+    migrated: dict[str, dict] = {}
+    for item in previous.get("retained_sources") or []:
+        if not isinstance(item, dict):
+            continue
+        source_id = normalize_source_id(item.get("source_id") or item.get("source"))
+        source_id = aliases.get((str(item.get("runner_source") or ""), source_id), source_id)
+        row = {**item, "source_id": source_id}
+        prior = migrated.get(source_id)
+        if prior is not None:
+            clocks = [instant for instant in (
+                _outage_instant(prior.get("first_failure_at")),
+                _outage_instant(row.get("first_failure_at")),
+            ) if instant is not None]
+            row["first_failure_at"] = min(clocks).isoformat(timespec="seconds") if clocks else ""
+            row["consecutive_failures"] = max(int(prior.get("consecutive_failures") or 0),
+                                               int(row.get("consecutive_failures") or 0))
+        migrated[source_id] = row
+    return list(migrated.values())
+
+
 def _retention_labels(
     results: dict[str, SourceResult],
     previous: dict,
@@ -141,10 +175,7 @@ def _retention_labels(
         for event in previous.get("events") or []
         if isinstance(event, dict) and event.get("source")
     }
-    previous_retained = [
-        item for item in previous.get("retained_sources") or []
-        if isinstance(item, dict)
-    ]
+    previous_retained = _previous_retained_sources(results, previous)
     previous_retained_ids = {
         normalize_source_id(item.get("source_id") or item.get("source"))
         for item in previous_retained
@@ -186,13 +217,22 @@ def _retention_labels(
         endpoint_failures = [endpoint for endpoint in endpoints
                              if (endpoint.get("error_type") or endpoint.get("parser_empty"))
                              and endpoint.get("optional_detail") is not True]
-        structural_failure = any(not reason.startswith(("quality:", "filter:"))
-                                 for reason in result.rejection_reasons)
+        # Parsers may supply their logical owner directly, including a child
+        # which has never published rows. Do not infer ownership from HTTP URLs
+        # or invent another "API" source beside the canonical calendar.
+        failed_children.update(
+            normalize_source_id(endpoint["source_id"])
+            for endpoint in endpoint_failures
+            if endpoint.get("source_id")
+            and normalize_source_id(endpoint["source_id"]) not in {result.source_id, runner_source_id}
+        )
+        structural_failure = result.has_structural_outage()
         runner_wide_failure = (
             result.status == SourceStatus.FAILED or structural_failure
             or any(normalize_source_id(warning.get("source_id") or warning.get("source"))
                    in {result.source_id, runner_source_id} for warning in outage_warnings)
-            or any(not any(warning.get("error") and warning.get("error") == endpoint.get("error")
+            or any(normalize_source_id(endpoint.get("source_id")) not in failed_children
+                   and not any(warning.get("error") and warning.get("error") == endpoint.get("error")
                            for warning in outage_warnings) for endpoint in endpoint_failures)
         )
         if result.has_outage_evidence():
@@ -257,7 +297,7 @@ def _retain_previous_events(
 
     previous_retention = {
         normalize_source_id(item.get("source_id") or item.get("source")): item
-        for item in previous.get("retained_sources") or []
+        for item in _previous_retained_sources(results, previous)
         if isinstance(item, dict) and item.get("source")
     }
     source_names: dict[str, str] = {
