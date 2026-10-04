@@ -735,6 +735,41 @@
       "callable": "nrw_events.sources.bonn_food:fetch_choco_dealer"
     },
     {
+      "id": "studierendenwerk-bonn",
+      "display_name": "Studierendenwerk Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_community:fetch_studierendenwerk"
+    },
+    {
+      "id": "kaeptn-book-lesefest",
+      "display_name": "Käpt’n Book Lesefest",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_community:fetch_kaeptn_book"
+    },
+    {
+      "id": "datenburg",
+      "display_name": "Datenburg",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_community:fetch_datenburg"
+    },
+    {
+      "id": "vhs-bonn",
+      "display_name": "VHS Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_community:fetch_vhs"
+    },
+    {
+      "id": "bitcircus101",
+      "display_name": "bitcircus101",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_community:fetch_bitcircus"
+    },
+    {
       "id": "bonn-jetzt",
       "display_name": "Bonn.jetzt",
       "region": "bonn-region",

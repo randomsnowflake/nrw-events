@@ -19,6 +19,7 @@ scripts/nrw_events/
   ai_transport.py
   ai_writer_input.py
   benchmark.py
+  bonn_jetzt_fallbacks.py
   botgate.py
   category_taxonomy.py
   checkpoint.py
@@ -100,6 +101,7 @@ scripts/nrw_events/
     beethoven_haus.py
     beethovenfest_bonn.py
     bonn.py
+    bonn_community.py
     bonn_districts.py
     bonn_food.py
     bonn_literature.py

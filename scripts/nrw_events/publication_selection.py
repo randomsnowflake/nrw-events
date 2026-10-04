@@ -15,6 +15,7 @@ from . import (
 )
 from . import identity_reconciliation as _impl_identity_reconciliation
 from . import retention_policy as _impl_retention_policy
+from .bonn_jetzt_fallbacks import partition_bonn_jetzt_fallbacks
 from .identity import event_id
 from .import_phases import PublicationSelection, SourceBatch
 from .market_source_fallbacks import partition_directory_fallbacks
@@ -89,7 +90,8 @@ def select_publication(context: RunContext, batch: SourceBatch, previous: dict) 
     # can inherit every historical URL, not only today's freshly computed ID.
     filtered = cast(list[CanonicalEvent], _impl_identity_reconciliation._reconcile_published_ids(filtered, previous))
     filtered, replaced_market_fallbacks = partition_directory_fallbacks(filtered)
-    for event in replaced_market_fallbacks:
+    filtered, replaced_bonn_jetzt = partition_bonn_jetzt_fallbacks(filtered)
+    for event in [*replaced_market_fallbacks, *replaced_bonn_jetzt]:
         result = _impl_retention_policy._source_result_for_event(event, source_results)
         if result is not None:
             result.reject("filter:first_party_replacement", event, in_window=True)

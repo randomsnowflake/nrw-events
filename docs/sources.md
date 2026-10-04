@@ -12,6 +12,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Beuel.net | `beuel-net` | `python` |
 | bonn-region | BFF Bonner Schifffahrt | `bff-bonner-schifffahrt` | `python` |
 | bonn-region | Biertasting Bonn | `biertasting-bonn` | `python` |
+| bonn-region | bitcircus101 | `bitcircus101` | `python` |
 | bonn-region | Bonn district festivals | `bonn-district-festivals` | `python` |
 | bonn-region | Bonn venue calendars | `bonn-venue-calendars` | `python` |
 | bonn-region | Bonn.de Events | `bonn-de-events` | `python` |
@@ -31,6 +32,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Curated cinema specials | `curated-cinema-specials` | `python` |
 | bonn-region | Cölln Antik&Design | `c-lln-antik-design` | `python` |
 | bonn-region | Cölln Konzept | `c-lln-konzept` | `python` |
+| bonn-region | Datenburg | `datenburg` | `python` |
 | bonn-region | Deskline regional | `deskline-regional` | `python` |
 | bonn-region | Deutsches Museum Bonn | `deutsches-museum-bonn` | `python` |
 | bonn-region | FedCon Events | `fedcon-events` | `python` |
@@ -57,6 +59,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Krewelshof Kindersachen-Flohmarkt | `krewelshof-kindersachen-flohmarkt` | `python` |
 | bonn-region | KUNST!RASEN Bonn | `kunstrasen-bonn` | `python` |
 | bonn-region | Kunstmuseum Bonn | `kunstmuseum-bonn` | `python` |
+| bonn-region | Käpt’n Book Lesefest | `kaeptn-book-lesefest` | `python` |
 | bonn-region | Köln Open Data | `k-ln-open-data` | `python` |
 | bonn-region | Königswinter | `k-nigswinter` | `python` |
 | bonn-region | Lampert Märkte | `lampert-m-rkte` | `python` |
@@ -94,6 +97,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Standard regional feeds | `standard-regional-feeds` | `python` |
 | bonn-region | Street Food Bonn | `street-food-bonn` | `python` |
 | bonn-region | Street Food Festival Original | `street-food-festival-original` | `python` |
+| bonn-region | Studierendenwerk Bonn | `studierendenwerk-bonn` | `python` |
 | bonn-region | Swisttal | `swisttal` | `html` |
 | bonn-region | Tanzschule Max7 | `tanzschule-max7` | `python` |
 | bonn-region | Theater Bonn | `theater-bonn` | `python` |
@@ -104,6 +108,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Troisdorf | `troisdorf` | `ical` |
 | bonn-region | Universität Bonn | `uni-bonn` | `python` |
 | bonn-region | Veranstaltungen Brüser Berg | `veranstaltungen-brueser-berg` | `python` |
+| bonn-region | VHS Bonn | `vhs-bonn` | `python` |
 | bonn-region | vomFASS Bonn | `vomfass-bonn` | `python` |
 | bonn-region | VVS Siebengebirge | `vvs-siebengebirge` | `python` |
 | bonn-region | Wachtberg | `wachtberg` | `ical` |
