@@ -484,6 +484,11 @@ See the generated [sources inventory](sources.md).
   so heißt.
 - **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
   Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
+- **Bonn.jetzt nur als Fallback:** Die Veranstalter hinter Bonn.jetzt-Karten
+  (Studierendenwerk Bonn, VHS Bonn, Datenburg, bitcircus101, Käpt'n Book
+  Lesefest) liest `bonn_community.py` direkt. `bonn_jetzt_fallbacks.py`
+  verwirft eine Bonn.jetzt-Karte, sobald ein publizierbarer Nicht-Aggregator
+  denselben Termin abdeckt; Bonn.jetzt erscheint nur noch ohne Primärquelle.
 - **Stadtteilfeste und Bonner Großveranstaltungen:** Bürgerverein Vilich-Müldorf,
   Beuel.net, Bad Godesberg Stadtmarketing, Hardtberg Kultur, BSV Roleber und
   BV Holzlar (`bonn_districts.py`) decken die Vereins- und Ortsfeste ab; der
