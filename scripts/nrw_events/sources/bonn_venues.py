@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import Callable
 from datetime import datetime
 
 from .. import common, components, richtext
@@ -133,7 +134,9 @@ def events_from_repair_cafes(html: str) -> list:
             continue
         start_raw = _match_text(r"class=['\"]value-title['\"][^>]+datetime=['\"]([^'\"]+)['\"]", article)
         end_raw = _match_text(r"class=['\"]end-time dtend['\"][\s\S]*?datetime=['\"]([^'\"]+)['\"]", article)
-        start = common.parse_iso_date(start_raw)
+        # My Calendar emits local wall clocks with malformed (+7200:00) or
+        # stale summer offsets. Resolve Berlin's offset from the occurrence day.
+        start = common.parse_iso_date(start_raw[:19])
         if not start:
             continue
         venue = _match_clean(r"class=['\"]location-label['\"][\s\S]*?<span[^>]*></span>\s*(.*?)</a>", article)
@@ -149,7 +152,7 @@ def events_from_repair_cafes(html: str) -> list:
         ev = common.make_event(
             title_text,
             start,
-            common.parse_iso_date(end_raw),
+            common.parse_iso_date(end_raw[:19]),
             venue,
             "Bonn",
             desc,
@@ -282,7 +285,7 @@ def _botgart_detail_description(html: str) -> str:
         rc.clean(metadata.group(1) if metadata else ""), max_chars=360)
 
 
-def _botgart_fallback_description(title: str, kind: str, start) -> str:
+def _botgart_fallback_description(title: str, kind: str, start: datetime | None) -> str:
     schedule = f" am {start:%d.%m.%Y}" if start else ""
     if start and start.strftime("%H:%M") != "00:00":
         schedule += f" um {start:%H:%M} Uhr"
@@ -293,7 +296,7 @@ def _botgart_fallback_description(title: str, kind: str, start) -> str:
     )
 
 
-def events_from_botgart(html: str, detail_fetcher=None) -> list:
+def events_from_botgart(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for href, body in re.findall(r'<a[^>]+href="([^"]+/de/ihr-besuch/veranstaltungen/[^"]+)"[^>]*>(.*?)</a>', html, re.S | re.I):
         text = rc.clean(body)
@@ -435,7 +438,7 @@ def _fetch_bonner_muenster() -> list:
     return rc.dedupe(events)
 
 
-def _parse_short_date(value: str):
+def _parse_short_date(value: str) -> datetime | None:
     match = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})", value or "")
     if not match:
         return None
@@ -444,7 +447,7 @@ def _parse_short_date(value: str):
     return common.parse_date(f"{day}.{month}.{normalized_year}")
 
 
-def _with_end_time(start, text: str):
+def _with_end_time(start: datetime | None, text: str) -> datetime | None:
     if not start:
         return None
     times = re.findall(r"(\d{1,2}):(\d{2})", text or "")
@@ -482,7 +485,7 @@ def _months_in_window() -> list[tuple[int, int]]:
     return months
 
 
-def _parse_muenster_datetime(text: str):
+def _parse_muenster_datetime(text: str) -> tuple[datetime | None, datetime | None]:
     match = re.search(
         r"(\d{1,2})\.\s*([A-Za-zÄÖÜäöüß]+)\.?\s*(20\d{2})\s+"
         r"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})",
@@ -516,7 +519,7 @@ def _vox_bona_city(location: str) -> str:
     return ""
 
 
-def _coords_from_google_maps(text: str):
+def _coords_from_google_maps(text: str) -> tuple[float, float] | None:
     match = re.search(r"daddr=([0-9.]+)N,([0-9.]+)E", text or "")
     if not match:
         return None

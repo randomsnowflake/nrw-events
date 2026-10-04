@@ -447,6 +447,30 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[0]["admission_basis"], "implicit")
         self.assertGreater(events[0]["distance_km"], 0)
 
+    def test_repair_cafes_calendar_uses_local_clocks_despite_broken_offsets(self):
+        patch_window(self, datetime(2026, 10, 1), datetime(2026, 10, 31))
+        for day, supplied_offset, expected_offset in (
+            ("2026-10-06", "+7200:00", "+02:00"),
+            ("2026-10-27", "+7200:00", "+01:00"),
+            ("2026-10-27", "+02:00", "+01:00"),
+        ):
+            with self.subTest(day=day, supplied_offset=supplied_offset):
+                html = f"""
+<article class='calendar-event future-event'>
+  <h3 class='event-title summary'><button>Holzarbeiten und Drechseln</button></h3>
+  <time class='value-title' datetime='{day}T15:00:00{supplied_offset}'>15:00</time>
+  <span class='end-time dtend'><time datetime='{day}T18:00:00{supplied_offset}'>18:00</time></span>
+  <div class='longdesc description'>Immer Dienstag ab 15 Uhr.</div>
+  <div class='mc-location'><strong class='location-label'><a href='#'><span></span>Repair Café MVA Bonn</a></strong></div>
+  <p class='mc-details'><a href='https://www.repaircafesbonn.de/mc-events/holzarbeiten/?mc_id=4774'>Weiterlesen</a></p>
+</article>
+"""
+                events = bonn_venues.events_from_repair_cafes(html)
+                self.assertEqual(len(events), 1)
+                self.assertEqual(events[0]["time"], "15:00–18:00")
+                self.assertEqual(events[0]["start_at"], f"{day}T15:00{expected_offset}")
+                self.assertEqual(events[0]["end_at"], f"{day}T18:00{expected_offset}")
+
     def test_repair_cafes_calendar_skips_holiday_cards_without_a_date(self):
         html = """
 <article class='calendar-event future-event'>
