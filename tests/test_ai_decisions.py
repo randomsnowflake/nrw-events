@@ -236,8 +236,8 @@ class DecisionsRoutingTests(unittest.TestCase):
 
 
 class AdmissionDecisionTests(unittest.TestCase):
-    def ask(self, connection, material, choice="free", probability=0.99):
-        options = ai_decisions.ADMISSION_QUESTION["criteria"]
+    def ask(self, connection, material, choice="free", probability=0.99, question=ai_decisions.ADMISSION_QUESTION):
+        options = question["criteria"]
         probabilities = {key: (1 - probability) / (len(options) - 1) for key in options}
         probabilities[choice] = probability
         response = {"model": "typesafe/jev-1.13", "answers": {"admission": {
@@ -258,7 +258,14 @@ class AdmissionDecisionTests(unittest.TestCase):
         with closing(sqlite3.connect(":memory:")) as connection:
             self.assertEqual(self.ask(connection, "Frei ab 12 Jahren.", "free", 0.7), (None, 1))
             self.assertEqual(self.ask(connection, "Tischgebühr 7 Euro.", "vendor_only"), ("vendor_only", 1))
-            self.assertEqual(self.ask(connection, "Eine Lesung für Kinder."), (None, 0))
+
+    def test_signal_free_material_uses_only_a_confident_typical_free(self):
+        typical = ai_decisions.TYPICAL_ADMISSION_QUESTION
+        with closing(sqlite3.connect(":memory:")) as connection:
+            self.assertEqual(self.ask(connection, "Repair Café im Gemeindehaus.", "free", 0.96, typical), ("free", 1))
+            self.assertEqual(self.ask(connection, "Repair Café im Gemeindehaus.", "paid", 0.99, typical), ("free", 0))
+            self.assertEqual(self.ask(connection, "Mädelsflohmarkt in der Halle.", "free", 0.9, typical), (None, 1))
+            self.assertEqual(self.ask(connection, "Jazzkonzert im Club.", "paid", 0.99, typical), (None, 1))
 
     def test_publication_fills_only_unknown_admission_and_revalidates(self):
         unknown = validate_event(make_event(description="Lesung in der Bücherei."))
@@ -269,7 +276,8 @@ class AdmissionDecisionTests(unittest.TestCase):
                 patch.object(ai_enrichment, "settings_from_env", return_value=ai_enrichment.AISettings(
                     enabled=True, api_key="", model="m", cache_db=Path(tmp) / "c.sqlite3",
                     jev_enabled=True, jev_api_key="k")), \
-                patch.object(ai_decisions, "resolve_admission", side_effect=["free", "not_stated"]) as resolve:
+                patch.object(ai_decisions, "resolve_admission",
+                             side_effect=lambda _, raw, *a, **k: "not_stated" if raw["title"] == "Vortrag" else "free") as resolve:
             publication_enrichment._resolve_unknown_admission(events, {})
         self.assertEqual(resolve.call_count, 2)
         self.assertEqual(events[0].admission["isFree"], True)

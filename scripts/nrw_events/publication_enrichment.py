@@ -6,6 +6,7 @@ import sqlite3
 import time
 from collections import Counter
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import replace
 
@@ -70,36 +71,46 @@ def _resolve_unknown_admission(events: list[CanonicalEvent], results: dict[str, 
     settings = ai_enrichment.settings_from_env()
     if not (settings.enabled and settings.jev_enabled and settings.jev_api_key):
         return outcomes
-    # ponytail: sequential with a run budget; unanswered events stay unknown
-    # until a later run. Answers are cached, so only new source text costs time.
+    # Run budget: unanswered events stay unknown until a later run. Answers are
+    # cached, so only new source text costs time.
     deadline = time.monotonic() + 180
     settings.cache_db.parent.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
-        for index, event in enumerate(events):
-            if time.monotonic() >= deadline:
-                outcomes["out_of_time"] += 1
-                break
-            if event.price.strip() or event.admission_basis or event.admission["isFree"] is not None \
-                    or event.admission["amount"] is not None:
-                continue
-            raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
-            choice = ai_decisions.resolve_admission(
+
+    def ask(index: int) -> str | None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return "out_of_time"
+        event = events[index]
+        raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
+        # SQLite connections are per thread; evaluate_cached locks per cache key.
+        with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
+            return ai_decisions.resolve_admission(
                 connection, raw, ai_enrichment._source_material(raw),
                 model=settings.jev_model, api_key=settings.jev_api_key,
-                timeout_seconds=min(15.0, deadline - time.monotonic()),
+                timeout_seconds=min(15.0, remaining),
             )
-            outcomes[choice or "unanswered"] += 1
-            if choice is None:
-                continue
-            price = ai_decisions.ADMISSION_PRICES.get(choice)
-            # A confident "source states no single visitor price" is a finished review, not a gap.
-            update: dict[str, object] = (
-                {"price": price, "admission_basis": "explicit"} if price else {"admission_checked": True}
-            )
-            try:
-                events[index] = validate_event({**event.to_dict(), **update})
-            except EventValidationError:
-                outcomes["rejected"] += 1
+
+    unknown = [
+        index for index, event in enumerate(events)
+        if not (event.price.strip() or event.admission_basis or event.admission["isFree"] is not None
+                or event.admission["amount"] is not None)
+    ]
+    with ThreadPoolExecutor(8) as pool:
+        answers = list(zip(unknown, pool.map(ask, unknown), strict=True))
+    for index, choice in answers:
+        event = events[index]
+        outcomes[choice or "unanswered"] += 1
+        if choice is None or choice == "out_of_time":
+            continue
+        price = ai_decisions.ADMISSION_PRICES.get(choice)
+        # A confident "source states no single visitor price" is a finished review, not a gap.
+        update: dict[str, object] = (
+            {"price": price, "admission_basis": "explicit"} if price else {"admission_checked": True}
+        )
+        try:
+            events[index] = validate_event({**event.to_dict(), **update})
+        except EventValidationError:
+            outcomes["rejected"] += 1
     return outcomes
 
 

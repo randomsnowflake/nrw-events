@@ -161,14 +161,14 @@ source parsing and AI enrichment, for all sources. The input is the event's own
 source text (private material for restricted sources) without occurrence dates,
 so recurring dates with identical text share one cached answer in
 `ai_jev_decisions`; the structured-label fallback includes dates and misses more. Text without a
-price word (`ADMISSION_SIGNAL`) makes no request.
+price word (`ADMISSION_SIGNAL`) gets the typical-admission question instead (below).
 
 The `choice` options are `free`, `donation`, `paid`, `conditional`, `vendor_only`
 and `not_stated`. Only `free`, `donation` and `paid` at probability >= 0.98 set
 the price (`kostenlos`, `Spende erbeten`, `kostenpflichtig`) with explicit basis;
 Jev never sets an amount. The event is then validated again; the main guard
 against conditional prices is the 0.98 threshold, not validation. A run spends at most
-180 seconds; unanswered events stay unknown until a later run.
+180 seconds with eight parallel requests; unanswered events stay unknown until a later run.
 
 A confident `not_stated`, `conditional` or `vendor_only` sets the additive feed
 field `admission_checked: true` while admission stays unknown. The website's
@@ -181,3 +181,26 @@ admission, 209 with a price word. In a hand-checked random sample of 100, all 49
 accepted answers were correct; the observed wrong answers ("Frei ab 12 Jahren",
 "kostenlos, Museumseintritt kann anfallen") stayed below 0.8. All 209 resolved
 89 events (57 paid, 29 free, 3 donation) in 86 seconds for under one cent.
+
+## Typical admission without a price word (4 October 2026)
+
+Most unknown events have no price word at all, so the stated-admission question
+can only answer `not_stated`. For those, Jev judges from title, venue, city,
+organizer, category and source text whether this kind of event is free for every
+visitor (`TYPICAL_ADMISSION_QUESTION`, `event-admission-typical-v1`). Only `free`
+at probability >= 0.95 is used and published like any other confident answer
+(`kostenlos`, explicit basis). Inferred `paid` is never used: on known-free events
+it was frequently wrong. Hall and women's (Mädels-) flea markets and antique or
+design fairs in halls are named as uncertain because they often charge entry.
+
+Evaluation on the 2 October feed (no dates in the state, distinct title/venue):
+
+- 706 events with known explicit admission, price sentences removed: at >= 0.95,
+  33 of 33 `free` answers were correct (0.90 admitted 2 paid events).
+- 806 unknown events without a price word: 104 `free` at >= 0.95; hand review found
+  all plausible (outdoor, car-park and courtyard flea markets, children's bazaars,
+  Repair Cafés, services, council meetings, demonstrations, street festivals).
+- Rubric v1 without the hall exception accepted paid hall and Mädels flea markets.
+- Whole publication step on 1,548 unknown occurrences, cold cache: 68 seconds,
+  139 became free (previously 731 free in the feed); warm cache: 1 second.
+  Each pass cost about two cents.
