@@ -169,6 +169,6 @@ class ICalPriceTests(unittest.TestCase):
 
         self.assertEqual(paid["price"], "22,00 €, Reduziert: 19,00 €")
         self.assertIs(paid["admission"]["isFree"], False)
-        self.assertEqual(paid["admission"]["amount"], 19)
+        self.assertEqual(paid["admission"]["amount"], 22)
         self.assertEqual(free["price"], "kostenlos")
         self.assertIs(free["admission"]["isFree"], True)

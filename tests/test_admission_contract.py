@@ -13,6 +13,21 @@ class AdmissionContractTests(unittest.TestCase):
             ("Kinder 0 €, Erwachsene 12 €", 12),
             ("Erwachsene 12 €, Kinder 0 €", 12),
             ("10–20 €", 10),
+            ("Der Eintritt in den Park ist frei. Kosten für die Führungen: Erwachsene: 8 Euro, ermäßigt 2 Euro; Kinder bis 10 Jahre: kostenlos", 8),
+            ("8 € / 2 € ermäßigt", 8),
+            ("8 € (erm. 5 €)", 8),
+            ("Ermäßigt 5 €, regulär 9 €", 9),
+            ("Kinder frei, Erwachsene 10 €, ermäßigt 5 €", 10),
+            ("Eintritt 10 €. Ermäßigt 6 €", 10),
+            ("ermäßigt 4 €", 4),
+            ("VVK 15 €, AK 18 €", 15),
+            ("10 € / 5 € (Kinder/ermäßigt)", 10),
+            ("10,00€ Normalpreis (8,00€ ermäßigt)", 10),
+            ("12 Euro regulär, 9 Euro ermäßigt; 7–18 Jahre 6 Euro, bis 6 Jahre frei; donnerstags ab 16 Uhr 5 Euro", 12),
+            ("Online regulär 18 Euro, Studierende 12 Euro; begrenzte Early-Bird-Tickets 10 Euro", 18),
+            ("15 Euro regulär; 14 Euro mit Gästekarte Bad Neuenahr-Ahrweiler", 15),
+            ("Vorverkauf 8 Euro, Tageskasse regulär 10 Euro", 8),
+            ("13,90 Euro; Late Ticket mit Einlass ab 18:30 Uhr: 9,90 Euro", 13.9),
         ):
             with self.subTest(price=price):
                 event = validate_event({
