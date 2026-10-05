@@ -134,6 +134,11 @@ def deduplicate(
         ) or (
             _impl_duplicate_identity._reviewed_telekom_market_occurrence_matches(winner, duplicate)
         ) or (
+            # A daily calendar slot must not stamp its clock onto the whole run.
+            _impl_duplicate_identity._secondary_copy_matches(winner, duplicate)
+            and _impl_duplicate_identity._duration_days(winner)
+            > _impl_duplicate_identity._duration_days(duplicate)
+        ) or (
             _impl_duplicate_identity._venue_qualified_aggregator_title_matches(winner, duplicate)
             and _impl_dedup_rules.source_authority(winner.get("source", ""))
             > _impl_dedup_rules.source_authority(duplicate.get("source", ""))

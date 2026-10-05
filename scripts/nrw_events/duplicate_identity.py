@@ -927,6 +927,99 @@ def _same_timed_venue_occurrence(left: Mapping[str, Any], right: Mapping[str, An
     return len(shorter) >= 2 and shorter[0] == longer[0] and set(shorter) <= set(longer)
 
 
+def _secondary_copy_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Match a directory or city-calendar copy of an organiser's listing.
+
+    Secondary calendars rename venues ("Bad Godesberger Innenstadt" for
+    Theaterplatz, "Toom Baumarkt Spich" for the market's own name) and split
+    festival runs into daily rows, so venue equality is not available. Instead
+    the copy's day must lie inside the organiser's run in the same city label,
+    explicit starts of equal spans must agree, venues must share a place word,
+    house numbers must not conflict, and every significant word of the copy's
+    title (ignoring an appended city) must appear in the organiser's title
+    under the same lead word. A copy that adds words ("Kuratorenführung") stays a separate
+    programme point; two-word formats ("Öffentliche Führung") are too generic.
+    """
+    copy, primary = sorted((left, right), key=lambda row: _impl_dedup_rules.source_authority(row.get("source", "")))
+    if (
+        _impl_dedup_rules.source_authority(copy.get("source", "")) not in {1, 2}
+        or _impl_dedup_rules.source_authority(primary.get("source", "")) != 3
+    ):
+        return False
+    city = comparison_text(copy.get("city", ""))
+    copy_bounds = _date_bounds(copy)
+    primary_bounds = _date_bounds(primary)
+    if (
+        not city or city != comparison_text(primary.get("city", ""))
+        or not copy_bounds or not primary_bounds
+        or not primary_bounds[0] <= copy_bounds[0] <= copy_bounds[1] <= primary_bounds[1]
+    ):
+        return False
+    if (
+        copy_bounds == primary_bounds
+        and copy.get("start_at") and primary.get("start_at")
+        and not _same_explicit_start(copy.get("start_at"), primary.get("start_at"))
+    ):
+        return False
+    copy_units = _concrete_numeric_units(str(copy.get("venue_address", "")))
+    primary_units = _concrete_numeric_units(str(primary.get("venue_address", "")))
+    if copy_units and primary_units and not copy_units & primary_units:
+        return False
+    # Renamed venues still share a place word ("Poppelsdorf", "Spich"), or the
+    # copy's venue names a place in the organiser's title ("Bad Godesberger").
+    municipality = set(_normalized_city(city).split())
+    copy_place, primary_place = (
+        {word for word in _venue_comparison_text(row).split() if len(word) >= 3} - municipality
+        for row in (copy, primary)
+    )
+    if copy_place and primary_place and not (
+        copy_place & (primary_place | set(comparison_text(primary.get("title", "")).split()))
+    ):
+        return False
+    copy_words = _significant_title_words(copy.get("title", ""))
+    primary_words = _significant_title_words(primary.get("title", ""))
+    city_words = set(city.split()) - set(primary_words)
+    return (
+        len(copy_words) >= 3
+        and bool(primary_words) and copy_words[0] == primary_words[0]
+        and all(
+            word in city_words
+            or any(word.startswith(other) or other.startswith(word) for other in primary_words)
+            for word in copy_words
+        )
+    )
+
+
+def _same_publisher_copy_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Match one publisher listing an event in two of its own calendars.
+
+    Troisdorf files its Oktoberfest under general events (doors, 16:30) and
+    under the Stadthalle (show, 17:30) with the same copy. A shared opening
+    passage plus close starts at one venue identify the occurrence; matinee
+    and evening performances are further apart and stay separate.
+    """
+    if not left.get("source") or left.get("source") != right.get("source"):
+        return False
+    left_bounds = _date_bounds(left)
+    right_bounds = _date_bounds(right)
+    if not left_bounds or not right_bounds or left_bounds[0] != right_bounds[0]:
+        return False
+    try:
+        starts = [datetime.fromisoformat(str(row["start_at"]).replace("Z", "+00:00")) for row in (left, right)]
+    except (KeyError, ValueError, TypeError):
+        return False
+    if abs(starts[0] - starts[1]) > timedelta(hours=1):
+        return False
+    left_copy = comparison_text(str(left.get("description") or ""))
+    right_copy = comparison_text(str(right.get("description") or ""))
+    shorter, longer = sorted((left_copy, right_copy), key=len)
+    return (
+        len(shorter) >= 200 and shorter[:200] in longer
+        and _titles_match(left, right)
+        and _locations_compatible(left, right)
+    )
+
+
 def _pre_programme_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Match a venue listing that starts with its introduction.
 
@@ -1028,6 +1121,8 @@ def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> 
         same_detail_occurrence
         or _same_timed_venue_occurrence(left, right)
         or _pre_programme_occurrence(left, right)
+        or _secondary_copy_matches(left, right)
+        or _same_publisher_copy_matches(left, right)
         or _secondary_calendar_schedule_matches(left, right)
         or _same_registered_venue_occurrence(left, right)
         or (
