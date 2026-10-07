@@ -413,6 +413,8 @@ def _summary_quality(summary: object, source_material: str, facts: Mapping[str, 
         return "summary contains an unclosed quotation"
     if _impl_ai_contracts._MARKETING_PATTERN.search(clean):
         return "summary contains promotional language"
+    if _impl_ai_contracts._TEMPLATE_STYLE_PATTERN.search(clean):
+        return "summary restates date and place instead of content"
     if _impl_ai_contracts._MISSING_INFO_PATTERN.search(clean):
         return "summary talks about missing information"
     if _impl_ai_contracts._META_OR_SPECULATION_PATTERN.search(clean):

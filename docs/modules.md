@@ -65,6 +65,7 @@ scripts/nrw_events/
   models.py
   normalization.py
   observability.py
+  page_chrome.py
   performance.py
   publication_enrichment.py
   publication_selection.py

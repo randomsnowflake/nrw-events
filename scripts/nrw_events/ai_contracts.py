@@ -292,7 +292,11 @@ Schreibe nüchterne vollständige Aussagesätze ohne Metaphern, Szenesprache ode
 Passe die Länge an die Informationsdichte an: bei bis zu vier substanziellen Fakten 30 bis 60 Wörter,
 bei fünf bis acht Fakten 60 bis 110 Wörter, bei mehr Fakten 100 bis 170 Wörter. Niemals durch Allgemeinwissen,
 Vermutungen, fehlende Angaben, Kategorien oder wiederholte Logistik auffüllen.
-Nenne Datum, Uhrzeit und Ort nicht mechanisch doppelt. Erkläre Inhalt, Ablauf und relevante praktische Hinweise.
+Datum, Uhrzeit, Ort und Preis stehen auf der Seite direkt neben dem Text. Beginne deshalb nie mit Datum oder Ort
+(nicht "Am 25. Oktober findet in ... statt"), sondern mit dem, was passiert: Programm, Thema, Werk, Mitwirkende.
+Rechne keine Dauer oder Endzeit vor ("dauert zwei Stunden, sodass sie um 16 Uhr endet") und schreibe nicht
+"die Veranstaltung", sondern benenne die Sache (Konzert, Führung, Kurs, Lesung, Markt). Erkläre Inhalt, Ablauf
+und relevante praktische Hinweise.
 Erwähne niemals, welche Angaben fehlen oder nicht vorliegen. Verändere Satzbau und Wortwahl gegenüber den
 Fakten deutlich, ohne Namen, Zahlen oder Fachbegriffe zu verfälschen.
 Sprich die Lesenden nicht direkt an, auch nicht mit Sie. Vermeide insbesondere du, ihr, euch, bitte beachten,
@@ -358,6 +362,15 @@ _META_OR_SPECULATION_PATTERN = re.compile(
     r"|\bfällt\s+in\s+(?:den\s+)?bereich\b"
     r"|\b(?:gehört|zählt)\s+(?:zur|zu\s+der)\s+kategorie\b",
     re.IGNORECASE,
+)
+
+
+# Template prose that only restates the info box next to the text.
+_TEMPLATE_STYLE_PATTERN = re.compile(
+    r"^\s*(?:Am|Vom|An)\s+(?:\w+,\s+)?\d{1,2}\.\s*(?:\w+|\d{1,2}\.)\s*(?:\d{4})?\b[^.!?]{0,160}?"
+    r"\b(?:findet|finden|wird|werden|gibt\s+es|bietet|lädt|treten|steht|zeigt|veranstaltet|präsentiert|öffnet|beginnt|startet)\b"
+    r"|\bsodass\s+(?:sie|es|er|die\s+\w+)\s+(?:um|gegen)\b"
+    r"|\b(?:Die\s+Veranstaltung|Das\s+Programm|Die\s+Führung|Der\s+Kurs|Die\s+Show|Das\s+Konzert|Der\s+Workshop|Die\s+Vorstellung)\s+dauert\b",
 )
 
 

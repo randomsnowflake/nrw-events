@@ -57,6 +57,7 @@ def write_summary(
                     "summary repeats a long source phrase": " Formuliere kürzer und eigenständig; übernimm keine langen Formulierungen aus den Faktenlisten.",
                     "summary contradicts the source location": " Verwende ausschließlich den Veranstaltungsort aus facts; lass andere Ortsangaben weg.",
                     "summary invents registration information": " Lass Anmelde- und Reservierungsangaben im Beschreibungstext weg.",
+                    "summary restates date and place instead of content": " Beginne mit dem Inhalt, nicht mit Datum oder Ort, und rechne keine Dauer vor.",
                     "summary contains promotional language": " Schreibe kurze sachliche Sätze ohne Einladung, Empfehlung oder Wertung.",
                 }.get(quality_feedback, "")
                 if quality_feedback == "summary invents a target group":

@@ -11,7 +11,7 @@ from datetime import datetime, time, timedelta
 from typing import Any, TypedDict
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import ai_enrichment, category_taxonomy, common, event_types, performance, richtext
+from . import ai_enrichment, category_taxonomy, common, event_types, page_chrome, performance, richtext
 from .admission_amounts import admission_amount
 from .models import (
     MAX_DISCOVERY_PROVENANCE_SOURCES,
@@ -853,6 +853,7 @@ def _visitor_copy_quality(event: dict[str, Any]) -> None:
     Tourism listings end teasers with "› weiterlesen"; a teaser that only
     repeats title, venue and date says nothing and is dropped.
     """
+    page_chrome.strip_page_chrome(event)
     description = _LINK_LABEL_TAIL.sub("", event["description"]).strip()
     if description != event["description"]:
         known = set(category_taxonomy.comparison_text(

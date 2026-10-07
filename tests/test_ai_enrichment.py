@@ -1472,6 +1472,18 @@ class AIEnrichmentTests(unittest.TestCase):
                          "summary contradicts the selected occurrence weekday")
         self.assertEqual(ai_enrichment._summary_quality(summary.replace("Freitag", "Montag"), "Anderer Quelltext", facts), "")
 
+    def test_summary_rejects_date_and_place_template_opening(self):
+        facts = {**FACTS, "_publication_start": "2026-09-21", "_publication_end": "2026-09-21"}
+        for summary in (
+            "Am 21. September 2026 findet in der Sporthalle ein gemeinsames Fußballtraining für Erwachsene statt.",
+            "Das Fußballtraining in der Sporthalle dauert zwei Stunden, sodass es um 20 Uhr endet und danach noch Zeit bleibt.",
+        ):
+            self.assertEqual(ai_enrichment._summary_quality(summary, "Anderer Quelltext", facts),
+                             "summary restates date and place instead of content")
+        self.assertEqual(ai_enrichment._summary_quality(
+            "Beim gemeinsamen Fußballtraining in der Sporthalle spielen Erwachsene in gemischten Teams.",
+            "Anderer Quelltext", facts), "")
+
     def test_summary_preserves_fact_backed_registration_weekday(self):
         facts = {
             **FACTS, "_publication_start": "2026-09-21", "_publication_end": "2026-09-21",
