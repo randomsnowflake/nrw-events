@@ -246,5 +246,68 @@
       "event_types": ["funfair"]
     },
     "expected": ["funfair", "halloween"]
+  },
+  {
+    "name": "koeln-halloween-monster-crafts",
+    "event": {
+      "title": "Kreativ-Tag",
+      "description": "Wir begrüßen sie mit bunten Halloween-Monstern, die wir gemeinsam basteln.",
+      "start_date": "2026-10-22"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "halloween-monster-crafts-reversed",
+    "event": {
+      "title": "Kreativ-Tag",
+      "description": "Wir basteln gemeinsam bunte Halloween-Monster.",
+      "start_date": "2026-10-22"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "halloween-monsters-without-crafts",
+    "event": {
+      "title": "Kreativ-Tag",
+      "description": "Halloween-Monster stehen im Schaufenster.",
+      "start_date": "2026-10-22"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-monster-crafts-past-year",
+    "event": {
+      "title": "Kreativ-Tag",
+      "description": "2025 gab es Halloween-Monster, die wir gemeinsam bastelten.",
+      "start_date": "2026-10-22"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-monster-crafts-generated",
+    "event": {
+      "title": "Kreativ-Tag",
+      "description": "Wir begrüßen sie mit bunten Halloween-Monstern, die wir gemeinsam basteln.",
+      "start_date": "2026-10-22",
+      "description_source": "generated"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-monster-crafts-negated",
+    "event": {
+      "title": "Kreativ-Tag",
+      "description": "Keine Halloween-Monster basteln wir hier.",
+      "start_date": "2026-10-22"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-title-with-colon",
+    "event": {
+      "title": "Halloween: Lustige Gruselparty im Ulla-Hahn-Haus",
+      "start_date": "2026-10-30"
+    },
+    "expected": ["halloween"]
   }
 ]

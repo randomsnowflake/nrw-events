@@ -42,6 +42,8 @@ _HALLOWEEN_PROGRAMME = re.compile(
     r"|\b(?:bald|passend\s+an|einstimmung\s+auf)\s+halloween\b"
     r"|\b(?:wissen|fragen|quiz|raetsel)\b.{0,40}\b(?:ueber|zu)\s+halloween\b"
     r"|\bhalloween\s+feiern\b"
+    r"|\bhalloween\s*monster\w*\b.{0,60}\bbastel\w*\b"
+    r"|\bbastel\w*\b.{0,60}\bhalloween\s*monster\w*\b"
 )
 _HALLOWEEN_INCIDENTAL = re.compile(
     r"\b(?:kein\w*|nicht|ohne|statt|vorjahr|letztes\s+jahr|vergangenen\s+jahr"
