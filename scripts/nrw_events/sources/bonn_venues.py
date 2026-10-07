@@ -15,6 +15,8 @@ _KULT41_URL = "https://www.kult41.de/veranstaltungen/programm"
 _REPAIR_CAFES_URL = "https://www.repaircafesbonn.de/termine/"
 _BROTFABRIK_URL = "https://brotfabrik-bonn.de/"
 _BROTFABRIK_EVENTS_API = "https://brotfabrik-bonn.de/wp-content/themes/totochildelementor/alleVer.php"
+# The workshop page renders course details client-side from this JSON.
+_BILDUNGSWERK_COURSES_API = "https://bildungswerk-brotfabrik.de/wp-content/themes/themify-ultra-child/kursdatenAPI.php"
 _VOLKSSTERNWARTE_ICAL = "https://www.volkssternwarte-bonn.de/wordpress/kalender/liste/?ical=1"
 _BOTGART_URL = "https://www.botgart.uni-bonn.de/de/ihr-besuch/veranstaltungen"
 _VOX_BONA_ICAL = "https://vox-bona.de/kalender/?ical=1"
@@ -220,9 +222,72 @@ def _brotfabrik_explicit_place(description: str) -> str:
     return "Brotfabrik Bonn" if place else ""
 
 
-def events_from_brotfabrik_items(items: list) -> list:
+def _has_text(html: str) -> bool:
+    return bool(rc.clean(html))
+
+
+def _brotfabrik_course_description(course: dict, courses: list) -> str:
+    """Compose course copy from the Bildungswerk course API record."""
+    text = course.get("KTEXT") or ""
+    if not _has_text(text):
+        # Parallel levels of one course share a description; only one carries it.
+        title = (course.get("KTITEL") or "").strip()
+        text = next((c.get("KTEXT") or "" for c in courses
+                     if (c.get("KTITEL") or "").strip() == title and _has_text(c.get("KTEXT") or "")), "")
+    parts = [rc.clean_blocks(text)] if _has_text(text) else []
+    if (course.get("KUTITEL") or "").strip():
+        parts.insert(0, rc.clean(course["KUTITEL"]) + ".")
+    facts = []
+    if str(course.get("Anzahl") or "0") not in ("", "0"):
+        facts.append(f"{course['Anzahl']} Termine")
+    if (course.get("KLEITER") or "").strip():
+        facts.append(f"Kursleitung: {rc.clean(course['KLEITER'])}")
+    if str(course.get("Price") or "") not in ("", "0"):
+        price = f"Kursgebühr {course['Price']} Euro"
+        if str(course.get("Price_R") or "") not in ("", "0"):
+            price += f", ermäßigt {course['Price_R']} Euro"
+        facts.append(price)
+    if facts:
+        parts.append(". ".join(facts) + ".")
+    leader = course.get("KLEITER_TEXT") or ""
+    if _has_text(leader):
+        parts.append(rc.clean_blocks(leader))
+    return "\n\n".join(parts)
+
+
+def _brotfabrik_detail_fetcher() -> Callable[[str], str]:
+    """Copy for API rows without a description: course API, then Marabu pages."""
+    cache: dict[str, list] = {}
+
+    def fetch_detail(url: str) -> str:
+        idt = re.search(r"bildungswerk-brotfabrik\.de/workshops/\?IDT=(\d+)", url or "")
+        if idt:
+            if "courses" not in cache:
+                try:
+                    cache["courses"] = json.loads(common.fetch_url(
+                        _BILDUNGSWERK_COURSES_API, timeout=30, accept="application/json,*/*;q=0.8",
+                        sec_fetch_mode="cors", sec_fetch_dest="empty",
+                        headers={"Referer": "https://bildungswerk-brotfabrik.de/workshops/"},
+                    ))
+                except Exception as exc:
+                    common.log_source_error("Bildungswerk Brotfabrik Kurse", exc)
+                    cache["courses"] = []
+            courses = cache["courses"] if isinstance(cache["courses"], list) else []
+            course = next((c for c in courses if str(c.get("IDD_ext")) == idt.group(1)), None)
+            return _brotfabrik_course_description(course, courses) if course else ""
+        if "theater-marabu.de/stueck/" in (url or ""):
+            from . import theater_marabu
+            return theater_marabu._detail_description(url)
+        return ""
+
+    return fetch_detail
+
+
+def events_from_brotfabrik_items(items: list, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for item in items if isinstance(items, list) else []:
+        if detail_fetcher and not _has_text(item.get("Beschreibung") or "") and item.get("Url"):
+            item = {**item, "Beschreibung": detail_fetcher(item["Url"])}
         title = (item.get("Titel") or "").strip()
         start = common.parse_iso_date(item.get("Datum") or "")
         start = rc.with_time(start, item.get("Uhrzeit") or "")
@@ -397,7 +462,7 @@ def _fetch_brotfabrik() -> list:
             sec_fetch_dest="empty",
             headers={"Referer": _BROTFABRIK_URL},
         ))
-        events = events_from_brotfabrik_items(items)
+        events = events_from_brotfabrik_items(items, detail_fetcher=_brotfabrik_detail_fetcher())
         if events:
             return events
     except Exception as e:

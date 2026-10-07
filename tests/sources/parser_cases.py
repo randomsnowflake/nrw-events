@@ -1,3 +1,4 @@
+import json
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -534,6 +535,36 @@ class SourceParserTests(unittest.TestCase):
         self.assertEqual(events[1]["title"], "LaClinicA: Sin cepillo de dientes")
         self.assertEqual(events[1]["date"], "2026-07-04")
         self.assertEqual(events[1]["link"], "https://www.brotfabrik-theater.de/sin-cepillo-de-dientes/")
+
+    def test_brotfabrik_empty_course_rows_take_copy_from_course_api(self):
+        patch_window(self, datetime(2026, 11, 1), datetime(2026, 11, 30))
+        empty = "<html><body><p><font><br></font></p></body></html>"
+        courses = [
+            {"IDD_ext": "4497", "KTITEL": "Tango Argentino", "KUTITEL": "Anfänger ohne Vorkenntnisse",
+             "KTEXT": empty, "KLEITER": "Harald Rotter", "KLEITER_TEXT": empty,
+             "Anzahl": "8", "Price": "160", "Price_R": "112"},
+            {"IDD_ext": "4499", "KTITEL": "Tango Argentino ", "KTEXT": "<p>Tango Argentino ist ein Improvisationstanz.</p>"},
+        ]
+        fetched = []
+
+        def fetch(url, **kwargs):
+            fetched.append(url)
+            return json.dumps(courses)
+
+        row = {"Titel": "Tango Argentino", "Beschreibung": empty, "Ort": "", "Datum": "2026-11-02",
+               "Uhrzeit": "21:00:00", "Url": "https://bildungswerk-brotfabrik.de/workshops/?IDT=4497",
+               "Gewerk": "Bib", "Datumbis": "0000-00-00"}
+        with patch.object(bonn_venues.common, "fetch_url", side_effect=fetch):
+            fetcher = bonn_venues._brotfabrik_detail_fetcher()
+            events = bonn_venues.events_from_brotfabrik_items([row, {**row, "Uhrzeit": "19:30:00"}], detail_fetcher=fetcher)
+
+        self.assertEqual(len(fetched), 1)
+        description = events[0]["description"]
+        self.assertIn("Improvisationstanz", description)
+        self.assertIn("Anfänger ohne Vorkenntnisse", description)
+        self.assertIn("Harald Rotter", description)
+        self.assertIn("160 Euro", description)
+        self.assertEqual(events[0]["description_source"], "scraped")
 
     def test_brotfabrik_api_uses_explicit_marabu_department_as_stage_evidence(self):
         patch_window(self, datetime(2026, 9, 4), datetime(2026, 9, 4))

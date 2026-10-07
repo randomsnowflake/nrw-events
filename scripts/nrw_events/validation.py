@@ -932,6 +932,10 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         raise EventValidationError("time_invalid")
     _drop_clock_sentinels(event)
     event.update(canonical_visitor_fields(event, inferred_description_source))
+    if event["description_source"] == "scraped" and not event["description"].strip() and not richtext.to_plain_text(event.get("description_html") or "").strip():
+        # No copy is not source copy: an empty "scraped" label hides the
+        # event from AI summaries and from every content-gap check.
+        event["description_source"] = "generated"
     _drop_implausible_admission(event)
     event.update(canonical_identity_provenance(event))
     event.update(canonical_temporal_fields(event))

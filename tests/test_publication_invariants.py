@@ -100,6 +100,11 @@ class VisitorCopyTests(unittest.TestCase):
         copy = "Alle die mehr erfahren möchten, sind herzlich zu dieser Wanderung eingeladen."
         self.assertEqual(_canonical(description=copy)["description"], copy)
 
+    def test_empty_copy_is_never_labelled_as_source_copy(self):
+        event = _canonical(description="", description_html="<p><br></p>", description_source="scraped")
+        self.assertEqual((event["description"], event["description_source"]), ("", "generated"))
+        self.assertEqual(_canonical(description_source="scraped")["description_source"], "scraped")
+
     def test_truncated_copy_is_replaced_by_an_ai_summary(self):
         event = _canonical(description="Geboten wird alles rund um Kinder...")
         self.assertIn("publication.description-truncated", _rules(event))
