@@ -9,7 +9,8 @@ drucken") are page chrome, not visitor copy. Prose and practical lines
 from __future__ import annotations
 
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from . import richtext
 
@@ -33,11 +34,12 @@ _WIDGET_LINE = re.compile(
 )
 # Practical visitor facts survive even as short lines.
 _KEEP = re.compile(r"€|\beuro\b|eintritt|kostenlos|kostenfrei|anmeld|treffpunkt|\bab\s+\d+\s+jahren|mitzubringen|barrierefrei|ermäßigt|vvk|abendkasse", re.I)
-_LABELS = set(
-    "datum zeit uhrzeit uhr ort wann wo veranstaltungsort kategorien kategorie veranstaltungstyp details plätze platz frei "
-    "entgelt kursort kursnummer termine termin beginn einlass ende nur noch wenige wenig min max date s bis von am um "
-    "vorverkaufsstellen preise quelle veranstaltungskalender karte nrw tickets".split()
-)
+_LABELS = {
+    "datum", "zeit", "uhrzeit", "uhr", "ort", "wann", "wo", "veranstaltungsort", "kategorien", "kategorie",
+    "veranstaltungstyp", "details", "plätze", "platz", "frei", "entgelt", "kursort", "kursnummer", "termine", "termin",
+    "beginn", "einlass", "ende", "nur", "noch", "wenige", "wenig", "min", "max", "date", "s", "bis", "von", "am", "um",
+    "vorverkaufsstellen", "preise", "quelle", "veranstaltungskalender", "karte", "nrw", "tickets",
+}
 _JOIN_LABELS = {"veranstalter", "dozenten", "dozent", "dozentin", "leitung", "referent", "referentin"}
 _DROP_NEXT = {"telefon", "e-mail", "email", "fax", "website", "web"}
 
@@ -76,7 +78,7 @@ def clean(text: str, known: str) -> str:
             if _WIDGET_LINE.search(line):
                 continue
             rest = [w for w in _words(line) if w not in known_words and not any(ch.isdigit() for ch in w)]
-            if len(rest) < 4 and not _KEEP.search(line):
+            if (not rest or (len(rest) < 4 and re.search(r"\b\d{5}\b", line))) and not _KEEP.search(line):
                 continue
             kept.append(re.sub(r"\s+(?:Ort|Plätze|Entgelt|Datum|Zeit)\s*$", "", line))
         if kept:

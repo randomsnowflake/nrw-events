@@ -3,10 +3,19 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from nrw_events import page_chrome  # noqa: E402
+from nrw_events import page_chrome
 
 
 class PageChromeTests(unittest.TestCase):
+    def test_short_program_copy_survives_calendar_widgets(self):
+        for copy in ("Jazz und Soul.", "Rock und Pop", "Musik für Kinder"):
+            with self.subTest(copy=copy):
+                event = {"title": "Liveabend", "venue": "KULT41", "city": "Bonn",
+                         "description": f"{copy}\n\nZum Kalender hinzufügen"}
+                page_chrome.strip_page_chrome(event)
+                self.assertEqual(event["description"], copy)
+                self.assertIn(copy, event["description_html"])
+
     def test_wordpress_event_block_keeps_prose_and_price(self):
         event = {"title": "Tumult61", "venue": "KULT41", "city": "Bonn", "description": (
             "Wann\n\n08.10.26\n\n20:00 - 23:00\n\nEintritt: 0€\nZum Kalender hinzufügen ICS herunterladen Google Kalender "
