@@ -40,6 +40,10 @@ _LABELS = {
     "beginn", "einlass", "ende", "nur", "noch", "wenige", "wenig", "min", "max", "date", "s", "bis", "von", "am", "um",
     "vorverkaufsstellen", "preise", "quelle", "veranstaltungskalender", "karte", "nrw", "tickets",
 }
+# Headings whose following short lines are their values (category, venue, date), not copy.
+_HEADINGS = {"datum", "zeit", "uhrzeit", "datum/zeit", "ort", "wann", "wo", "veranstaltungsort", "kategorien", "kategorie",
+             "veranstaltungstyp", "kursort", "termine", "termin"}
+_ADDRESS = re.compile(r"\b\d{5}\b|(?:straße|str\.|weg|platz|ring|allee|gasse|ufer|damm)\s+\d", re.I)
 _JOIN_LABELS = {"veranstalter", "dozenten", "dozent", "dozentin", "leitung", "referent", "referentin"}
 _DROP_NEXT = {"telefon", "e-mail", "email", "fax", "website", "web"}
 
@@ -57,7 +61,8 @@ def clean(text: str, known: str) -> str:
     blocks: list[list[str]] = []
     pending_label = ""
     skip_next = False
-    for block in re.split(r"\n\s*\n", text):
+    values_until = -1  # last block index that may still hold heading values
+    for index, block in enumerate(re.split(r"\n\s*\n", text)):
         kept: list[str] = []
         for raw in block.split("\n"):
             line = raw.strip()
@@ -70,6 +75,9 @@ def clean(text: str, known: str) -> str:
             if bare in _DROP_NEXT:
                 skip_next = True
                 continue
+            if bare in _HEADINGS:
+                values_until = index + 1  # values share the heading's block or follow in the next one
+                continue
             if bare in _JOIN_LABELS:
                 pending_label = line.rstrip(":").strip()
                 continue
@@ -78,7 +86,11 @@ def clean(text: str, known: str) -> str:
             if _WIDGET_LINE.search(line):
                 continue
             rest = [w for w in _words(line) if w not in known_words and not any(ch.isdigit() for ch in w)]
-            if (not rest or (len(rest) < 4 and re.search(r"\b\d{5}\b", line))) and not _KEEP.search(line):
+            short = len(rest) < 4 and not _KEEP.search(line)
+            if index <= values_until and short and not line.endswith((".", "!", "?")):
+                continue
+            values_until = -1
+            if short and (not rest or _ADDRESS.search(line)):
                 continue
             kept.append(re.sub(r"\s+(?:Ort|Plätze|Entgelt|Datum|Zeit)\s*$", "", line))
         if kept:
