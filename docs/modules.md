@@ -176,6 +176,7 @@ scripts/nrw_events/
     siebengebirge.py
     siegburg.py
     ssf_bonn.py
+    telekom_baskets.py
     theater_bonn.py
     theater_im_ballsaal.py
     theater_marabu.py

@@ -15,6 +15,12 @@
         "url": "https://www.harmonie-bonn.de/?post_type=tribe_events&ical=1",
         "path": "harmonie-bonn/rockpalast-2026.ics"
       }
+    ],
+    "telekom-baskets-bonn": [
+      {
+        "url": "https://calendar.google.com/calendar/ical/4uhevpalgjlrql674cdkdjupoo%40group.calendar.google.com/public/basic.ics",
+        "path": "telekom-baskets-bonn/calendar-2026-10-08.ics"
+      }
     ]
   }
 }

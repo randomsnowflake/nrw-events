@@ -217,6 +217,13 @@
       "callable": "nrw_events.sources.harmonie:fetch"
     },
     {
+      "id": "telekom-baskets-bonn",
+      "display_name": "Telekom Baskets Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.telekom_baskets:fetch"
+    },
+    {
       "id": "haus-der-geschichte",
       "display_name": "Haus der Geschichte",
       "region": "bonn-region",

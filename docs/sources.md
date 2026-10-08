@@ -100,6 +100,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Studierendenwerk Bonn | `studierendenwerk-bonn` | `python` |
 | bonn-region | Swisttal | `swisttal` | `html` |
 | bonn-region | Tanzschule Max7 | `tanzschule-max7` | `python` |
+| bonn-region | Telekom Baskets Bonn | `telekom-baskets-bonn` | `python` |
 | bonn-region | Theater Bonn | `theater-bonn` | `python` |
 | bonn-region | Theater im Ballsaal | `theater-im-ballsaal` | `python` |
 | bonn-region | Theater Marabu | `theater-marabu` | `python` |
