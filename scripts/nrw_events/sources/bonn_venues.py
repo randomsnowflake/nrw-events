@@ -285,7 +285,8 @@ def _brotfabrik_detail_fetcher() -> Callable[[str], str]:
 
 def events_from_brotfabrik_items(items: list, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
-    for item in items if isinstance(items, list) else []:
+    for raw_item in items if isinstance(items, list) else []:
+        item = raw_item
         if detail_fetcher and not _has_text(item.get("Beschreibung") or "") and item.get("Url"):
             item = {**item, "Beschreibung": detail_fetcher(item["Url"])}
         title = (item.get("Titel") or "").strip()
