@@ -255,6 +255,9 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         self.assertTrue(all(event["venue"] == "Freizeitpark Rheinbach" for event in events))
         self.assertTrue(all(event["venue_address"] == "Münstereifeler Straße 69" for event in events))
         self.assertTrue(all(event["source_id"] == "rheinbach-freizeitpark-flohmarkt" for event in events))
+        # The off-season page announces next year's list under a year heading.
+        next_year = html.replace("<h3>Nächster Flohmarkttermin:</h3>", "Flohmarkttermine 2026:")
+        self.assertEqual(rheinbach_flohmarkt._events_from_page(next_year, strict=True), events)
 
     def test_rheinbach_refuses_page_without_private_flea_market_contract(self):
         html = """

@@ -39,6 +39,11 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
                 str(t or "").strip().rstrip("/").rsplit("/", 1)[-1].endswith("Event")
                 for t in types
             ):
+                description = obj.get("description")
+                if isinstance(description, str):
+                    # The Events Calendar (WordPress) double-escapes line breaks,
+                    # so decoded copy carries a literal backslash-n per break.
+                    obj["description"] = re.sub(r"\\r\\n|\\[nr]", "\n", description)
                 items.append(obj)
             for value in obj.values():
                 walk(value)

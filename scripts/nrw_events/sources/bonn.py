@@ -126,7 +126,7 @@ _KNOWN_SOURCE_CATEGORIES = (
         # They are known metadata dimensions, not canonical event formats; keep
         # them neutral instead of reporting the same false taxonomy drift on
         # every refresh.
-        "100 Jahre Bad Godesberg", "30 Jahre UN-Stadt Bonn",
+        "100 Jahre Bad Godesberg", "30 Jahre UN-Stadt Bonn", "Bonn hilft Cherson",
         "Aktiv gegen Einsamkeit", "Bad Godesberg", "Beethoven",
         "Beethoven-Orchester", "Beethovenhalle", "Beuel",
         "Bürgerschaftliches Engagement", "Demokratie", "Digitales/Bildung",

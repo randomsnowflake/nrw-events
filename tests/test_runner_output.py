@@ -91,6 +91,17 @@ class RunnerOutputTests(unittest.TestCase):
         self.assertEqual(result.baseline["previous_raw_event_count"], 12)
         self.assertIn("zero_after_recent_nonempty", result.anomalies)
 
+    def test_empty_run_keeps_last_event_end_and_previous_status(self):
+        result = SourceResult("Quelle")
+        runner._attach_baselines(
+            {"Quelle": result},
+            {"Quelle": {"status": "healthy", "raw_event_count": 1, "last_event_end": "2026-09-07"}},
+            10,
+        )
+
+        self.assertEqual(result.last_event_end, "2026-09-07")
+        self.assertEqual(result.baseline["previous_status"], "healthy")
+
     def test_run_status_fails_on_snapshot_collapse_or_majority_source_failure(self):
         healthy = SourceResult("Healthy", event_source_ids=["healthy"])
         healthy.status = SourceStatus.HEALTHY
@@ -2678,9 +2689,12 @@ class SnapshotPublicationTests(unittest.TestCase):
         self.assertEqual(metadata["source_results"]["Optional Source"]["status"], "disabled")
 
     def test_invalid_source_records_are_quarantined_with_reason_counts(self):
+        days = []
+
         def mixed_fetch():
+            days.append(common.runtime_window().start.strftime("%Y-%m-%d"))
             return [{
-                "title": "Valid", "date": common.runtime_window().start.strftime("%Y-%m-%d"), "time": "", "venue": "", "city": "Bonn",
+                "title": "Valid", "date": days[0], "time": "", "venue": "", "city": "Bonn",
                 "description": "", "price": "", "link": "https://example.test", "distance_km": 0,
                 "score": 1.0, "source": "Mixed", "category": "concert",
             }, {"title": "Invalid", "score": 1.0, "source": "Mixed"}]
@@ -2699,6 +2713,7 @@ class SnapshotPublicationTests(unittest.TestCase):
         result = metadata["source_results"]["Mixed"]
         self.assertEqual(result["accepted_event_count"], 1)
         self.assertEqual(result["rejection_reasons"], {"start_date_missing_or_invalid": 1})
+        self.assertEqual(result["last_event_end"], days[0])
 
     def test_recent_nonempty_source_drop_is_recorded_as_baseline_anomaly(self):
         result = runner.SourceResult(source="Source", raw_event_count=0)

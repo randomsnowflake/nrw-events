@@ -70,6 +70,10 @@ def select_publication(context: RunContext, batch: SourceBatch, previous: dict) 
             for event in resolved_events
         )
         radio_result.cancelled_events.extend(resolution.cancellations)
+    for event in all_events:
+        owner = _impl_retention_policy._source_result_for_event(event, source_results)
+        if owner is not None and event.end_date > owner.last_event_end:
+            owner.last_event_end = event.end_date
     _impl_retention_policy._attach_baselines(source_results, previous_results, settings.source_baseline_min_count)
     filtered: list[CanonicalEvent] = []
     early_candidates: list[CanonicalEvent] = []

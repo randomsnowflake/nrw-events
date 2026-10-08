@@ -32,3 +32,12 @@ class JsonLdBlockIdentityTests(unittest.TestCase):
                     '</script>')
         events = jsonld.jsonld_event_items(document)
         self.assertEqual([event['name'] for event in events], ['Street Food Festival Bonn'])
+
+    def test_double_escaped_description_breaks_become_newlines(self):
+        # harmonie-bonn.de (The Events Calendar) emits "<br />\\n" in JSON-LD.
+        document = ('<script type="application/ld+json">'
+                    '{"@type": "Event", "name": "Knippschaff", '
+                    '"description": "&lt;p&gt;Zeile eins&lt;br /&gt;\\\\nZeile zwei\\\\r\\\\n&lt;/p&gt;"}'
+                    '</script>')
+        [event] = jsonld.jsonld_event_items(document)
+        self.assertEqual(event['description'], '&lt;p&gt;Zeile eins&lt;br /&gt;\nZeile zwei\n&lt;/p&gt;')

@@ -152,6 +152,8 @@ class SourceResult:
     endpoints: dict[str, dict[str, Any]] = field(default_factory=dict)
     baseline: dict[str, Any] = field(default_factory=dict)
     last_nonempty_raw_event_count: int = 0
+    # Latest parsed end date (YYYY-MM-DD), carried through empty runs to tell season end from parser drift.
+    last_event_end: str = ""
     anomalies: list[str] = field(default_factory=list)
     duration_ms: int = 0
     ai_duration_ms: int = 0
@@ -298,6 +300,7 @@ class SourceResult:
             "endpoints": self.endpoints,
             "baseline": self.baseline,
             "last_nonempty_raw_event_count": self.last_nonempty_raw_event_count,
+            "last_event_end": self.last_event_end,
             "anomalies": self.anomalies,
             "duration_ms": self.duration_ms,
             "ai_duration_ms": self.ai_duration_ms,

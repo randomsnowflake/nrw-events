@@ -25,7 +25,7 @@ _SPEC = FixedMarketSpec(
 def _events_from_page(html: str, *, strict: bool = False) -> list:
     clean = common.clean_html(html or "")
     schedule_match = re.search(
-        r"Nächster\s+Flohmarkttermin:(.*?)(?:Reservierung|Verkaufszeiten)",
+        r"(?:Nächster\s+Flohmarkttermin|Flohmarkttermine\s+20\d{2}):(.*?)(?:Reservierung|Verkaufszeiten)",
         clean,
         re.S | re.I,
     )

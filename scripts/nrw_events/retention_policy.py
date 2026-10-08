@@ -409,6 +409,8 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
             result.anomalies.append("zero_candidates_from_nonempty_body")
         prior = previous.get(name, {})
         prior_status = prior.get("status")
+        if not result.last_event_end:
+            result.last_event_end = str(prior.get("last_event_end") or "")
         prior_count = (
             prior.get("last_nonempty_raw_event_count")
             if prior_status in {SourceStatus.SCHEDULED_SKIP.value, SourceStatus.DISABLED.value}
@@ -421,7 +423,7 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
             if result.raw_event_count > 0
             else int(prior.get("last_nonempty_raw_event_count") or prior_count or 0)
         )
-        result.baseline = {"previous_raw_event_count": prior_count}
+        result.baseline = {"previous_raw_event_count": prior_count, "previous_status": prior_status}
         if prior_count >= minimum_count and result.raw_event_count == 0:
             result.anomalies.append("zero_after_recent_nonempty")
         elif prior_count >= minimum_count and result.raw_event_count * 2 < prior_count:
