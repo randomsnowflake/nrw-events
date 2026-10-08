@@ -32,6 +32,8 @@ def _title_key(event: CanonicalEvent | dict) -> str:
         start=parse_iso_date(str(event.get("start_date") or event.get("date") or "")),
         end=parse_iso_date(str(event.get("end_date") or "")),
         source=str(event.get("source") or ""),
+        venue=str(event.get("venue") or ""),
+        city=str(event.get("city") or ""),
     )
     return comparison_text(strip_status_markers(title, str(event.get("status") or "")))
 

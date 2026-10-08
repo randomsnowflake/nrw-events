@@ -46,7 +46,7 @@ class BonnMarketSourceTests(unittest.TestCase):
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["city"], "Siegburg")
-        self.assertEqual(events[0]["title"], "Siegburg, Trödelmarkt beim KAUFLAND")
+        self.assertEqual(events[0]["title"], "Siegburg, Trödelmarkt beim Kaufland")
 
     def test_hoffloh_keeps_scheduled_neighborhoods_and_skips_planned_entries(self):
         payload = {

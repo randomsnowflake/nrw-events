@@ -63,6 +63,13 @@
           "scope": "all",
           "weight": 1.0,
           "comment": "forced override"
+        },
+        {
+          "value": "rockpalast",
+          "match_mode": "word",
+          "scope": "title",
+          "weight": 1.0,
+          "comment": "WDR concert series; its \"Rockpalast-Festival\" nights are band concerts, not a public festival"
         }
       ]
     },

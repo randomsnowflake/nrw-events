@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import replace
 from typing import Any
@@ -11,7 +12,7 @@ from . import dedup_index as _impl_dedup_index
 from . import dedup_merge as _impl_dedup_merge
 from . import dedup_rules as _impl_dedup_rules
 from . import duplicate_identity as _impl_duplicate_identity
-from .models import CanonicalEvent
+from .models import CanonicalEvent, normalize_source_id
 from .normalization import comparison_text
 
 
@@ -24,6 +25,40 @@ def _series_place_key(event: Any) -> str:
     return f"label:{city}\n{venue}" if venue else ""
 
 
+_TICKET_BUNDLE_TITLE = re.compile(
+    r"\b(?:\d+|zwei|drei|vier|fuenf|funf) tages (?:karte|ticket|pass)\b"
+    r"|\b(?:festival|kombi|wochenend) ?(?:pass|ticket|karte)\b"
+)
+
+
+def _suppress_covered_ticket_bundles(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
+    """Drop a multi-day pass whose nights the same source also lists one by one.
+
+    A venue sells "4-Tages-Karte" next to every festival night. The pass is a
+    ticket product, not another occurrence; it stays only when no single-day
+    record of the same source and place falls inside its date range.
+    """
+    nights: defaultdict[tuple[str, str], list[str]] = defaultdict(list)
+    bundles: list[CanonicalEvent] = []
+    for event in events:
+        start_date = str(event.get("start_date") or "")
+        end_date = str(event.get("end_date") or start_date)
+        if _TICKET_BUNDLE_TITLE.search(comparison_text(str(event.get("title") or ""))) and end_date > start_date:
+            bundles.append(event)
+        elif start_date and start_date == end_date:
+            nights[(normalize_source_id(event.get("source_id") or event.get("source")), _series_place_key(event))].append(start_date)
+    covered = {
+        id(bundle) for bundle in bundles
+        if _series_place_key(bundle) and any(
+            str(bundle.get("start_date")) <= night <= str(bundle.get("end_date"))
+            for night in nights.get(
+                (normalize_source_id(bundle.get("source_id") or bundle.get("source")), _series_place_key(bundle)), (),
+            )
+        )
+    }
+    return [event for event in events if id(event) not in covered] if covered else events
+
+
 def suppress_redundant_series_umbrellas(
     events: list[CanonicalEvent],
 ) -> list[CanonicalEvent]:
@@ -34,7 +69,9 @@ def suppress_redundant_series_umbrellas(
     into an arbitrary child.  Only a single-day umbrella whose exact title is a
     higher-authority event's explicit ``series_title`` is removed.  Uncovered
     dates, different venues, peers, and multi-day fallbacks remain publishable.
+    Covered multi-day ticket bundles are dropped first.
     """
+    events = _suppress_covered_ticket_bundles(events)
     programme_rows = defaultdict(list)
     for event in events:
         series_title = comparison_text(str(event.get("series_title") or ""))

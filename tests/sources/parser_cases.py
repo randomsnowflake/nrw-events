@@ -645,7 +645,7 @@ END:VCALENDAR
             events = bonn_venues._fetch_vox_bona()
 
         self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["title"], "Felix Mendelssohn Bartholdy · ELIAS")
+        self.assertEqual(events[0]["title"], "Felix Mendelssohn Bartholdy · Elias")
 
     def test_koeln_open_data_accepts_decimal_comma_coordinates(self):
         payload = {

@@ -9,6 +9,12 @@
         "url": "https://www.uni-bonn.de/de/veranstaltungen/sommerkonzert-internationaler-chor-1",
         "path": "uni-bonn/choir-detail.html"
       }
+    ],
+    "harmonie-bonn": [
+      {
+        "url": "https://www.harmonie-bonn.de/?post_type=tribe_events&ical=1",
+        "path": "harmonie-bonn/rockpalast-2026.ics"
+      }
     ]
   }
 }

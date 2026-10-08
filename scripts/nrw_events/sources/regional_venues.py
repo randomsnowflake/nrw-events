@@ -1,9 +1,12 @@
 """Venue-specific calendars for the Bonn/Rhein-Sieg import proposal."""
 
 import re
+from collections.abc import Callable
+from datetime import datetime
 from html import unescape
 
 from .. import common
+from ..models import RawEvent
 from . import regional_common as rc
 
 
@@ -78,7 +81,7 @@ def _rhein_sieg_forum_title(block: str, href: str) -> str:
     return rc.clean(alt.group(1)) if alt else rc.title_from_href(href)
 
 
-def _events_from_rheinbach(html: str, detail_fetcher=None) -> list:
+def _events_from_rheinbach(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for block in re.findall(r'<div class="row event-item.*?(?=<div class="row event-item|<button class="event-more-button")',
                             html, re.S | re.I):
@@ -158,7 +161,7 @@ def _rheinbach_categories(block: str) -> list[str]:
     ]
 
 
-def _rheinbach_detail_copy(link: str, detail_fetcher) -> str:
+def _rheinbach_detail_copy(link: str, detail_fetcher: Callable[[str], str] | None) -> str:
     if not (link and detail_fetcher):
         return ""
     try:
@@ -262,7 +265,7 @@ def _events_from_clickaround(html: str, base: str) -> list:
     return events
 
 
-def _clickaround_events_for_date(chunk: str, current_date, base: str) -> list:
+def _clickaround_events_for_date(chunk: str, current_date: datetime, base: str) -> list:
     events = []
     for item in re.findall(r'<div class="item">(.*?)</div>\s*</div>', chunk, re.S | re.I):
         link = re.search(r'href="([^"]+)"[^>]+aria-label="Mehr Infos - ([^"]+)"', item, re.S | re.I)
@@ -301,7 +304,7 @@ def _events_from_lvr(html: str) -> list:
     return events
 
 
-def _event_from_lvr_body(body: str):
+def _event_from_lvr_body(body: str) -> RawEvent | None:
     # The listing's navigation anchor is not publisher-authored event copy.
     # Remove by class rather than deleting legitimate prose ending in 'mehr'.
     copy_body = re.sub(
@@ -313,6 +316,10 @@ def _event_from_lvr_body(body: str):
     hay = rc.clean(data.group(1) if data else text)
     parts = [part.strip() for part in hay.split(",")]
     title = parts[1] if len(parts) > 1 else ""
+    # The filter attribute is lowercased; the card heading carries the publisher's casing.
+    heading_at = text.lower().find(title.lower()) if title else -1
+    if heading_at >= 0 and text[heading_at:heading_at + len(title)].lower() == title.lower():
+        title = text[heading_at:heading_at + len(title)]
     date = re.search(r"(\d{1,2})\.(\d{1,2})\.\s*(\d{1,2}:\d{2})", hay)
     if not (title and date):
         return None

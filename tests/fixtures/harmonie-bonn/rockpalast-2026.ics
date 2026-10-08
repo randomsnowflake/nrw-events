@@ -1,0 +1,103 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Harmonie Bonn - ECPv6.17.5.1//NONSGML v1.0//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Harmonie Bonn
+X-ORIGINAL-URL:https://www.harmonie-bonn.de
+X-WR-CALDESC:Veranstaltungen für Harmonie Bonn
+REFRESH-INTERVAL;VALUE=DURATION:PT1H
+X-Robots-Tag:noindex
+X-PUBLISHED-TTL:PT1H
+BEGIN:VTIMEZONE
+TZID:Europe/Berlin
+BEGIN:DAYLIGHT
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+TZNAME:CEST
+DTSTART:20250330T010000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+TZNAME:CET
+DTSTART:20251026T010000
+END:STANDARD
+BEGIN:DAYLIGHT
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+TZNAME:CEST
+DTSTART:20260329T010000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+TZNAME:CET
+DTSTART:20261025T010000
+END:STANDARD
+BEGIN:DAYLIGHT
+TZOFFSETFROM:+0100
+TZOFFSETTO:+0200
+TZNAME:CEST
+DTSTART:20270328T010000
+END:DAYLIGHT
+BEGIN:STANDARD
+TZOFFSETFROM:+0200
+TZOFFSETTO:+0100
+TZNAME:CET
+DTSTART:20271031T010000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:20261007T191400
+DTEND;TZID=Europe/Berlin:20261010T222000
+DTSTAMP:20260724T124233Z
+CREATED:20260521T105308Z
+LAST-MODIFIED:20260724T124233Z
+UID:10000989-1791400440-1791670800@www.harmonie-bonn.de
+SUMMARY:WDR ROCKPALAST – 4 -TAGES-KARTE – «WDR Rockpalast-Festival – TV-Aufzeichnung» 07.10. – 10.10.2026
+DESCRIPTION:ROCKPALAST FESTIVAL \nBeginn jeweils 19:15 Uhr \nMittwoch\, 7.10.          ENGIN  + PERSONAL TRAINER \nDonnerstag\, 8.10.      HENGE + KOMBYNAT ROBOTRON \nFreitag\, 9.10.              JERRY LEGER  + WREST  \nSamstag\, 10.10.         MARLO GROSSHARDT + CRIMSON \n  \nVeranstalter: In-Takt Veranstaltungs GmbH
+URL:https://www.harmonie-bonn.de/veranstaltung/wdr-rockpalast-4-tages-karte-wdr-rockpalast-festival-tv-aufzeichnung-07-10-10-10-2026/
+CATEGORIES:Concert
+ATTACH;FMTTYPE=image/png:https://www.harmonie-bonn.de/wp-content/uploads/2026/05/Rockpalast-2026-07-24-144053.png
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:20261008T191500
+DTEND;TZID=Europe/Berlin:20261008T191500
+DTSTAMP:20260608T081222Z
+CREATED:20260520T142150Z
+LAST-MODIFIED:20260608T081222Z
+UID:10000987-1791486900-1791486900@www.harmonie-bonn.de
+SUMMARY:HENGE + KOMBYNAT ROBOTRON «WDR Rockpalast-Festival - TV-Aufzeichnung»
+DESCRIPTION:Kilometerhohe Soundwände werden aufgetürmt und zerschlagen\, repetitive\, mit Fuzz beladene Basspatterns und fliegende Drums bilden das Fundament für wirbelnde Gitarrensoli und Noiserock-Eskapaden aus denen sich bisweilen eine effektbeladene Stimmt schält. Kombynat Robotron erschaffen einen hypnotischen Sound\, in dem die Grenzen zwischen Krautrock\, Noise\, Psychedelic und Punk verschwimmen und verschwinden.\nIhr jüngstes\, von Kritik und Fans gleichermaßen gefeiertes Album AANK\, im Sommer 2025 über FUZZ CLUB veröffentlicht\, zeigt eine Band\, die sich konsequent und zu ihren eigenen Bedingungen weiterentwickelt\, ohne dabei ihre musikalischen Wurzeln zu unterschlagen. \nKombynat Robotron haben sich seit Gründung der Band 2018 zu einem festen Bestandteil der europäischen Underground-Rock-Szene entwickelt. Davon zeugen Sets auf Festivals wie dem Fuzz Club Festival in Eindhoven\, Freak Valley Festival\, Desertfest Berlin\, Stoned From The Underground und Krach am Bach sowie Albumveröffentlichungen mit Labels mit FUZZ CLUB\, Tonzonen Records\, Drone Rock Records\, Clostridium Records. \nDas Kombynat hat bereits mit Bands wie Elder\, Goat und Domkraft die Bühne geteilt. Ebenfalls im Portfolio: Eine Großbritannien-Tour mit einem Headliner-Slot beim legendären Kozfest in Südengland.\nEgal ob auf internationalen Festivals oder in kleinen\, verrauchten Clubs – ihre Live-Shows gelten als energetische Soundtrips auf dem schmalen Grat zwischen Chaos und dem zarten Gefühl von Kontrolle. \nFür 2026 sind zwei Clubtouren und diverse Festivalshows in ganz Europa geplant\, u.a. beim Eurosonic in Groningen\, Fuzz Club Festival und Keep It Low Festival.\nWir fliegen zu den Sternen.\nRobotron over. \nKombynat Robotron ist:\nJannes Ihnen – Gitarre/Gesang | Claas Ogorek – Bass | Tommy Handschick – Schlagzeug \nVeranstalter: In-Takt Veranstaltungs GmbH
+URL:https://www.harmonie-bonn.de/veranstaltung/henge-kombynat-robotron-wdr-rockpalast-festival-tv-aufzeichnung/
+CATEGORIES:Concert
+ATTACH;FMTTYPE=image/jpeg:https://www.harmonie-bonn.de/wp-content/uploads/2026/05/HENGE-WDR-2.jpg
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:20261009T191500
+DTEND;TZID=Europe/Berlin:20261009T191500
+DTSTAMP:20260608T083338Z
+CREATED:20260521T103825Z
+LAST-MODIFIED:20260608T083338Z
+UID:10000988-1791573300-1791573300@www.harmonie-bonn.de
+SUMMARY:WREST + JERRY LEGER - >>WDR Rockpalast-Festival - TV-Aufzeichnung
+DESCRIPTION:Mit einem feinen Gespür für Sprache\, Melodie und Atmosphäre verbindet der kanadische Musiker Folk\, Country und Rock zu Songs von zeitloser Schönheit. Ron Sexsmith bringt es auf den Punkt: „Jerry Leger besitzt jenen Funken\, der alle großen Songwriter auszeichnet. Er ist ein echtes Original.“ Seine Musik lebt von leiser Intensität\, poetischer Melancholie und einem lakonischen Humor\, der nie aufgesetzt wirkt. UNCUT lobt seinen „sanft sardonischen\, pointierten Wortwitz“\, und ergänzt „Herzschmerz hat selten so eindringlich geklungen“\, während der Rolling Stone feststellt: „Songwriter wie Jerry Leger sind heutzutage selten geworden.“ Stilistisch bewegt sich Leger in einem Raum\, der tapeziert ist mit Erinnerungen an Nick Lowe\, an Lucinda Williams oder auch an Blue Rodeo – und die Beatles schweben über allem. \nMit seinem feinsinnigen Songwriting und seinen literarischen Texten hat er sich international einen Ruf als außergewöhnlicher Geschichtenerzähler erarbeitet\, dessen Songs von emotionaler Tiefe geprägt sind. Er wird geschätzt als authentische Stimme jenseits kurzlebiger Trends – und als ein Songwriter\, der auf der Bühne sofort Nähe herstellt. Seine Konzerte leben von einer ruhigen\, eindringlichen Intensität und Legers zugewandter Art. \nEr nimmt sein Publikum ernst und lädt es ein\, sich Zeit zu nehmen. Oder\, wie Doug Paisley es sagt: „Man sollte sich die Zeit nehmen\, Jerry Leger wirklich zuzuhören.“ Ein Auftritt von Jerry Leger ist kein lautes Spektakel\, sondern ein nachhaltiges Live-Erlebnis. \nVeranstalter: In-Takt Veranstaltungs GmbH
+URL:https://www.harmonie-bonn.de/veranstaltung/wrest-jerry-leger-wdr-rockpalast-festival-tv-aufzeichnung/
+CATEGORIES:Concert
+ATTACH;FMTTYPE=image/jpeg:https://www.harmonie-bonn.de/wp-content/uploads/2026/05/Wrest-WDR-2.jpg
+END:VEVENT
+BEGIN:VEVENT
+DTSTART;TZID=Europe/Berlin:20261010T191500
+DTEND;TZID=Europe/Berlin:20261010T191500
+DTSTAMP:20260608T083855Z
+CREATED:20260601T155223Z
+LAST-MODIFIED:20260608T083855Z
+UID:10000991-1791659700-1791659700@www.harmonie-bonn.de
+SUMMARY:MARLO GROSSHARDT + CRIMSON BLOOM - «WDR Rockpalast-Festival - TV-Aufzeichnung»
+DESCRIPTION:Crimson Bloom wurde im Juni 2023 gegründet – mit dem Anspruch\, energiegeladenen Alternative Rock mit emotionaler Tiefe und modernen Klangwelten zu verbinden. Seitdem hat sich die Band als aufstrebender Act in der deutschen Rockszene etabliert.\nDas Management übernimmt Michael Czernicki\, der die künstlerische Vision der Band strategisch begleitet und ihre Entwicklung gezielt vorantreibt. Live konnte Crimson Bloom früh überzeugen: Mitreißende Shows beim Emergenza Bandcontest sowie Tourstops im Rahmen der LEAP Tour verschafften der Band Aufmerksamkeit über die lokalen Grenzen hinaus. Ihr authentischer Sound und die intensive Bühnenpräsenz haben ihnen eine stetig wachsende Fanbase eingebracht.\nSeit Kurzem arbeitet Crimson Bloom mit der All Artists Agency im Bereich Booking zusammen – ein wichtiger Schritt in Richtung professioneller Tourplanung und Festivalpräsenz. Mit klarer künstlerischer Identität\, starken Performances und wachsendem Rückhalt in der Szene ist Crimson Bloom bereit für die nächste Etappe ihrer musikalischen Reise. \nVeranstalter: In-Takt Veranstaltungs GmbH
+URL:https://www.harmonie-bonn.de/veranstaltung/marlo-grosshardt-crimson-bloom-wdr-rockpalast-festival-tv-aufzeichnung/
+CATEGORIES:Concert
+ATTACH;FMTTYPE=image/jpeg:https://www.harmonie-bonn.de/wp-content/uploads/2026/06/Grosshardt-WDR-2.jpg
+END:VEVENT
+END:VCALENDAR

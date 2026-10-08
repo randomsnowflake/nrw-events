@@ -945,6 +945,8 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         start=common.parse_iso_date(event["start_date"]),
         end=common.parse_iso_date(event["end_date"]),
         source=event["source"],
+        venue=event["venue"],
+        city=event["city"],
     )
     _visitor_copy_quality(event)
     _drop_placeholder_clock_sentences(event)

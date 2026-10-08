@@ -406,7 +406,7 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assert_food_events(events, 2)
         self.assertEqual(
             events[0]["title"],
-            "Schokoladen Tasting: DIE WELT DER SCHOKOLADE ENTDECKEN - EINSTEIGER",
+            "Schokoladen Tasting: Die Welt der Schokolade Entdecken - Einsteiger",
         )
         self.assertEqual([event["time"] for event in events], ["19:00–20:30", "19:00–22:00"])
         self.assertEqual([event["start_date"] for event in events], ["2026-07-31", "2026-08-07"])
