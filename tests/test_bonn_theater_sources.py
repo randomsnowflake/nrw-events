@@ -202,13 +202,90 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertNotIn("fantasievolle Familienaufführung", events[2]["description"])
         self.assert_canonical(events[0], "junges-theater-bonn")
 
+    def test_theater_bonn_reads_ticket_status_premiere_video_and_labelled_header_facts(self):
+        payload = [{
+            "id": 46,
+            "url": "/de/programm/tosca/46",
+            "title": "Tosca",
+            "date_full": "08.09.2026",
+            "date_time": "19:30 Uhr",
+            "description": "Puccinis Oper über Liebe und Macht in Rom.",
+            "status": "premiere",
+            "video_url": "https://vimeo.com/123",
+            "categories": [{"name": "Oper"}],
+            "tags": [{"name": "Oper"}, {"name": "Opernhaus"}],
+            "ticket": {"status": "sold-out"},
+        }, {
+            "id": 47,
+            "url": "/de/programm/werther/47",
+            "title": "Werther",
+            "date_full": "09.09.2026",
+            "date_time": "19:30 Uhr",
+            "description": "Goethes Briefroman als Schauspiel.",
+            "status": "zum-letzten-mal",
+            "categories": [{"name": "Schauspiel"}],
+            "tags": [{"name": "Schauspiel"}, {"name": "Kammerspiele"}],
+            "ticket": {"status": "restkarten"},
+        }]
+        pages = {
+            "https://www.theater-bonn.de/de/programm/tosca/46": """
+                <header><span class="subtitle"><p>Giacomo Puccini</p>
+                <p>&ndash;In italienischer Sprache mit &Uuml;bertiteln in Deutsch und Englisch&ndash;</p>
+                <p><strong>Musikalische Leitung</strong>: <a href="/x">Dirk Kaftan</a> | <strong>Regie</strong>: Silvia Gatto</p>
+                Altersempfehlung ab 12 Jahren | 2 Stunden, 20 Minuten inkl. einer Pause</span></header>
+                <div class="readmore-text"><p>Langtext.</p></div>
+            """,
+            "https://www.theater-bonn.de/de/programm/werther/47": """
+                <header><span class="subtitle"><p>nach Goethe</p>
+                <p><strong>Deutschlandpremiere&nbsp;</strong>| 9 Tänzer</p>
+                10+ <span class="pipe"></span> ca. 2 Stunden</span></header>
+            """,
+        }
+
+        tosca, werther = theater_bonn.events_from_payload(payload, detail_fetcher=pages.__getitem__)
+
+        self.assertEqual(tosca["availability"], "SoldOut")
+        self.assertEqual(tosca["details"], {
+            "language": "In italienischer Sprache mit Übertiteln in Deutsch und Englisch",
+            "performers": ["Musikalische Leitung: Dirk Kaftan", "Regie: Silvia Gatto"],
+            "age": "ab 12 Jahren",
+            "performance": "premiere",
+            "video_url": "https://vimeo.com/123",
+        })
+        self.assertEqual(werther["availability"], "LimitedAvailability")
+        self.assertEqual(werther["details"], {"age": "ab 10 Jahren", "performance": "final"})
+        canonical = canonicalize_event(tosca)
+        self.assertEqual(canonical.details["performance"], "premiere")
+        self.assertEqual(canonical.availability, "SoldOut")
+
+    def test_junges_theater_reads_sold_out_status_and_age_recommendation(self):
+        html = """
+        <div class="event-list-rowflex"><div class="cal-date">05.09.2026</div>
+          <div class="event-flex-item one">
+            <div class="cal-list-item clearfix">
+              <div class="event-title"><a href="stuecke/percy/">Percy Jackson</a></div>
+              <div class="tickets pull-left"><div>11:00 Uhr</div></div><div class="tickets pull-right"> ausverkauft </div>
+            </div>
+          </div>
+          <div class="event-flex-item two"></div><div class="event-flex-item three"></div>
+        </div>
+        """
+        page = """
+            <meta name="description" content="Ein Musical über einen Halbgott auf der Bühne.">
+            <p>Altersempfehlung: <a href="stuecke/unsere-altersempfehlungen/">ab 10 Jahren</a></p>
+        """
+        [event] = junges_theater_bonn.events_from_html(html, lambda _url: page)
+        self.assertEqual(event["availability"], "SoldOut")
+        self.assertEqual(event["details"], {"age": "ab 10 Jahren"})
+        self.assertIn("Halbgott", event["description"])
+
     def test_marabu_keeps_bonn_performances_and_filters_touring_dates(self):
         html = """
         <li class="spieltermin-item">
           <div class="spieltermin-datum">FR<span>04</span>SEP</div>
           <div class="spieltermin-meta"><span>19:00 Uhr</span></div>
           <div class="spieltermin-title"><a href="https://www.theater-marabu.de/radio-350/">Radio 350</a></div>
-          <div class="spieltermin-submeta">Altersempfehlung ab 14 Jahren | Bonn, Theater Marabu</div>
+          <div class="spieltermin-submeta">Altersempfehlung ab 14 Jahre | Bonn, Theater Marabu</div>
           <a class="getTicket" data-vorstellung="Radio 350 | 04.09.2026 | 19:00 Uhr"></a>
         </li>
         <li class="spieltermin-item">
@@ -222,7 +299,8 @@ class BonnTheaterSourceTests(unittest.TestCase):
         )
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Radio 350")
-        self.assertIn("ab 14 Jahren", events[0]["description"])
+        self.assertIn("ab 14 Jahre", events[0]["description"])
+        self.assertEqual(events[0]["details"], {"age": "ab 14 Jahren"})
         self.assert_canonical(events[0], "theater-marabu")
 
     def test_ballsaal_parses_table_row_and_preserves_primary_link(self):

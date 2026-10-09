@@ -1,6 +1,7 @@
 """Official monthly performance calendar for Junges Theater Bonn."""
 
 import re
+from collections.abc import Callable
 from datetime import datetime
 from urllib.parse import urlencode
 
@@ -41,14 +42,23 @@ def _meta_description(html: str) -> str:
     return rc.meta_description(html)
 
 
-def _detail_description(url: str) -> str:
-    return rc.meta_detail_description(
-        url, namespace="junges-theater-bonn", source=_SOURCE,
-    )
+def _detail_page(url: str) -> str:
+    try:
+        return common.fetch_detail_url(url, cache_namespace="junges-theater-bonn", timeout=15)
+    except Exception as exc:
+        common.log_source_error(f"{_SOURCE} detail", exc)
+        return ""
 
 
-def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
-    detail_fetcher = detail_fetcher or _detail_description
+def _age(html: str) -> str:
+    """Read the labelled ``Altersempfehlung: ab 10 Jahren`` line of a play page."""
+    label = rc.first_group_clean(r"Altersempfehlung:\s*(.*?)</p>", html)
+    match = re.fullmatch(r"ab\s+(\d{1,2})\s+Jahren?", label)
+    return f"ab {match.group(1)} Jahren" if match else ""
+
+
+def events_from_html(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list[dict]:
+    detail_fetcher = detail_fetcher or _detail_page
     starts = [match.start() for match in re.finditer(r'<div\s+class=["\']event-list-rowflex["\']', html, re.I)]
     events = []
     for index, start_pos in enumerate(starts):
@@ -94,11 +104,12 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
                     )
                     if ticket:
                         link = rc.abs_url(_ROOT, ticket.group(1))
-                description = (
+                page = (
                     detail_fetcher(link)
                     if link and not is_kulturgarten and common.window_contains(start_dt)
                     else ""
                 )
+                description = rc.meta_description(page) if page else ""
                 if not description:
                     description = common.factual_event_description(
                         title, date_value=start_dt, time_text=time_text, venue=venue, city="Bonn"
@@ -109,6 +120,14 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
                     source_id="junges-theater-bonn",
                 )
                 if event:
+                    status = rc.first_group_clean(
+                        r'class=["\']tickets\s+pull-right["\'][^>]*>(.*?)</div>', item,
+                    )
+                    if status.casefold() == "ausverkauft":
+                        event["availability"] = "SoldOut"
+                    age = _age(page)
+                    if age:
+                        event["details"] = {"age": age}
                     events.append(event)
     return rc.dedupe_occurrences(events)
 

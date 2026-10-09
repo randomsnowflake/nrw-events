@@ -38,8 +38,9 @@ class ImporterSeptember17Tests(unittest.TestCase):
             raw = bonn_districts.fetch_brueser_berg()
         warning.assert_not_called()
         self.assertEqual(request.call_count, 2)
-        # The captured energy consultation is an advice service, not an event.
-        self.assertEqual(len(raw), 7)
+        # The captured energy consultation is an advice service, not an event;
+        # Sankt Martin visiting schools and Kitas is closed to the public.
+        self.assertEqual(len(raw), 6)
         in_window = [e for e in raw if common.window_contains(
             datetime.fromisoformat(e["start_date"]),
             datetime.fromisoformat(e["end_date"]),
@@ -70,7 +71,7 @@ class ImporterSeptember17Tests(unittest.TestCase):
         self.assertEqual(len(local), 8)
         self.assertEqual(len(rows) - len(local), 82)
         expected_dates = [
-            "2026-10-11", "2026-10-17", "2026-11-05",
+            "2026-10-11", "2026-10-17",
             "2026-11-06", "2026-11-08", "2026-11-22", "2026-12-05",
         ]
         patch_window(self, datetime(2026, 9, 17), datetime(2026, 12, 31))
@@ -78,7 +79,7 @@ class ImporterSeptember17Tests(unittest.TestCase):
         self.assertEqual([event["start_date"] for event in raw], expected_dates)
         canonical = [validation.validate_event(event) for event in raw]
         self.assertTrue(all(canonical))
-        self.assertEqual(len(report.deduplicate(canonical)), 7)
+        self.assertEqual(len(report.deduplicate(canonical)), 6)
         self.assertTrue(all(
             event["source_id"] == "veranstaltungen-brueser-berg" for event in canonical
         ))

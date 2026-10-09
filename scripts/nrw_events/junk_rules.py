@@ -181,6 +181,17 @@ def _partisan(context: EventText) -> tuple[str, ...] | None:
     return None
 
 
+# "Sankt Martin besucht Schulen und Kitas": a closed visit, not something to attend.
+_INSTITUTION_VISIT = re.compile(
+    r"\bbesucht?\s+(?:der|die|den)\s+(?:\w+\s+)?(?:schulen|kitas|kindergärten|kindergaerten)(?![-\w])"
+)
+
+
+def _institution_visit(context: EventText) -> tuple[str, ...] | None:
+    match = _INSTITUTION_VISIT.search(context.title)
+    return (match.group(0),) if match else None
+
+
 def _cancelled(context: EventText) -> tuple[str, ...] | None:
     combined = f"{context.title} {context.description}"
     if _POSTPONED_PATTERN.search(combined) or _CONDITIONAL_CANCELLATION_PATTERN.search(combined):
@@ -342,6 +353,7 @@ RULES = (
     Rule("metadata.directory-link", "link points to navigation, a directory, or a generic listing", _contains(JUNK_LINK_TERMS, "link")),
     Rule("civic.partisan-organization", "partisan organizational activity is outside the editorial scope", _partisan),
     Rule("editorial.private-graduation", "private graduation celebration is not a public destination event", _contains(PRIVATE_EVENT_TERMS, "text")),
+    Rule("editorial.institution-visit", "visit to schools or kindergartens is not open to the public", _institution_visit),
     Rule("schedule.cancelled", "cancelled occurrence must not be published as scheduled", _cancelled),
     Rule("editorial.static-attraction", "static attraction page is not a dated destination event", _contains(STATIC_ATTRACTION_TERMS, "text")),
     Rule("civic.governance", "routine political or administrative meeting is outside the editorial scope", _governance),

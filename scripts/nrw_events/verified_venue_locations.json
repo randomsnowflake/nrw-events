@@ -3767,7 +3767,10 @@
         "eventUrl": "https://www.melan.de/fuer-alle/standorte/details/~/Bornheim-PORTA-28r/",
         "osmUrl": "https://www.openstreetmap.org/way/132663144",
         "method": "venue name and municipality matched"
-      }
+      },
+      "aliases": [
+        "Porta Bornheim"
+      ]
     },
     {
       "city": "Brühl",

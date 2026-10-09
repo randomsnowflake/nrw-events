@@ -41,6 +41,7 @@ scripts/nrw_events/
   duplicate_identity.py
   early_publication.py
   event_builder.py
+  event_details.py
   event_evidence.py
   event_types.py
   event_vocabulary.py

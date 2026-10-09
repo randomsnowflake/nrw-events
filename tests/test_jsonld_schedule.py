@@ -139,6 +139,28 @@ class JsonLdScheduleTests(unittest.TestCase):
         events = common.events_from_jsonld(html, "Test", "Bonn", "concert", 1, "https://example.test")
         self.assertEqual([event["status"] for event in events], ["cancelled", "postponed"])
 
+    def test_jsonld_performers_and_age_range_become_event_details(self):
+        payload = [{
+            "@type": "Event", "name": "Jazzabend", "startDate": "2026-06-12T20:00:00+02:00",
+            "organizer": {"@type": "Organization", "name": "Jazzclub Bonn"},
+            "performer": [
+                {"@type": "MusicGroup", "name": "Trio Rhein"},
+                {"@type": "Organization", "name": "Jazzclub Bonn"},
+                {"@type": "Place", "name": "Keller"},
+                "Bare string",
+            ],
+            "typicalAgeRange": "16-",
+        }, {
+            "@type": "Event", "name": "Kinderkonzert", "startDate": "2026-06-13", "typicalAgeRange": "4-8",
+        }, {
+            "@type": "Event", "name": "Für alle", "startDate": "2026-06-14", "typicalAgeRange": "0-99",
+        }]
+        html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+        events = common.events_from_jsonld(html, "Test", "Bonn", "concert", 1, "https://example.test")
+        self.assertEqual(events[0]["details"], {"performers": ["Trio Rhein"], "age": "ab 16 Jahren"})
+        self.assertEqual(events[1]["details"], {"age": "4–8 Jahre"})
+        self.assertNotIn("details", events[2])
+
     def test_jsonld_string_and_postal_address_locations_are_supported(self):
         payload = [
             {"@type": "Event", "name": "String place", "startDate": "2026-06-12", "location": "Marktplatz"},

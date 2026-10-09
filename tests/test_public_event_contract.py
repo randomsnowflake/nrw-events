@@ -27,7 +27,7 @@ PUBLIC_EVENT_FIELDS = frozenset({
     "price", "admission", "admission_checked", "exhibitor", "category", "category_key", "category_label",
     "source", "source_id", "score",
     "ranking_features", "priority_bonus",
-    "event_types",
+    "event_types", "details",
     "early_publication",
     "cancelled_at", "cancellation_source", "replacement_start_date",
     "first_seen_at", "content_hash",

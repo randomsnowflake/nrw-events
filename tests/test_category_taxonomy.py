@@ -441,6 +441,18 @@ class CategoryTaxonomyTests(unittest.TestCase):
                     expected,
                 )
 
+    def test_lantern_parades_are_family_events_in_every_spelling(self):
+        for title in (
+            "St. Martins-Umzug in Sinzig",
+            "St. Martinsumzüge (03.11.-13.11.)",
+            "Martinszüge in Bonn",
+            "Laternenumzüge im Veedel",
+            "Sankt Martinszug 2026 in Niederbachem",
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event("", title)["key"], "kids")
+        self.assertEqual(categorize_event("", "Führungen in St. Martin")["key"], "outdoor")
+
     def test_category_result_exposes_debug_reason_and_confidence(self):
         result = categorize_event("Märkte/Messen", "Kinderbücher-Flohmarkt", "")
 

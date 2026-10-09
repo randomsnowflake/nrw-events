@@ -65,6 +65,7 @@ class RawEvent(TypedDict, total=False):
     admission_checked: bool
     exhibitor: dict[str, Any]
     availability: str
+    details: dict[str, Any]
     category: str
     category_key: str
     category_label: str
@@ -201,6 +202,8 @@ class CanonicalEvent(Mapping[str, Any]):
     admission_checked: bool = False
     exhibitor: dict[str, Any] = field(default_factory=_empty_exhibitor)
     availability: str = ""
+    """Visitor facts a source publishes as labelled data; see ``event_details``."""
+    details: dict[str, Any] = field(default_factory=dict)
     category: str = ""
     category_key: str = "other"
     category_label: str = "Other"

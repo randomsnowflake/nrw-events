@@ -164,6 +164,7 @@ class JunkFilterTests(unittest.TestCase):
             (event("Fraktionssitzung der Ratsfraktion"), "civic.governance"),
             (event("Interkultureller Frauentreff"), "civic.routine-meetup"),
             (event("Wochenmarkt Bonn"), "civic.routine-market"),
+            (event("Besuch der Schulen und Kitas durch Sankt Martin"), "editorial.institution-visit"),
             (event("Deutschkurs für Männer"), "civic.course"),
             ({**event("Static listing"), "link": "https://eventim.de/city/bonn"},
              "metadata.directory-link"),

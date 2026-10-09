@@ -6,7 +6,7 @@ from nrw_events.validation import validate_event
 
 
 def _day(day: str, *, time: str = "14:00–18:00", title: str = "Ausstellung 100 Jahre Bad Godesberg",
-         status: str = "scheduled"):
+         status: str = "scheduled", city: str = "Bonn-Bad Godesberg"):
     return validate_event({
         "status": status,
         "title": title,
@@ -15,7 +15,7 @@ def _day(day: str, *, time: str = "14:00–18:00", title: str = "Ausstellung 100
         "start_date": day,
         "time": time,
         "venue": "Haus an der Redoute",
-        "city": "Bonn-Bad Godesberg",
+        "city": city,
         "category_key": "exhibition",
         "link": "https://www.bonn.de/ausstellung.php",
         "link_kind": "detail",
@@ -63,6 +63,12 @@ class ExhibitionRunTests(unittest.TestCase):
         [run] = merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02")], {})
         [merged] = merge_exhibition_opening_days([run, _day("2026-10-03")], {})
         self.assertEqual((merged.start_date, merged.end_date), ("2026-10-01", "2026-10-03"))
+        self.assertEqual(event_id(merged), event_id(run))
+
+    def test_day_labelled_with_the_municipality_joins_the_district_run(self):
+        [run] = merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02")], {})
+        [merged] = merge_exhibition_opening_days([run, _day("2026-10-03", city="Bonn")], {})
+        self.assertEqual((merged.start_date, merged.end_date, merged.city), ("2026-10-01", "2026-10-03", "Bonn-Bad Godesberg"))
         self.assertEqual(event_id(merged), event_id(run))
 
     def test_tours_and_same_day_sessions_keep_their_own_pages(self):

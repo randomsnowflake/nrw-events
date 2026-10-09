@@ -5,10 +5,11 @@ import os
 import re
 import time
 import urllib.parse
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from datetime import date, datetime
 from html import unescape
 from html.parser import HTMLParser
+from typing import Any
 
 from .. import common, http
 from ..dates import MONTH_ALL, resolve_yearless_date
@@ -36,10 +37,10 @@ LINE_TAGS = frozenset({"br", "li", "dt", "dd", "tr"})
 class ClassScopedTextParser(HTMLParser):
     """Collect text inside elements selected by attribute matcher callables."""
 
-    def __init__(self, targets: dict[str, object]) -> None:
+    def __init__(self, targets: dict[str, Callable[[str, dict[str, str | None]], bool]]) -> None:
         super().__init__(convert_charrefs=True)
         self.targets = targets
-        self.parts = {name: [] for name in targets}
+        self.parts: dict[str, list[str]] = {name: [] for name in targets}
         self._target = ""
         self._depth = 0
 
@@ -231,7 +232,9 @@ def attribute_from_class_tag(html: str, tag_name: str, class_name: str, attribut
     return ""
 
 
-def factual_fallback(default_city: str = "", calendar_name=""):
+def factual_fallback(
+    default_city: str = "", calendar_name: str | Callable[[dict], str] = "",
+) -> Callable[[dict], str]:
     """Return a shared factual-description builder for sparse calendar rows."""
     def build(event: dict) -> str:
         start = common.parse_iso_date(event.get("start_date") or "")
@@ -279,12 +282,12 @@ def enrich_descriptions(
     *,
     source: str,
     cache_namespace: str,
-    extract_context,
-    fallback,
+    extract_context: Callable[..., Any],
+    fallback: Callable[..., Any],
     timeout: int = 15,
-    detail_fetcher=None,
-    needs_enrichment=None,
-    merge_context=None,
+    detail_fetcher: Callable[..., Any] | None = None,
+    needs_enrichment: Callable[[dict], bool] | None = None,
+    merge_context: Callable[..., Any] | None = None,
     batch_timeout: float | None = None,
 ) -> list:
     """Memoize shared detail fetches and fill missing event descriptions."""
@@ -342,11 +345,11 @@ def enrich_descriptions(
     return events
 
 
-def parse_dt(text: str):
+def parse_dt(text: str) -> datetime | None:
     return common.parse_date(clean(text))
 
 
-def with_time(dt, text: str):
+def with_time(dt: datetime | None, text: str) -> datetime | None:
     if not dt:
         return None
     normalized = time_text(text)
@@ -354,7 +357,7 @@ def with_time(dt, text: str):
     return dt.replace(hour=int(m.group(1)), minute=int(m.group(2))) if m else dt
 
 
-def date_for_window(day: int, month: int):
+def date_for_window(day: int, month: int) -> datetime | None:
     """Resolve a yearless date through the shared rollover/grace policy."""
     resolution = resolve_yearless_date(day, month, common.runtime_window().start)
     return resolution.value if resolution else None
@@ -434,7 +437,7 @@ def title_from_href(href: str) -> str:
     return slug.strip().title()
 
 
-def range_dates(text: str):
+def range_dates(text: str) -> tuple[datetime | None, datetime | None]:
     text = clean(text)
     compact_range = re.search(
         r"(?<![\d.])(\d{1,2})\.\s*[-–—]\s*(\d{1,2})\.(\d{1,2})\.(20\d{2})?",
@@ -481,7 +484,7 @@ def meta_refresh_target(url: str, html: str) -> str:
 def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
                       *, source_id: str,
                       empty_is_healthy: bool | Callable[[str], bool] = False,
-                      fetcher=None,
+                      fetcher: Callable[..., str] | None = None,
                       page_urls: Iterable[str] | Callable[[str, int], str] | None = None,
                       stop_when: Callable[[str, int], bool] | None = None,
                       max_pages: int = 30) -> list:
@@ -490,6 +493,7 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
         raise TypeError(
             "empty_is_healthy=True is ambiguous; pass a callable that validates the response"
         )
+    endpoints: Iterator[str]
     if callable(page_urls):
         endpoints = (page_urls(url, page) for page in range(1, max_pages + 1))
     elif page_urls is not None:

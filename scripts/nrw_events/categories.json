@@ -1242,10 +1242,59 @@
         },
         {
           "value": "martinszug",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
+        },
+        {
+          "value": "martinszüge",
           "match_mode": "word",
           "scope": "all",
           "weight": 1.0,
-          "comment": "classifier"
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
+        },
+        {
+          "value": "martinsumzug",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
+        },
+        {
+          "value": "martinsumzüge",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
+        },
+        {
+          "value": "martins-umzug",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
+        },
+        {
+          "value": "martins-umzüge",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
+        },
+        {
+          "value": "laternenumzug",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
+        },
+        {
+          "value": "laternenumzüge",
+          "match_mode": "word",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "Lantern parades in every spelling (Martinszüge, Martinsumzug, Martins-Umzug, Laternenumzug)."
         },
         {
           "value": "dino",

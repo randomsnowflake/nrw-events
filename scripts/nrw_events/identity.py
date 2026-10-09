@@ -100,11 +100,13 @@ def content_fingerprint(event: Mapping[str, Any]) -> str:
     Used exclusively to order colliding occurrences deterministically. It must
     never feed the id itself: it changes whenever any field is enriched.
     """
+    # ``details`` (sold-out notes, age, credits) is excluded so that reviewed
+    # copy pinned to a hash survives when a source adds or updates those facts.
     payload = json.dumps(
         {
             key: event[key]
             for key in sorted(event)
-            if key not in {"event_id", "preserved_event_id", "content_hash", "first_seen_at"}
+            if key not in {"event_id", "preserved_event_id", "content_hash", "first_seen_at", "details"}
         },
         ensure_ascii=False,
         sort_keys=True,

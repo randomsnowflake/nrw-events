@@ -2411,7 +2411,9 @@
     {
       "city": "Bornheim",
       "venue": "PORTA",
-      "aliases": [],
+      "aliases": [
+        "Porta Bornheim"
+      ],
       "count": 1,
       "addresses": [
         "Alexander-Bell-Straße 2"

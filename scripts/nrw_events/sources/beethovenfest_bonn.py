@@ -31,7 +31,7 @@ def _city_for_venue(venue: str) -> str:
     return "Bonn"
 
 
-def _localized(value) -> str:
+def _localized(value: object) -> str:
     if isinstance(value, dict):
         return str(value.get("de") or value.get("en") or value.get("title") or "")
     return str(value or "")
@@ -44,7 +44,9 @@ def _events_from_items(items: list[dict]) -> list:
             continue
         title = common.clean_html(_localized(item.get("title")))
         start = common.parse_iso_date(str(item.get("date_and_time") or ""))
-        venue_obj = item.get("venue_obj") if isinstance(item.get("venue_obj"), dict) else {}
+        venue_obj = item.get("venue_obj")
+        if not isinstance(venue_obj, dict):
+            venue_obj = {}
         venue = common.clean_html(str(venue_obj.get("name") or ""))
         city = _city_for_venue(venue)
         if city == "Berlin":
@@ -83,6 +85,13 @@ def _events_from_items(items: list[dict]) -> list:
             event["availability"] = "SoldOut"
         elif status == "remaining":
             event["availability"] = "LimitedAvailability"
+        details = {
+            key: names
+            for key, field in (("performers", "cast"), ("programme", "compositions"))
+            if (names := [name for name in (common.clean_html(_localized(value)) for value in item.get(field) or []) if name])
+        }
+        if details:
+            event["details"] = details
         events.append(event)
     return rc.dedupe(events)
 

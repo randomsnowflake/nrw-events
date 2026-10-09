@@ -134,12 +134,43 @@ def _jsonld_entity_names(value: Any, *, max_length: int = 500) -> str:
     return "; ".join(names)
 
 
+_PERFORMER_TYPES = ("Person", "PerformingGroup", "MusicGroup", "TheaterGroup", "DanceGroup", "Organization")
+
+
+def _jsonld_details(item: dict, *, title: str, organizer: str, venue: str) -> dict[str, Any]:
+    """Return schema.org ``performer`` names and ``typicalAgeRange`` as event details."""
+    details: dict[str, Any] = {}
+    excluded = {comparison.casefold() for comparison in (title, venue, *organizer.split("; ")) if comparison}
+    performers = []
+    raw_performers = item.get("performer")
+    for candidate in raw_performers if isinstance(raw_performers, list) else [raw_performers]:
+        if not isinstance(candidate, dict):
+            continue
+        entity_type = candidate.get("@type")
+        entity_types = entity_type if isinstance(entity_type, list) else [entity_type]
+        if not any(_jsonld_schema_token(value, _PERFORMER_TYPES) for value in entity_types if value):
+            continue
+        name = _impl_text.clean_html(str(candidate.get("name") or "")).strip()
+        if name and name.casefold() not in excluded and name not in performers:
+            performers.append(name)
+    if performers:
+        details["performers"] = performers
+    age_range = re.fullmatch(r"\s*(\d{1,2})\s*(?:-|–|\+)\s*(\d{1,2})?\s*", str(item.get("typicalAgeRange") or ""))
+    if age_range and int(age_range.group(1)) > 0:
+        low, high = age_range.groups()
+        details["age"] = f"{low}–{high} Jahre" if high else f"ab {low} Jahren"
+    return details
+
+
 def _apply_jsonld_provenance(
     event: RawEvent, *, organizer: str, admission_price: str | None, availability: str,
+    details: dict[str, Any],
 ) -> None:
     """Attach optional source evidence without duplicating occurrence paths."""
     if organizer:
         event["organizer"] = organizer
+    if details:
+        event["details"] = dict(details)
     if admission_price is not None:
         event["price"] = admission_price
         event["admission_basis"] = "explicit"
@@ -319,6 +350,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             admission_price = _visible_paid_admission_price(desc) or admission_price
         organizer = _jsonld_entity_names(item.get("organizer"))
         availability = _jsonld_offer_availability(item.get("offers"))
+        details = _jsonld_details(item, title=title, organizer=organizer, venue=venue)
         event_status = jsonld_event_status(item.get("eventStatus"))
 
         schedules = _jsonld_schedule_items(item.get("eventSchedule"))
@@ -341,6 +373,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                         organizer=organizer,
                         admission_price=admission_price,
                         availability=availability,
+                        details=details,
                     )
                     events.append(ev)
             # Explicit schedule entries are the real appointments. The top-level
@@ -362,6 +395,7 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
                 organizer=organizer,
                 admission_price=admission_price,
                 availability=availability,
+                details=details,
             )
             events.append(ev)
     return events

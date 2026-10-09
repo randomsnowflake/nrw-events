@@ -203,6 +203,7 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
             "description": {"de": "<p>Ein <strong>offenes</strong> Konzert.</p>"},
             "slug": {"de": "buehne-frei"}, "venue_obj": {"name": "Markt Bonn"},
             "genres": [{"title": "Vokal"}], "button_status": "free",
+            "cast": ["Sir Antonio Pappano", ""], "compositions": ["Beethoven", "Tschaikowsky"],
         }, {
             "id": 2, "title": {"de": "Gastspiel Berlin"},
             "date_and_time": "2026-09-06T12:00:00+02:00", "description": {"de": "<p>Ferntermin.</p>"},
@@ -214,6 +215,9 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         self.assertEqual(event["city"], "Bonn")
         self.assertEqual(event["time"], "12:00")
         self.assertEqual(event["end_at"], "")
+        self.assertEqual(event["details"], {
+            "performers": ["Sir Antonio Pappano"], "programme": ["Beethoven", "Tschaikowsky"],
+        })
 
     def test_beethovenfest_fetch_is_atomic_when_pagination_is_incomplete(self):
         payload = {"count": 2, "results": [{"id": 1}], "next": None}

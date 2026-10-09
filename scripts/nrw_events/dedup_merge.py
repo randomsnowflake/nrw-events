@@ -145,7 +145,7 @@ def _merge_duplicate_metadata(
             "donationSuggested": False,
         }
     for field in (
-        "price", "availability", "venue", "organizer", "time", "time_note", "start_at", "end_at",
+        "price", "availability", "details", "venue", "organizer", "time", "time_note", "start_at", "end_at",
     ):
         if not adopt_schedule and field in {"time", "time_note", "start_at", "end_at"}:
             continue

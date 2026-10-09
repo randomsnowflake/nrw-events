@@ -572,6 +572,14 @@ JSON-LD ist stabiler als HTML-Scraping.
 - **JSON im Benutzer-State-Verzeichnis:** vollständige deduplizierte und
   bewertete Eventliste als Top-Level-Array. Dieser Vertrag bleibt stabil für
   einfache Weiterverarbeitung.
+- **Quellfakten `details`:** optionales Objekt je Event mit `performance`
+  (`premiere`, `revival`, `final`), `age`, `language`, `performers`,
+  `programme` und `video_url`. Adapter füllen es nur aus expliziten Quellfeldern
+  oder beschrifteten Seitenelementen (Theater-Bonn-API und Programmkopf, Junges
+  Theater, Theater Marabu, Beethovenfest-API, schema.org `performer` und
+  `typicalAgeRange`), nie aus Fließtext oder KI. `event_details.canonical_details`
+  verwirft unbekannte Schlüssel und unsichere URLs. `details` geht nicht in
+  `content_hash` ein, damit geprüfte Texte stabil bleiben.
 - **Metadaten-JSON daneben:** Zeitfenster,
   Radius, Score-Schwelle, Roh-Zählungen je Quelle, hart fehlgeschlagene Quellen,
   weiche Quellenwarnungen, eine kompakte analysierbare Problemliste

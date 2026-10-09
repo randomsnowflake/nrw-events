@@ -47,7 +47,9 @@ def _run_key(event: Mapping[str, Any]) -> tuple[str, ...] | None:
         str(event.get("source_id") or ""),
         title,
         venue,
-        comparison_text(str(event.get("city") or "")),
+        # Municipality only: bonn.de labels some days of one run "Bonn" and
+        # others "Bonn-Beuel"; the venue already pins the place.
+        comparison_text(str(event.get("city") or "").split("-", 1)[0]),
     )
 
 
@@ -113,6 +115,8 @@ def _merged(
     published = {str(prior.get("event_id") or "") for prior in previous.get("events") or [] if isinstance(prior, dict)}
     day_ids = [identifier for identifier in map(event_id, [*ordered, *closed]) if identifier in published]
     base.update({
+        # The district label ("Bonn-Beuel") is more specific than "Bonn".
+        "city": max((row.city for row in [*ordered, *runs]), key=len),
         "start_date": start,
         "end_date": end,
         "date": start,

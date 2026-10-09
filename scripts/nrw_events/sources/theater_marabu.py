@@ -1,6 +1,8 @@
 """Official performance calendar for Theater Marabu."""
 
 import re
+from collections.abc import Callable
+from datetime import datetime
 
 from .. import common
 from . import regional_common as rc
@@ -29,7 +31,7 @@ def _detail_description(url: str) -> str:
     )
 
 
-def _date(block: str):
+def _date(block: str) -> datetime | None:
     explicit = re.search(r'data-vorstellung=["\'][^"\']*\|\s*(\d{2}\.\d{2}\.20\d{2})', block, re.I)
     if explicit:
         return common.parse_date(explicit.group(1))
@@ -43,7 +45,7 @@ def _date(block: str):
     return rc.date_for_window(int(day), month)
 
 
-def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
+def events_from_html(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list[dict]:
     detail_fetcher = detail_fetcher or _detail_description
     starts = [match.start() for match in re.finditer(r'<li\s+class=["\'][^"\']*spieltermin-item', html, re.I)]
     events = []
@@ -90,6 +92,9 @@ def events_from_html(html: str, detail_fetcher=None) -> list[dict]:
             category_locked=True,
         )
         if event:
+            age = re.search(r"Altersempfehlung\s+ab\s+(\d{1,2})\s+Jahren?\b", submeta)
+            if age:
+                event["details"] = {"age": f"ab {age.group(1)} Jahren"}
             events.append(event)
     return rc.dedupe_occurrences(events)
 

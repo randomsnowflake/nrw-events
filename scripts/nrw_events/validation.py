@@ -11,7 +11,7 @@ from datetime import datetime, time, timedelta
 from typing import Any, TypedDict
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from . import ai_enrichment, category_taxonomy, common, event_types, page_chrome, performance, richtext
+from . import ai_enrichment, category_taxonomy, common, event_details, event_types, page_chrome, performance, richtext
 from .admission_amounts import admission_amount
 from .models import (
     MAX_DISCOVERY_PROVENANCE_SOURCES,
@@ -933,6 +933,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         raise EventValidationError("time_invalid")
     _drop_clock_sentinels(event)
     event.update(canonical_visitor_fields(event, inferred_description_source))
+    event["details"] = event_details.canonical_details(event.get("details"))
     if event["description_source"] == "scraped" and not event["description"].strip() and not richtext.to_plain_text(event.get("description_html") or "").strip():
         # No copy is not source copy: an empty "scraped" label hides the
         # event from AI summaries and from every content-gap check.
