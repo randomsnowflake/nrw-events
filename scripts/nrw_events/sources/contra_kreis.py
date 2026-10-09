@@ -17,6 +17,7 @@ _AJAX_URL = "https://www.contra-kreis-theater.de/wp-admin/admin-ajax.php"
 _CATEGORY = "theater bühne komödie schauspiel"
 _TRUST = 1.0
 _VENUE = "Contra-Kreis-Theater, Am Hof 3-5, 53113 Bonn"
+_PRIMARY_SOURCE_SCORE_FLOOR = 0.45
 
 
 def _months() -> list[datetime]:
@@ -56,6 +57,9 @@ def events_from_month(html: str) -> list[dict]:
             category_locked=True,
         )
         if event:
+            # Synopses retell the plot ("dass sie Kinder kriegt"); the global
+            # kids-only demotion must not drop this first-party stage programme.
+            event["score"] = max(float(event.get("score") or 0), _PRIMARY_SOURCE_SCORE_FLOOR)
             events.append(event)
     return rc.dedupe_occurrences(events)
 

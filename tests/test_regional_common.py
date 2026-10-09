@@ -148,6 +148,7 @@ class RegionalCommonHealthTests(unittest.TestCase):
             out_of_window_count=0,
             parsed_event_count=0,
             parser_empty=True,
+            source_id="broken-calendar",
         )
         error = log_source_error.call_args.args[1]
         self.assertIsInstance(error, regional_common.ParserEmptyError)

@@ -1,11 +1,12 @@
 """Venue-specific calendars for the Bonn/Rhein-Sieg import proposal."""
 
+import json
 import re
 from collections.abc import Callable
 from datetime import datetime
-from html import unescape
+from zoneinfo import ZoneInfo
 
-from .. import common
+from .. import common, http
 from ..models import RawEvent
 from . import regional_common as rc
 
@@ -39,8 +40,9 @@ def fetch() -> list:
      source_id="andernach-events"))
     events.extend(rc.fetch_html_events(
         "LVR-LandesMuseum",
-        "https://landesmuseum-bonn.lvr.de/de/veranstaltungen/veranstaltungen_2/alleveranstaltungen.html",
+        _LVR_SEARCH_URL,
         _events_from_lvr,
+        fetcher=_fetch_lvr_dates,
      source_id="lvr-landesmuseum-bonn"))
     return rc.dedupe(events)
 
@@ -293,47 +295,52 @@ def _clickaround_events_for_date(chunk: str, current_date: datetime, base: str) 
     return events
 
 
-def _events_from_lvr(html: str) -> list:
-    events = []
-    for body in re.split(r'(?=<div class="event filter-element)', html):
-        if 'data-filter-list=' not in body:
-            continue
-        ev = _event_from_lvr_body(body)
-        if ev:
-            events.append(ev)
-    return events
+# The site relaunched on 2026-10-07; its calendar now renders from this search index.
+_LVR_SEARCH_URL = "https://www.lvr.de/landesmuseum-bonn/.elasticsearch"
+_LVR_CALENDAR_URL = "https://www.lvr.de/landesmuseum-bonn/programm/terminkalender/index.html"
+_LVR_SHOP_URL = "https://www.shop.landesmuseum-bonn.lvr.de/#/product/event/{event_id}?date={date}&date_id={date_id}"
+_LVR_FIELDS = {
+    "q": "*", "i": "gomus_landesmuseum_bonn_dates", "from": "0", "size": "500", "lang": "de",
+    "sort": "timestamp", "sort_order": "asc", "filters": "{}", "send_aggregations": "false",
+    "include_fields": "id,eventId,title,timestamp,description,category",
+}
+_BERLIN = ZoneInfo("Europe/Berlin")
 
 
-def _event_from_lvr_body(body: str) -> RawEvent | None:
-    # The listing's navigation anchor is not publisher-authored event copy.
-    # Remove by class rather than deleting legitimate prose ending in 'mehr'.
-    copy_body = re.sub(
-        r'<a\b[^>]*class=["\']more["\'][^>]*>.*?</a>', '', body, flags=re.S | re.I,
+def _fetch_lvr_dates(url: str, timeout: int = 25) -> str:
+    return http.post_form_text(
+        url, _LVR_FIELDS, timeout=timeout, headers={"Referer": _LVR_CALENDAR_URL}, retry_safe=True,
     )
-    text = rc.clean(copy_body)
-    href = re.search(r'<a class="more"[^>]+href="([^"]+)"', body, re.S | re.I)
-    data = re.search(r'data-filter-list="([^"]+)"', body, re.S | re.I)
-    hay = rc.clean(data.group(1) if data else text)
-    parts = [part.strip() for part in hay.split(",")]
-    title = parts[1] if len(parts) > 1 else ""
-    # The filter attribute is lowercased; the card heading carries the publisher's casing.
-    heading_at = text.lower().find(title.lower()) if title else -1
-    if heading_at >= 0 and text[heading_at:heading_at + len(title)].lower() == title.lower():
-        title = text[heading_at:heading_at + len(title)]
-    date = re.search(r"(\d{1,2})\.(\d{1,2})\.\s*(\d{1,2}:\d{2})", hay)
-    if not (title and date):
+
+
+def _events_from_lvr(body: str) -> list:
+    return [ev for hit in json.loads(body).get("hits") or [] if (ev := _event_from_lvr_hit(hit))]
+
+
+def _event_from_lvr_hit(hit: dict) -> RawEvent | None:
+    title = rc.clean(str(hit.get("title") or ""))
+    timestamp = hit.get("timestamp")
+    if not (title and isinstance(timestamp, int | float)):
         return None
-    dt = rc.date_for_window(int(date.group(1)), int(date.group(2)))
+    start = datetime.fromtimestamp(timestamp / 1000, _BERLIN).replace(tzinfo=None)
+    # The index stores a teaser that ends in a literal "[...]" cut marker.
+    description = re.sub(r"\s*\[\.\.\.\]$", " …", rc.clean(str(hit.get("description") or "")))
+    event_id, date_id = hit.get("eventId"), hit.get("id")
+    link = (
+        _LVR_SHOP_URL.format(event_id=event_id, date=f"{start:%Y-%m-%d}", date_id=date_id)
+        if event_id and date_id else _LVR_CALENDAR_URL
+    )
+    category = rc.clean(str(hit.get("category") or "")).lower()
     return common.make_event(
         title,
-        rc.with_time(dt, date.group(3)),
+        start,
         None,
         "LVR-LandesMuseum Bonn",
         "Bonn",
-        text[:500],
-        unescape(href.group(1)).strip() if href else "",
+        description,
+        link,
         "LVR-LandesMuseum",
-        "museum ausstellung führung kino vortrag",
+        f"{category} museum ausstellung führung kino vortrag".strip(),
         0.92,
-        date.group(3),
+        f"{start:%H:%M}",
     )

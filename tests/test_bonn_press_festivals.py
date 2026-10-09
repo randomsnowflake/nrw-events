@@ -1,4 +1,5 @@
 import unittest
+import urllib.error
 from datetime import datetime
 from unittest.mock import patch
 
@@ -234,3 +235,27 @@ class BonnPressFestivalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BonnPressLookAheadTests(unittest.TestCase):
+    def test_missing_next_year_release_is_a_diagnostic_but_current_year_stays_an_error(self):
+        patch_window(self, datetime(2026, 10, 9), datetime(2026, 11, 5))
+        gone = urllib.error.HTTPError("https://www.bonn.de/", 404, "Not Found", None, None)
+
+        def fetch(url, **_kwargs):
+            if "-2027-" in url:
+                raise gone
+            return "<ul><li>Martinsmarkt, Marktplatz, 1. November 2026, Bundesstadt Bonn</li></ul>"
+
+        with patch.object(common, "fetch_url", side_effect=fetch), \
+                patch.object(common, "log_source_error") as logged:
+            events = bonn.fetch_press_festivals()
+        self.assertEqual([event["title"] for event in events], ["Martinsmarkt"])
+        self.assertEqual(logged.call_args.kwargs["error_type"], "OptionalDetailWarning")
+
+        with patch.object(common, "fetch_url", side_effect=gone), \
+                patch.object(common, "log_source_error") as logged:
+            bonn.fetch_press_festivals()
+        current, look_ahead = logged.call_args_list
+        self.assertNotIn("error_type", current.kwargs)
+        self.assertEqual(look_ahead.kwargs["error_type"], "OptionalDetailWarning")

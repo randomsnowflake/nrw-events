@@ -6,6 +6,7 @@ import atexit
 import threading
 import time
 import weakref
+from collections import Counter
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import thread as futures_thread
@@ -298,6 +299,7 @@ def _run_source(
         result.accepted_event_count = len(accepted)
         result.event_sources = sorted({event["source"] for event in accepted})
         result.event_source_ids = sorted({event.source_id for event in accepted})
+        result.event_source_counts = dict(sorted(Counter(event.source_id for event in accepted).items()))
         # Editorial quality drops are expected filtering decisions, not source
         # health failures. Keep their counts for diagnostics, but only degrade
         # the source when a record fails structural validation.
@@ -408,6 +410,9 @@ def _source_issue_message(result: SourceResult, endpoint_issues: list[dict[str, 
         parts.append(f"endpoint issues: {endpoint_text}")
     if result.anomalies:
         parts.append("anomalies: " + ", ".join(result.anomalies))
+    if result.source_anomalies:
+        parts.append("source anomalies: " + ", ".join(
+            f"{source_id}: {kind}" for source_id, kind in sorted(result.source_anomalies.items())))
     message = "; ".join(parts) or f"source status is {result.status.value}"
     return bounded_diagnostic_text(message, 2048)
 
@@ -418,6 +423,7 @@ def _import_issues(results: dict[str, SourceResult]) -> list[dict[str, object]]:
         if (
             result.status not in {SourceStatus.FAILED, SourceStatus.DEGRADED, SourceStatus.PARSER_EMPTY}
             and not result.anomalies
+            and not result.source_anomalies
         ):
             continue
         endpoint_issues = _endpoint_issues(result)
@@ -442,5 +448,7 @@ def _import_issues(results: dict[str, SourceResult]) -> list[dict[str, object]]:
             issue["warnings"] = result.warnings
         if result.anomalies:
             issue["anomalies"] = result.anomalies
+        if result.source_anomalies:
+            issue["source_anomalies"] = result.source_anomalies
         issues.append(issue)
     return issues

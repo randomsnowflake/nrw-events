@@ -723,3 +723,29 @@ class HttpHeaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EndpointRelocationEvidenceTests(unittest.TestCase):
+    """A moved or removed calendar leaves machine-readable evidence for alerts."""
+
+    def test_redirect_target_and_client_error_status_are_recorded(self):
+        response = Mock()
+        response.read.return_value = b"<html></html>"
+        response.headers = Message()
+        response.geturl.return_value = "https://new.example.org/programm/"
+        with patch("nrw_events.common.urllib.request.urlopen", return_value=response), \
+                patch("nrw_events.http._record_endpoint") as record:
+            common.fetch_url("https://old.example.org/calendar.html")
+        self.assertEqual(record.call_args.kwargs["redirected_to"], "https://new.example.org/programm/")
+
+        gone = urllib.error.HTTPError("https://old.example.org/calendar.html", 404, "Not Found", Message(), BytesIO(b""))
+        with patch("nrw_events.common.urllib.request.urlopen", side_effect=gone), \
+                patch("nrw_events.http._record_endpoint") as record, self.assertRaises(urllib.error.HTTPError):
+            common.fetch_url("https://old.example.org/calendar.html")
+        self.assertEqual(record.call_args.kwargs["http_status"], 404)
+
+    def test_later_success_clears_an_earlier_http_status(self):
+        result = SourceResult("Calendar")
+        result.endpoint("https://example.org/", error_type="HTTPError", error="HTTP Error 503", http_status=503)
+        result.endpoint("https://example.org/", status=200)
+        self.assertNotIn("http_status", result.endpoints["https://example.org/"])

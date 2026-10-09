@@ -133,8 +133,12 @@ def _retention_labels(
     results: dict[str, SourceResult],
     previous: dict,
     unpublished_fallback_source_ids: frozenset[str] = frozenset(),
-) -> set[str]:
-    """Return stable logical source IDs whose fresh data cannot be trusted."""
+) -> tuple[set[str], set[str]]:
+    """Return logical source IDs whose fresh data cannot be trusted.
+
+    The second set holds labels retained only for an unpublished Radio fallback,
+    without any failure of their own; they do not start the outage clock.
+    """
     previous_results = previous.get("source_results") or {}
     previous_event_ids = {
         _event_source_id(event)
@@ -192,8 +196,10 @@ def _retention_labels(
             result.status == SourceStatus.FAILED or structural_failure
             or any(normalize_source_id(warning.get("source_id") or warning.get("source"))
                    in {result.source_id, runner_source_id} for warning in outage_warnings)
-            or any(not any(warning.get("error") and warning.get("error") == endpoint.get("error")
-                           for warning in outage_warnings) for endpoint in endpoint_failures)
+            or any(normalize_source_id(endpoint.get("source_id")) not in failed_children
+                   and not any(warning.get("error") and warning.get("error") == endpoint.get("error")
+                               for warning in outage_warnings)
+                   for endpoint in endpoint_failures)
         )
         if result.has_outage_evidence():
             # Narrow only when every failure is attributed to a child. A mixed
@@ -235,17 +241,15 @@ def _retention_labels(
     fresh_source_ids = {
         source_id for result in results.values() for source_id in result.event_source_ids
     }
-    labels.update(
-        (unpublished_fallback_source_ids & previous_event_ids) - fresh_source_ids
-    )
-    return labels
+    fallback_only = set(unpublished_fallback_source_ids & previous_event_ids) - fresh_source_ids - labels
+    return labels | fallback_only, fallback_only
 
 
 def _retain_previous_events(
     results: dict[str, SourceResult], previous: dict, context: RunContext,
     unpublished_fallback_source_ids: frozenset[str] = frozenset(),
 ) -> tuple[list[CanonicalEvent], dict[str, object]]:
-    labels = _retention_labels(results, previous, unpublished_fallback_source_ids)
+    labels, fallback_only = _retention_labels(results, previous, unpublished_fallback_source_ids)
     empty_summary: dict[str, object] = {
         "fresh_event_count": 0,
         "retained_event_count": 0,
@@ -307,7 +311,8 @@ def _retain_previous_events(
         prior = previous_retention.get(label) or {}
         runner_result = results.get(runner_sources.get(label, ""))
         skipped = runner_result is not None and runner_result.status == SourceStatus.SCHEDULED_SKIP
-        non_outage = skipped or label in unpublished_fallback_source_ids
+        # A fallback manifest entry never excuses the source's own failure.
+        non_outage = skipped or label in fallback_only
         first = _outage_instant(prior.get("first_failure_at"))
         if first is None and not non_outage:
             first = now
@@ -408,6 +413,7 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
         ):
             result.anomalies.append("zero_candidates_from_nonempty_body")
         prior = previous.get(name, {})
+        _attach_child_baselines(result, prior, minimum_count)
         prior_status = prior.get("status")
         if not result.last_event_end:
             result.last_event_end = str(prior.get("last_event_end") or "")
@@ -428,6 +434,21 @@ def _attach_baselines(results: dict[str, SourceResult], previous: dict, minimum_
             result.anomalies.append("zero_after_recent_nonempty")
         elif prior_count >= minimum_count and result.raw_event_count * 2 < prior_count:
             result.anomalies.append("large_drop_after_recent_nonempty")
+
+
+def _attach_child_baselines(result: SourceResult, prior: dict, minimum_count: int) -> None:
+    """Flag one grouped child that collapses while its siblings keep the total up."""
+    prior_counts = prior.get("event_source_counts")
+    if not isinstance(prior_counts, dict) or len(prior_counts) < 2:
+        return  # Single-source runners are covered by the runner baseline.
+    for source_id, prior_count in sorted(prior_counts.items()):
+        if not isinstance(prior_count, int) or prior_count < minimum_count:
+            continue
+        count = result.event_source_counts.get(source_id, 0)
+        if count == 0:
+            result.source_anomalies[source_id] = "zero_after_recent_nonempty"
+        elif count * 2 < prior_count:
+            result.source_anomalies[source_id] = "large_drop_after_recent_nonempty"
 
 
 def _source_result_for_identity(

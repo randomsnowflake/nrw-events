@@ -406,3 +406,65 @@ class SourceOutageTests(unittest.TestCase):
             self.run_day(env, -1, self.sources(lambda: [event()]))
             result, _ = self.run_day(env, 0, {"Calendar": failed, "Healthy": failed})
             self.assertEqual(result.run_status, "failed")
+
+    def test_empty_child_parse_is_attributed_and_names_the_relaunch_target(self):
+        from nrw_events.sources import regional_common as rc
+
+        stub = '<head><meta http-equiv="refresh" content="0; URL=https://new.example.test/programm/"/></head>'
+
+        def partial():
+            moved = rc.fetch_html_events("Child", "https://old.example.test/calendar.html", lambda html: [],
+                                         fetcher=lambda url, timeout=25: stub, source_id="child")
+            return [*moved, event("Sibling", "Fresh sibling")]
+
+        with make_runner_env() as env:
+            self.run_day(env, -1, self.sources(lambda: [event("Child"), event("Sibling", "Fresh sibling")]))
+            result, payload = self.run_day(env, 0, self.sources(partial))
+        self.assertEqual({row["source_id"] for row in payload["retained_sources"]}, {"child"})
+        self.assertTrue(payload["retained_sources"][0]["first_failure_at"])
+        warning = result.source_results["Calendar"].warnings[0]
+        self.assertIn("page redirects to https://new.example.test/programm/", warning["error"])
+        endpoint = result.source_results["Calendar"].endpoints["https://old.example.test/calendar.html"]
+        self.assertEqual(endpoint["redirected_to"], "https://new.example.test/programm/")
+
+    def test_grouped_child_collapse_is_flagged_while_siblings_keep_the_total(self):
+        cohort = [event("Child", f"Concert {number}") for number in range(12)]
+        siblings = [event("Sibling", f"Play {number}") for number in range(30)]
+        for fresh, expected in ((cohort[:5], "large_drop_after_recent_nonempty"),
+                                ([], "zero_after_recent_nonempty")):
+            with self.subTest(expected=expected), make_runner_env() as env:
+                self.run_day(env, -1, self.sources(lambda: cohort + siblings))
+                result, payload = self.run_day(env, 0, self.sources(lambda fresh=fresh: fresh + siblings))
+                self.assertEqual(result.source_results["Calendar"].anomalies, [])
+                self.assertEqual(payload["source_results"]["Calendar"]["source_anomalies"], {"child": expected})
+                self.assertIn(f"child: {expected}", json.dumps(payload["import_issues"]))
+
+
+class RadioFallbackOutageClockTests(unittest.TestCase):
+    """An audited Radio fallback must not hide its primary source's own outage."""
+
+    def retain(self, env, source_status, warnings=()):
+        from nrw_events import retention_policy
+        from nrw_events.health import SourceResult, SourceStatus
+
+        result = SourceResult("Regional venues", source_id="regional-venues",
+                              status=SourceStatus(source_status), warnings=list(warnings),
+                              event_source_ids=["sibling"])
+        previous = {"generated_at": START.isoformat(), "source_results": {
+                        "Regional venues": {"event_source_ids": ["museum", "sibling"]}},
+                    "events": [event("Museum", "Guided tour", source_id="museum")]}
+        context = replace(env.context(clock=lambda: START), window=EventWindow.from_days(28, START))
+        _, summary = retention_policy._retain_previous_events(
+            {"Regional venues": result}, previous, context, frozenset({"museum"}))
+        return {row["source_id"]: row for row in summary["retained_sources"]}
+
+    def test_failed_primary_starts_the_clock_despite_fallback_entry(self):
+        failure = {"source": "Museum", "source_id": "museum", "error_type": "HTTPError", "error": "HTTP Error 404:"}
+        with make_runner_env() as env:
+            rows = self.retain(env, "degraded", [failure])
+        self.assertEqual(rows["museum"]["first_failure_at"], START.isoformat(timespec="seconds"))
+
+    def test_fallback_only_retention_still_does_not_start_the_clock(self):
+        with make_runner_env() as env:
+            rows = self.retain(env, "healthy")
+        self.assertEqual(rows["museum"]["first_failure_at"], "")

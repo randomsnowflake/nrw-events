@@ -1,0 +1,30 @@
+{
+ "number_of_hits": 3.0,
+ "aggregations": {},
+ "hits": [
+  {
+   "id": "89798",
+   "eventId": "15678",
+   "title": "Kino im Landesmuseum",
+   "timestamp": 1791567000000,
+   "description": "Regelmäßig dienstags und freitags, um 19:30 Uhr. Die Bonner Kinemathek zeigt in Kooperation mit dem LVR-Landesmuseum Bonn ausgewählte Filme im Veranstaltungssaal. Das aktuelle Programm und den Online-Ticket-Vorverkauf [...]",
+   "category": "Veranstaltung"
+  },
+  {
+   "id": "90623",
+   "eventId": "16427",
+   "title": "Foto-Walk: Fotografische Spurensuche: Das französische Bonn",
+   "timestamp": 1792155600000,
+   "description": "Ein Spaziergang mit der Kamera durch das französische Bonn: Fotografin/Medienkünstlerin Heidi Pfohl und Historikerin Ulrike Just spazieren mit Ihnen durch die Stadt und regen an zu einem individuellen [...]",
+   "category": "Workshop/Projekt"
+  },
+  {
+   "id": "89196",
+   "eventId": "16376",
+   "title": "Fluchtpunkt Paris",
+   "timestamp": 1792315800000,
+   "description": "Nach dem Ersten Weltkrieg zog das pulsierende Kulturleben der Metropole Intellektuelle und Kunstschaffende aus ganz Europa an – so auch die Fotografinnen Gisèle Freund, Rogi André und Dora Kallmus alias [...]",
+   "category": "Führung"
+  }
+ ]
+}

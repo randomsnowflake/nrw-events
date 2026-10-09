@@ -25,6 +25,7 @@ from html import unescape
 from .. import (
     category_taxonomy,
     common,
+    http,
     richtext,
 )
 from ..location import municipality_for_locality
@@ -1374,12 +1375,19 @@ def fetch_press_festivals() -> list:
         if blocked
     }
     for year in years:
+        # Next year's release is a look-ahead; until the city publishes it,
+        # its 404s are expected and must not count as a source outage.
+        look_ahead = year > common.runtime_window().start.year
         html = ""
         url = ""
         last_error = None
         for candidate_url in _press_urls(year):
             try:
-                html = common.fetch_url(candidate_url, timeout=20)
+                if look_ahead:
+                    with http._optional_detail_request(candidate_url):
+                        html = common.fetch_url(candidate_url, timeout=20)
+                else:
+                    html = common.fetch_url(candidate_url, timeout=20)
                 url = candidate_url
                 break
             except Exception as exc:
@@ -1389,6 +1397,7 @@ def fetch_press_festivals() -> list:
                 source,
                 RuntimeError(f"annual press release for {year} was not found: {last_error}"),
                 source_id="bonn-district-festivals",
+                **({"error_type": "OptionalDetailWarning"} if look_ahead else {}),
             )
             continue
         for li in re.findall(r"<li>(.*?)</li>", html, re.S):

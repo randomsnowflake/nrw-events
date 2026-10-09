@@ -46,6 +46,15 @@ class ContraKreisSourceTests(unittest.TestCase):
         self.assertEqual(premiere["category_key"], "stage")
         self.assertEqual(premiere["source_id"], "contra-kreis-theater")
 
+    def test_plot_mentioning_children_keeps_the_play_above_the_publication_floor(self):
+        plot = MONTH_HTML.replace(
+            "<p>Die lebenslustige Friseurin Rita",
+            "<p>Ihr Mann will, dass sie Kinder kriegt. Die lebenslustige Friseurin Rita",
+        )
+        premiere = contra_kreis.events_from_month(plot)[0]
+        self.assertIn("Kinder", premiere["description"])
+        self.assertGreaterEqual(premiere["score"], 0.45)
+
     def test_source_is_registered_with_stable_id(self):
         self.assertIs(SOURCES["Contra-Kreis-Theater"], contra_kreis.fetch)
         self.assertEqual(SOURCE_IDS["Contra-Kreis-Theater"], "contra-kreis-theater")

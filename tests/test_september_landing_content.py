@@ -1,6 +1,7 @@
 """Regression contracts from the September 2026 public-page audit."""
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common, identity
@@ -20,30 +21,23 @@ class SeptemberLandingContentTests(unittest.TestCase):
         self.assertEqual(context['venue'], 'Rheintreppe Ruttmanns Wiese')
         self.assertEqual(context['venue_address'], 'Kölner Straße / Ufer Straße, 50389 Wesseling')
 
-    def test_lvr_more_anchor_removed_without_deleting_editorial_mehr(self):
-        body = '''<div class="event filter-element" data-filter-list="kino,kino im landesmuseum,15.09. 19:30">
-        <p>Die Kinemathek zeigt Filme und mehr.</p>
-        <a class="more" href="https://example.org/kino">Mehr</a></div>'''
-        with patch.object(common, 'TODAY', datetime(2026, 9, 1)), patch.object(common, 'END_DATE', datetime(2026, 9, 30)):
-            event = regional_venues._event_from_lvr_body(body)
-        self.assertEqual(event['description'], 'Die Kinemathek zeigt Filme und mehr.')
-        self.assertEqual(event['link'], 'https://example.org/kino')
-
-    def test_lvr_title_takes_publisher_casing_from_the_card_heading(self):
-        cards = {
-            "führung: highlights der kulturhistorischen sammlung,11.10. 11:30":
-                ("Sonntag, 11.10. | 11:30 Uhr", "Führung: Highlights der kulturhistorischen Sammlung"),
-            "foto-walk: fotografische spurensuche: das französische bonn,16.10. 15:00":
-                ("Freitag, 16.10. | 15:00 Uhr", "Foto-Walk: Fotografische Spurensuche: Das französische Bonn"),
-            "führung: mit dem baby ins museum,16.10. 10:30":
-                ("Freitag, 16.10. | 10:30 Uhr", "Führung: Mit dem Baby ins Museum"),
-        }
-        for filter_list, (when, heading) in cards.items():
-            body = f'''<div class="event filter-element" data-filter-list="führung,{filter_list}">
-            <p>{when}</p><h3>{heading}</h3><p>Ein Rundgang durch das Haus.</p></div>'''
-            with self.subTest(heading=heading), patch.object(common, 'TODAY', datetime(2026, 10, 1)), \
-                    patch.object(common, 'END_DATE', datetime(2026, 10, 31)):
-                self.assertEqual(regional_venues._event_from_lvr_body(body)['title'], heading)
+    def test_lvr_search_index_hits_keep_publisher_title_berlin_time_and_ticket_link(self):
+        payload = (Path(__file__).parent / 'fixtures' / 'lvr_landesmuseum_dates_20261009.json').read_text()
+        with patch.object(common, 'TODAY', datetime(2026, 10, 1)), patch.object(common, 'END_DATE', datetime(2026, 10, 31)):
+            events = regional_venues._events_from_lvr(payload)
+        self.assertEqual(
+            [(e['title'], e['date'], e['time']) for e in events],
+            [
+                ('Kino im Landesmuseum', '2026-10-09', '19:30'),
+                ('Foto-Walk: Fotografische Spurensuche: Das französische Bonn', '2026-10-16', '15:00'),
+                ('Fluchtpunkt Paris', '2026-10-18', '11:30'),
+            ],
+        )
+        self.assertEqual(
+            events[1]['link'],
+            'https://www.shop.landesmuseum-bonn.lvr.de/#/product/event/16427?date=2026-10-16&date_id=90623',
+        )
+        self.assertTrue(events[1]['description'].endswith('zu einem individuellen …'))
 
     def test_duisdorf_gets_specific_organizer_link_not_other_fairs(self):
         html = '''<h3>Herbstkirmes Duisdorf</h3><p>Auf dem Europaplatz findet die traditionelle Kirmes vom 04.09.2026 bis zum 07.09.2026 statt.</p>'''

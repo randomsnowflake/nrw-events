@@ -468,8 +468,12 @@ def _fetch_url_direct(
                     )
                     if not isinstance(charset, str):
                         charset = None
+                    final_url = resp.geturl() if hasattr(resp, "geturl") else url
                     _record_endpoint(url, status=getattr(resp, "status", 200), content_type=content_type,
-                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000))
+                                     bytes=len(body), duration_ms=round((time.perf_counter() - started) * 1000),
+                                     # A silent HTTP redirect is how relaunched sites move a calendar.
+                                     **({"redirected_to": redact(final_url)}
+                                        if isinstance(final_url, str) and final_url and final_url != url else {}))
             return _decode_body(body, charset)
         except Exception as exc:
             if isinstance(exc, urllib.error.HTTPError) and exc.code in accepted_http_statuses:
@@ -508,7 +512,8 @@ def _fetch_url_direct(
                 )
                 _close_http_error(exc)
                 return body.decode(charset or "utf-8", errors="replace")
-            _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc))
+            _record_endpoint(url, error_type=type(exc).__name__, error=redact(exc),
+                             **({"http_status": exc.code} if isinstance(exc, urllib.error.HTTPError) else {}))
             retry = attempt < attempts - 1 and _is_retryable_fetch_error(exc)
             delay = _retry_delay(exc, attempt) if retry else 0
             _close_http_error(exc)

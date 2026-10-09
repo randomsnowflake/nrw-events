@@ -467,6 +467,17 @@ def range_dates(text: str):
     return start, end
 
 
+_META_REFRESH = re.compile(
+    r"<meta\b[^>]*http-equiv=[\"']?refresh[\"']?[^>]*content=[\"'][^\"']*?url=([^\"'>\s]+)", re.I,
+)
+
+
+def meta_refresh_target(url: str, html: str) -> str:
+    """Return where a publisher's stub page forwards, e.g. after a relaunch."""
+    match = _META_REFRESH.search(html or "")
+    return urllib.parse.urljoin(url, unescape(match.group(1)).strip()) if match else ""
+
+
 def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25,
                       *, source_id: str,
                       empty_is_healthy: bool | Callable[[str], bool] = False,
@@ -502,6 +513,7 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
                 and metrics["out_of_window_count"] == 0
                 and not expected_empty
             )
+            moved_to = meta_refresh_target(endpoint, html) if parser_empty else ""
             common._record_endpoint(
                 endpoint,
                 parser_type="html",
@@ -509,6 +521,9 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
                 out_of_window_count=metrics["out_of_window_count"],
                 parsed_event_count=len(events),
                 parser_empty=parser_empty,
+                # Attributes this empty child inside grouped adapters.
+                **({"source_id": source_id} if parser_empty else {}),
+                **({"redirected_to": moved_to} if moved_to else {}),
             )
             for event in events:
                 if isinstance(event, dict) and not event.get("source_id"):
@@ -516,7 +531,8 @@ def fetch_html_events(name: str, url: str, parser: TextParser, timeout: int = 25
             if parser_empty:
                 common.log_source_error(
                     name,
-                    ParserEmptyError("parser returned no event records"),
+                    ParserEmptyError("parser returned no event records"
+                                     + (f"; page redirects to {moved_to}" if moved_to else "")),
                     source_id=source_id,
                 )
             all_events.extend(events)

@@ -155,6 +155,9 @@ class SourceResult:
     # Latest parsed end date (YYYY-MM-DD), carried through empty runs to tell season end from parser drift.
     last_event_end: str = ""
     anomalies: list[str] = field(default_factory=list)
+    # Per-child count drops of grouped adapters. Kept apart from ``anomalies``,
+    # which gates run status and count-drop policy for the whole runner.
+    source_anomalies: dict[str, str] = field(default_factory=dict)
     duration_ms: int = 0
     ai_duration_ms: int = 0
     ai_candidate_event_count: int = 0
@@ -167,6 +170,7 @@ class SourceResult:
     detail_deadline_skipped_event_count: int = 0
     event_sources: list[str] = field(default_factory=list)
     event_source_ids: list[str] = field(default_factory=list)
+    event_source_counts: dict[str, int] = field(default_factory=dict)
     cancelled_events: list[dict[str, Any]] = field(default_factory=list)
     announced_events: list[dict[str, Any]] = field(default_factory=list)
     research_leads: list[dict[str, Any]] = field(default_factory=list)
@@ -249,6 +253,7 @@ class SourceResult:
         if "status" in details and not ({"error", "error_type"} & details.keys()):
             current.pop("error", None)
             current.pop("error_type", None)
+            current.pop("http_status", None)
         elif ({"error", "error_type"} & details.keys()) and "status" not in details:
             current.pop("status", None)
         current.update(details)
@@ -302,6 +307,7 @@ class SourceResult:
             "last_nonempty_raw_event_count": self.last_nonempty_raw_event_count,
             "last_event_end": self.last_event_end,
             "anomalies": self.anomalies,
+            "source_anomalies": self.source_anomalies,
             "duration_ms": self.duration_ms,
             "ai_duration_ms": self.ai_duration_ms,
             "ai_candidate_event_count": self.ai_candidate_event_count,
@@ -311,6 +317,7 @@ class SourceResult:
             "detail_deadline_skipped_event_count": self.detail_deadline_skipped_event_count,
             "event_sources": self.event_sources,
             "event_source_ids": self.event_source_ids,
+            "event_source_counts": self.event_source_counts,
             "cancelled_event_count": len(self.cancelled_events),
             "announced_event_count": len(self.announced_events),
             "research_lead_count": self.research_lead_count,
