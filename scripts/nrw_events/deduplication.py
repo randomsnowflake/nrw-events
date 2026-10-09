@@ -45,7 +45,7 @@ def _suppress_covered_ticket_bundles(events: list[CanonicalEvent]) -> list[Canon
         end_date = str(event.get("end_date") or start_date)
         if _TICKET_BUNDLE_TITLE.search(comparison_text(str(event.get("title") or ""))) and end_date > start_date:
             bundles.append(event)
-        elif start_date and start_date == end_date:
+        elif start_date and start_date == end_date and event.get("status") == "scheduled":
             nights[(normalize_source_id(event.get("source_id") or event.get("source")), _series_place_key(event))].append(start_date)
     covered = {
         id(bundle) for bundle in bundles

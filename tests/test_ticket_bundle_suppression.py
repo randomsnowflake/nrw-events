@@ -62,6 +62,15 @@ class TicketBundleSuppressionTests(unittest.TestCase):
         events = [day_ticket, festival, night]
         self.assertEqual(deduplication.suppress_redundant_series_umbrellas(events), events)
 
+    def test_keeps_a_pass_when_the_covering_night_is_not_scheduled(self):
+        for status in ("cancelled", "postponed"):
+            with self.subTest(status=status):
+                bundle = _night("Kombiticket Samstag + Sonntag", "2026-10-10", end_date="2026-10-11")
+                night = _night("Band A", "2026-10-11")
+                night["status"] = status
+                events = [bundle, night]
+                self.assertEqual(deduplication.suppress_redundant_series_umbrellas(events), events)
+
     def test_drops_kombiticket_covering_a_night(self):
         bundle = _night("Kombiticket Samstag + Sonntag", "2026-10-10", end_date="2026-10-11")
         night = _night("Band A", "2026-10-11")
