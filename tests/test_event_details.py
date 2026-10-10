@@ -21,6 +21,13 @@ class EventDetailsTests(unittest.TestCase):
         self.assertEqual(canonical_details({"performance": "gala", "video_url": "http://insecure.test"}), {})
         self.assertEqual(canonical_details(["not", "a", "dict"]), {})
 
+    def test_malformed_optional_details_are_dropped_not_raised(self):
+        self.assertEqual(canonical_details({"video_url": "https://[invalid", "age": "ab 6 Jahren"}), {"age": "ab 6 Jahren"})
+        self.assertEqual(canonical_details({"performance": ["premiere"]}), {})
+        self.assertEqual(canonical_details({"performance": {"premiere": 1}}), {})
+        event = canonicalize_event(raw_event(details={"video_url": "https://[invalid", "performance": ["premiere"]}))
+        self.assertEqual(event.details, {})
+
     def test_details_reach_the_canonical_event_but_not_the_content_hash(self):
         plain = canonicalize_event(raw_event())
         enriched = canonicalize_event(raw_event(details={"age": "ab 6 Jahren", "video_url": "https://vimeo.com/1"}))

@@ -29,7 +29,10 @@ def _public_url(value: Any) -> str:
     if not isinstance(value, str):
         return ""
     url = value.strip()
-    parsed = urllib.parse.urlsplit(url)
+    try:
+        parsed = urllib.parse.urlsplit(url)
+    except ValueError:  # e.g. "https://[invalid": drop the field, keep the event
+        return ""
     return url if parsed.scheme == "https" and parsed.netloc and len(url) <= 2048 else ""
 
 
@@ -39,7 +42,7 @@ def canonical_details(value: Any) -> dict[str, Any]:
         return {}
     result: dict[str, Any] = {}
     performance = value.get("performance")
-    if performance in PERFORMANCE_NOTES:
+    if isinstance(performance, str) and performance in PERFORMANCE_NOTES:
         result["performance"] = performance
     for key, limit in _TEXT_LIMITS.items():
         if cleaned := _clean(value.get(key), limit):
