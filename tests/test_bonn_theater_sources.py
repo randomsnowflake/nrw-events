@@ -2,7 +2,8 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common
+from nrw_events import common, config
+from nrw_events.retention_policy import _publication_filter_reason
 from nrw_events.sources import (
     junges_theater_bonn,
     kleines_theater,
@@ -278,6 +279,14 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertEqual(event["availability"], "SoldOut")
         self.assertEqual(event["details"], {"age": "ab 10 Jahren"})
         self.assertIn("Halbgott", event["description"])
+        self.assertEqual(_publication_filter_reason(canonicalize_event(event), config.RuntimeConfig()), "")
+
+        family_page = page.replace("Ein Musical über einen Halbgott auf der Bühne.", "Ein Musical für Kinder.")
+        [family_event] = junges_theater_bonn.events_from_html(html, lambda _url: family_page)
+        self.assertEqual(
+            _publication_filter_reason(canonicalize_event(family_event), config.RuntimeConfig()),
+            "filter:score_floor",
+        )
 
     def test_marabu_keeps_bonn_performances_and_filters_touring_dates(self):
         html = """
