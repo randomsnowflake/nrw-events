@@ -38,20 +38,21 @@ def _title_key(event: CanonicalEvent | dict) -> str:
     return comparison_text(strip_status_markers(title, str(event.get("status") or "")))
 
 
+def _detail_links(event: CanonicalEvent | dict) -> set[str]:
+    links = {
+        report._normalized_link_key(str(value))
+        for value in (event.get("source_links") or [])
+        if str(value or "").strip()
+    }
+    if event.get("link_kind") == "detail" and event.get("link"):
+        links.add(report._normalized_link_key(str(event.get("link"))))
+    return links
+
+
 def _cross_run_match_score(current: CanonicalEvent | dict, prior: dict) -> int:
     """Score corroborating fields for a same-title/date cross-run match."""
     score = 0
-    def source_links(event: CanonicalEvent | dict) -> set[str]:
-        links = {
-            report._normalized_link_key(str(value))
-            for value in (event.get("source_links") or [])
-            if str(value or "").strip()
-        }
-        if event.get("link_kind") == "detail" and event.get("link"):
-            links.add(report._normalized_link_key(str(event.get("link"))))
-        return links
-
-    if source_links(current) & source_links(prior):
+    if _detail_links(current) & _detail_links(prior):
         score += 8
     if current.get("source_id") and current.get("source_id") == _impl_retention_policy._event_source_id(prior):
         score += 4
@@ -91,16 +92,6 @@ def _uniquely_disambiguates_occurrence(
     def normalized_link(event: CanonicalEvent | dict) -> str:
         return str(event.get("link") or "").rstrip("/")
 
-    def normalized_source_links(event: CanonicalEvent | dict) -> set[str]:
-        links = {
-            report._normalized_link_key(str(value))
-            for value in (event.get("source_links") or [])
-            if str(value or "").strip()
-        }
-        if event.get("link_kind") == "detail" and event.get("link"):
-            links.add(report._normalized_link_key(str(event.get("link"))))
-        return links
-
     def normalized_venue(event: CanonicalEvent | dict) -> str:
         return str(event.get("venue_id") or "") or comparison_text(str(event.get("venue") or ""))
 
@@ -113,14 +104,24 @@ def _uniquely_disambiguates_occurrence(
             and sum(getter(event) == value for event in prior_group) == 1
         ):
             return True
-    shared_source_links = normalized_source_links(current) & normalized_source_links(prior)
-    return bool(shared_source_links and any(sum(link in normalized_source_links(event) for event in prior_group) == 1 for link in shared_source_links))
+    shared_source_links = _detail_links(current) & _detail_links(prior)
+    return bool(shared_source_links and any(sum(link in _detail_links(event) for event in prior_group) == 1 for link in shared_source_links))
 
 
 def _uniquely_matches_renamed_occurrence(
-    current: CanonicalEvent | dict, prior: dict,
+    current: CanonicalEvent | dict, prior: dict, link_counts: Counter[str] | None = None,
 ) -> bool:
-    """Match a conservative upstream title expansion to its published record."""
+    """Match an upstream retitle of a published record from the same source.
+
+    Either the source keeps the occurrence's detail page (Bundeskunsthalle
+    renamed "Wednesday Late Art – Nie Wieder!" under the same URL), or the
+    title is a conservative expansion at the same venue. A link that other
+    current records share is an overview page and identifies nothing.
+    """
+    same_source = normalize_source_id(current.get("source_id") or current.get("source")) == _impl_retention_policy._event_source_id(prior)
+    shared_links = _detail_links(current) & _detail_links(prior)
+    if same_source and shared_links and all((link_counts or Counter())[link] == 1 for link in shared_links):
+        return True
     current_title = _title_key(current)
     prior_title = _title_key(prior)
     current_display_title = " ".join(str(current.get("title") or "").casefold().split())
@@ -145,8 +146,7 @@ def _uniquely_matches_renamed_occurrence(
     return bool(
         min(len(current_venue.replace(" ", "")), len(prior_venue.replace(" ", ""))) >= 8
         and (current_venue in prior_venue or prior_venue in current_venue)
-        and normalize_source_id(current.get("source_id") or current.get("source"))
-        == _impl_retention_policy._event_source_id(prior)
+        and same_source
     )
 
 
@@ -176,6 +176,7 @@ def _reconcile_published_ids(
     for current in reconciled:
         key = (_title_key(current), str(current.get("start_date") or current.get("date") or ""))
         current_groups.setdefault(key, []).append(current)
+    link_counts = Counter(link for current in reconciled for link in _detail_links(current))
     candidate_pairs: list[tuple[int, int, dict]] = []
     fallback_pairs: list[tuple[int, int, dict]] = []
     for index, current in enumerate(reconciled):
@@ -198,7 +199,7 @@ def _reconcile_published_ids(
         )
         for prior in prior_date_source_groups.get(date_source_key, []):
             score = _cross_run_match_score(current, prior)
-            if score >= 4 and _uniquely_matches_renamed_occurrence(current, prior):
+            if score >= 4 and _uniquely_matches_renamed_occurrence(current, prior, link_counts):
                 fallback_pairs.append((score, index, prior))
 
     fallback_current_counts = Counter(index for _score, index, _prior in fallback_pairs)

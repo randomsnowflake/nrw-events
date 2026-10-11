@@ -679,6 +679,26 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
             "https://rhein.info/veranstaltungen/unkel-live-konzert-mit-the-end-of-blue/",
         )
 
+    def test_unkel_multi_day_rss_range_keeps_its_final_day(self):
+        patch_window(self, datetime(2026, 10, 11), datetime(2026, 10, 25))
+        # Item as served by https://rhein.info/?post_type=event&feed=eventical on 2026-10-11.
+        item = ET.fromstring("""
+<item>
+  <title>Unkeler Kreativ</title>
+  <link>https://rhein.info/veranstaltungen/unkeler-kreativ-4/</link>
+  <pubDate>Sat, 10 Oct 2026 09:00:00 +0000</pubDate>
+  <description><![CDATA[10. Oktober 2026 - 18. Oktober 2026 - 11:00 - 18:00 <br/>Großer Sitzungssaal der Verbandsgemeindeverwaltung <br/>Linzer Straße 4 <br/>Unkel]]></description>
+</item>
+""")
+
+        event = regional_feeds._event_from_unkel_item(item)
+
+        self.assertIsNotNone(event)
+        assert event is not None
+        self.assertEqual((event["date"], event["end_date"]), ("2026-10-10", "2026-10-18"))
+        self.assertEqual(event["time"], "11:00–18:00")
+        self.assertIn("vom 10.10.2026 bis 18.10.2026 im Großer Sitzungssaal", event["description"])
+
 
 if __name__ == "__main__":
     unittest.main()

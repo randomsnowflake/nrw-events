@@ -120,6 +120,20 @@ class ExhibitionRunTests(unittest.TestCase):
         [unchanged] = merge_exhibition_opening_days([_day("2026-10-17", time=""), _day("2026-10-18", time="")], {})
         self.assertEqual(unchanged.end_date, "2026-10-18")
 
+    def test_labelled_weekly_hours_beat_the_clock_copied_onto_every_repeat(self):
+        note = "Öffnungszeiten: Mittwoch bis Freitag, 16 bis 19 Uhr; Samstag bis Sonntag, 14 bis 19 Uhr"
+        days = [_day(f"2026-10-{day}", time="16:00–19:00", time_note=note) for day in range(10, 25)]
+
+        [merged] = merge_exhibition_opening_days(days, {})
+
+        hours = {slot["date"]: (slot["start_at"][11:16], slot["end_at"][11:16]) for slot in merged.daily_schedule}
+        self.assertEqual((merged.start_date, merged.end_date, merged.time_note), ("2026-10-10", "2026-10-24", note))
+        self.assertEqual(hours["2026-10-10"], ("14:00", "19:00"))  # Saturday
+        self.assertEqual(hours["2026-10-14"], ("16:00", "19:00"))  # Wednesday
+        self.assertNotIn("2026-10-12", hours)  # Monday is closed
+        self.assertNotIn("2026-10-13", hours)  # Tuesday is closed
+        self.assertEqual(len(hours), 11)
+
 
 if __name__ == "__main__":
     unittest.main()

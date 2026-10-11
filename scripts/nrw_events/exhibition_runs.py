@@ -32,7 +32,7 @@ from typing import Any
 from .identity import event_id
 from .models import CanonicalEvent
 from .normalization import comparison_text
-from .validation import validate_event
+from .validation import _daily_schedule_from_prose, validate_event
 
 MIN_OPENING_HOURS = 3
 #: A prior run still continues when the new first date follows its end within
@@ -148,6 +148,10 @@ def _merged(
             *day_ids,
         ])),
     })
+    # Labelled weekly hours beat the one clock a calendar copies onto every
+    # repeat (NAHT: 16–19 daily vs. "Mittwoch bis Freitag, 16 bis 19 Uhr ...").
+    if base["daily_schedule"] and _daily_schedule_from_prose(base):
+        base["daily_schedule"] = []
     return validate_event(base)
 
 

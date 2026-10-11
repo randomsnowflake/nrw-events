@@ -47,9 +47,65 @@ class UrlContinuityTests(unittest.TestCase):
         self.assertIn("rachel-joyce-sommerhaus-folded", current["previous_event_ids"])
 
     def test_disappeared_record_is_not_attached_to_an_unrelated_event(self):
-        gone = _event("Hauptausschuss", "SiteKit Hürth", event_id="hauptausschuss-old", venue="Rathaus")
-        [current] = _published([_event("Orgelkonzert", "SiteKit Hürth", venue="Rathaus")], [gone])
+        gone = _event("Hauptausschuss", "SiteKit Hürth", event_id="hauptausschuss-old", venue="Rathaus",
+                      link="https://example.test/hauptausschuss")
+        [current] = _published([_event("Orgelkonzert", "SiteKit Hürth", venue="Rathaus",
+                                       link="https://example.test/orgelkonzert")], [gone])
         self.assertNotIn("hauptausschuss-old", current["previous_event_ids"])
+        self.assertNotEqual(current["event_id"], "hauptausschuss-old")
+
+    def test_retitled_occurrence_on_its_detail_page_keeps_its_published_id(self):
+        link = "https://www.bundeskunsthalle.de/veranstaltungen/detail/wednesday-late-art-nie-wieder"
+        prior = _event("Wednesday Late Art – Nie Wieder!", "Bundeskunsthalle", link=link, venue="Bundeskunsthalle",
+                       time="18:00–21:00", start_at="2026-10-21T18:00+02:00", start_date="2026-10-21",
+                       date="2026-10-21", end_date="2026-10-21", event_id="wednesday-late-art-nie-wieder-3652fd58b4")
+        retitled = {**prior, "title": "Wednesday Late Art – Meet the Real Eva Kraus!"}
+        del retitled["event_id"]
+        other = {**retitled, "title": "Kunstvermittlung: NIE WIEDER!", "link": "https://www.bundeskunsthalle.de/veranstaltungen/detail/10424"}
+
+        current = _published([retitled, other], [prior])
+
+        self.assertEqual(current[0]["event_id"], "wednesday-late-art-nie-wieder-3652fd58b4")
+        self.assertNotEqual(current[1]["event_id"], prior["event_id"])
+
+    def test_shared_overview_link_does_not_carry_a_url_to_a_new_title(self):
+        prior = _event("Hauptausschuss", "SiteKit Hürth", event_id="hauptausschuss-old", link="https://example.test/kalender")
+        replacement = _event("Orgelkonzert", "SiteKit Hürth", link="https://example.test/kalender")
+        later = _event("Lesung", "SiteKit Hürth", link="https://example.test/kalender", start_date="2026-09-27",
+                       date="2026-09-27", end_date="2026-09-27", start_at="2026-09-27T11:00+02:00")
+
+        current = _published([replacement, later], [prior])
+
+        self.assertNotIn("hauptausschuss-old", [event["event_id"] for event in current])
+
+    def test_exhibition_run_does_not_become_an_alias_of_one_tour_day(self):
+        # Production 2026-10-11: LVR's 18.10 tour inherited bonn.de's live run id.
+        from nrw_events.dedup_merge import _merge_duplicate_metadata
+        from nrw_events.duplicate_identity import events_are_duplicates
+
+        run = _event("Fluchtpunkt Paris", "Bonn.de Events", source_id="bonn-de-events", event_id="fluchtpunkt-paris-767683ab38",
+                     preserved_event_id="fluchtpunkt-paris-767683ab38", start_date="2026-10-15", date="2026-10-15",
+                     end_date="2026-11-07", start_at="", time="", city="Bonn", venue="LVR-LandesMuseum Bonn",
+                     category_key="exhibition", previous_event_ids=["fluchtpunkt-paris-34e7236751"],
+                     link="https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/Fluchtpunkt-Paris.php")
+        tour = _event("Fluchtpunkt Paris", "LVR-LandesMuseum Bonn", source_id="lvr-landesmuseum-bonn",
+                      start_date="2026-10-18", date="2026-10-18", end_date="2026-10-18",
+                      start_at="2026-10-18T11:30+02:00", time="11:30", city="Bonn", venue="LVR-LandesMuseum Bonn",
+                      link="https://www.shop.landesmuseum-bonn.lvr.de/#/product/event/16376?date=2026-10-18&date_id=89196")
+        self.assertTrue(events_are_duplicates(run, tour))  # the syndicated-day rule still pairs them
+
+        merged = _merge_duplicate_metadata(tour, run)
+        self.assertEqual(merged.get("previous_event_ids") or [], [])
+
+        # A same-day cross-source fold still redirects.
+        day = {**run, "start_date": "2026-10-18", "date": "2026-10-18", "end_date": "2026-10-18",
+               "event_id": "fluchtpunkt-paris-day", "preserved_event_id": "fluchtpunkt-paris-day", "previous_event_ids": []}
+        self.assertEqual(_merge_duplicate_metadata(tour, day)["previous_event_ids"], ["fluchtpunkt-paris-day"])
+
+        # Aliases already carried forward never shadow a live page.
+        stale = {**tour, "previous_event_ids": ["fluchtpunkt-paris-c360a2fcb6", "fluchtpunkt-paris-767683ab38"]}
+        published = {event["source_id"]: event for event in assign_event_ids([run, stale])}
+        self.assertEqual(published["lvr-landesmuseum-bonn"]["previous_event_ids"], ["fluchtpunkt-paris-c360a2fcb6"])
 
 
 if __name__ == "__main__":

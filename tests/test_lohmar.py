@@ -75,6 +75,29 @@ class LohmarParserTests(unittest.TestCase):
             "Alle Bürgerinnen und Bürger ab 14 Jahren sind willkommen.",
         )
 
+    def test_detail_page_of_another_event_is_not_used(self):
+        listing = LISTING_HTML.replace(
+            '<div class="teaser-text">\n'
+            '    <p>Entdecke die Welt des Laser-Cutting und 3D-Drucks beim Offenen Maker Treff in Lohmar!</p>\n'
+            '    <p>Jeden Dienstag kannst du eigene Ideen umsetzen. <a href="/details">mehr</a></p>\n'
+            '  </div>',
+            '<div class="teaser-text"></div>',
+        )
+        # Observed 2026-10-11: an expired va-URL rendered "Taste Food Festival".
+        foreign = """
+        <h1 class="header-layout-7" itemprop="headline"><span class="header-text">Taste Food Festival </span></h1>
+        <div class="news-text-wrap" itemprop="articleBody"><p>Internationale Küche trifft auf lokale Spezialitäten.</p></div>
+        """
+
+        [event] = regional_html._events_from_lohmar(listing, detail_fetcher=lambda _url: foreign)
+
+        self.assertNotIn("Internationale Küche", event["description"])
+        self.assertIn("Offener Maker Treff", event["description"])
+
+        own = foreign.replace("Taste Food Festival ", "Offener Maker Treff")
+        [event] = regional_html._events_from_lohmar(listing, detail_fetcher=lambda _url: own)
+        self.assertIn("Internationale Küche", event["description"])
+
     def test_missing_detail_copy_still_produces_a_useful_description(self):
         listing = LISTING_HTML.replace(
             '<div class="teaser-text">\n'

@@ -514,6 +514,12 @@ def _parse_detail_context(html: str) -> dict:
     if final:
         day, month, year = final.groups()
         context["final_date"] = f"{year}-{int(month):02d}-{int(day):02d}"
+    # A bold "Öffnungszeiten:" label names the event's weekly hours (NAHT,
+    # 10/2026); an inline "Ticketshop Öffnungszeiten" is the box office.
+    hours = re.search(r"<strong>\s*Öffnungszeiten\s*</strong>\s*:?(.*?)(?=<strong>|<h\d|</div>)", html or "", re.I | re.S)
+    hours_text = "; ".join(filter(None, (rc.clean(part) for part in re.split(r"</p>", hours.group(1))))) if hours else ""
+    if 0 < len(hours_text) <= 200:
+        context["opening_hours"] = hours_text
     context["description"] = _paragraph_aware_detail_description(description_parts)
     context["description_html"] = _detail_rich_text(html)
     if price := _detail_admission(html):
@@ -584,6 +590,10 @@ def _parse_detail_context(html: str) -> dict:
 
 def _apply_detail_time(event: dict, context: dict) -> dict:
     """Fill a listing occurrence's missing end time from its detail page."""
+    if hours := str(context.get("opening_hours") or ""):
+        # Survives the restricted-copy boundary; exhibition runs prefer it over
+        # the one clock bonn.de copies onto every repeat date.
+        event["time_note"] = event.get("time_note") or f"Öffnungszeiten: {hours}"
     start_time = str(context.get("start_time") or "").strip()
     end_time = str(context.get("end_time") or "").strip()
     if not (re.fullmatch(r"\d{1,2}:\d{2}", start_time) and re.fullmatch(r"\d{1,2}:\d{2}", end_time)):

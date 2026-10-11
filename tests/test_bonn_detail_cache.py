@@ -199,6 +199,24 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         # The last date itself carries no extra fact.
         self.assertNotIn("details", bonn._apply_detail_final_date({"start_date": "2026-12-20"}, context))
 
+    def test_bold_opening_hours_label_becomes_the_repeat_time_note(self):
+        # bonn.de NAHT page (cached 2026-10-11): every repeat lists 16:00, the prose names weekly hours.
+        html = """
+<section class="SP-EventInformation__scheduling"><span class="SP-Scheduling__begin">
+<span class="SP-Scheduling__date">Samstag, 10. Oktober 2026</span> <span class="SP-Scheduling__time">16:00 Uhr</span>
+<span class="SP-Scheduling__dash">–</span> <span class="SP-Scheduling__time">19:00 Uhr</span></span></section>
+<div class="SP-Text"><div data-sp-table class="SP-Paragraph"><p>10. bis 24. Oktober 2026</p><p><strong>Öffnungszeiten</strong>:</p><p>Mittwoch bis Freitag, 16 bis 19 Uhr</p><p>Samstag bis Sonntag, 14 bis 19 Uhr</p><p><strong>Vernissage</strong>: Samstag | 10. Oktober 2026 | 19 Uhr</p></div></div>
+"""
+
+        context = bonn._parse_detail_context(html)
+        event = bonn._apply_detail_time({"start_date": "2026-10-12", "time": "16:00"}, context)
+
+        self.assertEqual(event["time_note"], "Öffnungszeiten: Mittwoch bis Freitag, 16 bis 19 Uhr; Samstag bis Sonntag, 14 bis 19 Uhr")
+        self.assertEqual(event["time"], "16:00–19:00")
+        # A box-office label inside running text is not the event's hours.
+        self.assertNotIn("opening_hours", bonn._parse_detail_context(
+            '<div class="SP-Text"><p>Ticketshop Öffnungszeiten: Montag bis Samstag 17 bis 20 Uhr</p></div>'))
+
     def test_bounded_listing_detail_pass_prioritizes_sparse_final_targets(self):
         events = [
             {

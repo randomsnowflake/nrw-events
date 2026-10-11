@@ -87,15 +87,26 @@ def _merge_duplicate_metadata(
     exhibitor = _merged_exhibitor_information(winner, duplicate)
     if exhibitor and exhibitor != (winner.get("exhibitor") or {}):
         updates["exhibitor"] = exhibitor
+    winner_bounds = _impl_duplicate_identity._date_bounds(winner)
+    duplicate_bounds = _impl_duplicate_identity._date_bounds(duplicate)
+    # An alias redirects the duplicate's URL. An exhibition run hosts separate
+    # programme days, so it redirects only to a record live on its first day:
+    # bonn.de's "Fluchtpunkt Paris" run folded into one LVR tour day would
+    # otherwise send the whole run to the tour. (A festival overview folding
+    # into its programme day, b'future, keeps its alias.)
+    redirectable = duplicate.get("category_key") != "exhibition" or not (winner_bounds and duplicate_bounds) or (
+        winner_bounds[0] <= duplicate_bounds[0] <= winner_bounds[1]
+    )
     duplicate_alias = (
         event_id(duplicate)
         if winner.get("source") != duplicate.get("source")
         and event_id(duplicate) != event_id(winner)
+        and redirectable
         else ""
     )
     previous_event_ids = list(dict.fromkeys([
         *(winner.get("previous_event_ids") or []),
-        *(duplicate.get("previous_event_ids") or []),
+        *((duplicate.get("previous_event_ids") or []) if redirectable else []),
         duplicate_alias,
     ]))[:20]
     previous_event_ids = [identifier for identifier in previous_event_ids if identifier]

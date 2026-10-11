@@ -2,8 +2,10 @@
 
 import re
 import urllib.parse
+from collections.abc import Callable
 from datetime import datetime
 from html.parser import HTMLParser
+from typing import Any
 
 from .. import common, components, detail_enrichment
 from ..detail_parsing import _exact_title_key
@@ -112,7 +114,7 @@ def _alfter_calendar_is_expected_empty(html: str) -> bool:
     return _ALFTER_EMPTY_NOTICE in rc.clean(html)
 
 
-def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
+def _events_from_lohmar(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     """Parse Lohmar's event cards, including their teaser, time, and venue.
 
     The generic time-listing parser only retains the date/title/link tuple.
@@ -143,7 +145,7 @@ def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
         link = rc.abs_url(_LOHMAR_BASE_URL, title_match.group(1))
         time_text = rc.time_text(rc.clean(time_match.group(2)))
         venue_match = re.search(
-            r'Veranstaltungsort:\s*(.*?)(?:</div>|<br\s*/?>)',
+            r"Veranstaltungsort:\s*(.*?)(?:</div>|<br\s*/?>)",
             block,
             re.S | re.I,
         )
@@ -156,18 +158,16 @@ def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
         )
         teaser_html = teaser_match.group(1) if teaser_match else ""
         teaser_html = re.sub(
-            r'<a\b[^>]*>\s*(?:mehr|details?)\s*</a>',
+            r"<a\b[^>]*>\s*(?:mehr|details?)\s*</a>",
             "",
             teaser_html,
             flags=re.S | re.I,
         )
         description = common.concise_description(rc.clean(teaser_html))
-        teaser_is_title = (
-            description.casefold().strip(" .") == title.casefold().strip(" .")
-        )
+        teaser_is_title = description.casefold().strip(" .") == title.casefold().strip(" .")
         start = common.parse_iso_date(time_match.group(1))
         if (not description or teaser_is_title) and common.window_contains(start):
-            description = _lohmar_detail_description(link, detail_fetcher)
+            description = _lohmar_detail_description(link, detail_fetcher, title)
         description = description or _lohmar_fallback_description(title, time_text, venue)
 
         source_categories = " ".join(
@@ -196,13 +196,17 @@ def _events_from_lohmar(html: str, detail_fetcher=None) -> list:
     return events
 
 
-def _lohmar_detail_description(link: str, detail_fetcher) -> str:
+def _lohmar_detail_description(link: str, detail_fetcher: Callable[[str], str] | None, title: str = "") -> str:
     if not (link and detail_fetcher):
         return ""
     try:
         html = detail_fetcher(link)
     except Exception as exc:
         common.log_source_error("Lohmar detail", exc)
+        return ""
+    # lohmar.de answers a removed record's URL with another event's page.
+    headline = re.search(r'<span[^>]+class="header-text"[^>]*>(.*?)</span>', html or "", re.S | re.I)
+    if headline and title and rc.clean(headline.group(1)).casefold() != title.casefold():
         return ""
     body = re.search(
         r'<div[^>]+class="[^"]*\bnews-text-wrap\b[^"]*"[^>]*>(.*?)</div>',
@@ -224,22 +228,22 @@ def _lohmar_fallback_description(title: str, time_text: str, venue: str) -> str:
 class _BornheimEventCards(HTMLParser):
     """Keep nested date articles and exclude consent/navigation after a card."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(convert_charrefs=False)
-        self.cards = []
-        self.parts = []
+        self.cards: list[str] = []
+        self.parts: list[str] = []
         self.depth = 0
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag == "article":
-            if not self.depth and "event-teaser" in dict(attrs).get("class", "").split():
+            if not self.depth and "event-teaser" in (dict(attrs).get("class") or "").split():
                 self.depth = 1
             elif self.depth:
                 self.depth += 1
         if self.depth:
-            self.parts.append(self.get_starttag_text())
+            self.parts.append(self.get_starttag_text() or "")
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
         if self.depth:
             self.parts.append(f"</{tag}>")
             if tag == "article":
@@ -248,14 +252,14 @@ class _BornheimEventCards(HTMLParser):
                     self.cards.append("".join(self.parts))
                     self.parts = []
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         if self.depth:
             self.parts.append(data)
 
-    def handle_entityref(self, name):
+    def handle_entityref(self, name: str) -> None:
         self.handle_data(f"&{name};")
 
-    def handle_charref(self, name):
+    def handle_charref(self, name: str) -> None:
         self.handle_data(f"&#{name};")
 
 
@@ -267,7 +271,7 @@ def _events_from_bornheim(html: str) -> list:
         dates = re.findall(r'date-card-btn-date">([^<]+)', part, re.S | re.I)
         title = re.search(
             r'<(?:h[1-6]|p)\b[^>]*class="[^"]*(?:title|headline)[^"]*"[^>]*>'
-            r'\s*(.*?)\s*</(?:h[1-6]|p)>',
+            r"\s*(.*?)\s*</(?:h[1-6]|p)>",
             part,
             re.S | re.I,
         )
@@ -281,8 +285,7 @@ def _events_from_bornheim(html: str) -> list:
         source_description = " ".join(
             rc.clean(body)
             for attrs, body in re.findall(r"<p\b([^>]*)>(.*?)</p>", part, re.S | re.I)
-            if not re.search(r"(?:content-info|eventcategor|title|headline)", attrs, re.I)
-            and rc.clean(body)
+            if not re.search(r"(?:content-info|eventcategor|title|headline)", attrs, re.I) and rc.clean(body)
         )
         for date_text in dates:
             start = rc.parse_dt(date_text)
@@ -310,7 +313,7 @@ def _events_from_bornheim(html: str) -> list:
     return events
 
 
-def _events_from_eitorf_cards(html: str, base: str, detail_fetcher=None) -> list:
+def _events_from_eitorf_cards(html: str, base: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for block in re.findall(r'<a[^>]+class="[^"]*card[^"]*"[^>]+data-date="[^"]+".*?</a>', html, re.S | re.I):
         href = re.search(r'href="([^"]+)"', block, re.I)
@@ -337,7 +340,9 @@ def _events_from_eitorf_cards(html: str, base: str, detail_fetcher=None) -> list
         )
         if ev:
             ev = _enrich_regional_detail(
-                ev, detail_fetcher, "Eitorf detail",
+                ev,
+                detail_fetcher,
+                "Eitorf detail",
             )
             events.append(ev)
     return events
@@ -428,7 +433,7 @@ def _broeltal_explicit_place(text: str) -> dict[str, str]:
 class _CardTextParser(HTMLParser):
     """Return text from exact `div.card` blocks without crossing siblings."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.blocks: list[str] = []
         self._depth = 0
@@ -485,11 +490,16 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
             exact_place["venue"] = common.clean_html(str(location.get("name") or ""))
             address = location.get("address")
             if isinstance(address, dict):
-                exact_place["venue_address"] = " ".join(filter(None, (
-                    common.clean_html(str(address.get("streetAddress") or "")),
-                    common.clean_html(str(address.get("postalCode") or "")),
-                    common.clean_html(str(address.get("addressLocality") or "")),
-                )))
+                exact_place["venue_address"] = " ".join(
+                    filter(
+                        None,
+                        (
+                            common.clean_html(str(address.get("streetAddress") or "")),
+                            common.clean_html(str(address.get("postalCode") or "")),
+                            common.clean_html(str(address.get("addressLocality") or "")),
+                        ),
+                    )
+                )
         break
     context["venue"] = exact_place.get("venue", "")
     context["venue_address"] = exact_place.get("venue_address", "")
@@ -517,9 +527,7 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
     def occurrence_matches(text: str) -> bool:
         date_matches = any(label and label in text for label in date_labels)
         if short_date and expected_year:
-            date_matches = date_matches or (
-                short_date in text and expected_year in text
-            )
+            date_matches = date_matches or (short_date in text and expected_year in text)
         return bool(title and title.casefold() in text.casefold() and date_matches)
 
     card_blocks = _card_text_blocks(visible_document)
@@ -532,7 +540,8 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
         visible_description = re.search(
             r'<(?:div|section)\b[^>]*class=["\'][^"\']*\bevent-description\b'
             r'[^"\']*["\'][^>]*>(.*?)</(?:div|section)>',
-            visible_document, re.I | re.S,
+            visible_document,
+            re.I | re.S,
         )
         if visible_description:
             event_scoped_copy = visible_description.group(1)
@@ -540,14 +549,15 @@ def _broeltal_detail_context(document: str, event: dict) -> dict:
     return context
 
 
-def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
+def _events_from_broeltal(html: str, base: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
-    blocks = re.findall(r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>',
-                        html, re.S | re.I)
+    blocks = re.findall(
+        r'<a class="list-group-item list-group-item-action" href="([^"]+)">(.*?)</a>', html, re.S | re.I
+    )
     for href, body in blocks:
         text = rc.clean(body)
         start, end = rc.range_dates(text)
-        title = re.search(r'<h[1-6][^>]*>(.*?)</h[1-6]>', body, re.S | re.I)
+        title = re.search(r"<h[1-6][^>]*>(.*?)</h[1-6]>", body, re.S | re.I)
         title_text = rc.clean(title.group(1)) if title else re.sub(r"\d{1,2}\.\d{1,2}\..*", "", text).strip()
         if not (start and title_text):
             continue
@@ -569,7 +579,9 @@ def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
             ev["identity_venue_locked"] = True
             ev.update(_broeltal_explicit_place(text))
             ev = _enrich_regional_detail(
-                ev, detail_fetcher, "Bröltal / Ruppichteroth detail",
+                ev,
+                detail_fetcher,
+                "Bröltal / Ruppichteroth detail",
                 context_extractor=_broeltal_detail_context,
             )
             events.append(ev)
@@ -578,9 +590,9 @@ def _events_from_broeltal(html: str, base: str, detail_fetcher=None) -> list:
 
 def _enrich_regional_detail(
     event: dict,
-    detail_fetcher,
+    detail_fetcher: Callable[[str], str] | None,
     source: str,
-    context_extractor=detail_enrichment.extract_detail_context,
+    context_extractor: Callable[..., Any] = detail_enrichment.extract_detail_context,
 ) -> dict:
     if not detail_fetcher or not common.window_contains(
         common.parse_iso_date(str(event.get("start_date") or "")),

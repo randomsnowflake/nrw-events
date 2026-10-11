@@ -2,6 +2,7 @@
 
 import re
 import xml.etree.ElementTree as ET
+from datetime import datetime
 
 from .. import common
 from . import regional_common as rc
@@ -53,7 +54,7 @@ def _fetch_unkel_rss() -> list:
     return events
 
 
-def _event_from_unkel_item(item):
+def _event_from_unkel_item(item: ET.Element) -> dict | None:
     title = item.findtext("title") or ""
     # The RSS feed exposes the actual event detail URL.  Keeping the shared
     # overview here used to prevent the universal detail pass from reaching
@@ -69,15 +70,16 @@ def _event_from_unkel_item(item):
     if not start:
         return None
     lines = [part.strip() for part in re.split(r"<br\s*/?>", desc) if rc.clean(part)]
+    end = _unkel_end_date(lines[0] if lines else "", start)
     venue = rc.clean(lines[1]) if len(lines) > 1 else ""
     time_text = rc.time_text(text)
     if time_text in {"0:00", "00:00"}:
         time_text = ""
-    description = _unkel_description(title, start, lines, time_text)
+    description = _unkel_description(title, start, lines, time_text, end)
     return common.make_event(
         title,
         rc.with_time(start, text),
-        None,
+        end,
         venue,
         rc.city_from_text(text, "Unkel"),
         description,
@@ -89,10 +91,20 @@ def _event_from_unkel_item(item):
     )
 
 
-def _unkel_description(title: str, start, lines: list[str], time_text: str) -> str:
+def _unkel_end_date(date_line: str, start: datetime) -> datetime | None:
+    """Events Manager writes multi-day runs as ``A - B - <times>`` in the first line."""
+    parts = [part.strip() for part in rc.clean(date_line).split(" - ")]
+    end = common.parse_date(parts[1]) if len(parts) > 1 else None
+    return end if end and end.date() > start.date() else None
+
+
+def _unkel_description(title: str, start: datetime, lines: list[str], time_text: str, end: datetime | None = None) -> str:
     date_label = start.strftime("%d.%m.%Y") if start else ""
     schedule = f" am {date_label}" if date_label else ""
-    if time_text:
+    if end:
+        # The feed's clock range may cover each day or the whole run; do not guess.
+        schedule = f" vom {date_label} bis {end.strftime('%d.%m.%Y')}"
+    elif time_text:
         times = re.findall(r"\d{1,2}:\d{2}", time_text)
         if len(times) >= 2:
             schedule += f" von {times[0]} bis {times[1]} Uhr"
