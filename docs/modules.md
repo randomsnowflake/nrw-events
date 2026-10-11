@@ -139,6 +139,7 @@ scripts/nrw_events/
     kinderflohmarkt.py
     kleines_theater.py
     koeln.py
+    koelner_hallenflohmarkt.py
     koenigswinter.py
     krewelshof.py
     kunstmuseum_bonn.py
