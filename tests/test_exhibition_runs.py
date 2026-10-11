@@ -6,8 +6,9 @@ from nrw_events.validation import validate_event
 
 
 def _day(day: str, *, time: str = "14:00–18:00", title: str = "Ausstellung 100 Jahre Bad Godesberg",
-         status: str = "scheduled", city: str = "Bonn-Bad Godesberg"):
+         status: str = "scheduled", city: str = "Bonn-Bad Godesberg", **extra):
     return validate_event({
+        **extra,
         "status": status,
         "title": title,
         "source": "Bonn.de Events",
@@ -100,6 +101,24 @@ class ExhibitionRunTests(unittest.TestCase):
     def test_mixed_hours_publish_no_partial_schedule(self):
         [merged] = merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02", time="")], {})
         self.assertEqual((merged.daily_schedule, merged.all_day), ([], True))
+
+    def test_day_that_only_names_its_opening_time_joins_the_run(self):
+        [run] = merge_exhibition_opening_days([_day("2026-10-03", time=""), _day("2026-10-04", time="")], {})
+        opens = _day("2026-10-11", time="12:00", time_note="Sonntag ab 12:00 Uhr")
+        [merged] = merge_exhibition_opening_days([run, opens], {"events": [{"event_id": event_id(opens)}]})
+        self.assertEqual((merged.start_date, merged.end_date, merged.all_day), ("2026-10-03", "2026-10-11", True))
+        self.assertEqual(merged.time_note, "")  # one day's note does not describe the run
+        self.assertIn(event_id(opens), merged.previous_event_ids)
+
+        tour = _day("2026-10-11", time="12:00", time_note="Führung um 12:00 Uhr")
+        self.assertEqual(merge_exhibition_opening_days([run, tour], {}), [run, tour])
+
+    def test_labelled_final_date_extends_the_run(self):
+        final = {"details": {"final_date": "2026-12-20"}}
+        [merged] = merge_exhibition_opening_days([_day("2026-10-17", time="", **final), _day("2026-10-18", time="", **final)], {})
+        self.assertEqual((merged.start_date, merged.end_date), ("2026-10-17", "2026-12-20"))
+        [unchanged] = merge_exhibition_opening_days([_day("2026-10-17", time=""), _day("2026-10-18", time="")], {})
+        self.assertEqual(unchanged.end_date, "2026-10-18")
 
 
 if __name__ == "__main__":

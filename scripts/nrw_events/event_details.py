@@ -8,6 +8,7 @@ unknown keys, wrong types and unsafe URLs are dropped, empty values omitted.
 from __future__ import annotations
 
 import urllib.parse
+from datetime import date
 from typing import Any
 
 from . import text as _text
@@ -16,6 +17,7 @@ PERFORMANCE_NOTES = frozenset({"premiere", "revival", "final"})
 _TEXT_LIMITS = {"age": 80, "language": 200}
 _LIST_LIMITS = {"performers": (20, 160), "programme": (20, 160)}
 _URL_KEYS = ("video_url",)
+_DATE_KEYS = ("final_date",)
 
 
 def _clean(value: Any, limit: int) -> str:
@@ -34,6 +36,15 @@ def _public_url(value: Any) -> str:
     except ValueError:  # e.g. "https://[invalid": drop the field, keep the event
         return ""
     return url if parsed.scheme == "https" and parsed.netloc and len(url) <= 2048 else ""
+
+
+def _iso_date(value: Any) -> str:
+    if not isinstance(value, str) or len(value) != 10:
+        return ""
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError:
+        return ""
 
 
 def canonical_details(value: Any) -> dict[str, Any]:
@@ -57,4 +68,7 @@ def canonical_details(value: Any) -> dict[str, Any]:
     for key in _URL_KEYS:
         if url := _public_url(value.get(key)):
             result[key] = url
+    for key in _DATE_KEYS:
+        if day := _iso_date(value.get(key)):
+            result[key] = day
     return result

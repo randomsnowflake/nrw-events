@@ -504,6 +504,16 @@ def _parse_detail_context(html: str) -> dict:
         if key and key not in seen:
             seen.add(key)
             description_parts.append(text)
+    # "Weitere Termine" lists the next dates, elides the rest and names the
+    # last one: "letztmalig 20.12.2026".
+    final = re.search(
+        r'SP-Scheduling__last[^>]*>\s*letztmalig\b.*?'
+        r'SP-Scheduling__day[^>]*>(\d{1,2})<.*?SP-Scheduling__month[^>]*>(\d{1,2})<.*?SP-Scheduling__year[^>]*>(\d{4})<',
+        html or "", re.I | re.S,
+    )
+    if final:
+        day, month, year = final.groups()
+        context["final_date"] = f"{year}-{int(month):02d}-{int(day):02d}"
     context["description"] = _paragraph_aware_detail_description(description_parts)
     context["description_html"] = _detail_rich_text(html)
     if price := _detail_admission(html):
@@ -630,6 +640,14 @@ def _apply_detail_location(event: dict, context: dict) -> dict:
     ):
         if event.get(field) in (None, "") and context.get(field) not in (None, ""):
             event[field] = context[field]
+    return event
+
+
+def _apply_detail_final_date(event: dict, context: dict) -> dict:
+    """Keep the detail page's labelled last date of a repeated listing."""
+    final_date = str(context.get("final_date") or "")
+    if final_date > str(event.get("start_date") or event.get("date") or "9999"):
+        event["details"] = {**(event.get("details") or {}), "final_date": final_date}
     return event
 
 
@@ -835,6 +853,7 @@ def fetch_events_json(
             if location_address and not ev.get("venue_address"):
                 ev["venue_address"] = location_address
             ev = _apply_detail_location(ev, detail_context)
+            ev = _apply_detail_final_date(ev, detail_context)
             ev = _apply_detail_source_link(ev, detail_context)
             ev["description"] = common.concise_description(description, max_chars=0)
             ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
@@ -985,6 +1004,7 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
         )
         event = _apply_detail_time(event, context)
         event = _apply_detail_location(event, context)
+        event = _apply_detail_final_date(event, context)
         event = _apply_detail_source_link(event, context)
         price, admission_basis = _event_admission(
             str(event.get("price") or ""), str(event.get("venue") or ""), context,
@@ -1079,6 +1099,7 @@ def _listing_events_from_html(
                 ev["identity_venue_locked"] = True
                 ev = _apply_detail_time(ev, detail_context)
                 ev = _apply_detail_location(ev, detail_context)
+                ev = _apply_detail_final_date(ev, detail_context)
                 ev = _apply_detail_source_link(ev, detail_context)
                 ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:

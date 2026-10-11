@@ -87,13 +87,23 @@ _GERMAN_WEEKDAYS = {
     "montag": 0, "dienstag": 1, "mittwoch": 2, "donnerstag": 3,
     "freitag": 4, "samstag": 5, "sonntag": 6,
 }
+_WEEKDAY = r"(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)s?"
 _DAILY_HOURS = re.compile(
-    r"(?P<days>(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)"
-    r"(?:\s*(?:und|&|/|\+)\s*(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag))*)"
-    r"\s*(?:von\s*)?(?P<start>\d{1,2}(?::\d{2})?)\s*(?:uhr\s*)?"
-    r"(?:[-–]|–|bis)\s*(?P<end>\d{1,2}(?::\d{2})?)\s*uhr",
+    # "montags, mittwochs und donnerstags", "dienstags bis sonntags", "Montag–Freitag"
+    rf"(?P<days>{_WEEKDAY}(?:\s*(?:,|und|&|/|\+|bis|[-–])\s*{_WEEKDAY})*)"
+    r"\s*[,:]?\s*(?:von\s*)?(?P<start>\d{1,2}(?:[:.]\d{2})?)\s*(?:uhr\s*)?"
+    r"(?:[-–]|–|bis)\s*(?P<end>\d{1,2}(?:[:.]\d{2})?)\s*uhr",
     re.IGNORECASE,
 )
+#: A weekly day the hours must cover. Closing days ("montags geschlossen") and
+#: dated days ("Vernissage am Freitag, 4. September") are no opening rule.
+_UNCOVERED_WEEKDAY = re.compile(
+    rf"\b{_WEEKDAY}\b(?![^.;\n]{{0,20}}\b(?:geschlossen|ruhetag))"
+    r"(?!,?\s*(?:den\s+)?\d{1,2}\.\s*(?:[a-zäöü]|\d{1,2}\.))",
+    re.IGNORECASE,
+)
+#: Weekday hours expand over the whole run but must fit the feed's slot limit.
+_MAX_SCHEDULE_SLOTS = 31
 
 
 def _publication_warning(
@@ -281,7 +291,7 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
         raise EventValidationError("daily_schedule_type")
     slots: list[dict[str, str]] = []
     conflicted_dates: set[str] = set()
-    for index, candidate in enumerate(value[:31]):
+    for index, candidate in enumerate(value[:_MAX_SCHEDULE_SLOTS]):
         if not isinstance(candidate, dict):
             _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} is not an object")
             continue
@@ -315,26 +325,31 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
 def _daily_schedule_from_prose(event: dict[str, Any]) -> list[dict[str, str]]:
     start_day = common.parse_iso_date(str(event.get("start_date") or ""))
     end_day = common.parse_iso_date(str(event.get("end_date") or ""))
-    if not start_day or not end_day or end_day <= start_day or (end_day - start_day).days > 31:
+    if not start_day or not end_day or end_day <= start_day or (end_day - start_day).days > 366:
         return []
     try:
         zone = ZoneInfo(str(event.get("timezone") or "Europe/Berlin"))
     except ZoneInfoNotFoundError:
         return []
     text_value = " ".join(str(event.get(field) or "") for field in ("time_note", "description"))
-    slots: list[dict[str, str]] = []
-    for match in _DAILY_HOURS.finditer(text_value):
-        weekdays = {
-            _GERMAN_WEEKDAYS[name.casefold()]
-            for name in re.findall("|".join(_GERMAN_WEEKDAYS), match.group("days"), re.IGNORECASE)
-        }
-        start_text, end_text = match.group("start"), match.group("end")
+    matches = list(_DAILY_HOURS.finditer(text_value))
+    # Hours for only some of the named days ("Freitag: 8…" cut off, "Samstag
+    # 13.00 (Eröffnung) bis 02.00 Uhr") would present the others as closed.
+    if any(
+        not any(match.start() <= mention.start() < match.end() for match in matches)
+        for mention in _UNCOVERED_WEEKDAY.finditer(text_value)
+    ):
+        return []
+    slots: dict[tuple[str, str, str], dict[str, str]] = {}
+    for match in matches:
+        weekdays = _weekdays(match.group("days"))
+        start_text, end_text = match.group("start").replace(".", ":"), match.group("end").replace(".", ":")
         start_hour, _, start_minute = start_text.partition(":")
         end_hour, _, end_minute = end_text.partition(":")
         start_parts = int(start_hour), int(start_minute or 0)
         end_parts = int(end_hour), int(end_minute or 0)
         if start_parts[0] > 23 or start_parts[1] > 59 or end_parts[0] > 24 or end_parts[1] > 59 or (end_parts[0] == 24 and end_parts[1]):
-            continue
+            return []
         day = start_day
         while day <= end_day:
             if day.weekday() in weekdays:
@@ -345,9 +360,24 @@ def _daily_schedule_from_prose(event: dict[str, Any]) -> list[dict[str, str]]:
                     end = datetime.combine(day, time(*end_parts), zone)
                     if end <= start:
                         end += timedelta(days=1)
-                slots.append({"date": day.strftime("%Y-%m-%d"), "start_at": start.isoformat(), "end_at": end.isoformat()})
+                slot = {"date": day.strftime("%Y-%m-%d"), "start_at": start.isoformat(), "end_at": end.isoformat()}
+                slots[(slot["date"], slot["start_at"], slot["end_at"])] = slot
             day += timedelta(days=1)
-    return slots
+    # A truncated list would present the remaining open days as closed.
+    return list(slots.values()) if len({slot["date"] for slot in slots.values()}) <= _MAX_SCHEDULE_SLOTS else []
+
+
+def _weekdays(days: str) -> set[int]:
+    """Expand "montags, mittwochs bis freitags" to weekday numbers."""
+    names = list(re.finditer("|".join(_GERMAN_WEEKDAYS), days, re.IGNORECASE))
+    result: set[int] = set()
+    for index, name in enumerate(names):
+        day = _GERMAN_WEEKDAYS[name.group(0).casefold()]
+        if index and re.search(r"bis|[-–]", days[names[index - 1].end():name.start()], re.IGNORECASE):
+            first = _GERMAN_WEEKDAYS[names[index - 1].group(0).casefold()]
+            result.update((first + offset) % 7 for offset in range((day - first) % 7 + 1))
+        result.add(day)
+    return result
 
 
 def _requires_master_data_only(event: dict[str, Any]) -> bool:

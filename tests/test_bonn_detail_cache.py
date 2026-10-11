@@ -180,6 +180,25 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["start_time"], "17:00")
         self.assertEqual(context["end_time"], "22:00")
 
+    def test_detail_context_reads_the_labelled_final_date(self):
+        # Shape of bonn.de's "Weitere Termine" block (Kulturbunker, 11.10.2026).
+        html = """
+<section class="SP-EventInformation__moreDates"><h2>Weitere Termine</h2><ul>
+<li><span class="SP-EventInformation__moreDates__link"><time class="SP-Scheduling__date" datetime="2026-10-16T22:00:00Z"><span class="SP-Scheduling__day">17</span>.<span class="SP-Scheduling__month">10</span>.<span class="SP-Scheduling__year">2026</span></time></span></li>
+<li><span class="SP-EventInformation__moreDates__link">...&nbsp;</span></li>
+<li><span class="SP-Scheduling__last">letztmalig <span class="SP-EventInformation__moreDates__link SP-Scheduling__last"><time class="SP-Scheduling__date" datetime="2026-12-19T23:00:00Z"><span class="SP-Scheduling__day">20</span>.<span class="SP-Scheduling__month">12</span>.<span class="SP-Scheduling__year">2026</span></time></span></span></li>
+</ul></section>
+"""
+
+        context = bonn._parse_detail_context(html)
+
+        self.assertEqual(context["final_date"], "2026-12-20")
+        self.assertNotIn("final_date", bonn._parse_detail_context(html.replace("letztmalig", "")))
+        listed = {"start_date": "2026-10-11", "details": {"age": "ab 6 Jahren"}}
+        self.assertEqual(bonn._apply_detail_final_date(listed, context)["details"], {"age": "ab 6 Jahren", "final_date": "2026-12-20"})
+        # The last date itself carries no extra fact.
+        self.assertNotIn("details", bonn._apply_detail_final_date({"start_date": "2026-12-20"}, context))
+
     def test_bounded_listing_detail_pass_prioritizes_sparse_final_targets(self):
         events = [
             {

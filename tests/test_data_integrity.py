@@ -57,6 +57,44 @@ class DataIntegrityTests(unittest.TestCase):
         )
         self.assertFalse(event.all_day)
 
+    def test_weekly_hours_in_prose_become_a_complete_daily_schedule(self):
+        def schedule(description, start="2026-09-27", end="2026-12-20", time_note=""):
+            event = validate_event({
+                "title": "Ausstellung", "source": "Test", "score": 1.0, "city": "Bonn",
+                "start_date": start, "end_date": end, "description": description, "time_note": time_note,
+            })
+            return [(slot["date"], slot["start_at"][11:16], slot["end_at"][11:16]) for slot in event.daily_schedule]
+
+        # Kulturbunker: weekends over twelve weeks, dotted clocks.
+        weekends = schedule("Ab 26.09.2026 ist der KULTURBUNKER jeden Samstag von 14.00 bis 17.00 Uhr "
+                            "und Sonntag von 12.00 bis 18.00 Uhr geöffnet (Feiertage können abweichen).")
+        self.assertEqual(len(weekends), 25)
+        self.assertEqual(weekends[:2], [("2026-09-27", "12:00", "18:00"), ("2026-10-03", "14:00", "17:00")])
+        self.assertEqual(weekends[-1], ("2026-12-20", "12:00", "18:00"))
+
+        ranges = schedule("Geöffnet montags 14–21 Uhr, dienstags bis donnerstags 10–21 Uhr, freitags bis sonntags 10–18 Uhr.",
+                          start="2026-10-12", end="2026-10-18")
+        self.assertEqual([hours for _, *hours in ranges], [["14:00", "21:00"], *[["10:00", "21:00"]] * 3, *[["10:00", "18:00"]] * 3])
+        listed = schedule("Geöffnet ist montags, mittwochs und donnerstags 8 bis 16 Uhr, dienstags 8 bis 18 Uhr "
+                          "und freitags 8 bis 14 Uhr. Eröffnung am Freitag, 9. Oktober.", start="2026-10-05", end="2026-10-11")
+        self.assertEqual([day for day, *_ in listed], ["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"])
+        closed = schedule("Dienstag bis Sonntag 10 bis 18 Uhr, montags geschlossen.", start="2026-10-05", end="2026-10-11")
+        self.assertEqual(len(closed), 6)
+
+    def test_partial_weekly_hours_publish_no_schedule(self):
+        for time_note, description in (
+            ("Montag, Mittwoch und Donnerstag: 8 bis 16 Uhr Dienstag: 8 bis 18 Uhr Freitag: 8", ""),
+            ("", "Öffnungszeiten: Samstag 13.00 (Eröffnung mit Fassanstich) bis 02.00 Uhr, Sonntag 11.00 Uhr bis 01.00 Uhr"),
+            ("", "Geöffnet sonntags 11 bis 17 Uhr."),  # 52 Sundays exceed the slot limit
+        ):
+            with self.subTest(time_note=time_note, description=description):
+                event = validate_event({
+                    "title": "Ausstellung", "source": "Test", "score": 1.0, "city": "Bonn",
+                    "start_date": "2026-01-01", "end_date": "2026-12-31",
+                    "time_note": time_note, "description": description,
+                })
+                self.assertEqual(event.daily_schedule, [])
+
     def test_validation_canonicalizes_hour_only_ranges(self):
         event = validate_event({
             "title": "Führung",

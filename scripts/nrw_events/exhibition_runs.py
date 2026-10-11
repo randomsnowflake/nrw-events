@@ -6,11 +6,14 @@ produced up to 28 competing URLs. Here those rows become a single event.
 
 Only opening days qualify: category ``exhibition``, one scheduled single-day
 row per date, and the same source, title, venue and city. Each day is either a
-slot of at least three hours or carries no clock time at all. Guided tours,
-workshops and performances start at a clock time and keep one page per date.
+slot of at least three hours, carries no clock time at all, or only says when
+it opens ("ab 12:00 Uhr"). Guided tours, workshops and performances start at a
+clock time and keep one page per date.
 When every day has hours, ``daily_schedule`` keeps them; otherwise the run is
 an all-day range, because partial hours would present the other days as closed.
-Cancelled days inside the run are closing days and fold into it.
+Cancelled days inside the run are closing days and fold into it. A source's
+labelled final date (``details.final_date``) extends the run beyond the days it
+currently lists.
 
 The public ID must survive the daily loss of past dates. The start date is
 therefore anchored to the previous snapshot's run, and the replaced published
@@ -20,6 +23,7 @@ Day pages that had already expired are redirected by the website archive.
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
@@ -34,6 +38,8 @@ MIN_OPENING_HOURS = 3
 #: A prior run still continues when the new first date follows its end within
 #: this many days: exhibitions close on some weekdays or for a short break.
 MAX_CLOSED_DAYS = 14
+#: "Sonntag ab 12:00 Uhr" names an opening time, not a session start.
+_OPENS_FROM = re.compile(r"\bab\s+\d{1,2}(?:[:.]\d{2})?\s*uhr\b", re.IGNORECASE)
 
 
 def _run_key(event: Mapping[str, Any]) -> tuple[str, ...] | None:
@@ -70,7 +76,8 @@ def _opening_slot(event: CanonicalEvent) -> dict[str, str] | None:
 
 def _is_opening_day(event: CanonicalEvent) -> bool:
     untimed = not event.time and not event.start_at and not event.end_at
-    return not event.daily_schedule and (untimed or _opening_slot(event) is not None)
+    opens_from = not event.end_at and "–" not in event.time and bool(_OPENS_FROM.search(event.time_note))
+    return not event.daily_schedule and (untimed or opens_from or _opening_slot(event) is not None)
 
 
 def _anchor_start(key: tuple[str, ...], first: str, previous: Mapping[str, Any]) -> str:
@@ -105,7 +112,12 @@ def _merged(
     by_date.update((slot["date"], slot) for slot in slots if slot)
     base = ordered[0].to_dict()
     start = min([_anchor_start(key, ordered[0].start_date, previous), *(run.start_date for run in runs)])
-    end = max([ordered[-1].start_date, *(run.end_date for run in runs)])
+    end = max([
+        ordered[-1].start_date, *(run.end_date for run in runs),
+        *(str(row.details.get("final_date") or "") for row in ordered),
+    ])
+    # A day's own note ("Sonntag ab 12:00 Uhr") does not describe the run.
+    notes = {row.time_note for row in [*ordered, *runs]}
     # ponytail: the most frequent summary is the generic one; per-day summaries
     # tend to open with "Am 12. September ...". A regenerated range summary
     # would be better once the AI stage can target merged runs.
@@ -126,6 +138,7 @@ def _merged(
         "start_at": "",
         "end_at": "",
         "all_day": not timed,
+        "time_note": base["time_note"] if len(notes) == 1 else "",
         "daily_schedule": [by_date[day] for day in sorted(by_date)] if timed else [],
         "preserved_event_id": "",
         "ai_summary": summaries.most_common(1)[0][0] if summaries else base["ai_summary"],
