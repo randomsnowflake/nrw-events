@@ -199,6 +199,26 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         # The last date itself carries no extra fact.
         self.assertNotIn("details", bonn._apply_detail_final_date({"start_date": "2026-12-20"}, context))
 
+    def test_detail_context_reads_weekly_opening_days(self):
+        # bonn.de Kulturbunker JSON-LD (12.10.2026): open Saturday and Sunday only.
+        def page(schedule):
+            event = {"@type": "Event", "name": "Besichtigung des Kulturbunkers", "eventSchedule": schedule}
+            return f'<script type="application/ld+json">{json.dumps(event)}</script>'
+
+        weekly = {"@type": "Schedule", "repeatFrequency": "P1W", "byDay": ["http://schema.org/Saturday", "http://schema.org/Sunday"]}
+        context = bonn._parse_detail_context(page(weekly))
+        self.assertEqual(context["open_weekdays"], [5, 6])
+        vernissage = {"@type": "Schedule", "startDate": "2026-10-04", "endDate": "2026-10-04", "startTime": "15:00"}
+        self.assertEqual(bonn._parse_detail_context(page([vernissage, weekly]))["open_weekdays"], [5, 6])
+        # A daily repeat, an unknown day or every day says nothing about closed days.
+        for unknown in ({"repeatFrequency": "P1D", "byDay": []}, {**weekly, "byDay": ["Saturday", "Holiday"]},
+                        {**weekly, "byDay": [f"http://schema.org/{day}" for day in bonn._SCHEMA_WEEKDAYS]}):
+            self.assertNotIn("open_weekdays", bonn._parse_detail_context(page(unknown)))
+        self.assertEqual(
+            bonn._apply_detail_final_date({"start_date": "2026-10-17"}, {**context, "final_date": "2026-12-20"})["details"],
+            {"final_date": "2026-12-20", "open_weekdays": [5, 6]},
+        )
+
     def test_bold_opening_hours_label_becomes_the_repeat_time_note(self):
         # bonn.de NAHT page (cached 2026-10-11): every repeat lists 16:00, the prose names weekly hours.
         html = """

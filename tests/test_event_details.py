@@ -23,6 +23,9 @@ class EventDetailsTests(unittest.TestCase):
         self.assertEqual(canonical_details({"final_date": "2026-12-20"}), {"final_date": "2026-12-20"})
         for invalid in ("20.12.2026", "2026-02-30", "2026-12-20T00:00", 20261220):
             self.assertEqual(canonical_details({"final_date": invalid}), {})
+        self.assertEqual(canonical_details({"open_weekdays": [6, 5, 5]}), {"open_weekdays": [5, 6]})
+        for invalid in ([], list(range(7)), [7], [True], ["5"], "5,6"):
+            self.assertEqual(canonical_details({"open_weekdays": invalid}), {})
 
     def test_malformed_optional_details_are_dropped_not_raised(self):
         self.assertEqual(canonical_details({"video_url": "https://[invalid", "age": "ab 6 Jahren"}), {"age": "ab 6 Jahren"})
