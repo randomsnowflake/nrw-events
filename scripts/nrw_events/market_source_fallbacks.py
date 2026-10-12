@@ -44,6 +44,12 @@ _REPLACEMENTS = (
         "rewe ihr kaufpark solingen aufderhöhe",
         "solingen",
     ),
+    MarketReplacement(
+        "koelner-hallenflohmarkt",
+        "kölner hallenflohmarkt",
+        "kölner hallenflohmarkt",
+        "köln",
+    ),
 )
 
 

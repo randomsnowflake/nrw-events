@@ -401,6 +401,13 @@
       "callable": "nrw_events.sources.melan:fetch"
     },
     {
+      "id": "koelner-hallenflohmarkt",
+      "display_name": "Kölner Hallenflohmarkt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.koelner_hallenflohmarkt:fetch"
+    },
+    {
       "id": "rossel-wilberhofen-dorfflohmarkt",
       "display_name": "Bürgerverein Rossel-Wilberhofen",
       "region": "bonn-region",
