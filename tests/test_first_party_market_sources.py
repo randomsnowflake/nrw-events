@@ -72,7 +72,7 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         """
         self.assertEqual(melan._events_from_page(html), [])
 
-    def test_melan_strict_mode_requires_every_configured_location(self):
+    def test_melan_partial_calendar_keeps_upcoming_metro(self):
         html = """
         <div class="date-markets js-filter-date-item">
           <h1 class="date">Sonntag 16.08.2026</h1>
@@ -82,8 +82,72 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
           </a>
         </div>
         """
-        with self.assertRaisesRegex(regional_common.ParserEmptyError, "Bornheim PORTA"):
-            melan._events_from_page(html, strict=True)
+        html = html.replace("16.08.2026", "18.10.2026")
+        patch_window(self, datetime(2026, 10, 12), datetime(2026, 11, 8))
+        [event] = melan._events_from_page(html, strict=True)
+        self.assertEqual(event["date"], "2026-10-18")
+        self.assertEqual(event["source_id"], "melan-sankt-augustin-metro")
+        self.assertEqual(event["time"], "11:00–18:00")
+
+        for broken in (
+            html.replace("date-markets", "changed-wrapper"),
+            html.replace("St. Augustin METRO", "Aachen PORTA"),
+            html.replace("Einsteinstraße 28", "unknown address"),
+            html.replace("11:00", "25:00"),
+            html.replace("18.10.2026", "32.10.2026"),
+            html.replace('<h1 class="date">Sonntag 18.10.2026</h1>', ""),
+        ):
+            with self.subTest(html=broken), self.assertRaises(regional_common.ParserEmptyError):
+                melan._events_from_page(broken, strict=True)
+        for broken in (
+            html.replace("Einsteinstraße 28", "unknown address"),
+            html.replace("11:00", "25:00"),
+            html.replace("18.10.2026", "32.10.2026"),
+            html.replace('<h1 class="date">Sonntag 18.10.2026</h1>', ""),
+        ):
+            with self.subTest(mixed=broken), self.assertRaises(regional_common.ParserEmptyError):
+                melan._events_from_page(html + broken, strict=True)
+
+    def test_melan_outage_retains_future_child_not_ended_child(self):
+        import json
+        from dataclasses import replace
+        from datetime import timezone
+
+        from nrw_events import runner
+        from nrw_events.runtime import EventWindow
+
+        from tests.helpers import make_event, make_runner_env
+
+        now = datetime(2026, 10, 12, 5, tzinfo=timezone.utc)
+        with make_runner_env() as env:
+            previous = {
+                "source_results": {"Melan Märkte": {"event_source_ids": [
+                    "melan-bornheim-porta", "melan-sankt-augustin-metro",
+                ]}},
+                "events": [make_event(
+                    source="Melan Märkte", source_id=source_id, title=title,
+                    date=date, start_date=date, end_date=date,
+                ) for source_id, title, date in (
+                    ("melan-bornheim-porta", "Trödelmarkt Bornheim PORTA", "2026-10-11"),
+                    ("melan-sankt-augustin-metro", "Trödelmarkt Sankt Augustin METRO", "2026-10-18"),
+                )],
+            }
+            env.previous_path.write_text(json.dumps(previous))
+            context = replace(env.context(clock=lambda: now, series_ledger_json=""),
+                              window=EventWindow.from_days(28, now))
+            for failure in ("<html>changed markup</html>", TimeoutError("offline outage")):
+                with self.subTest(failure=failure):
+                    fetch = ({"side_effect": failure} if isinstance(failure, Exception)
+                             else {"return_value": failure})
+                    with patch.object(common, "fetch_url", **fetch):
+                        result = runner.run_import(context, {"Melan Märkte": melan.fetch})
+                    snapshot = runner.build_snapshot(result, context)
+                    self.assertEqual([e["source_id"] for e in snapshot.events],
+                                     ["melan-sankt-augustin-metro"])
+                    self.assertEqual(snapshot.metadata["retained_event_count"], 1)
+                    self.assertEqual(snapshot.metadata["expired_retained_event_count"], 1)
+                    warnings = result.source_results["Melan Märkte"].warnings
+                    self.assertEqual({w["source_id"] for w in warnings}, {"melan-m-rkte"})
 
     def test_geide_parses_regional_location_from_config(self):
         url = "https://www.geide-maerkte.de/bonn-alfter-oedekoven.html"
