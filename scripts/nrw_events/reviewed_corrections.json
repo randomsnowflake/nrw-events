@@ -154,6 +154,20 @@
         },
         "valid_until": "2026-10-17",
         "evidence": "Verified 2026-10-02: https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/eigene-veranstaltungen/tag-der-feuerwehr-2026.php. Replace annual planning prose with reviewed organizer facts; keep both published occurrence aliases."
+      },
+      {
+        "match": ["Rund um den Weihnachtsbaum", "2026-11-02", "2026-12-30"],
+        "value": {
+          "city": "Bonn-Bad Godesberg",
+          "venue_address": "Moltkeplatz, 53173 Bonn",
+          "category_key": "market",
+          "category_label": "Märkte & Flohmärkte",
+          "category_reason": "source:locked-default:market",
+          "event_types": ["christmas-market"],
+          "preserved_event_id": "rund-um-den-weihnachtsbaum-a4ed5fe275"
+        },
+        "valid_until": "2026-12-30",
+        "evidence": "Verified 2026-10-12: the city's 2026 annual list lists 'Rund um den Weihnachtsbaum, Moltkeplatz, 2. November bis 30. Dezember 2026, Ralf Reifenberg' under Stadtbezirk Bad Godesberg. GA (2025-10-27, 2025-12-06) describes it as Reifenberg's Mini-Weihnachtsmarkt/Hüttendorf on the Moltkeplatz; OSM places Moltkeplatz in 53173 Alt-Godesberg. 2025 opening hours are not carried over. Keep the published id."
       }
     ],
     "bonn_press_occurrence_corrections": [
