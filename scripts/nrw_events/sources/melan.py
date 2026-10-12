@@ -7,7 +7,7 @@ from .. import common
 from . import regional_common as rc
 
 _SOURCE = "Melan Märkte"
-_SOURCE_ID = "melan-regional-markets"
+_SOURCE_ID = "melan-m-rkte"
 _URL = "https://www.melan.de/fuer-alle/markttermine/"
 _TARGETS = {
     "Bornheim PORTA": {
@@ -47,6 +47,11 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             re.I,
         )
         if not date_match:
+            if strict and any(
+                common.clean_html(title) in _TARGETS
+                for title in re.findall(r"<h2[^>]*>(.*?)</h2>", date_block, re.S | re.I)
+            ):
+                raise rc.ParserEmptyError("Melan date contract changed")
             continue
         day, month, year = (int(value) for value in date_match.groups())
         card_blocks = re.split(
@@ -101,10 +106,8 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             )
             if event and common.event_in_window(event):
                 events.append(event)
-    missing_targets = set(_TARGETS) - matched_targets
-    if strict and missing_targets:
-        names = ", ".join(sorted(missing_targets))
-        raise rc.ParserEmptyError(f"Melan regional market cards missing: {names}")
+    if strict and not matched_targets:
+        raise rc.ParserEmptyError("Melan regional market cards missing")
     return rc.dedupe(events)
 
 
