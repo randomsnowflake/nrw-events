@@ -309,5 +309,79 @@
       "start_date": "2026-10-30"
     },
     "expected": ["halloween"]
+  },
+  {
+    "name": "gertrudenhof-halloween-evening",
+    "event": {
+      "title": "Spooky Night im Gertrudenhof Kürbispark",
+      "description": "Ein schaurig-schöner Halloween-Abend mit Walking Acts, Kürbisschnitzen und besonderer Lichtstimmung im Kürbispark.",
+      "description_source": "scraped",
+      "start_date": "2026-10-16"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "gertrudenhof-submitted-evening",
+    "event": {
+      "title": "Spooky Night im Gertrudenhof Kürbispark",
+      "description": "Halloweenabend für Familien im beleuchteten Kürbispark mit gruseligen Walking Acts, Halloween-Dekoration und vielen geöffneten Attraktionen.",
+      "start_date": "2026-10-17"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "halloween-evenings-next-season",
+    "event": {
+      "title": "Gruselnacht",
+      "description": "An unseren Halloween Abenden gibt es ein Familienprogramm.",
+      "start_date": "2027-10-30"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "halloween-evening-not-box-office",
+    "event": {
+      "title": "Konzert",
+      "description": "Tickets gibt es an der Halloween-Abendkasse.",
+      "start_date": "2026-10-16"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-evening-generated",
+    "event": {
+      "title": "Gruselnacht",
+      "description": "Ein Halloween-Abend für Familien.",
+      "description_source": "generated",
+      "start_date": "2026-10-16"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-evening-negated",
+    "event": {
+      "title": "Herbstfest",
+      "description": "Wir veranstalten keinen Halloween-Abend.",
+      "start_date": "2026-10-16"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-evening-other-year",
+    "event": {
+      "title": "Herbstfest",
+      "description": "Unser Halloween-Abend 2025 war schön.",
+      "start_date": "2026-10-16"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-evening-outside-season",
+    "event": {
+      "title": "Sommerfest",
+      "description": "Ein Halloween-Abend für Familien.",
+      "start_date": "2026-08-16"
+    },
+    "expected": []
   }
 ]

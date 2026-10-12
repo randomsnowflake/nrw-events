@@ -38,7 +38,7 @@ _CHRISTMAS_MARKET_CATEGORIES = frozenset({"market", "festival"})
 _HALLOWEEN_TITLE = re.compile(r"(?<!\w)\w*halloween\w*(?!\w)", re.IGNORECASE)
 _HALLOWEEN_PROGRAMME = re.compile(
     r"\bhalloween\s*(?:party\w*|parties|disco\w*|dragshow\w*|workshop\w*"
-    r"|action|stimmung|motive\w*|familie\w*)\b"
+    r"|abend(?:e|en|s)?|action|stimmung|motive\w*|familie\w*)\b"
     r"|\b(?:bald|passend\s+an|einstimmung\s+auf)\s+halloween\b"
     r"|\b(?:wissen|fragen|quiz|raetsel)\b.{0,40}\b(?:ueber|zu)\s+halloween\b"
     r"|\bhalloween\s+feiern\b"
