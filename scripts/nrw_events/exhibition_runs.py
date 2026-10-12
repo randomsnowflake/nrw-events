@@ -112,10 +112,8 @@ def _merged(
     by_date.update((slot["date"], slot) for slot in slots if slot)
     base = ordered[0].to_dict()
     start = min([_anchor_start(key, ordered[0].start_date, previous), *(run.start_date for run in runs)])
-    end = max([
-        ordered[-1].start_date, *(run.end_date for run in runs),
-        *(str(row.details.get("final_date") or "") for row in ordered),
-    ])
+    listed_end = max([ordered[-1].start_date, *(run.end_date for run in runs)])
+    end = max([listed_end, *(str(row.details.get("final_date") or "") for row in ordered)])
     # A day's own note ("Sonntag ab 12:00 Uhr") does not describe the run.
     notes = {row.time_note for row in [*ordered, *runs]}
     # ponytail: the most frequent summary is the generic one; per-day summaries
@@ -150,8 +148,14 @@ def _merged(
     })
     # Labelled weekly hours beat the one clock a calendar copies onto every
     # repeat (NAHT: 16–19 daily vs. "Mittwoch bis Freitag, 16 bis 19 Uhr ...").
-    if base["daily_schedule"] and _daily_schedule_from_prose(base):
-        base["daily_schedule"] = []
+    # Cancelled days stay closed even when the weekly hours name them.
+    closed_dates = {str(day.get("start_date") or "") for day in closed}
+    prose = [slot for slot in _daily_schedule_from_prose(base) if slot["date"] not in closed_dates]
+    if base["daily_schedule"] and prose:
+        base["daily_schedule"] = prose
+    elif base["daily_schedule"] and end > listed_end:
+        # Slots exist only for the listed days; the rest of the run would read as closed.
+        base.update(daily_schedule=[], all_day=True)
     return validate_event(base)
 
 

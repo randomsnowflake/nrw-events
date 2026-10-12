@@ -120,6 +120,21 @@ class ExhibitionRunTests(unittest.TestCase):
         [unchanged] = merge_exhibition_opening_days([_day("2026-10-17", time=""), _day("2026-10-18", time="")], {})
         self.assertEqual(unchanged.end_date, "2026-10-18")
 
+    def test_final_date_beyond_timed_days_publishes_an_untimed_range(self):
+        # Slots for the listed days only would present every later opening day as closed.
+        final = {"details": {"final_date": "2026-12-20"}}
+        [merged] = merge_exhibition_opening_days([_day("2026-10-17", **final), _day("2026-10-18", **final)], {})
+        self.assertEqual((merged.end_date, merged.daily_schedule, merged.all_day), ("2026-12-20", [], True))
+
+    def test_weekly_hours_keep_a_cancelled_day_closed(self):
+        note = "Öffnungszeiten: Mittwoch bis Freitag, 16 bis 19 Uhr"
+        days = [_day(day, time="16:00–19:00", time_note=note) for day in ("2026-10-14", "2026-10-16")]
+        cancelled = _day("2026-10-15", time="16:00–19:00", time_note=note, status="cancelled")
+
+        [merged] = merge_exhibition_opening_days([*days, cancelled], {})
+
+        self.assertEqual([slot["date"] for slot in merged.daily_schedule], ["2026-10-14", "2026-10-16"])
+
     def test_labelled_weekly_hours_beat_the_clock_copied_onto_every_repeat(self):
         note = "Öffnungszeiten: Mittwoch bis Freitag, 16 bis 19 Uhr; Samstag bis Sonntag, 14 bis 19 Uhr"
         days = [_day(f"2026-10-{day}", time="16:00–19:00", time_note=note) for day in range(10, 25)]
