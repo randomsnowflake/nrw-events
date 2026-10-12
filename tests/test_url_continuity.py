@@ -78,6 +78,16 @@ class UrlContinuityTests(unittest.TestCase):
 
         self.assertNotIn("hauptausschuss-old", [event["event_id"] for event in current])
 
+    def test_link_shared_only_in_the_previous_snapshot_carries_no_identity(self):
+        link = "https://example.test/kalender"
+        prior = _event("Hauptausschuss", "SiteKit Hürth", event_id="hauptausschuss-old", link=link)
+        sibling = _event("Lesung", "SiteKit Hürth", event_id="lesung-old", link=link, start_date="2026-09-27",
+                         date="2026-09-27", end_date="2026-09-27", start_at="2026-09-27T11:00+02:00")
+
+        [current] = _published([_event("Orgelkonzert", "SiteKit Hürth", link=link)], [prior, sibling])
+
+        self.assertNotEqual(current["event_id"], "hauptausschuss-old")
+
     def test_exhibition_run_does_not_become_an_alias_of_one_tour_day(self):
         # Production 2026-10-11: LVR's 18.10 tour inherited bonn.de's live run id.
         from nrw_events.dedup_merge import _merge_duplicate_metadata

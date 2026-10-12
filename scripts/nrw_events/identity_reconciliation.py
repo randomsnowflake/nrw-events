@@ -116,7 +116,8 @@ def _uniquely_matches_renamed_occurrence(
     Either the source keeps the occurrence's detail page (Bundeskunsthalle
     renamed "Wednesday Late Art – Nie Wieder!" under the same URL), or the
     title is a conservative expansion at the same venue. A link that other
-    current records share is an overview page and identifies nothing.
+    current or published records share is an overview page and identifies
+    nothing.
     """
     same_source = normalize_source_id(current.get("source_id") or current.get("source")) == _impl_retention_policy._event_source_id(prior)
     shared_links = _detail_links(current) & _detail_links(prior)
@@ -176,7 +177,10 @@ def _reconcile_published_ids(
     for current in reconciled:
         key = (_title_key(current), str(current.get("start_date") or current.get("date") or ""))
         current_groups.setdefault(key, []).append(current)
-    link_counts = Counter(link for current in reconciled for link in _detail_links(current))
+    # Max of both snapshots: a link shared in either one is an overview page.
+    link_counts = Counter(link for current in reconciled for link in _detail_links(current)) | Counter(
+        link for prior in previous.get("events") or [] if isinstance(prior, dict) for link in _detail_links(prior)
+    )
     candidate_pairs: list[tuple[int, int, dict]] = []
     fallback_pairs: list[tuple[int, int, dict]] = []
     for index, current in enumerate(reconciled):
