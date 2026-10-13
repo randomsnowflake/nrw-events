@@ -367,6 +367,23 @@ class VenueCompletenessTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["venue"], "JUZ Live Club")
 
+    def test_arp_listing_keeps_the_visible_opening_time(self):
+        html = """
+        <a href="/veranstaltungen/detail/museumsdienstag-3334.html">
+          <div class="va-date"><span class="va-date-block"><span>13 Aug</span> 2026</span></div>
+          <div class="va-textwrapper">
+            <p class="va-type">Sonder-Veranstaltung</p>
+            <h3 class="va-title">Museumsdienstag</h3>
+            <p>Dienstag&nbsp; | &nbsp;11 – 18 Uhr &nbsp;|&nbsp; Arp Museum Bahnhof Rolandseck</p>
+          </div>
+        </a></ul>
+        """
+
+        events = regional_venues._events_from_arp(html)
+
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["time"], "11:00–18:00")
+
     def test_eitorf_uses_explicit_meeting_point_when_card_only_names_city(self):
         self.assertEqual(
             regional_html._eitorf_venue(

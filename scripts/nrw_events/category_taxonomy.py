@@ -323,6 +323,9 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
         and re.search(r"\b(?:geöffnet|geoeffnet|öffnung|oeffnung|open)\w*\b", title_text)
     ):
         return "exhibition"
+    # A museum day ("Museumsdienstag", "Museumssonntag") is an admission offer, not its group workshops.
+    if re.search(r"\bmuseums(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|tag)\b", title_text):
+        return "exhibition"
     if _GUIDED_TOUR_TITLE_PATTERN.search(title_text):
         return "outdoor"
     if _contains_comparison_word(title_comparison, "bildungsurlaub"):

@@ -234,6 +234,8 @@ def _events_from_arp(html: str) -> list:
         date = re.search(r'va-date-block"><span>(\d{1,2})\s+([A-Za-z]+)</span>\s*(20\d{2})', body, re.S | re.I)
         title = re.search(r'<h3 class="va-title">(.*?)</h3>', body, re.S | re.I)
         typ = re.search(r'<p class="va-type">(.*?)</p>', body, re.S | re.I)
+        # "Dienstag | 11 – 18 Uhr | Arp Museum Bahnhof Rolandseck"
+        meta = re.search(r'</h3>\s*<p>(.*?)</p>', body, re.S | re.I)
         if not (date and title):
             continue
         ev = common.make_event(
@@ -247,6 +249,7 @@ def _events_from_arp(html: str) -> list:
             "Arp Museum",
             "museum ausstellung führung workshop kultur",
             0.9,
+            time_text=rc.time_text(rc.clean(meta.group(1)) if meta else ""),
         )
         if ev:
             events.append(ev)

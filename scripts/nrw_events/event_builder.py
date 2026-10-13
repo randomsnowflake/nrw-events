@@ -340,7 +340,8 @@ _LIMITED_FREE_TRIAL_PATTERN = re.compile(
 
 _CONDITIONAL_FREE_VISITOR_GROUP_PATTERN = (
     r"(?:kind(?:er(?:n)?)?|jugendlich(?:e|en|er|es)|person(?:en)?|mensch(?:en)?|"
-    r"mitglied(?:er(?:n)?)?|begleitperson(?:en)?)"
+    r"mitglied(?:er(?:n)?)?|begleitperson(?:en)?|studierende(?:n)?|student(?:en|innen)?|"
+    r"schüler(?:innen)?|auszubildende(?:n)?|azubis?|inhaber(?:\*?innen)?|senior(?:en|innen)?)"
 )
 
 

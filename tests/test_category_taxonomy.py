@@ -508,6 +508,11 @@ class CategoryTaxonomyTests(unittest.TestCase):
                 "exhibition",
             ),
             (
+                "Sonder-Veranstaltung", "Museumsdienstag",
+                "Ermäßigter Eintritt. Frühöffnung für angemeldete Gruppen mit Führung oder Workshop.",
+                "exhibition",
+            ),
+            (
                 "Session", "tune learning session - Klezmer on the spot",
                 "Wir lernen gemeinsam mehrere Klezmerstücke nach Gehör.",
                 "workshop",

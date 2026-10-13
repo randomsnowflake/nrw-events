@@ -259,6 +259,13 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Vereinsabend", "Mitgliedern wird kostenloser Eintritt gewährt.", ""),
             ("Museum", "Kostenlos! Audioguide herunterladen.", ""),
             ("Vereinsabend", "Kostenfrei. Nur für Mitglieder.", ""),
+            (
+                "Museumsdienstag",
+                "Jeden Dienstag im Angebot: · ermäßigter Eintritt für alle Besucher*innen "
+                "· freier Eintritt für Studierende, Auszubildende, Inhaber*innen der Familienkarte RLP",
+                "",
+            ),
+            ("Museum", "Freier Eintritt für Schülerinnen und Schüler.", ""),
             # "frei" as the start of a longer word must not read as free.
             ("Markt", "", "Eintritt: freitags 10 €"),
             ("Museumsführung", "", "Eintritt 3 Euro, Führung kostenlos"),
