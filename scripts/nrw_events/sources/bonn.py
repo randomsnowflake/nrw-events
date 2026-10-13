@@ -599,9 +599,11 @@ def _schedule_weekdays(schedules: list) -> list[int]:
     """Return the weekly opening days (0 = Monday) of schema.org schedules.
 
     One-off schedules (a vernissage) are their own listing row and are skipped.
-    Anything else, such as a daily ``P1D`` repeat, leaves the days unknown.
+    Anything else, such as a daily ``P1D`` repeat, leaves the days unknown, and so
+    do weekly schedules that disagree: they are date-scoped seasons, not one week.
     """
     days: set[int] = set()
+    weeks: set[frozenset[int]] = set()
     for schedule in schedules:
         if not isinstance(schedule, dict):
             return []
@@ -611,10 +613,12 @@ def _schedule_weekdays(schedules: list) -> list[int]:
             names = [str(day).rsplit("/", 1)[-1] for day in by_day]
             if any(name not in _SCHEMA_WEEKDAYS for name in names):
                 return []
-            days.update(_SCHEMA_WEEKDAYS[name] for name in names)
+            week = frozenset(_SCHEMA_WEEKDAYS[name] for name in names)
+            weeks.add(week)
+            days.update(week)
         elif not (schedule.get("startDate") and schedule.get("startDate") == schedule.get("endDate")):
             return []
-    return sorted(days) if len(days) < 7 else []
+    return sorted(days) if len(weeks) == 1 and len(days) < 7 else []
 
 
 def _apply_detail_time(event: dict, context: dict) -> dict:

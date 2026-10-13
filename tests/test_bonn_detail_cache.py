@@ -210,6 +210,11 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["open_weekdays"], [5, 6])
         vernissage = {"@type": "Schedule", "startDate": "2026-10-04", "endDate": "2026-10-04", "startTime": "15:00"}
         self.assertEqual(bonn._parse_detail_context(page([vernissage, weekly]))["open_weekdays"], [5, 6])
+        # Two seasons with different weekdays have no single weekly rhythm.
+        winter = {**weekly, "startDate": "2026-11-01", "endDate": "2027-03-31"}
+        summer = {**weekly, "byDay": ["http://schema.org/Wednesday", "http://schema.org/Sunday"], "startDate": "2026-04-01"}
+        self.assertNotIn("open_weekdays", bonn._parse_detail_context(page([summer, winter])))
+        self.assertEqual(bonn._parse_detail_context(page([weekly, winter]))["open_weekdays"], [5, 6])
         # A daily repeat, an unknown day or every day says nothing about closed days.
         for unknown in ({"repeatFrequency": "P1D", "byDay": []}, {**weekly, "byDay": ["Saturday", "Holiday"]},
                         {**weekly, "byDay": [f"http://schema.org/{day}" for day in bonn._SCHEMA_WEEKDAYS]}):
