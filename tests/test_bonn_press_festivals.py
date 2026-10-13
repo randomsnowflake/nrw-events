@@ -3,8 +3,9 @@ import urllib.error
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common, report
+from nrw_events import common, identity, report
 from nrw_events.sources import bonn, bonn_districts
+from nrw_events.validation import canonicalize_event
 
 from tests.helpers import patch_window
 
@@ -28,6 +29,20 @@ class BonnPressFestivalTests(unittest.TestCase):
                       [(e["title"], e["start_date"]) for e in events])
         self.assertIn(("Anderes Fest", "2026-09-18"),
                       [(e["title"], e["start_date"]) for e in events])
+
+    def test_moltkeplatz_christmas_market_is_godesberg_market_with_stable_id(self):
+        patch_window(self, datetime(2026, 10, 12), datetime(2026, 12, 31))
+        html = ("<ul><li>Rund um den Weihnachtsbaum, Moltkeplatz, "
+                "2. November bis 30. Dezember 2026, Ralf Reifenberg</li></ul>")
+        with patch.object(common, "fetch_url", return_value=html):
+            event = canonicalize_event(bonn.fetch_press_festivals()[0])
+        self.assertEqual(event["city"], "Bonn-Bad Godesberg")
+        # Distance follows the reviewed district, not Bonn's centre (0.0 km).
+        self.assertGreater(event["distance_km"], 5)
+        self.assertEqual(event["venue_address"], "Moltkeplatz, 53173 Bonn")
+        self.assertEqual(event["category_key"], "market")
+        self.assertEqual(event["event_types"], ["christmas-market"])
+        self.assertEqual(identity.event_id(event), "rund-um-den-weihnachtsbaum-a4ed5fe275")
 
     def test_keeps_comma_inside_hyphenated_official_market_name(self):
         html = """
