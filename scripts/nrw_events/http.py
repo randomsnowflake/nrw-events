@@ -193,6 +193,7 @@ def _throttle_bucket(url: str) -> tuple[str, float] | tuple[None, float]:
     )
     for suffix in _botgate.GATED_HOST_SUFFIXES:
         delays.setdefault(suffix, gated_delay)
+    delays.update(_impl_run_state._ROBOTS_CRAWL_DELAY_SECONDS_BY_SUFFIX)
     for suffix, delay in delays.items():
         if hostname == suffix or hostname.endswith(f".{suffix}"):
             return suffix, delay

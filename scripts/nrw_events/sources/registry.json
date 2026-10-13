@@ -266,6 +266,13 @@
       "callable": "nrw_events.sources.kunstmuseum_bonn:fetch"
     },
     {
+      "id": "karneval-in-bonn",
+      "display_name": "Festausschuss Bonner Karneval",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.karneval_in_bonn:fetch"
+    },
+    {
       "id": "hgv-beuel",
       "display_name": "Heimatmuseum Beuel",
       "region": "bonn-region",

@@ -36,6 +36,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Deskline regional | `deskline-regional` | `python` |
 | bonn-region | Deutsches Museum Bonn | `deutsches-museum-bonn` | `python` |
 | bonn-region | FedCon Events | `fedcon-events` | `python` |
+| bonn-region | Festausschuss Bonner Karneval | `karneval-in-bonn` | `python` |
 | bonn-region | Geide Märkte | `geide-m-rkte` | `python` |
 | bonn-region | Grote & Hiller | `grote-hiller` | `python` |
 | bonn-region | Hardtberg Kultur | `hardtberg-kultur` | `python` |

@@ -40,6 +40,12 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
         "bonn-bfuture-festival",
     ("marktcom", "familienferienflohmarktbonn"):
         "bonn-rigalsche-wiese-flohmarkt",
+    # 11.11. Marktplatz opening, reviewed 2026-10-13: the organiser titles it
+    # with the session motto, Bonn.de as "Sessionseröffnung Bonn".
+    ("karneval-in-bonn", "eroeffnungderkarnevalssessiontraditionemhaetzefastelovendheundjetzt"):
+        "bonn-karneval-sessionseroeffnung-marktplatz",
+    ("bonn-de-events", "sessionseroeffnungbonn"):
+        "bonn-karneval-sessionseroeffnung-marktplatz",
     ("beuel-net", "festderbeuelervereinepromenadenfest"):
         "beuel-2026-beuelfest-promenadenfest",
     ("beuel-net", "promenadenfestundbeuelfest"):
