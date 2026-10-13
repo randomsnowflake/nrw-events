@@ -140,12 +140,15 @@ def deduplicate(
             )
         else:
             current_rank = (
+                # A performer's own calendar outranks every listing of its appearance.
+                str(current.get("source_id") or "") in _impl_duplicate_identity._PERFORMER_SOURCE_TITLE_MARKERS,
                 _impl_dedup_rules.source_authority(current.get("source", "")),
                 str(current.get("source") or "").casefold() != "bonn.jetzt",
                 current["score"],
                 _impl_duplicate_identity._duration_days(current),
             )
             candidate_rank = (
+                str(candidate.get("source_id") or "") in _impl_duplicate_identity._PERFORMER_SOURCE_TITLE_MARKERS,
                 _impl_dedup_rules.source_authority(candidate.get("source", "")),
                 str(candidate.get("source") or "").casefold() != "bonn.jetzt",
                 candidate["score"],

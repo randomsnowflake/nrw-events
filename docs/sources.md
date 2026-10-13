@@ -115,3 +115,4 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | VVS Siebengebirge | `vvs-siebengebirge` | `python` |
 | bonn-region | Wachtberg | `wachtberg` | `ical` |
 | bonn-region | Waldbröl | `waldbroel` | `ical` |
+| bonn-region | Wave of Joy | `wave-of-joy` | `python` |

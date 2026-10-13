@@ -185,4 +185,5 @@ scripts/nrw_events/
     tik_bonn.py
     tourismus_nrw_featured.py
     uni_bonn.py
+    wave_of_joy.py
 ```

@@ -161,6 +161,13 @@
       "callable": "nrw_events.sources.in_guten_kreisen:fetch"
     },
     {
+      "id": "wave-of-joy",
+      "display_name": "Wave of Joy",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.wave_of_joy:fetch"
+    },
+    {
       "id": "bonn-de-events",
       "display_name": "Bonn.de Events",
       "region": "bonn-region",

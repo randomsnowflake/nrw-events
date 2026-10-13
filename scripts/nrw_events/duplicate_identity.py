@@ -132,6 +132,35 @@ def _same_explicit_start(left: str | None, right: str | None) -> bool:
         return False
 
 
+# First-party performer calendars and the marker other listings use for them.
+_PERFORMER_SOURCE_TITLE_MARKERS = {"wave-of-joy": "wave of joy"}
+
+
+def _performer_appearance_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Match another calendar's listing of a performer's own dated appearance.
+
+    Wave of Joy lists "Jubiläumskonzert 30 Jahre Wave of Joy"; bonn.de and
+    Beuel.net retitle the same evening ("Konzert mit Wave Of Joy"). A listing
+    naming the performer on the same day at the same venue or minute is that
+    appearance, whatever the editorial title.
+    """
+    for own, other in ((left, right), (right, left)):
+        marker = _PERFORMER_SOURCE_TITLE_MARKERS.get(str(own.get("source_id") or ""))
+        if (
+            marker
+            and other.get("source_id") != own.get("source_id")
+            and marker in comparison_text(str(other.get("title") or ""))
+            and _date_bounds(own) == _date_bounds(other)
+            and (
+                _venue_heads_overlap(own, other)
+                or (bool(own.get("start_at") and other.get("start_at"))
+                    and _same_explicit_start(own.get("start_at"), other.get("start_at")))
+            )
+        ):
+            return True
+    return False
+
+
 def _reviewed_occurrence_alias_family(event: Mapping[str, Any]) -> str:
     """Return a source-backed identity for a reviewed civic calendar mismatch."""
     if _normalized_city(event.get("city", "")) != "bonn":
@@ -1064,7 +1093,7 @@ def _pre_programme_occurrence(left: Mapping[str, Any], right: Mapping[str, Any])
 def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Return whether two canonical records represent the same occurrence."""
     performance.count("dedup_comparisons")
-    if _reviewed_telekom_market_occurrence_matches(left, right):
+    if _reviewed_telekom_market_occurrence_matches(left, right) or _performer_appearance_matches(left, right):
         return True
     left_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(left.get("title", ""))))
     right_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(right.get("title", ""))))
