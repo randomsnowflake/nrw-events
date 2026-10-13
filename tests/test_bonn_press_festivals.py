@@ -44,6 +44,16 @@ class BonnPressFestivalTests(unittest.TestCase):
         self.assertEqual(event["event_types"], ["christmas-market"])
         self.assertEqual(identity.event_id(event), "rund-um-den-weihnachtsbaum-a4ed5fe275")
 
+    def test_bonn_leuchtet_links_its_own_city_section_not_the_annual_list(self):
+        patch_window(self, datetime(2026, 10, 13), datetime(2026, 11, 30))
+        html = ("<ul><li>Bonn leuchtet, Münsterplatz, Marktplatz, Friedenspl., Bottlerplatz, "
+                "Remigiuspl., Sternstraße, 6. bis 8. November 2026, city-marketing bonn</li></ul>")
+        with patch.object(common, "fetch_url", return_value=html):
+            event = canonicalize_event(bonn.fetch_press_festivals()[0])
+        self.assertTrue(event["link"].endswith("#sonntag-8-november-zu-bonn-leuchtet"))
+        self.assertEqual(event["source_id"], "bonn-district-festivals")
+        self.assertEqual(identity.event_id(event), "bonn-leuchtet-da859deb30")
+
     def test_keeps_comma_inside_hyphenated_official_market_name(self):
         html = """
         <ul>
