@@ -1510,11 +1510,20 @@ def fetch_press_festivals() -> list:
             venue = _press_event_venue(text, title)
             city = common.guess_city_from_text(text) or "Bonn"
             for start, end, correction in reviewed_ranges:
+                occurrence_key = (
+                    title,
+                    start.strftime("%Y-%m-%d"),
+                    end.strftime("%Y-%m-%d"),
+                )
+                override = primary_event_overrides.get(occurrence_key) or {}
+                if not isinstance(override, dict):
+                    raise ValueError("Bonn press override must be an object")
                 ev = common.make_event(
                     correction.get("title", title) if correction else title,
                     start, end,
                     correction.get("venue", venue) if correction else venue,
-                    correction["city"] if correction else city,
+                    # A reviewed city must reach make_event so distance and location fields follow it.
+                    correction["city"] if correction else override.get("city", city),
                     correction["description"] if correction else text[:240],
                     correction["link"] if correction else url,
                     correction.get("source", "Beuel.net") if correction else source,
@@ -1530,11 +1539,6 @@ def fetch_press_festivals() -> list:
                             "discovered_via": ["bonn-district-festivals"],
                             "previous_event_ids": correction["previous_event_ids"],
                         })
-                    occurrence_key = (
-                        title,
-                        start.strftime("%Y-%m-%d"),
-                        end.strftime("%Y-%m-%d"),
-                    )
                     primary_url = primary_detail_urls.get(occurrence_key)
                     if primary_url:
                         ev.update({
@@ -1547,7 +1551,7 @@ def fetch_press_festivals() -> list:
                     # Reviewed programme facts need not change source ownership.
                     # In particular an official PDF can enrich a press occurrence
                     # without pretending that it is a Bonn.de event detail.
-                    ev.update(primary_event_overrides.get(occurrence_key, {}))
+                    ev.update(override)
                     events.append(ev)
     deduped = []
     seen = set()

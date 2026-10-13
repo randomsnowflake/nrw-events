@@ -37,6 +37,8 @@ class BonnPressFestivalTests(unittest.TestCase):
         with patch.object(common, "fetch_url", return_value=html):
             event = canonicalize_event(bonn.fetch_press_festivals()[0])
         self.assertEqual(event["city"], "Bonn-Bad Godesberg")
+        # Distance follows the reviewed district, not Bonn's centre (0.0 km).
+        self.assertGreater(event["distance_km"], 5)
         self.assertEqual(event["venue_address"], "Moltkeplatz, 53173 Bonn")
         self.assertEqual(event["category_key"], "market")
         self.assertEqual(event["event_types"], ["christmas-market"])
