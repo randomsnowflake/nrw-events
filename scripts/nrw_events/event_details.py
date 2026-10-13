@@ -71,4 +71,8 @@ def canonical_details(value: Any) -> dict[str, Any]:
     for key in _DATE_KEYS:
         if day := _iso_date(value.get(key)):
             result[key] = day
+    # Weekly opening days of a ranged listing, Monday = 0. All seven say nothing.
+    weekdays = value.get("open_weekdays")
+    if isinstance(weekdays, list) and all(type(day) is int and 0 <= day <= 6 for day in weekdays) and 0 < len(set(weekdays)) < 7:
+        result["open_weekdays"] = sorted(set(weekdays))
     return result

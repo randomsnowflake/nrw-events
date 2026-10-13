@@ -120,6 +120,11 @@ class ExhibitionRunTests(unittest.TestCase):
         [unchanged] = merge_exhibition_opening_days([_day("2026-10-17", time=""), _day("2026-10-18", time="")], {})
         self.assertEqual(unchanged.end_date, "2026-10-18")
 
+    def test_run_keeps_the_weekly_opening_days(self):
+        weekend = {"details": {"final_date": "2026-12-20", "open_weekdays": [5, 6]}}
+        [merged] = merge_exhibition_opening_days([_day("2026-10-17", time="", **weekend), _day("2026-10-18", time="", **weekend)], {})
+        self.assertEqual(merged.details, {"final_date": "2026-12-20", "open_weekdays": [5, 6]})
+
     def test_final_date_beyond_timed_days_publishes_an_untimed_range(self):
         # Slots for the listed days only would present every later opening day as closed.
         final = {"details": {"final_date": "2026-12-20"}}
