@@ -451,7 +451,7 @@ def _address_locality(address: str) -> tuple[str, str]:
 
 def _parse_detail_context(html: str) -> dict:
     """Extract description and structured location facts from a Bonn detail page."""
-    context = {
+    context: dict = {
         "description": "",
         "description_html": "",
         "venue": "",
@@ -550,6 +550,8 @@ def _parse_detail_context(html: str) -> dict:
                     context["end_time"] = str(schedule.get("endTime") or "").strip()
                 if context["start_time"] and context["end_time"]:
                     break
+            if weekdays := _schedule_weekdays(schedules):
+                context["open_weekdays"] = weekdays
             locations = node.get("location") or []
             if isinstance(locations, dict):
                 locations = [locations]
@@ -586,6 +588,37 @@ def _parse_detail_context(html: str) -> dict:
             return context
 
     return context
+
+
+_SCHEMA_WEEKDAYS = {
+    name: index for index, name in enumerate(("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+}
+
+
+def _schedule_weekdays(schedules: list) -> list[int]:
+    """Return the weekly opening days (0 = Monday) of schema.org schedules.
+
+    One-off schedules (a vernissage) are their own listing row and are skipped.
+    Anything else, such as a daily ``P1D`` repeat, leaves the days unknown, and so
+    do weekly schedules that disagree: they are date-scoped seasons, not one week.
+    """
+    days: set[int] = set()
+    weeks: set[frozenset[int]] = set()
+    for schedule in schedules:
+        if not isinstance(schedule, dict):
+            return []
+        by_day = schedule.get("byDay")
+        by_day = [by_day] if isinstance(by_day, str) else by_day
+        if schedule.get("repeatFrequency") == "P1W" and isinstance(by_day, list) and by_day:
+            names = [str(day).rsplit("/", 1)[-1] for day in by_day]
+            if any(name not in _SCHEMA_WEEKDAYS for name in names):
+                return []
+            week = frozenset(_SCHEMA_WEEKDAYS[name] for name in names)
+            weeks.add(week)
+            days.update(week)
+        elif not (schedule.get("startDate") and schedule.get("startDate") == schedule.get("endDate")):
+            return []
+    return sorted(days) if len(weeks) == 1 and len(days) < 7 else []
 
 
 def _apply_detail_time(event: dict, context: dict) -> dict:
@@ -654,10 +687,13 @@ def _apply_detail_location(event: dict, context: dict) -> dict:
 
 
 def _apply_detail_final_date(event: dict, context: dict) -> dict:
-    """Keep the detail page's labelled last date of a repeated listing."""
+    """Keep the labelled last date and weekly opening days of a repeated listing."""
     final_date = str(context.get("final_date") or "")
     if final_date > str(event.get("start_date") or event.get("date") or "9999"):
         event["details"] = {**(event.get("details") or {}), "final_date": final_date}
+    if context.get("open_weekdays"):
+        # Lets a merged exhibition run drop the days it is closed (Kulturbunker: Sa/So only).
+        event["details"] = {**(event.get("details") or {}), "open_weekdays": context["open_weekdays"]}
     return event
 
 
