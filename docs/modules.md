@@ -133,6 +133,7 @@ scripts/nrw_events/
     hofflohmaerkte.py
     in_guten_kreisen.py
     junges_theater_bonn.py
+    karneval_in_bonn.py
     katharinenhof.py
     kessenicher_herbstmarkt.py
     kihapp.py

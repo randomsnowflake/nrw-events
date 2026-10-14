@@ -101,6 +101,11 @@ _HOST_THROTTLE_SECONDS_BY_SUFFIX = {
 
 _GATED_HOST_DELAY_SECONDS = 1.0
 
+# Hosts whose robots.txt sets a Crawl-delay; honored for every request.
+_ROBOTS_CRAWL_DELAY_SECONDS_BY_SUFFIX = {
+    "karneval-in-bonn.de": 10.0,
+}
+
 
 def configure_runtime(
     settings: config.RuntimeConfig, run_id: str, logger: logging.Logger,
