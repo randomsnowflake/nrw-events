@@ -73,9 +73,10 @@ class SourceParserTests(unittest.TestCase):
              patch("nrw_events.sources.bonn._venue_points", return_value={}):
             bonn.fetch_events()
 
-        # One RSS and one JSON request: no calendar listing pagination.
-        self.assertEqual(len(requested), 2)
+        # RSS, JSON and the first (empty) RSS window page: no calendar listing pagination.
+        self.assertEqual(len(requested), 3)
         self.assertTrue(any("citykey/events-json.php" in url for url in requested))
+        self.assertFalse(any("sp%3Aout" not in url and "veranstaltungskalender.php" in url for url in requested))
 
     def test_bonn_events_json_preserves_free_admission_category(self):
         payload = [

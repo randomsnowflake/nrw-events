@@ -2,9 +2,10 @@
 Bonn.de — the city's official event channels.
 
 Fetchers, all reading bonn.de:
-  fetch_events()           — the server-rendered Veranstaltungskalender listing.
-                             Primary source because it contains valid events that
-                             the city JSON/RSS feeds omit or emit malformed.
+  fetch_events()           — citykey JSON (capped at 5001 occurrences) plus the
+                             paginated RSS search over the import window for the
+                             records the JSON drops; their dates come from each
+                             detail page's schema.org eventSchedule.
   fetch_events_json()      — legacy JSON-only fallback for tests/manual probes.
   fetch_press_festivals()  — the annual "Veranstaltungsjahr" press release, which
                              lists district festivals / markets / Kirmes as <li>
@@ -19,7 +20,9 @@ import json
 import os
 import re
 import time
-from datetime import datetime, timedelta
+import xml.etree.ElementTree as ET
+from datetime import date, datetime, timedelta
+from email.utils import parsedate_to_datetime
 from html import unescape
 
 from .. import (
@@ -113,7 +116,7 @@ _BLOCK = {
     # Bonn singularised its labels; keep both spellings blocked so the rename
     # cannot quietly turn professional training into importable events.
     "Fortbildungen", "Fortbildung",
-    "Beratung", "Spendenaktion", "Online-Veranstaltung", "Bürger*innenbeteiligung",
+    "Beratung", "Spendenaktion", "Hilfsaktion", "Online-Veranstaltung", "Bürger*innenbeteiligung",
     "Next Stop Job", "Bürger*innensprechstunde OB Déus",
 }
 _KNOWN_SOURCE_CATEGORIES = (
@@ -141,6 +144,15 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Junge Erwachsene", "Klima", "Kunstmuseum", "Nachhaltigkeit",
         "Kinder (10 bis 14 Jahre)", "Nachhaltigkeits-Hub Region Bonn",
         "Portal",  # Navigation label alongside actual event topics.
+        # Facets only the per-record iCal export carries (taxonomy root, school
+        # types, institutions, renamed topics); RSS-window records read them.
+        "!Themengebiete (Veranstaltungskalender)", "Berufskolleg",
+        "Ernst-Moritz-Arndt-Haus", "Gedenkstätte", "Gesamtschule",
+        "Gesundheit/Pflege", "Gymnasium", "Hauptschule", "Kulturrucksack",
+        "Ludwig-van-Beethoven-Musikschule Bonn", "Medienzentrum",
+        "Nachhaltigkeit/Umwelt", "Quatsch keine Oper!", "Realschule",
+        "Schule/Bildung", "Schulpsychologie", "Stadtmuseum", "Theater Bonn. Oper.",
+        "Theater Bonn. Schauspiel.", "Waldorfschule", "Weiterbildungskolleg", "Wirtschaft",
         # Reading-festival umbrella, not an occurrence's format or admission.
         # Its events also carry topics such as Aktion/Workshop or Lesung.
         "Käpt´n Book",
@@ -552,6 +564,7 @@ def _parse_detail_context(html: str) -> dict:
                     break
             if weekdays := _schedule_weekdays(schedules):
                 context["open_weekdays"] = weekdays
+            context["schedules"] = [schedule for schedule in schedules if isinstance(schedule, dict)]
             locations = node.get("location") or []
             if isinstance(locations, dict):
                 locations = [locations]
@@ -790,11 +803,34 @@ def fetch_events() -> list:
     events = _merge_fallback_events(
         events, _fetch_rss_events(source, enrich_details=False),
     )
+    try:
+        items = _fetch_json_items()
+    except Exception as e:
+        common.log_source_error(source, e)
+        items = []
     events = _merge_fallback_events(
         events,
-        fetch_events_json(source, include_fallbacks=False, enrich_details=False),
+        fetch_events_json(source, include_fallbacks=False, enrich_details=False, items=items),
     )
+    # The citykey JSON stops at 5001 occurrences, newest records first, so
+    # long-running offers (IBS Hausaufgabenhilfe: 248 of 635 records on
+    # 2026-10-14) only reach us through the paginated RSS search.
+    json_links = {_canonical_link(str(item.get("link") or "")) for item in items if isinstance(item, dict)}
+    events = _merge_fallback_events(events, _fetch_rss_window_events(source, json_links))
     return _drop_redundant_dated_title_variants(_enrich_listing_details(events))
+
+
+def _fetch_json_items() -> list:
+    items = _loads_event_items(common.fetch_url(
+        _EVENTS_JSON_URL,
+        timeout=25,
+        accept="application/json,*/*;q=0.8",
+        sec_fetch_mode="cors",
+        sec_fetch_dest="empty",
+    ))
+    if not isinstance(items, list):
+        items = items.get("events", []) if isinstance(items, dict) else []
+    return items
 
 
 def fetch_events_json(
@@ -802,25 +838,19 @@ def fetch_events_json(
     *,
     include_fallbacks: bool = True,
     enrich_details: bool = True,
+    items: list | None = None,
 ) -> list:
     """Legacy JSON fallback → dated, activity-only, venue-pinned events."""
-    try:
-        items = _loads_event_items(common.fetch_url(
-            _EVENTS_JSON_URL,
-            timeout=25,
-            accept="application/json,*/*;q=0.8",
-            sec_fetch_mode="cors",
-            sec_fetch_dest="empty",
-        ))
-    except Exception as e:
-        if include_fallbacks:
-            fallback = _fetch_rss_events(source)
-            if fallback:
-                return fallback
-        common.log_source_error(source, e)
-        return []
-    if not isinstance(items, list):
-        items = items.get("events", []) if isinstance(items, dict) else []
+    if items is None:
+        try:
+            items = _fetch_json_items()
+        except Exception as e:
+            if include_fallbacks:
+                fallback = _fetch_rss_events(source)
+                if fallback:
+                    return fallback
+            common.log_source_error(source, e)
+            return []
 
     points = _venue_points()
     events = []
@@ -831,16 +861,16 @@ def fetch_events_json(
             continue
 
         tags = set(item.get("category") or [])
-        allow = tags & _ALLOW
         unknown = _unknown_source_categories(tags)
         unknown_categories.update(unknown)
         price = common.infer_free_admission_price(
             item.get("title", ""), item.get("description", ""),
             "kostenlos" if "Kostenlos" in tags else "",
         )
-        free_allow = (tags & _FREE_ACTIVITY_ALLOW) if price else set()
-        if (not allow and not free_allow) or (tags & _BLOCK):
+        policy = _importable_tags(tags, price)
+        if not policy:
             continue
+        allow, free_allow = policy
 
         start_dt = _parse_dt(item.get("startDate", ""))
         end_dt = _parse_dt(item.get("endDate", "")) or start_dt
@@ -891,34 +921,56 @@ def fetch_events_json(
             source, ", ".join(sorted(category_tags)), time_text=time_text,
             coords=points.get(venue.lower()))
         if ev:
-            # Detail-page location data is enrichment, not a new occurrence.
-            # Lock even an originally empty listing venue so a newly discovered
-            # Place does not move an already published event URL.
-            ev["identity_venue"] = identity_venue
-            ev["identity_venue_locked"] = True
-            if location_address and not ev.get("venue_address"):
-                ev["venue_address"] = location_address
-            ev = _apply_detail_location(ev, detail_context)
-            ev = _apply_detail_final_date(ev, detail_context)
-            ev = _apply_detail_source_link(ev, detail_context)
-            ev["description"] = common.concise_description(description, max_chars=0)
-            ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
-            ev = _apply_source_category_mapping(ev, tags)
-            if free_allow and not allow:
-                ev = _apply_free_category_override(ev, tags)
-            if price:
-                ev["price"] = price
-                if resolved_admission_basis:
-                    ev["admission_basis"] = resolved_admission_basis
-                if free_allow:
-                    ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
-            events.append(ev)
+            events.append(_finish_structured_event(
+                ev, identity_venue=identity_venue, location_address=location_address,
+                detail_context=detail_context, description=description, tags=tags,
+                allow=allow, free_allow=free_allow, price=price,
+                admission_basis=resolved_admission_basis,
+            ))
     _warn_unknown_source_categories(source, unknown_categories)
     if include_fallbacks and len(events) < 20:
         events = _merge_fallback_events(events, _fetch_rss_events(source))
         events = _merge_fallback_events(events, _fetch_free_calendar_events(source))
         events = _merge_fallback_events(events, _fetch_calendar_listing_events(source))
     return events
+
+
+def _importable_tags(tags: set, price: str) -> tuple[set, set] | None:
+    """Bonn topic policy: (allowed topics, free-activity topics) or None to skip."""
+    allow = tags & _ALLOW
+    free_allow = (tags & _FREE_ACTIVITY_ALLOW) if price else set()
+    if (not allow and not free_allow) or (tags & _BLOCK):
+        return None
+    return allow, free_allow
+
+
+def _finish_structured_event(
+    ev: dict, *, identity_venue: str, location_address: str, detail_context: dict,
+    description: str, tags: set, allow: set, free_allow: set, price: str,
+    admission_basis: str,
+) -> dict:
+    # Detail-page location data is enrichment, not a new occurrence.
+    # Lock even an originally empty listing venue so a newly discovered
+    # Place does not move an already published event URL.
+    ev["identity_venue"] = identity_venue
+    ev["identity_venue_locked"] = True
+    if location_address and not ev.get("venue_address"):
+        ev["venue_address"] = location_address
+    ev = _apply_detail_location(ev, detail_context)
+    ev = _apply_detail_final_date(ev, detail_context)
+    ev = _apply_detail_source_link(ev, detail_context)
+    ev["description"] = common.concise_description(description, max_chars=0)
+    ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
+    ev = _apply_source_category_mapping(ev, tags)
+    if free_allow and not allow:
+        ev = _apply_free_category_override(ev, tags)
+    if price:
+        ev["price"] = price
+        if admission_basis:
+            ev["admission_basis"] = admission_basis
+        if free_allow:
+            ev["score"] = max(ev.get("score", 0), _FREE_EVENT_SCORE_FLOOR)
+    return ev
 
 
 _HTML_URL = "https://www.bonn.de/bonn-erleben/ausgehen-und-erleben/veranstaltungskalender.php"
@@ -1260,7 +1312,6 @@ def _fetch_free_calendar_events(
 def _fetch_rss_events(
     source: str = "Bonn.de RSS", *, enrich_details: bool = True,
 ) -> list:
-    import xml.etree.ElementTree as ET
     try:
         root = ET.fromstring(common.fetch_url(
             _RSS_URL,
@@ -1325,6 +1376,205 @@ def _fetch_rss_events(
     except Exception as e:
         common.log_source_error(source, e)
         return []
+
+
+def _canonical_link(link: str) -> str:
+    return link.split("#", 1)[0].split("?", 1)[0].strip().replace("http://", "https://", 1)
+
+
+def _rss_window_url(page: int) -> str:
+    window = common.runtime_window()
+    params = [
+        ("sp:out", "rss"),
+        ("sp:cmp", "search-1-0-searchResult"),
+        ("sp:dateFrom[]", window.start.strftime("%Y-%m-%d")),
+        ("sp:dateTo[]", window.end.strftime("%Y-%m-%d")),
+        ("action", "submit"),
+    ]
+    if page > 1:
+        params.append(("sp:page[search-1.form][0]", str(page)))
+    return _HTML_URL + "?" + common.urllib.parse.urlencode(params)
+
+
+def _rss_window_records(source: str) -> list[dict]:
+    """Every calendar record with an occurrence in the window, once, at its next date."""
+    records: dict[str, dict] = {}
+    max_pages = int(os.environ.get("NRW_EVENTS_BONN_RSS_MAX_PAGES", "40"))
+    for page in range(1, max_pages + 1):
+        try:
+            root = ET.fromstring(common.fetch_url(
+                _rss_window_url(page),
+                accept="application/rss+xml,application/xml;q=0.9,*/*;q=0.8",
+                sec_fetch_mode="no-cors",
+                sec_fetch_dest="empty",
+            ))
+        except Exception as e:  # keep the pages read so far
+            common.log_source_error(f"{source} RSS window page {page}", e)
+            break
+        items = root.findall(".//item")
+        if not items:
+            break
+        for item in items:
+            link = (item.findtext("link") or "").strip()
+            title = unescape((item.findtext("title") or "").strip())
+            try:
+                next_at = parsedate_to_datetime((item.findtext("pubDate") or "").strip())
+            except (TypeError, ValueError):
+                continue
+            if next_at.tzinfo is not None:
+                next_at = next_at.astimezone(common.LOCAL_TIMEZONE).replace(tzinfo=None)
+            if link and title:
+                records.setdefault(_canonical_link(link), {
+                    "title": title,
+                    "link": _canonical_link(link),
+                    "description": common.clean_html(item.findtext("description") or ""),
+                    "next_at": next_at,
+                })
+    return list(records.values())
+
+
+def _ical_categories(link: str) -> set[str]:
+    """Topic labels of one record; the RSS search omits them, its iCal export has them."""
+    text = common.fetch_detail_url(
+        link + "?sp%3Aout=iCal",
+        cache_namespace="bonn-ical",
+        cache_failures=True,
+        timeout=15,
+        retry_attempts=1,
+        accept="text/calendar,*/*;q=0.8",
+    )
+    unfolded = re.sub(r"\r?\n[ \t]", "", text or "")
+    return {
+        part.replace("\\,", ",").strip()
+        for line in re.findall(r"^CATEGORIES[^:\n]*:(.*)$", unfolded, re.M)
+        for part in re.split(r"(?<!\\),", line.strip())
+        if part.strip()
+    }
+
+
+def _clock(value: str) -> str:
+    match = re.fullmatch(r"(\d{1,2}):(\d{2})(?::\d{2})?", (value or "").strip())
+    if not match or (int(match.group(1)), int(match.group(2))) == (0, 0):
+        return ""
+    return f"{int(match.group(1)):02d}:{match.group(2)}"
+
+
+def _schedule_occurrences(schedules: list, first_day: date, last_day: date) -> list[tuple[date, str, str]]:
+    """Expand schema.org Schedules into (day, start, end) inside the window.
+
+    Only single days and daily/weekly repeats are expanded; any other shape
+    returns [] so the caller keeps just the occurrence the calendar listed.
+    """
+    occurrences: set[tuple[date, str, str]] = set()
+    for schedule in schedules:
+        start = common.parse_iso_date(str(schedule.get("startDate") or ""))
+        end = common.parse_iso_date(str(schedule.get("endDate") or "")) or start
+        if not start or not end or end < start:
+            return []
+        by_day = schedule.get("byDay") or []
+        names = [str(day).rsplit("/", 1)[-1] for day in ([by_day] if isinstance(by_day, str) else by_day)]
+        if any(name not in _SCHEMA_WEEKDAYS for name in names):
+            return []
+        weekdays = {_SCHEMA_WEEKDAYS[name] for name in names}
+        frequency = schedule.get("repeatFrequency")
+        if start.date() == end.date():
+            weekdays = {start.weekday()}
+        elif frequency == "P1W":
+            weekdays = weekdays or {start.weekday()}
+        elif frequency == "P1D":
+            weekdays = weekdays or set(range(7))
+        else:
+            return []
+        except_dates = schedule.get("exceptDate") or []
+        excluded = {
+            parsed.date()
+            for value in ([except_dates] if isinstance(except_dates, str) else except_dates)
+            if (parsed := common.parse_iso_date(str(value)))
+        }
+        clocks = (_clock(str(schedule.get("startTime") or "")), _clock(str(schedule.get("endTime") or "")))
+        day = max(start.date(), first_day)
+        while day <= min(end.date(), last_day):
+            if day.weekday() in weekdays and day not in excluded:
+                occurrences.add((day, *clocks))
+            day += timedelta(days=1)
+    return sorted(occurrences)
+
+
+def _fetch_rss_window_events(source: str, known_links: set[str]) -> list:
+    """Records missing from the citykey JSON, with occurrences from their detail page.
+
+    Each record costs one iCal (topics) and one detail request (schedule,
+    venue, copy), both in the persistent detail cache. A time budget keeps a
+    cold cache inside the source deadline; the rest follows on later runs.
+    """
+    window = common.runtime_window()
+    first_day, last_day = window.start.date(), window.end.date()
+    deadline = time.monotonic() + float(os.environ.get("NRW_EVENTS_BONN_RSS_DETAIL_BUDGET_SECONDS", "240"))
+    records = sorted(
+        (record for record in _rss_window_records(source) if record["link"] not in known_links),
+        key=lambda record: (record["next_at"], record["link"]),
+    )
+    points = _venue_points()
+    events: list = []
+    unknown_categories: set[str] = set()
+    for record in records:
+        if time.monotonic() > deadline:
+            break
+        title, link, teaser = record["title"], record["link"], record["description"]
+        try:
+            tags = _ical_categories(link)
+        except Exception as e:  # one record must not stop the rest
+            common.log_source_error(f"{source} iCal", e)
+            continue
+        unknown_categories.update(_unknown_source_categories(tags))
+        price = common.infer_free_admission_price(title, teaser, "kostenlos" if "Kostenlos" in tags else "")
+        policy = _importable_tags(tags, price)
+        if not policy:
+            continue
+        allow, free_allow = policy
+        context = _fetch_detail_context(link)
+        if not context.get("venue"):
+            continue  # without the Place an occurrence would change identity once it appears
+        next_at = record["next_at"]
+        occurrences = _schedule_occurrences(context.get("schedules") or [], first_day, last_day)
+        if next_at.date() not in {day for day, _, _ in occurrences}:
+            # Unsupported or stale (cached) schedule: keep only the listed date.
+            listed = _clock(f"{next_at:%H:%M}")
+            same_start = listed in ("", _clock(str(context.get("start_time") or "")))
+            occurrences = [(
+                next_at.date(),
+                listed or _clock(str(context.get("start_time") or "")),
+                _clock(str(context.get("end_time") or "")) if same_start else "",
+            )] if first_day <= next_at.date() <= last_day else []
+        venue = str(context.get("venue") or "")
+        description = str(context.get("description") or "") or teaser
+        city = common.refine_city_from_text(
+            str(context.get("city") or "Bonn"), " ".join((title, venue, description)),
+        )
+        resolved_price, admission_basis = _event_admission(
+            price or common.infer_free_admission_price(title, description), venue, context,
+        )
+        for day, start_clock, end_clock in occurrences:
+            if day < next_at.date():
+                continue  # the calendar no longer lists it
+            start_dt = datetime.combine(day, datetime.strptime(start_clock or "00:00", "%H:%M").time())
+            end_dt = datetime.combine(day, datetime.strptime(end_clock, "%H:%M").time()) if start_clock and end_clock else start_dt
+            if end_dt < start_dt:
+                end_dt += timedelta(days=1)
+            ev = common.make_event(
+                title, start_dt, end_dt, venue, city, teaser or title, link, source,
+                ", ".join(sorted(allow or free_allow)),
+                time_text=f"{start_clock}–{end_clock}" if start_clock and end_clock else start_clock,
+                coords=points.get(venue.lower()),
+            )
+            if ev:
+                events.append(_finish_structured_event(
+                    ev, identity_venue=venue, location_address="", detail_context=context,
+                    description=description, tags=tags, allow=allow, free_allow=free_allow,
+                    price=resolved_price, admission_basis=admission_basis,
+                ))
+    _warn_unknown_source_categories(source, unknown_categories)
+    return events
 
 
 _MERGE_IDENTITY_FIELDS = {

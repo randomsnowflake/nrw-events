@@ -178,6 +178,8 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_GATED_RESPONSE_TTL_HOURS=20` — day-scoped response cache for kdvz-gated portals; `0` disables it.
 - `NRW_EVENTS_BONN_CALENDAR_LISTINGS=0` — `1` also crawls Bonn.de's ~50 paginated listing pages; off by default (JSON feed covers them).
 - `NRW_EVENTS_BONN_CALENDAR_MAX_PAGES=30` — safety cap for paginated Bonn.de calendars.
+- `NRW_EVENTS_BONN_RSS_MAX_PAGES=40` — cap for the RSS search pages that recover records the citykey JSON (5001-occurrence limit) drops.
+- `NRW_EVENTS_BONN_RSS_DETAIL_BUDGET_SECONDS=240` — per-run time budget for their iCal/detail requests; a cold cache fills over several runs.
 - `BRIGHT_DATA_API_KEY` / `BRIGHT_DATA_ZONE` — Bright Data Web Unlocker credentials; vomFASS refreshes only on Mondays and always uses this proxy. Hofflohmärkte Köln and allowlisted IONAS4 regional calendars are direct-first and use it only after selected transient failures or exhausted direct-request timeouts.
 - `NRW_EVENTS_CACHE_DIR=~/.cache/nrw-events` — persistent cache root for bounded detail-page enrichment.
 - `XDG_CACHE_HOME=~/.cache` — cache base when `NRW_EVENTS_CACHE_DIR` is unset.
