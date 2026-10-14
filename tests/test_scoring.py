@@ -1,6 +1,10 @@
 import unittest
+from datetime import datetime
 
 from nrw_events.scoring import category_score
+from nrw_events.sources.requested_venues import _events_from_pantheon
+
+from tests.helpers import patch_window
 
 
 class CategoryScoreTests(unittest.TestCase):
@@ -21,6 +25,49 @@ class CategoryScoreTests(unittest.TestCase):
             category_score("Weinfest mit Kinderquiz und Familienprogramm"),
             1.45,
         )
+
+    def test_charitable_beneficiaries_are_not_the_audience(self):
+        for text, expected in (
+            ("Lach mal was mit wünschdirwas · Benefiz-Comedy-Kabarett für "
+             "schwerkranke Kinder + Jugendliche Pantheon Theater Bonn kabarett kleinkunst", 1.3),
+            ("Benefizkonzert für schwerkranke Kinder und Jugendliche", 1.5),
+            ("Konzert zugunsten kranker Kinder", 1.5),
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(category_score(text), expected)
+
+    def test_benefit_wording_does_not_hide_a_child_audience(self):
+        for text in (
+            "Kindertheater zugunsten kranker Kinder",
+            "Benefiz-Comedy-Kabarett für schwerkranke Kinder + Jugendliche. "
+            "Vorlesen für Kinder ab 6 Jahren",
+            "Kabarett für Kinder",
+            "Benefizkonzert für Kinder",
+            "Theater für schwerkranke Kinder",
+        ):
+            with self.subTest(text=text):
+                self.assertLessEqual(category_score(text), 0.25)
+
+    def test_pantheon_benefit_event_clears_publication_score_floor(self):
+        patch_window(self, datetime(2026, 10, 14), datetime(2026, 11, 10))
+        # Official programme fragment #t647233, checked 2026-10-14.
+        [event] = _events_from_pantheon("""
+            <li id="t647233">
+              <div class="event-date-1">14.</div>
+              <div class="event-date-3">Oktober</div>
+              <div class="event-time">20:00</div>
+              <div class="event-location"><a>Pantheon</a></div>
+              <h2 class="event-title">Lach mal was mit wünschdirwas ·
+                Sandra Niggemann (Moderation) · Florian Schroeder · Matthias Reuter ·
+                Nessi Tausendschön &amp; William Mackenzie · Sabine Domogala ·
+                Benefiz-Comedy-Kabarett für schwerkranke Kinder + Jugendliche -
+                Lach mal was mit wün</h2>
+              <h3 class="event-type"></h3>
+            </li>
+        """)
+        self.assertEqual(event["start_at"], "2026-10-14T20:00+02:00")
+        self.assertEqual(event["link"], "https://www.pantheon.de/programm/#t647233")
+        self.assertGreaterEqual(event["score"], 0.4)
 
     def test_matching_uses_casefold(self):
         self.assertEqual(category_score("KINDERPROGRAMM"), 0.2)

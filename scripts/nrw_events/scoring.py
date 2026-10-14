@@ -25,6 +25,11 @@ _ADULT_OUTDOOR_SIGNALS = frozenset({
 _FAMILY_SIDE_OFFER_TERMS = frozenset({
     "kids", "kinder", "family", "familie", "vorlesen", "basteln",
 })
+_CHARITABLE_BENEFICIARIES = re.compile(
+    r"\b(benefiz[\w-]*\s+für|zugunsten|zu\s+gunsten)\s+"
+    r"(?:schwer)?kranke[rn]?\s+kinder[n]?"
+    r"(?:\s*(?:\+|&|und)\s*jugendliche[rn]?)?\b"
+)
 
 # How CATEGORY_WEIGHT keys match against event text. Default is word-prefix so
 # German compounds still score ("wein" matches "Weinfest") without the raw
@@ -73,6 +78,8 @@ _CATEGORY_MATCHERS = tuple(
 def category_score(text: str) -> float:
     """Combine the strongest configured boost and demotion for event text."""
     normalized = text.casefold()
+    # Keep the benefit event's type and any separate child-audience wording.
+    normalized = _CHARITABLE_BENEFICIARIES.sub(r"\1", normalized)
     kids_only = (
         any(_keyword_pattern(word).search(normalized) for word in _NEGATIVE_KEYWORDS)
         and not any(_keyword_pattern(word).search(normalized) for word in _ADULT_OUTDOOR_SIGNALS)
