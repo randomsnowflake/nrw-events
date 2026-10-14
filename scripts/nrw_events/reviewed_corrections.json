@@ -168,6 +168,15 @@
         },
         "valid_until": "2026-12-30",
         "evidence": "Verified 2026-10-12: the city's 2026 annual list lists 'Rund um den Weihnachtsbaum, Moltkeplatz, 2. November bis 30. Dezember 2026, Ralf Reifenberg' under Stadtbezirk Bad Godesberg. GA (2025-10-27, 2025-12-06) describes it as Reifenberg's Mini-Weihnachtsmarkt/Hüttendorf on the Moltkeplatz; OSM places Moltkeplatz in 53173 Alt-Godesberg. 2025 opening hours are not carried over. Keep the published id."
+      },
+      {
+        "match": ["Bonn leuchtet", "2026-11-06", "2026-11-08"],
+        "value": {
+          "link": "https://www.bonn.de/pressemitteilungen/juni-2026/rat-beschliesst-zwei-verkaufsoffene-sonntage-in-der-bonner-innenstadt.php#sonntag-8-november-zu-bonn-leuchtet",
+          "link_kind": "detail"
+        },
+        "valid_until": "2026-11-08",
+        "evidence": "Verified 2026-10-13: no dedicated 2026 page exists at the organizer (bonn-city.de sitemap: only an exhibitor sign-up and the 2025 press PDF), in the bonn.de calendar/events JSON or at visit-bonn-region.de. The city's June 2026 release has its own Bonn Leuchtet section naming 6–8 Nov 2026, city-marketing bonn as organizer, the programme and the Sunday opening 13–18; that beats the generic annual list. Link only; source ownership and event id stay unchanged."
       }
     ],
     "bonn_press_occurrence_corrections": [
