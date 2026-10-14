@@ -58,6 +58,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
 | bonn-region | Krewelshof Kindersachen-Flohmarkt | `krewelshof-kindersachen-flohmarkt` | `python` |
+| bonn-region | Kultur verbindet e.V. | `kultur-verbindet` | `python` |
 | bonn-region | KUNST!RASEN Bonn | `kunstrasen-bonn` | `python` |
 | bonn-region | Kunstmuseum Bonn | `kunstmuseum-bonn` | `python` |
 | bonn-region | Käpt’n Book Lesefest | `kaeptn-book-lesefest` | `python` |

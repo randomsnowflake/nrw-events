@@ -231,6 +231,13 @@
       "callable": "nrw_events.sources.telekom_baskets:fetch"
     },
     {
+      "id": "kultur-verbindet",
+      "display_name": "Kultur verbindet e.V.",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.kultur_verbindet:fetch"
+    },
+    {
       "id": "haus-der-geschichte",
       "display_name": "Haus der Geschichte",
       "region": "bonn-region",

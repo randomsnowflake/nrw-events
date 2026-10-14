@@ -143,6 +143,7 @@ scripts/nrw_events/
     koelner_hallenflohmarkt.py
     koenigswinter.py
     krewelshof.py
+    kultur_verbindet.py
     kunstmuseum_bonn.py
     kunstrasen_bonn.py
     lampert.py

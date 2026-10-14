@@ -1,0 +1,992 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:kalender.digital
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:KDIG3704862214
+DTSTART;VALUE=DATE:20261031
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20261101
+URL:https://www.feiertage-deutschland.de/reformationstag/
+LOCATION:BB\,HB\,HH\,MV\,NI\,SH\,SN\,ST\,TH
+SUMMARY:Reformationstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Reformationstag ist in folgenden Bundesländern ein gesetzl
+ icher Feiertag: Brandenburg\, Mecklenburg-Vorpommern\, Sachsen\, Sachsen-A
+ nhalt\, Thüringen und seit 2018 auch in Schleswig-Holstein\, Hamburg\, Br
+ emen und Niedersachsen.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862310
+DTSTART;VALUE=DATE:20261101
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20261102
+URL:https://www.feiertage-deutschland.de/allerheiligen/
+LOCATION:BW\,BY\,NW\,RP\,SL
+SUMMARY:Allerheiligen (§)
+CLASS:PUBLIC
+DESCRIPTION:Allerheiligen ist in folgenden Bundesländern ein gesetzlicher 
+ Feiertag: Baden-Württemberg\, Bayern\, Nordrhein-Westfalen\, Rheinland-Pf
+ alz und Saarland.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862226
+DTSTART;VALUE=DATE:20261118
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20261119
+URL:https://www.feiertage-deutschland.de/buss-und-bettag/
+LOCATION:BY\,SN
+SUMMARY:Buß- und Bettag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Buß- und Bettag ist in Sachsen ein gesetzlicher Feiertag. 
+ In Bayern ist der Buß- und Bettag unterrichtsfrei.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862316
+DTSTART;VALUE=DATE:20261225
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20261226
+URL:https://www.feiertage-deutschland.de/weihnachten/
+LOCATION:Alle Bundesländer
+SUMMARY:1. Weihnachtstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der erste und zweite Weihnachtsfeiertag sind in ganz Deutschlan
+ d gesetzliche Feiertage.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862322
+DTSTART;VALUE=DATE:20261226
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20261227
+URL:https://www.feiertage-deutschland.de/weihnachten/
+LOCATION:Alle Bundesländer
+SUMMARY:2. Weihnachtstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der erste und zweite Weihnachtsfeiertag sind in ganz Deutschlan
+ d gesetzliche Feiertage.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862262
+DTSTART;VALUE=DATE:20270101
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270102
+URL:https://www.feiertage-deutschland.de/neujahr/
+LOCATION:Alle Bundesländer
+SUMMARY:Neujahr (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Neujahrstag ist in allen deutschen Bundesländern ein geset
+ zlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862268
+DTSTART;VALUE=DATE:20270106
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270107
+URL:https://www.feiertage-deutschland.de/heilige-drei-koenige/
+LOCATION:BW\,BY\,ST
+SUMMARY:Heilige Drei Könige (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Dreikönigstag ist ein gesetzlicher Feiertag in: Baden-Wür
+ ttemberg\, Bayern und Sachsen-Anhalt.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862274
+DTSTART;VALUE=DATE:20270308
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270309
+URL:https://www.feiertage-deutschland.de/frauentag/
+LOCATION:BE
+SUMMARY:Frauentag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Internationale Frauentag ist seit 2019 ein gesetzlicher Fei
+ ertag in Berlin.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862227
+DTSTART;VALUE=DATE:20270325
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270326
+URL:https://www.feiertage-deutschland.de/gruendonnerstag/
+LOCATION:BW
+SUMMARY:Gründonnerstag
+CLASS:PUBLIC
+DESCRIPTION:In keinem Bundesland ist der Gründonnerstag ein gesetzlicher F
+ eiertag. In Baden-Württemberg ist an Gründonnerstag schulfrei.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862228
+DTSTART;VALUE=DATE:20270326
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270327
+URL:https://www.feiertage-deutschland.de/karfreitag/
+LOCATION:Alle Bundesländer
+SUMMARY:Karfreitag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Karfreitag ist in ganz Deutschland ein gesetzlicher Feierta
+ g.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862229
+DTSTART;VALUE=DATE:20270329
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270330
+URL:https://www.feiertage-deutschland.de/ostermontag/
+LOCATION:Alle Bundesländer
+SUMMARY:Ostermontag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Ostermontag ist in ganz Deutschland ein gesetzlicher Feiert
+ ag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862280
+DTSTART;VALUE=DATE:20270501
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270502
+URL:https://www.feiertage-deutschland.de/tag-der-arbeit/
+LOCATION:Alle Bundesländer
+SUMMARY:Tag der Arbeit (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Tag der Arbeit ist in ganz Deutschland ein gesetzlicher Fei
+ ertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862230
+DTSTART;VALUE=DATE:20270506
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270507
+URL:https://www.feiertage-deutschland.de/christi-himmelfahrt/
+LOCATION:Alle Bundesländer
+SUMMARY:Christi Himmelfahrt (§)
+CLASS:PUBLIC
+DESCRIPTION:Christi Himmelfahrt ist in ganz Deutschland ein gesetzlicher Fe
+ iertag
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862231
+DTSTART;VALUE=DATE:20270517
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270518
+URL:https://www.feiertage-deutschland.de/pfingstmontag/
+LOCATION:Alle Bundesländer
+SUMMARY:Pfingstmontag (§)
+CLASS:PUBLIC
+DESCRIPTION:Pfingstmontag ist in allen deutschen Bundesländern ein gesetzl
+ icher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862232
+DTSTART;VALUE=DATE:20270527
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270528
+URL:https://www.feiertage-deutschland.de/fronleichnam/
+LOCATION:BW\,BY\,HE\,NW\,RP\,SL\,SN\,TH
+SUMMARY:Fronleichnam (§)
+CLASS:PUBLIC
+DESCRIPTION:Fronleichnam ist in folgenden Bundesländern ein gesetzlicher F
+ eiertag: Baden-Württemberg\, Bayern\, Hessen\, Nordrhein-Westfalen\, Rhei
+ nland-Pfalz\, Saarland. In Sachsen und Thüringen ist Fronleichnam nur in 
+ bestimmten Gemeinden ein gesetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862287
+DTSTART;VALUE=DATE:20270808
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270809
+URL:https://www.feiertage-deutschland.de/augsburger-friedensfest/
+LOCATION:BY
+SUMMARY:Augsburger Friedensfest
+CLASS:PUBLIC
+DESCRIPTION:Das Augsburger Hohes Friedensfest ist ausschließlich in der St
+ adt Augsburg ein gesetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862293
+DTSTART;VALUE=DATE:20270815
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270816
+URL:https://www.feiertage-deutschland.de/mariae-himmelfahrt/
+LOCATION:BY\,SL
+SUMMARY:Mariä Himmelfahrt (§)
+CLASS:PUBLIC
+DESCRIPTION:Mariä Himmelfahrt ist ein gesetzlicher Feiertag in folgenden B
+ undesländern: Saarland\, Bayern (in Gemeinden mit überwiegend katholisch
+ er Bevölkerung).
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862299
+DTSTART;VALUE=DATE:20270920
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20270921
+URL:https://www.feiertage-deutschland.de/weltkindertag/
+LOCATION:TH
+SUMMARY:Weltkindertag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Weltkindertag ist seit 2019 ein gesetzlicher Feiertag in Th
+ üringen.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862305
+DTSTART;VALUE=DATE:20271003
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20271004
+URL:https://www.feiertage-deutschland.de/tag-der-deutschen-einheit/
+LOCATION:Alle Bundesländer
+SUMMARY:Tag der Deutschen Einheit (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Tag der Deutschen Einheit ist in allen Bundesländern ein g
+ esetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862215
+DTSTART;VALUE=DATE:20271031
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20271101
+URL:https://www.feiertage-deutschland.de/reformationstag/
+LOCATION:BB\,HB\,HH\,MV\,NI\,SH\,SN\,ST\,TH
+SUMMARY:Reformationstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Reformationstag ist in folgenden Bundesländern ein gesetzl
+ icher Feiertag: Brandenburg\, Mecklenburg-Vorpommern\, Sachsen\, Sachsen-A
+ nhalt\, Thüringen und seit 2018 auch in Schleswig-Holstein\, Hamburg\, Br
+ emen und Niedersachsen.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862311
+DTSTART;VALUE=DATE:20271101
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20271102
+URL:https://www.feiertage-deutschland.de/allerheiligen/
+LOCATION:BW\,BY\,NW\,RP\,SL
+SUMMARY:Allerheiligen (§)
+CLASS:PUBLIC
+DESCRIPTION:Allerheiligen ist in folgenden Bundesländern ein gesetzlicher 
+ Feiertag: Baden-Württemberg\, Bayern\, Nordrhein-Westfalen\, Rheinland-Pf
+ alz und Saarland.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862233
+DTSTART;VALUE=DATE:20271117
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20271118
+URL:https://www.feiertage-deutschland.de/buss-und-bettag/
+LOCATION:BY\,SN
+SUMMARY:Buß- und Bettag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Buß- und Bettag ist in Sachsen ein gesetzlicher Feiertag. 
+ In Bayern ist der Buß- und Bettag unterrichtsfrei.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862317
+DTSTART;VALUE=DATE:20271225
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20271226
+URL:https://www.feiertage-deutschland.de/weihnachten/
+LOCATION:Alle Bundesländer
+SUMMARY:1. Weihnachtstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der erste und zweite Weihnachtsfeiertag sind in ganz Deutschlan
+ d gesetzliche Feiertage.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862323
+DTSTART;VALUE=DATE:20271226
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20271227
+URL:https://www.feiertage-deutschland.de/weihnachten/
+LOCATION:Alle Bundesländer
+SUMMARY:2. Weihnachtstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der erste und zweite Weihnachtsfeiertag sind in ganz Deutschlan
+ d gesetzliche Feiertage.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862263
+DTSTART;VALUE=DATE:20280101
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280102
+URL:https://www.feiertage-deutschland.de/neujahr/
+LOCATION:Alle Bundesländer
+SUMMARY:Neujahr (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Neujahrstag ist in allen deutschen Bundesländern ein geset
+ zlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862269
+DTSTART;VALUE=DATE:20280106
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280107
+URL:https://www.feiertage-deutschland.de/heilige-drei-koenige/
+LOCATION:BW\,BY\,ST
+SUMMARY:Heilige Drei Könige (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Dreikönigstag ist ein gesetzlicher Feiertag in: Baden-Wür
+ ttemberg\, Bayern und Sachsen-Anhalt.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862275
+DTSTART;VALUE=DATE:20280308
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280309
+URL:https://www.feiertage-deutschland.de/frauentag/
+LOCATION:BE
+SUMMARY:Frauentag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Internationale Frauentag ist seit 2019 ein gesetzlicher Fei
+ ertag in Berlin.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862234
+DTSTART;VALUE=DATE:20280413
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280414
+URL:https://www.feiertage-deutschland.de/gruendonnerstag/
+LOCATION:BW
+SUMMARY:Gründonnerstag
+CLASS:PUBLIC
+DESCRIPTION:In keinem Bundesland ist der Gründonnerstag ein gesetzlicher F
+ eiertag. In Baden-Württemberg ist an Gründonnerstag schulfrei.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862235
+DTSTART;VALUE=DATE:20280414
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280415
+URL:https://www.feiertage-deutschland.de/karfreitag/
+LOCATION:Alle Bundesländer
+SUMMARY:Karfreitag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Karfreitag ist in ganz Deutschland ein gesetzlicher Feierta
+ g.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862236
+DTSTART;VALUE=DATE:20280417
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280418
+URL:https://www.feiertage-deutschland.de/ostermontag/
+LOCATION:Alle Bundesländer
+SUMMARY:Ostermontag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Ostermontag ist in ganz Deutschland ein gesetzlicher Feiert
+ ag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862281
+DTSTART;VALUE=DATE:20280501
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280502
+URL:https://www.feiertage-deutschland.de/tag-der-arbeit/
+LOCATION:Alle Bundesländer
+SUMMARY:Tag der Arbeit (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Tag der Arbeit ist in ganz Deutschland ein gesetzlicher Fei
+ ertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862237
+DTSTART;VALUE=DATE:20280525
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280526
+URL:https://www.feiertage-deutschland.de/christi-himmelfahrt/
+LOCATION:Alle Bundesländer
+SUMMARY:Christi Himmelfahrt (§)
+CLASS:PUBLIC
+DESCRIPTION:Christi Himmelfahrt ist in ganz Deutschland ein gesetzlicher Fe
+ iertag
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862238
+DTSTART;VALUE=DATE:20280605
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280606
+URL:https://www.feiertage-deutschland.de/pfingstmontag/
+LOCATION:Alle Bundesländer
+SUMMARY:Pfingstmontag (§)
+CLASS:PUBLIC
+DESCRIPTION:Pfingstmontag ist in allen deutschen Bundesländern ein gesetzl
+ icher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862239
+DTSTART;VALUE=DATE:20280615
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280616
+URL:https://www.feiertage-deutschland.de/fronleichnam/
+LOCATION:BW\,BY\,HE\,NW\,RP\,SL\,SN\,TH
+SUMMARY:Fronleichnam (§)
+CLASS:PUBLIC
+DESCRIPTION:Fronleichnam ist in folgenden Bundesländern ein gesetzlicher F
+ eiertag: Baden-Württemberg\, Bayern\, Hessen\, Nordrhein-Westfalen\, Rhei
+ nland-Pfalz\, Saarland. In Sachsen und Thüringen ist Fronleichnam nur in 
+ bestimmten Gemeinden ein gesetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862288
+DTSTART;VALUE=DATE:20280808
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280809
+URL:https://www.feiertage-deutschland.de/augsburger-friedensfest/
+LOCATION:BY
+SUMMARY:Augsburger Friedensfest
+CLASS:PUBLIC
+DESCRIPTION:Das Augsburger Hohes Friedensfest ist ausschließlich in der St
+ adt Augsburg ein gesetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862294
+DTSTART;VALUE=DATE:20280815
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280816
+URL:https://www.feiertage-deutschland.de/mariae-himmelfahrt/
+LOCATION:BY\,SL
+SUMMARY:Mariä Himmelfahrt (§)
+CLASS:PUBLIC
+DESCRIPTION:Mariä Himmelfahrt ist ein gesetzlicher Feiertag in folgenden B
+ undesländern: Saarland\, Bayern (in Gemeinden mit überwiegend katholisch
+ er Bevölkerung).
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862300
+DTSTART;VALUE=DATE:20280920
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20280921
+URL:https://www.feiertage-deutschland.de/weltkindertag/
+LOCATION:TH
+SUMMARY:Weltkindertag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Weltkindertag ist seit 2019 ein gesetzlicher Feiertag in Th
+ üringen.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862306
+DTSTART;VALUE=DATE:20281003
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20281004
+URL:https://www.feiertage-deutschland.de/tag-der-deutschen-einheit/
+LOCATION:Alle Bundesländer
+SUMMARY:Tag der Deutschen Einheit (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Tag der Deutschen Einheit ist in allen Bundesländern ein g
+ esetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862216
+DTSTART;VALUE=DATE:20281031
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20281101
+URL:https://www.feiertage-deutschland.de/reformationstag/
+LOCATION:BB\,HB\,HH\,MV\,NI\,SH\,SN\,ST\,TH
+SUMMARY:Reformationstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Reformationstag ist in folgenden Bundesländern ein gesetzl
+ icher Feiertag: Brandenburg\, Mecklenburg-Vorpommern\, Sachsen\, Sachsen-A
+ nhalt\, Thüringen und seit 2018 auch in Schleswig-Holstein\, Hamburg\, Br
+ emen und Niedersachsen.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862312
+DTSTART;VALUE=DATE:20281101
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20281102
+URL:https://www.feiertage-deutschland.de/allerheiligen/
+LOCATION:BW\,BY\,NW\,RP\,SL
+SUMMARY:Allerheiligen (§)
+CLASS:PUBLIC
+DESCRIPTION:Allerheiligen ist in folgenden Bundesländern ein gesetzlicher 
+ Feiertag: Baden-Württemberg\, Bayern\, Nordrhein-Westfalen\, Rheinland-Pf
+ alz und Saarland.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862240
+DTSTART;VALUE=DATE:20281122
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20281123
+URL:https://www.feiertage-deutschland.de/buss-und-bettag/
+LOCATION:BY\,SN
+SUMMARY:Buß- und Bettag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Buß- und Bettag ist in Sachsen ein gesetzlicher Feiertag. 
+ In Bayern ist der Buß- und Bettag unterrichtsfrei.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862318
+DTSTART;VALUE=DATE:20281225
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20281226
+URL:https://www.feiertage-deutschland.de/weihnachten/
+LOCATION:Alle Bundesländer
+SUMMARY:1. Weihnachtstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der erste und zweite Weihnachtsfeiertag sind in ganz Deutschlan
+ d gesetzliche Feiertage.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862324
+DTSTART;VALUE=DATE:20281226
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20281227
+URL:https://www.feiertage-deutschland.de/weihnachten/
+LOCATION:Alle Bundesländer
+SUMMARY:2. Weihnachtstag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der erste und zweite Weihnachtsfeiertag sind in ganz Deutschlan
+ d gesetzliche Feiertage.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862264
+DTSTART;VALUE=DATE:20290101
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290102
+URL:https://www.feiertage-deutschland.de/neujahr/
+LOCATION:Alle Bundesländer
+SUMMARY:Neujahr (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Neujahrstag ist in allen deutschen Bundesländern ein geset
+ zlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862270
+DTSTART;VALUE=DATE:20290106
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290107
+URL:https://www.feiertage-deutschland.de/heilige-drei-koenige/
+LOCATION:BW\,BY\,ST
+SUMMARY:Heilige Drei Könige (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Dreikönigstag ist ein gesetzlicher Feiertag in: Baden-Wür
+ ttemberg\, Bayern und Sachsen-Anhalt.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862276
+DTSTART;VALUE=DATE:20290308
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290309
+URL:https://www.feiertage-deutschland.de/frauentag/
+LOCATION:BE
+SUMMARY:Frauentag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Internationale Frauentag ist seit 2019 ein gesetzlicher Fei
+ ertag in Berlin.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862241
+DTSTART;VALUE=DATE:20290329
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290330
+URL:https://www.feiertage-deutschland.de/gruendonnerstag/
+LOCATION:BW
+SUMMARY:Gründonnerstag
+CLASS:PUBLIC
+DESCRIPTION:In keinem Bundesland ist der Gründonnerstag ein gesetzlicher F
+ eiertag. In Baden-Württemberg ist an Gründonnerstag schulfrei.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862242
+DTSTART;VALUE=DATE:20290330
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290331
+URL:https://www.feiertage-deutschland.de/karfreitag/
+LOCATION:Alle Bundesländer
+SUMMARY:Karfreitag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Karfreitag ist in ganz Deutschland ein gesetzlicher Feierta
+ g.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862243
+DTSTART;VALUE=DATE:20290402
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290403
+URL:https://www.feiertage-deutschland.de/ostermontag/
+LOCATION:Alle Bundesländer
+SUMMARY:Ostermontag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Ostermontag ist in ganz Deutschland ein gesetzlicher Feiert
+ ag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862282
+DTSTART;VALUE=DATE:20290501
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290502
+URL:https://www.feiertage-deutschland.de/tag-der-arbeit/
+LOCATION:Alle Bundesländer
+SUMMARY:Tag der Arbeit (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Tag der Arbeit ist in ganz Deutschland ein gesetzlicher Fei
+ ertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862244
+DTSTART;VALUE=DATE:20290510
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290511
+URL:https://www.feiertage-deutschland.de/christi-himmelfahrt/
+LOCATION:Alle Bundesländer
+SUMMARY:Christi Himmelfahrt (§)
+CLASS:PUBLIC
+DESCRIPTION:Christi Himmelfahrt ist in ganz Deutschland ein gesetzlicher Fe
+ iertag
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862245
+DTSTART;VALUE=DATE:20290521
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290522
+URL:https://www.feiertage-deutschland.de/pfingstmontag/
+LOCATION:Alle Bundesländer
+SUMMARY:Pfingstmontag (§)
+CLASS:PUBLIC
+DESCRIPTION:Pfingstmontag ist in allen deutschen Bundesländern ein gesetzl
+ icher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862246
+DTSTART;VALUE=DATE:20290531
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290601
+URL:https://www.feiertage-deutschland.de/fronleichnam/
+LOCATION:BW\,BY\,HE\,NW\,RP\,SL\,SN\,TH
+SUMMARY:Fronleichnam (§)
+CLASS:PUBLIC
+DESCRIPTION:Fronleichnam ist in folgenden Bundesländern ein gesetzlicher F
+ eiertag: Baden-Württemberg\, Bayern\, Hessen\, Nordrhein-Westfalen\, Rhei
+ nland-Pfalz\, Saarland. In Sachsen und Thüringen ist Fronleichnam nur in 
+ bestimmten Gemeinden ein gesetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862289
+DTSTART;VALUE=DATE:20290808
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290809
+URL:https://www.feiertage-deutschland.de/augsburger-friedensfest/
+LOCATION:BY
+SUMMARY:Augsburger Friedensfest
+CLASS:PUBLIC
+DESCRIPTION:Das Augsburger Hohes Friedensfest ist ausschließlich in der St
+ adt Augsburg ein gesetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862295
+DTSTART;VALUE=DATE:20290815
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290816
+URL:https://www.feiertage-deutschland.de/mariae-himmelfahrt/
+LOCATION:BY\,SL
+SUMMARY:Mariä Himmelfahrt (§)
+CLASS:PUBLIC
+DESCRIPTION:Mariä Himmelfahrt ist ein gesetzlicher Feiertag in folgenden B
+ undesländern: Saarland\, Bayern (in Gemeinden mit überwiegend katholisch
+ er Bevölkerung).
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862301
+DTSTART;VALUE=DATE:20290920
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20290921
+URL:https://www.feiertage-deutschland.de/weltkindertag/
+LOCATION:TH
+SUMMARY:Weltkindertag (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Weltkindertag ist seit 2019 ein gesetzlicher Feiertag in Th
+ üringen.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+BEGIN:VEVENT
+UID:KDIG3704862307
+DTSTART;VALUE=DATE:20291003
+SEQUENCE:0
+TRANSP:OPAQUE
+DTEND;VALUE=DATE:20291004
+URL:https://www.feiertage-deutschland.de/tag-der-deutschen-einheit/
+LOCATION:Alle Bundesländer
+SUMMARY:Tag der Deutschen Einheit (§)
+CLASS:PUBLIC
+DESCRIPTION:Der Tag der Deutschen Einheit ist in allen Bundesländern ein g
+ esetzlicher Feiertag.
+X-MICROSOFT-CDO-ALLDAYEVENT:TRUE
+CATEGORIES:Kultur verbindet e.V.
+DTSTAMP:20261014T123404Z
+CREATED:20260807T075818Z
+END:VEVENT
+END:VCALENDAR
