@@ -223,6 +223,9 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Konzert", "Pop, Jazz und Latin.\n\nfrei, es geht der Hut rum", ""),
             ("Ausstellung", "Öffnungszeiten am Wochenende.<p>frei</p>", ""),
             ("Videokunst", "Einlass gratis", ""),
+            # Performing students or pupils are not a free-admission condition.
+            ("Kammerkonzert", "Studierende der Musikhochschule spielen Kammermusik, der Eintritt ist frei.", ""),
+            ("Schulkonzert", "Schülerinnen und Schüler präsentieren ihr Programm, der Eintritt ist frei.", ""),
         ]
 
         for title, description, price in cases:
