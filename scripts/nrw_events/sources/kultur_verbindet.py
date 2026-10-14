@@ -9,7 +9,9 @@ Yields: dated entries of both calendars. Public holidays the main calendar
         embeds (linked to feiertage-deutschland.de) are skipped, as is the
         RepaRad bike repair café, which ``repair-cafes-bonn`` already publishes
         with its full schedule under another title. An entry listed in both
-        sub-calendars keeps one row per title and start.
+        sub-calendars keeps one row per title and start. The recycling sewing
+        series is an editorial keep against ``civic.course``
+        (``quality._EDITORIAL_KEEPS``).
 """
 
 from __future__ import annotations

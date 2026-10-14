@@ -359,6 +359,22 @@ def _unavailable_status_marker(title: str, description: str) -> str:
     return ""
 
 
+# Named series an editor asked to publish although a routine-offer rule would
+# drop them: (source_id, rule_id) -> lowercase title fragments.
+_EDITORIAL_KEEPS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("kultur-verbindet", "civic.course"): ("recycling-nähkurse",),
+}
+
+
+def _editorial_keeps(event: Mapping[str, Any], title: str) -> frozenset[str]:
+    source_id = str(event.get("source_id") or "")
+    return frozenset(
+        rule_id
+        for (keep_source, rule_id), fragments in _EDITORIAL_KEEPS.items()
+        if keep_source == source_id and any(fragment in title for fragment in fragments)
+    )
+
+
 def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
     """Evaluate the ordered compatibility policy and explain its outcome.
 
@@ -469,7 +485,7 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
             (recurring.group(0), sale_match.group(0)),
         )
 
-    if legacy := legacy_junk_decision(event):
+    if legacy := legacy_junk_decision(event, _editorial_keeps(event, title)):
         rule_id, reason, matched_terms = legacy
         return QualityDecision(QualityAction.DROP, rule_id, reason, matched_terms)
     return QualityDecision(QualityAction.KEEP, "quality.accepted",

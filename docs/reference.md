@@ -152,7 +152,9 @@ verfeinern, ist aber keine Voraussetzung. Das Manifest verweist auf alle drei
 Artefakte; ein inkonsistentes Highlight-Dokument degradiert den Lauf sichtbar.
 
 Redaktionelle Ausschlüsse erscheinen dort als stabile, maschinenlesbare
-`quality:<rule_id>`-Gründe, zum Beispiel `quality:civic.course`. Der
+`quality:<rule_id>`-Gründe, zum Beispiel `quality:civic.course`. Einzelne
+redaktionell gewünschte Reihen einer Quelle nimmt `quality._EDITORIAL_KEEPS`
+gezielt von einer Regel aus (Quelle, Regel, Titelfragment). Der
 Metadaten-Export enthält außerdem `quality_metrics` und warnende, aber nicht
 löschende `quality_warnings`. Ab mindestens zehn Events warnt der Lauf bei mehr
 als 6 % `other` insgesamt sowie je Quelle bei mehr als 50 % niedriger

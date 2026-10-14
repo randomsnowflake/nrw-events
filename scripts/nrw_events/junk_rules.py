@@ -366,10 +366,10 @@ RULES = (
 )
 
 
-def legacy_junk_decision(event: Mapping[str, Any]) -> Decision | None:
+def legacy_junk_decision(event: Mapping[str, Any], skip: frozenset[str] = frozenset()) -> Decision | None:
     """Evaluate the ordered compatibility policy without importing core or quality."""
     context = EventText.from_event(event)
     for rule in RULES:
-        if (matched_terms := rule.predicate(context)) is not None:
+        if rule.rule_id not in skip and (matched_terms := rule.predicate(context)) is not None:
             return rule.rule_id, rule.reason, matched_terms
     return None
