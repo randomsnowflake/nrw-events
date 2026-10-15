@@ -46,7 +46,8 @@ Lesefest; `sources/bonn_community.py`) are imported directly, and
 `bonn_jetzt_fallbacks.py` drops a Bonn.jetzt card whenever a publishable
 non-aggregator record covers the same occurrence (same city and day, matching
 title and place, start within one hour). The winner inherits the card's public
-ID. Scores by distance (Bonn=1.0, Königswinter≈0.9,
+ID. A Beuel.net card yields the same way to a record from the first-party site it
+links to (same host, shared title word), even when the community title differs. Scores by distance (Bonn=1.0, Königswinter≈0.9,
 Ahrweiler≈0.74, Köln=0.7, Düsseldorf=0.4) × category preference
 (electronic/techno=1.8x, wine/winery/wine-walk=1.4–1.55x, hiking/guided
 walks/Drachenfels/Siebengebirge=1.3–1.45x, architecture=1.6x, concerts=1.5x,

@@ -3,7 +3,9 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import event_builder, http
+from nrw_events.bonn_jetzt_fallbacks import partition_bonn_jetzt_fallbacks
 from nrw_events.deduplication import deduplicate
+from nrw_events.identity import event_id
 from nrw_events.sources import SOURCES, karneval_in_bonn
 from nrw_events.validation import canonicalize_event
 
@@ -141,6 +143,59 @@ class KarnevalInBonnSourceTests(unittest.TestCase):
         on_11_11 = [e for e in merged if e["start_date"] == "2026-11-11"]
         self.assertEqual(len(on_11_11), 1)
         self.assertEqual(on_11_11[0]["source"], "Festausschuss Bonner Karneval")
+
+    def _live_siblings(self, **beuel_overrides):
+        # Exact sibling records of the 2026-10-15 production import.
+        district = canonicalize_event({
+            "title": "Karnevalseröffnung", "start_date": "2026-11-11", "end_date": "2026-11-11",
+            "venue": "Markt, zwischen Rathaus und Obelisk", "city": "Bonn",
+            "description": "Karnevalseröffnung, Markt, zwischen Rathaus und Obelisk, "
+                           "11. November 2026, Festausschuss Bonner Karneval",
+            "link": "https://www.bonn.de/pressemitteilungen/dezember/"
+                    "abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+            "source": "Bonn district festivals", "source_id": "bonn-district-festivals",
+            "category_key": "festival", "score": 1.0,
+        })
+        beuel = canonicalize_event({
+            "title": "⭐️ Eröffnung der Karnevals-Session 🧺👸",
+            "start_date": "2026-11-11", "end_date": "2026-11-11",
+            "start_at": "2026-11-11T10:00+01:00", "end_at": "2026-11-11T14:00+01:00",
+            "time": "10:00–14:00", "venue": "Bonner Marktplatz", "city": "Bonn-Beuel",
+            "link": "https://www.karneval-in-bonn.de/", "source": "karneval-in-bonn.de",
+            "source_id": "beuel-net", "discovered_via": ["beuel-net"],
+            "category_key": "kids", "score": 1.0, **beuel_overrides,
+        })
+        return district, beuel
+
+    def test_live_11_11_siblings_collapse_into_organizer_record(self):
+        events, _ = self._events()
+        [opening] = [canonicalize_event(dict(e)) for e in events if e["start_date"] == "2026-11-11"]
+        district, beuel = self._live_siblings()
+        for rows in ([opening, district, beuel], [beuel, district, opening]):
+            kept, replaced = partition_bonn_jetzt_fallbacks(rows)
+            self.assertEqual(replaced, [beuel])
+            [winner] = deduplicate(kept)
+            self.assertEqual(winner["source_id"], "karneval-in-bonn")
+            self.assertEqual(winner["start_at"], "2026-11-11T10:30+01:00")
+            # Both published sibling URLs redirect to the organizer page.
+            self.assertTrue({event_id(district), event_id(beuel)} <= set(winner["previous_event_ids"]))
+
+    def test_beuel_card_stays_without_linked_site_record(self):
+        events, _ = self._events()
+        [opening] = [canonicalize_event(dict(e)) for e in events if e["start_date"] == "2026-11-11"]
+        _district, beuel = self._live_siblings()
+        for card in (
+            self._live_siblings(link="https://beuelhats.de/")[1],
+            self._live_siblings(start_date="2026-11-12", end_date="2026-11-12",
+                                start_at="2026-11-12T10:00+01:00", end_at="2026-11-12T14:00+01:00")[1],
+            self._live_siblings(title="Kinderflohmarkt")[1],
+            self._live_siblings(city="Köln")[1],
+        ):
+            with self.subTest(card=(card.title, card.link, card.start_date, card.city)):
+                _kept, replaced = partition_bonn_jetzt_fallbacks([card, opening])
+                self.assertEqual(replaced, [])
+        # Without the organizer record the card is still published.
+        self.assertEqual(partition_bonn_jetzt_fallbacks([beuel])[1], [])
 
     def test_all_out_of_window_calendar_is_healthy_empty(self):
         patch_window(self, datetime(2027, 3, 1), datetime(2027, 3, 29))

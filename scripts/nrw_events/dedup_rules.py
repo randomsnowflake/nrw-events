@@ -46,6 +46,9 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
         "bonn-karneval-sessionseroeffnung-marktplatz",
     ("bonn-de-events", "sessionseroeffnungbonn"):
         "bonn-karneval-sessionseroeffnung-marktplatz",
+    # The city's annual press overview, reviewed 2026-10-15 (live duplicate).
+    ("bonn-district-festivals", "karnevalseroeffnung"):
+        "bonn-karneval-sessionseroeffnung-marktplatz",
     ("beuel-net", "festderbeuelervereinepromenadenfest"):
         "beuel-2026-beuelfest-promenadenfest",
     ("beuel-net", "promenadenfestundbeuelfest"):
