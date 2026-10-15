@@ -113,12 +113,16 @@ def _ical_feed_page(url: str) -> str:
     return url
 
 
-def _ical_best_link(props: dict, feed_url: str) -> str:
-    """Choose the most useful human URL for an iCal event."""
+def _ical_best_link(props: dict, feed_url: str, page_url: str = "") -> str:
+    """Choose the most useful human URL for an iCal event.
+
+    ``page_url`` is the source's human calendar page; an entry without its own
+    link falls back to it rather than to the downloadable feed itself.
+    """
     attach_page = _ical_attach_event_page(props.get("ATTACH", ""))
     if attach_page:
         return attach_page
-    return (props.get("URL", "") or _ical_feed_page(feed_url)).strip()
+    return (props.get("URL", "") or page_url or _ical_feed_page(feed_url)).strip()
 
 
 _ICAL_WEEKDAYS = {name: index for index, name in enumerate(
@@ -262,7 +266,8 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
                default_category_key: str = "",
                category_locked: bool = False,
                empty_calendar_is_valid: bool = False,
-               description_max_chars: int | None = None) -> list[RawEvent]:
+               description_max_chars: int | None = None,
+               page_url: str = "") -> list[RawEvent]:
     """Generic RFC 5545 iCal/.ics fetcher (Tribe Events, webcal, Meetup feeds).
 
     ``fetcher`` optionally replaces the plain HTTP read with a ``(url, **kwargs) ->
@@ -282,6 +287,7 @@ def fetch_ical(url: str, source: str, default_city: str, category: str = "",
         event_filter=event_filter, city_resolver=city_resolver, admission=admission,
         default_category_key=default_category_key, category_locked=category_locked,
         empty_calendar_is_valid=empty_calendar_is_valid, description_max_chars=description_max_chars,
+        page_url=page_url,
     )
 
 
@@ -294,6 +300,7 @@ def parse_ical(
     admission: AdmissionDefault | None = None,
     default_category_key: str = "", category_locked: bool = False,
     empty_calendar_is_valid: bool = False, description_max_chars: int | None = None,
+    page_url: str = "",
 ) -> list[RawEvent]:
     """Parse an already fetched calendar with the same source/runtime policy."""
     early_quality = os.environ.get("NRW_EVENTS_ICAL_PRUNE", "1") != "0"
@@ -389,7 +396,7 @@ def parse_ical(
                 location,
                 city,
                 full_description,
-                _ical_best_link(props, url),
+                _ical_best_link(props, url, page_url),
                 source, cat, trust,
                 all_day=all_day,
                 source_id=source_id,

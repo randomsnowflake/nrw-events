@@ -26,6 +26,8 @@ ICAL_URLS = (
     _EXPORT.format(5612563, "kulturverbindetev"),
     _EXPORT.format(5612566, "klimaviertelunterdergodesburg"),
 )
+# Both exports are linked from this page; their entries rarely carry a URL.
+PAGE_URL = "https://www.kulturverbindet.de/kalender/"
 SOURCE = "Kultur verbindet e.V."
 SOURCE_ID = "kultur-verbindet"
 _REPARAD = re.compile(r"\brepa-?rad\b", re.IGNORECASE)
@@ -54,5 +56,7 @@ def fetch() -> list:
     return unique_events([
         event
         for url in ICAL_URLS
-        for event in fetch_ical(url, SOURCE, "Bonn", "", 0.95, SOURCE_ID, event_filter=_is_own_event)
+        for event in fetch_ical(
+            url, SOURCE, "Bonn", "", 0.95, SOURCE_ID, event_filter=_is_own_event, page_url=PAGE_URL,
+        )
     ])

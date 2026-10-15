@@ -48,6 +48,21 @@ class KulturVerbindetTests(unittest.TestCase):
         self.assertEqual(self.events[2]["city"], "Bonn-Bad Godesberg")
         self.assertEqual(self.events[0]["venue"], "Zentrenmanagement Bad Godesberg")
 
+    def test_entries_without_url_link_the_calendar_page_not_the_feed(self):
+        naehkurs = next(event for event in self.events if "Nähkurse" in event["title"])
+        self.assertEqual(naehkurs["link"], kultur_verbindet.PAGE_URL)
+        self.assertFalse([event["link"] for event in self.events if ".ics" in event["link"]])
+
+    def test_calendar_file_links_are_never_event_links(self):
+        feed = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:x\r\nDTSTART:20261107T100000\r\n"
+            "SUMMARY:Karneval Nähatelier\r\nURL:https://example.org/termin.ics\r\n"
+            "LOCATION:Kurfürstenallee 2\\, 53177 Bonn\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        events = _fetch(dict.fromkeys(kultur_verbindet.ICAL_URLS, feed))
+        self.assertTrue(events)
+        self.assertEqual({event["link"] for event in events}, {""})
+
     def test_sewing_series_keep_is_scoped_to_this_source(self):
         series = next(event for event in self.events if "Nähkurse" in event["title"])
         elsewhere = {**series, "source_id": "vhs-bonn"}

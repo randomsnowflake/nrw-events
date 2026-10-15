@@ -143,7 +143,7 @@ def is_raw_api_url(url: str) -> bool:
     parts = urllib.parse.urlsplit(url or "")
     path = (parts.path or "").lower()
     query = (parts.query or "").lower()
-    if path.endswith((".json", ".xml")):
+    if parts.scheme.lower() == "webcal" or path.endswith((".json", ".xml", ".ics", ".ical", ".ifb", ".vcs")):
         return True
     if "/api/" in path or path.startswith("/api"):
         return True
