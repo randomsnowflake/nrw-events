@@ -66,6 +66,16 @@ class KulturVerbindetTests(unittest.TestCase):
         self.assertTrue(once)
         self.assertEqual(len(twice), len(once))
 
+    def test_all_day_entries_on_different_dates_are_kept(self):
+        def entry(day):
+            return (
+                f"BEGIN:VEVENT\r\nUID:{day}\r\nDTSTART;VALUE=DATE:{day}\r\nDTEND;VALUE=DATE:{day}\r\n"
+                "SUMMARY:Flohmarkt\r\nLOCATION:Kurfürstenallee 2\\, 53177 Bonn\r\nEND:VEVENT\r\n"
+            )
+        feed = f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\n{entry('20261107')}{entry('20261114')}END:VCALENDAR\r\n"
+        events = _fetch(dict.fromkeys(kultur_verbindet.ICAL_URLS, feed))
+        self.assertEqual(sorted(event["start_date"] for event in events), ["2026-11-07", "2026-11-14"])
+
 
 if __name__ == "__main__":
     unittest.main()
