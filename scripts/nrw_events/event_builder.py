@@ -352,14 +352,22 @@ _CONDITIONAL_FREE_VISITOR_GROUP_PATTERN = (
 )
 
 
+_FREE_ADMISSION_WORDING_PATTERN = (
+    r"(?:freien\s+eintritt|eintritt\s+(?:ist\s+)?frei|kostenlos(?:e(?:n|r|m|s)?\s+eintritt)?)"
+)
+
+
 _CONDITIONAL_FREE_ADMISSION_PATTERN = re.compile(
     r"\b(?:freier|kostenloser|kostenfreier)\s+eintritt\b[^.!?]{0,100}"
     r"(?:\bam\s+eröffnungsabend\b|\ban\s+(?:jedem\s+)?(?:ersten\s+)?sonntag\b|"
     rf"\bnur\b|\bfür\s+(?!alle\b){_CONDITIONAL_FREE_VISITOR_GROUP_PATTERN}\b)"
-    rf"|(?:\bfür\s+(?!alle\b){_CONDITIONAL_FREE_VISITOR_GROUP_PATTERN}"
-    rf"|\b{_CONDITIONAL_FREE_SUBJECT_GROUP_PATTERN})\b[^.!?]{{0,100}}"
-    r"\b(?:freien\s+eintritt|eintritt\s+(?:ist\s+)?frei|"
-    r"kostenlos(?:e(?:n|r|m|s)?\s+eintritt)?)\b"
+    # "Für <groups> …" limits only the admission wording in its own clause: a comma ends it
+    # ("Für Studierende ist die Führung ermäßigt, der Eintritt ist frei" stays free).
+    rf"|\bfür\s+{_CONDITIONAL_FREE_VISITOR_GROUP_PATTERN}\b"
+    rf"(?:\s*(?:,|/|und|oder|sowie)\s*{_CONDITIONAL_FREE_VISITOR_GROUP_PATTERN}\b)*[^.!?,;:]{{0,60}}"
+    rf"\b{_FREE_ADMISSION_WORDING_PATTERN}\b"
+    rf"|\b{_CONDITIONAL_FREE_SUBJECT_GROUP_PATTERN}\b[^.!?]{{0,100}}"
+    rf"\b{_FREE_ADMISSION_WORDING_PATTERN}\b"
     r"|\b(?:am\s+eröffnungsabend|an\s+(?:jedem\s+)?(?:ersten\s+)?sonntag)\b"
     r"[^.!?]{0,100}\b(?:eintritt\b[^.!?]{0,30}\bfrei|freier\s+eintritt)\b",
     re.IGNORECASE,

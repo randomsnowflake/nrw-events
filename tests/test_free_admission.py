@@ -225,6 +225,8 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Videokunst", "Einlass gratis", ""),
             # Performing students or pupils are not a free-admission condition.
             ("Kammerkonzert", "Studierende der Musikhochschule spielen Kammermusik, der Eintritt ist frei.", ""),
+            # A group clause before the comma does not limit the later admission statement.
+            ("Museumsfest", "Für Studierende ist die Führung ermäßigt, der Eintritt ist frei.", ""),
             ("Schulkonzert", "Schülerinnen und Schüler präsentieren ihr Programm, der Eintritt ist frei.", ""),
         ]
 
@@ -273,6 +275,8 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
             ("Konzert", "Für Studierende ist der Eintritt frei.", ""),
             ("Konzert", "Für Schüler ist der Eintritt frei.", ""),
             ("Konzert", "Für Seniorinnen ist der Eintritt frei.", ""),
+            ("Konzert", "Für Schüler, Studierende und Senioren ist der Eintritt frei.", ""),
+            ("Konzert", "Für Studierende mit Ausweis ist der Eintritt frei.", ""),
             # "frei" as the start of a longer word must not read as free.
             ("Markt", "", "Eintritt: freitags 10 €"),
             ("Museumsführung", "", "Eintritt 3 Euro, Führung kostenlos"),
