@@ -114,7 +114,10 @@ def _season_finished(html: str) -> bool:
         r"Die neuen Termine für (20\d{2}) veröffentlichen wir hier in Kürze\.",
         text,
     )
-    return bool(notice and int(notice[1]) == common.runtime_window().start.year + 1)
+    start = common.runtime_window().start
+    # After New Year the page may still announce the now-current year until the new dates appear.
+    # shortcut: "until the dates appear" is approximated by Q1, before the spring season; widen if HofFloh publishes later.
+    return bool(notice and (int(notice[1]) == start.year + 1 or (int(notice[1]) == start.year and start.month <= 3)))
 
 
 def fetch() -> list:

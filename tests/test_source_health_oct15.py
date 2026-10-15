@@ -47,6 +47,18 @@ class OctoberSourceHealthTests(unittest.TestCase):
                 self.assertEqual(record.call_args.kwargs["parser_empty"], empty)
                 self.assertEqual(warning.called, empty)
 
+    def test_hoffloh_season_notice_survives_the_year_rollover(self):
+        html = (FIXTURES / "hoffloh-koeln-season-end.html").read_text()
+        for window_start, document, empty in [(datetime(2027, 1, 10), html, False),
+                                              (datetime(2027, 1, 10), html.replace("2027", "2026"), True),
+                                              (datetime(2027, 6, 10), html, True)]:
+            patch_window(self, window_start, window_start.replace(day=28))
+            with self.subTest(window_start=window_start, document=document[-80:]), \
+                 patch.object(hofflohmaerkte, "_fetch_page", return_value=document), \
+                 patch.object(common, "_record_endpoint") as record, patch.object(common, "log_source_error"):
+                hofflohmaerkte.fetch()
+                self.assertEqual(record.call_args.kwargs["parser_empty"], empty)
+
     def test_alfter_closed_empty_list_not_missing_or_broken_list(self):
         html = (FIXTURES / "alfter-empty-list.html").read_text()
         self.assertTrue(regional_html._alfter_calendar_is_expected_empty(html))
