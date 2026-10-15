@@ -138,10 +138,25 @@ def events_from_page(html: str) -> list[dict]:
     return [event] if event else []
 
 
+def _future_edition(html: str) -> bool:
+    text = rc.clean(html)
+    edition = re.search(r"\b\d+\.\s*Lengsdorfer Weinfest\s+(20\d{2})\b", text)
+    notice = re.search(r"\bSave the Date\s+(\d{1,2})[-–](\d{1,2})\.\s+(\w+)\s+(20\d{2})\b", text)
+    if not edition or not notice or edition[1] != notice[4]:
+        return False
+    try:
+        start = common.parse_date(f"{notice[1]}. {notice[3]} {notice[4]}")
+        end = common.parse_date(f"{notice[2]}. {notice[3]} {notice[4]}")
+    except ValueError:
+        return False
+    return bool(start and end and end == start + timedelta(days=2) and start > common.runtime_window().end)
+
+
 def fetch() -> list[dict]:
     return rc.fetch_html_events(
         SOURCE,
         URL,
         events_from_page,
         source_id=SOURCE_ID,
+        empty_is_healthy=_future_edition,
     )

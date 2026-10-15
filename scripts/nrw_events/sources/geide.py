@@ -117,10 +117,12 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
         return []
 
     year = years.pop()
-    start_hour, end_hour = (
+    hours = (
         tuple(int(value) for value in time_match.groups())
         if time_match else configured_hours
     )
+    assert hours is not None
+    start_hour, end_hour = hours
     events = []
     valid_cards = 0
     for block in re.findall(r'<div[^>]+class="[^"]*\bevent-itm\b[^"]*"[^>]*>(.*?)</div>\s*</div>', html, re.S | re.I):
@@ -160,7 +162,11 @@ def _events_from_page(html: str, page_url: str, *, strict: bool = False) -> list
         )
         if event:
             events.append(event)
-    if strict and not valid_cards:
+    empty_calendar = bool(re.search(
+        r'<div\b[^>]*class="empty"[^>]*>\s*Aktuell sind keine Termine vorhanden\.\s*</div>',
+        html, re.I,
+    )) and not re.search(r'\bevent-itm\b', html, re.I)
+    if strict and not valid_cards and not empty_calendar:
         raise rc.ParserEmptyError("Geide event-card contract changed")
     return rc.dedupe(events)
 

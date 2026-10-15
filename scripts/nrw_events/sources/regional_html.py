@@ -111,7 +111,10 @@ def _fetch_alfter() -> list:
 
 def _alfter_calendar_is_expected_empty(html: str) -> bool:
     """Recognize Alfter's explicit, structurally valid empty-calendar notice."""
-    return _ALFTER_EMPTY_NOTICE in rc.clean(html)
+    return _ALFTER_EMPTY_NOTICE in rc.clean(html) or bool(re.search(
+        r'<div\b[^>]*class="row news-list-view event-list-view"[^>]*>\s*</div>',
+        html, re.I,
+    ))
 
 
 def _events_from_lohmar(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
