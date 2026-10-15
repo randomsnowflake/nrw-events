@@ -151,6 +151,35 @@ class CategoryTaxonomyTests(unittest.TestCase):
 
         forced.assert_called_once()
 
+    def test_bicycle_markets_outrank_incidental_advice(self):
+        description = (
+            "Privatleute bieten ihre gebrauchten Fahrräder und Ersatzteile an. "
+            "ADFC-Aktive beraten, leisten Hilfestellung; eine mobile Fahrradwerkstatt ist vor Ort."
+        )
+        for title in (
+            "Gebrauchtfahrradmarkt Vorplatz der Kreuzkirche",
+            "Fahrradmarkt", "Gebrauchtfahrrad-Markt", "Gebraucht-Fahrradmarkt",
+            "Fahrrad Markt", "Fahrradmärkte", "Gebrauchtfahrradmaerkte",
+        ):
+            with self.subTest(title=title):
+                result = categorize_event("Termin Gebrauchtfahrradmarkt", title, description)
+                self.assertEqual(result["key"], "market")
+                self.assertEqual(result["reason"], "forced:market-title-format")
+
+    def test_bicycle_market_mentions_preserve_other_formats(self):
+        for title, expected in (
+            ("Fahrradreparaturkurs", "workshop"),
+            ("Repair Café", "workshop"),
+            ("Radtour zum Fahrradmarkt", "sports"),
+            ("Reparaturworkshop auf dem Fahrradmarkt", "workshop"),
+            ("Vortrag über den Fahrradmarkt", "talk"),
+            ("Fahrradmarktentwicklung", "workshop"),
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(
+                    "", title, "Aktive geben Hilfestellung beim Reparieren.",
+                )["key"], expected)
+
     def test_compound_event_formats_classify_without_source_bags(self):
         cases = (
             ("b’future-Journalismusfestival", "festival"),
