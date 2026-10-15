@@ -269,6 +269,10 @@ class FreeAdmissionDetectionTests(unittest.TestCase):
                 "",
             ),
             ("Museum", "Freier Eintritt für Schülerinnen und Schüler.", ""),
+            # A leading "für <group>" still limits free admission (performers are subjects, not "für").
+            ("Konzert", "Für Studierende ist der Eintritt frei.", ""),
+            ("Konzert", "Für Schüler ist der Eintritt frei.", ""),
+            ("Konzert", "Für Seniorinnen ist der Eintritt frei.", ""),
             # "frei" as the start of a longer word must not read as free.
             ("Markt", "", "Eintritt: freitags 10 €"),
             ("Museumsführung", "", "Eintritt 3 Euro, Führung kostenlos"),
