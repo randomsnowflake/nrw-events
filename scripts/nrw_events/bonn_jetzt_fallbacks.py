@@ -100,8 +100,8 @@ def partition_bonn_jetzt_fallbacks(events: list[EventT]) -> tuple[list[EventT], 
         and source_authority(event.source) >= 2
     ]
     replaced: list[EventT] = []
-    replaced_indices: set[int] = set()
-    aliases: dict[int, list[str]] = {}
+    targets: dict[int, int] = {}
+    own_aliases: dict[int, list[str]] = {}
     for index, event in enumerate(events):
         own_source = normalize_source_id(event.source_id or event.source)
         if own_source not in fallback_ids:
@@ -115,15 +115,23 @@ def partition_bonn_jetzt_fallbacks(events: list[EventT]) -> tuple[list[EventT], 
         ), None)
         if match is None:
             continue
-        replaced_indices.add(index)
+        targets[index] = match[0]
         replaced.append(event)
-        aliases.setdefault(match[0], []).extend(filter(None, (
+        own_aliases[index] = [*filter(None, (
+            *event.previous_event_ids,
             event.preserved_event_id,
             event_id(replace(event, preserved_event_id="").to_dict()),
-        )))
+        ))]
+    # A Bonn.jetzt card can yield to a Beuel.net card that itself yields to the linked site.
+    aliases: dict[int, list[str]] = {}
+    for index in targets:
+        winner = targets[index]
+        while winner in targets:
+            winner = targets[winner]
+        aliases.setdefault(winner, []).extend(own_aliases[index])
     kept: list[EventT] = []
     for index, event in enumerate(events):
-        if index in replaced_indices:
+        if index in targets:
             continue
         kept.append(replace(event, previous_event_ids=[
             *dict.fromkeys([*event.previous_event_ids, *aliases[index]]),

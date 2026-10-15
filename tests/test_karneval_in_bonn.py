@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from unittest.mock import patch
 
@@ -179,6 +180,25 @@ class KarnevalInBonnSourceTests(unittest.TestCase):
             self.assertEqual(winner["start_at"], "2026-11-11T10:30+01:00")
             # Both published sibling URLs redirect to the organizer page.
             self.assertTrue({event_id(district), event_id(beuel)} <= set(winner["previous_event_ids"]))
+
+    def test_replaced_cards_forward_their_earlier_aliases(self):
+        events, _ = self._events()
+        [opening] = [canonicalize_event(dict(e)) for e in events if e["start_date"] == "2026-11-11"]
+        _district, beuel = self._live_siblings(previous_event_ids=["renamed-beuel-card"])
+        bonn_jetzt = canonicalize_event({
+            "title": "Eröffnung der Karnevals-Session", "start_date": "2026-11-11",
+            "end_date": "2026-11-11", "start_at": "2026-11-11T10:00+01:00",
+            "venue": "Bonner Marktplatz", "city": "Bonn", "link": "https://bonn.jetzt/e/1",
+            "source": "Bonn.jetzt", "source_id": "bonn-jetzt", "category_key": "festival",
+            "score": 1.0, "previous_event_ids": ["renamed-bonn-jetzt-card"],
+        })
+        for rows in ([bonn_jetzt, beuel, opening], [opening, beuel, bonn_jetzt]):
+            kept, replaced = partition_bonn_jetzt_fallbacks(rows)
+            self.assertEqual(kept, [replace(opening, previous_event_ids=kept[0].previous_event_ids)])
+            self.assertCountEqual(replaced, [bonn_jetzt, beuel])
+            self.assertTrue({
+                "renamed-beuel-card", event_id(beuel), "renamed-bonn-jetzt-card", event_id(bonn_jetzt),
+            } <= set(kept[0].previous_event_ids))
 
     def test_beuel_card_stays_without_linked_site_record(self):
         events, _ = self._events()
