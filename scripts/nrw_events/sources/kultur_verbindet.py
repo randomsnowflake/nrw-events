@@ -39,10 +39,11 @@ def _is_own_event(props: dict[str, str], _start: datetime, _end: datetime) -> bo
 
 def unique_events(events: list) -> list:
     """Drop the second copy of an entry shown in both sub-calendars."""
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str]] = set()
     unique = []
     for event in events:
-        key = (event["title"], event["start_at"])
+        # All-day entries have an empty start_at, so the date keeps their days apart.
+        key = (event["title"], event["start_date"], event["start_at"])
         if key not in seen:
             seen.add(key)
             unique.append(event)
