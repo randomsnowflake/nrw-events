@@ -3,6 +3,7 @@
 import os
 import re
 import time
+from collections.abc import Callable
 
 from .. import common
 from . import regional_common as rc
@@ -111,7 +112,7 @@ def _events_from_listing(html: str, page_url: str) -> list:
     return rc.dedupe(events)
 
 
-def _enrich_visitor_admission(events: list, detail_fetcher=None) -> list:
+def _enrich_visitor_admission(events: list, detail_fetcher: Callable[[str], str] | None = None) -> list:
     """Fetch each eligible detail once within a bounded source-level budget."""
     batch_timeout = float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "45"))
     deadline = time.monotonic() + max(batch_timeout, 0.0)
@@ -148,12 +149,26 @@ def fetch() -> list:
     events = []
     for url in _URLS:
         try:
-            parsed = _events_from_listing(common.fetch_url(url, timeout=20), url)
+            html = common.fetch_url(url, timeout=20)
+            parsed = _events_from_listing(html, url)
+            calendar = re.search(r'<section id="maerkte">(.*?)</section>', html, re.S | re.I)
+            empty_calendar = bool(
+                calendar
+                and re.fullmatch(
+                    r'\s*<div class="container">\s*</div>\s*',
+                    re.sub(
+                        r'<div class="row justify-content-center[^\"]*">\s*'
+                        r'<div[^>]+role="alert"[^>]*>\s*<h4\b[^>]*>.*?</h4>\s*'
+                        r'<p class="lead" id="text"></p>\s*</div>\s*</div>',
+                        '', calendar[1], flags=re.S | re.I,
+                    ),
+                )
+            )
             common._record_endpoint(
                 url,
                 parser_type="html",
                 parsed_event_count=len(parsed),
-                parser_empty=not bool(parsed),
+                parser_empty=not parsed and not empty_calendar,
             )
             events.extend(parsed)
         except Exception as exc:  # noqa: PERF203 - market endpoints must fail independently

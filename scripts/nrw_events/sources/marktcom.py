@@ -251,7 +251,11 @@ def _has_page(html: str, page: int) -> bool:
 
 def _listing_contract_present(html: str) -> bool:
     """Return whether the known listing container exists, even with no events."""
-    return bool(_LISTING_CONTAINER.search(html or ""))
+    return bool(_LISTING_CONTAINER.search(html or "") or re.search(
+        r"<div\b[^>]*class=['\"]alert alert-danger['\"][^>]*>\s*"
+        r"Leider wurden zu Ihrer Suchanfrage keine Veranstaltungen gefunden!\s*<br\s*/?>",
+        html or "", re.I,
+    ))
 
 
 def _fetch_category(category_id: int) -> list:

@@ -3,6 +3,7 @@
 import html as html_lib
 import re
 import unicodedata
+from datetime import datetime
 from urllib.parse import urlsplit
 
 from .. import common, http
@@ -23,7 +24,7 @@ def _neighborhood_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.replace(" & ", "").replace(" / ", ""))
 
 
-def _tour_plan(html: str, neighborhood: str, start) -> str:
+def _tour_plan(html: str, neighborhood: str, start: datetime) -> str:
     # Only this neighbourhood AND occurrence date may select a PDF. In
     # particular, last year's tour plan must never become the current source.
     date_token = start.strftime("%d%m%y")
@@ -106,6 +107,16 @@ def _fetch_page(url: str, timeout: int = 20) -> str:
     )
 
 
+def _season_finished(html: str) -> bool:
+    text = rc.clean(html)
+    notice = re.search(
+        r"Vielen Dank für eine wunderbare Hofflohmärkte-Saison\. "
+        r"Die neuen Termine für (20\d{2}) veröffentlichen wir hier in Kürze\.",
+        text,
+    )
+    return bool(notice and int(notice[1]) == common.runtime_window().start.year + 1)
+
+
 def fetch() -> list:
     return rc.fetch_html_events(
         "Hofflohmärkte Köln",
@@ -113,4 +124,6 @@ def fetch() -> list:
         _events_from_page,
         timeout=20,
         fetcher=_fetch_page,
- source_id="hofflohm-rkte-k-ln")
+        empty_is_healthy=_season_finished,
+        source_id="hofflohm-rkte-k-ln",
+    )
