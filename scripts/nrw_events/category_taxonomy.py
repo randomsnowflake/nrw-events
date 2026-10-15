@@ -306,6 +306,8 @@ def _category_keys_for_hint(hint_text: str, *, rules: Iterable[Rule] = RULES) ->
 
 def _forced_title_format(title_text: str, title_comparison: str) -> str:
     """Prefer explicit event-format nouns over incidental descriptive words."""
+    if re.search(r"^(?:gebraucht[ -]?)?fahrrad[ -]?m(?:arkt|aerkte)\b", title_comparison):
+        return "market"
     if re.search(r"\b\w*filmfestival\w*\b", title_text):
         return "cinema"
     if re.search(r"\b(?:sport|\w*tennis\w*|\w*sport(?:tag|fest|turnier|woche))\b", title_text):
