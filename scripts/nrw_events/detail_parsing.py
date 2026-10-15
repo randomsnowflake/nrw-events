@@ -17,7 +17,8 @@ _CONTENT_TOKENS = {
     "article-content", "content-detail", "detail-content", "entry-content",
     "event-content", "event-description", "event-details", "event-text",
     "eventdetail", "eventdescription", "events_page_detail",
-    "rich-text", "shapehub-detail-description", "tx-gbevents-pi1", "va-content",
+    "rich-text", "shapehub-detail-description", "tvm-event--description",
+    "tx-gbevents-pi1", "va-content",
     "veranstaltungsbeschreibung", "veranstaltungsdetails",
 }
 
