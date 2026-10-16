@@ -567,22 +567,26 @@ class SourceParserTests(unittest.TestCase):
         self.assertIn("160 Euro", description)
         self.assertEqual(events[0]["description_source"], "scraped")
 
-    def test_brotfabrik_api_uses_explicit_marabu_department_as_stage_evidence(self):
-        patch_window(self, datetime(2026, 9, 4), datetime(2026, 9, 4))
-        events = bonn_venues.events_from_brotfabrik_items([{
-            "Titel": "J.E.M. Neues Stück",
+    def test_brotfabrik_api_skips_marabu_rows_owned_by_marabu_calendar(self):
+        patch_window(self, datetime(2026, 11, 1), datetime(2026, 11, 30))
+        fetched = []
+        row = {
+            "Titel": "Radio 350 Hertz",
             "Beschreibung": "",
             "Ort": "Brotfabrik Bonn",
-            "Datum": "2026-09-04",
-            "Uhrzeit": "19:00:00",
-            "Url": "https://www.theater-marabu.de/stueck/j-e-m-escape-at/",
+            "Datum": "2026-11-08",
+            "Uhrzeit": "11:00:00",
+            "Url": "https://www.theater-marabu.de/stueck/350-hertz/",
             "Gewerk": "Marabu",
             "Datumbis": "0000-00-00",
-        }])
+        }
+        events = bonn_venues.events_from_brotfabrik_items(
+            [row, {**row, "Titel": "Kinoabend", "Url": "", "Gewerk": "Kino"}],
+            detail_fetcher=lambda url: fetched.append(url) or "",
+        )
 
-        self.assertEqual(events[0]["category_key"], "stage")
-        self.assertEqual(events[0]["category_confidence"], 1.0)
-        self.assertEqual(events[0]["category_reason"], "source:locked-default:stage")
+        self.assertEqual([event["title"] for event in events], ["Kinoabend"])
+        self.assertEqual(fetched, [])
 
     def test_botanical_garden_event_links_create_events(self):
         patch_window(self, datetime(2026, 7, 1), datetime(2026, 7, 31))
