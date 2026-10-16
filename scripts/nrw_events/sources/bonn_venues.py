@@ -256,7 +256,7 @@ def _brotfabrik_course_description(course: dict, courses: list) -> str:
 
 
 def _brotfabrik_detail_fetcher() -> Callable[[str], str]:
-    """Copy for API rows without a description: course API, then Marabu pages."""
+    """Copy for API rows without a description from the Bildungswerk course API."""
     cache: dict[str, list] = {}
 
     def fetch_detail(url: str) -> str:
@@ -275,9 +275,6 @@ def _brotfabrik_detail_fetcher() -> Callable[[str], str]:
             courses = cache["courses"] if isinstance(cache["courses"], list) else []
             course = next((c for c in courses if str(c.get("IDD_ext")) == idt.group(1)), None)
             return _brotfabrik_course_description(course, courses) if course else ""
-        if "theater-marabu.de/stueck/" in (url or ""):
-            from . import theater_marabu
-            return theater_marabu._detail_description(url)
         return ""
 
     return fetch_detail
@@ -287,6 +284,9 @@ def events_from_brotfabrik_items(items: list, detail_fetcher: Callable[[str], st
     events = []
     for raw_item in items if isinstance(items, list) else []:
         item = raw_item
+        # Theater Marabu's own calendar is the authoritative source; this API keeps stale Marabu links.
+        if (item.get("Gewerk") or "").strip().casefold() == "marabu":
+            continue
         if detail_fetcher and not _has_text(item.get("Beschreibung") or "") and item.get("Url"):
             item = {**item, "Beschreibung": detail_fetcher(item["Url"])}
         title = (item.get("Titel") or "").strip()
@@ -298,7 +298,6 @@ def events_from_brotfabrik_items(items: list, detail_fetcher: Callable[[str], st
         end = rc.with_time(end, item.get("Uhrzeit") or "") if end else start
         gewerk = (item.get("Gewerk") or "Programm").strip()
         explicit_category = {
-            "marabu": "stage",
             "theater": "stage",
             "kino": "cinema",
             "tanz": "stage",
