@@ -91,6 +91,27 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "Kostenfrei")
         self.assertEqual(context["venue_address"], "Eifelwall 5 50674 Köln")
 
+    def test_ionas4_description_block_beats_flattened_meta_description(self):
+        # Troisdorf/IONAS4 detail pages: the meta description is the same copy
+        # with its list squashed into "ÖffnungszeitenFreitag … UhrOrt:".
+        document = """
+        <meta name="description" content="Rund 15 Food Trucks kommen.
+
+        ÖffnungszeitenFreitag, 16. Oktober: 17:00 – 22:00 UhrOrt: Kölner Straße">
+        <div class="integration-details__field tvm-event--field tvm-event--description"><div>
+          <p class="paragraph">Rund 15 Food Trucks kommen.</p>
+          <h2 class="paragraph h2">Öffnungszeiten</h2>
+          <ul class="unordered-list"><li class="list-item">Freitag, 16. Oktober: 17:00 – 22:00 Uhr&nbsp;&nbsp;</li></ul>
+          <p class="paragraph">Ort: Kölner Straße</p>
+        </div></div>
+        """
+
+        context = detail_enrichment.extract_detail_context(document, self.event())
+
+        self.assertIn("<ul><li>Freitag, 16. Oktober", context["description_html"])
+        self.assertNotIn("UhrOrt", context["description"])
+        self.assertNotIn("ÖffnungszeitenFreitag", context["description"])
+
     def test_extracts_first_place_from_jsonld_location_list(self):
         document = """
         <script type="application/ld+json">
