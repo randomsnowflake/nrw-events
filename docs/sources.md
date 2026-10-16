@@ -16,6 +16,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Bonn district festivals | `bonn-district-festivals` | `python` |
 | bonn-region | Bonn venue calendars | `bonn-venue-calendars` | `python` |
 | bonn-region | Bonn.de Events | `bonn-de-events` | `python` |
+| bonn-region | Bonn.de Martinszüge | `bonn-martinszuege` | `python` |
 | bonn-region | Bonn.de Sports | `bonn-de-sports` | `python` |
 | bonn-region | Bonn.jetzt | `bonn-jetzt` | `python` |
 | bonn-region | Bonner Weihnachtsmarkt | `bonner-weihnachtsmarkt` | `python` |

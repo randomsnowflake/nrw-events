@@ -16,6 +16,7 @@ from . import (
 from . import identity_reconciliation as _impl_identity_reconciliation
 from . import retention_policy as _impl_retention_policy
 from .bonn_jetzt_fallbacks import partition_bonn_jetzt_fallbacks
+from .civic_list_fallbacks import partition_city_list_fallbacks
 from .identity import event_id
 from .import_phases import PublicationSelection, SourceBatch
 from .market_source_fallbacks import partition_directory_fallbacks
@@ -95,7 +96,8 @@ def select_publication(context: RunContext, batch: SourceBatch, previous: dict) 
     filtered = cast(list[CanonicalEvent], _impl_identity_reconciliation._reconcile_published_ids(filtered, previous))
     filtered, replaced_market_fallbacks = partition_directory_fallbacks(filtered)
     filtered, replaced_bonn_jetzt = partition_bonn_jetzt_fallbacks(filtered)
-    for event in [*replaced_market_fallbacks, *replaced_bonn_jetzt]:
+    filtered, replaced_city_list = partition_city_list_fallbacks(filtered)
+    for event in [*replaced_market_fallbacks, *replaced_bonn_jetzt, *replaced_city_list]:
         result = _impl_retention_policy._source_result_for_event(event, source_results)
         if result is not None:
             result.reject("filter:first_party_replacement", event, in_window=True)

@@ -154,6 +154,13 @@
       "callable": "nrw_events.sources.ofa_duisdorf:fetch"
     },
     {
+      "id": "bonn-martinszuege",
+      "display_name": "Bonn.de Martinszüge",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_martinszuege:fetch"
+    },
+    {
       "id": "in-guten-kreisen",
       "display_name": "In guten Kreisen",
       "region": "bonn-region",

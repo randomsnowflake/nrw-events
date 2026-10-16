@@ -23,6 +23,7 @@ scripts/nrw_events/
   botgate.py
   category_taxonomy.py
   checkpoint.py
+  civic_list_fallbacks.py
   common.py
   components.py
   config.py
@@ -107,6 +108,7 @@ scripts/nrw_events/
     bonn_districts.py
     bonn_food.py
     bonn_literature.py
+    bonn_martinszuege.py
     bonn_policy.py
     bonn_press_parser.py
     bonn_sports.py
