@@ -383,5 +383,75 @@
       "start_date": "2026-08-16"
     },
     "expected": []
+  },
+  {
+    "name": "gertrudenhof-halloween-atmosphere",
+    "event": {
+      "title": "Gespensterspektakel mit großer Fackelwanderung",
+      "description": "Das Erlebnisgelände bietet Halloween-Atmosphäre.",
+      "description_source": "scraped",
+      "start_date": "2026-10-23"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "halloween-atmospheres-future-season",
+    "event": {
+      "title": "Gespensterspektakel mit großer Fackelwanderung",
+      "description": "Erlebt unterschiedliche Halloween-Atmosphären.",
+      "description_source": "scraped",
+      "start_date": "2027-10-31"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "halloween-atmosphere-generated",
+    "event": {
+      "title": "Gespensterspektakel mit großer Fackelwanderung",
+      "description": "Das Erlebnisgelände bietet Halloween-Atmosphäre.",
+      "description_source": "generated",
+      "start_date": "2026-10-23"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-atmosphere-negated",
+    "event": {
+      "title": "Gespensterspektakel mit großer Fackelwanderung",
+      "description": "Wir bieten keine Halloween-Atmosphäre.",
+      "description_source": "scraped",
+      "start_date": "2026-10-23"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-atmosphere-previous-year",
+    "event": {
+      "title": "Gespensterspektakel mit großer Fackelwanderung",
+      "description": "Halloween-Atmosphäre 2025.",
+      "description_source": "scraped",
+      "start_date": "2026-10-23"
+    },
+    "expected": []
+  },
+  {
+    "name": "halloween-atmosphere-outside-season",
+    "event": {
+      "title": "Gespensterspektakel mit großer Fackelwanderung",
+      "description": "Das Erlebnisgelände bietet Halloween-Atmosphäre.",
+      "description_source": "scraped",
+      "start_date": "2026-07-31"
+    },
+    "expected": []
+  },
+  {
+    "name": "spooky-atmosphere-is-not-halloween",
+    "event": {
+      "title": "Gespensterspektakel mit großer Fackelwanderung",
+      "description": "Eine gruselige Atmosphäre mit Kürbissen und Gespenstern.",
+      "description_source": "scraped",
+      "start_date": "2026-10-23"
+    },
+    "expected": []
   }
 ]
