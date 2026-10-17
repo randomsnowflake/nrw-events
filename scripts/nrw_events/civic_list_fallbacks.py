@@ -23,6 +23,9 @@ _PROCESSION_WORDS = ("martinszug", "martinsumzug", "martins umzug", "laternenumz
 _GENERIC = frozenset({
     "martinszug", "martinsumzug", "martins", "umzug", "sankt", "martin", "bonn",
     "und", "der", "die", "das", "des", "mit", "von", "vom", "zum", "zur", "fuer",
+    # Institution kinds: "Kita St. Michael" and "Kita Sonnenblume" are different processions.
+    "kita", "kindergarten", "schule", "grundschule", "realschule", "ggs", "kgs",
+    "familienzentrum", "kinderhaus", "buergerverein", "foerderverein", "kath", "staedt",
 })
 
 
