@@ -34,6 +34,11 @@ class BonnMartinszuegeTests(unittest.TestCase):
         self.assertEqual({event["source_id"] for event in self.events}, {"bonn-martinszuege"})
         self.assertFalse(any("Donatusschule" in event["title"] for event in self.events))
 
+    def test_every_row_clears_the_publication_score_floor(self):
+        # The 2026-10-17 import dropped 60 rows as kids-only, Kita names included.
+        low = [event["title"] for event in self.events if canonicalize_event(event).score < 0.4]
+        self.assertEqual(low, [])
+
     def test_row_keeps_time_start_and_destination(self):
         event = self.by_title["Martinszug Bonn Zentral"]
         self.assertEqual(event["start_at"], "2026-11-04T16:30+01:00")

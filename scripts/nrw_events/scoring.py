@@ -21,6 +21,8 @@ _ADULT_OUTDOOR_SIGNALS = frozenset({
     "wein", "wine", "winzer", "weingut", "afterwalk", "genuss", "lounge", "beats",
     "festival", "markt", "flohmarkt", "street food", "kulinar", "stadtteilfest",
     "straßenfest", "strassenfest", "dorffest", "kirmes", "viertel", "meile",
+    # A Martinszug is a public street procession even when a Kita organises it.
+    "martinszug", "martinsumzug",
 })
 _FAMILY_SIDE_OFFER_TERMS = frozenset({
     "kids", "kinder", "family", "familie", "vorlesen", "basteln",
