@@ -24,6 +24,26 @@ def _day(day: str, *, time: str = "14:00–18:00", title: str = "Ausstellung 100
     })
 
 
+def _offer(day: str, *, time: str = "", **extra):
+    """A self-guided tour that bonn.de repeats daily, with a start address but no venue name."""
+    return validate_event({
+        **extra,
+        "status": "scheduled",
+        "title": 'Spotlight Secrets Rätseltour "Zurück ins Mittelalter"',
+        "source": "Bonn.de Events",
+        "source_id": "bonn-de-events",
+        "start_date": day,
+        "time": time,
+        "venue": "",
+        "venue_address": "Markt 4, 53111 Bonn",
+        "city": "Bonn",
+        "category_key": "outdoor",
+        "link": "https://www.bonn.de/rätseltour.php",
+        "link_kind": "detail",
+        "score": 1.0,
+    })
+
+
 class ExhibitionRunTests(unittest.TestCase):
     def test_opening_days_become_one_ranged_event_with_stable_id(self):
         days = [_day("2026-10-01"), _day("2026-10-02"), _day("2026-10-04")]
@@ -153,6 +173,37 @@ class ExhibitionRunTests(unittest.TestCase):
         self.assertNotIn("2026-10-12", hours)  # Monday is closed
         self.assertNotIn("2026-10-13", hours)  # Tuesday is closed
         self.assertEqual(len(hours), 11)
+
+    def test_daily_untimed_offer_becomes_one_run_and_redirects_its_day_pages(self):
+        days = [_offer(f"2026-10-{day}", details={"final_date": "2027-12-31"}) for day in range(18, 30)]
+        day_ids = [event_id(day) for day in days]
+
+        [merged] = merge_exhibition_opening_days(days, {"events": [{"event_id": identifier} for identifier in day_ids]})
+
+        self.assertEqual((merged.start_date, merged.end_date, merged.all_day), ("2026-10-18", "2027-12-31", True))
+        self.assertEqual(event_id(merged), day_ids[0])  # the first day page becomes the run
+        self.assertEqual(merged.previous_event_ids, day_ids)
+
+        # Next import: the window moved one day and a new future day appeared.
+        published = assign_event_ids([merged])[0]
+        later = [_offer(f"2026-10-{day}", details={"final_date": "2027-12-31"}) for day in range(19, 31)]
+        [next_day] = merge_exhibition_opening_days(later, {"events": [published]})
+        self.assertEqual(event_id(next_day), published["event_id"])
+        self.assertEqual(next_day.start_date, "2026-10-18")
+
+        # The last listed days of a published run stay in it.
+        [tail] = merge_exhibition_opening_days(later[-2:], {"events": [published]})
+        self.assertEqual(event_id(tail), published["event_id"])
+
+    def test_dated_sessions_outside_exhibitions_keep_their_own_pages(self):
+        cases = {
+            "too few days": [_offer(f"2026-10-{day}") for day in range(18, 24)],
+            "skipped day": [_offer(f"2026-10-{day}") for day in (*range(18, 24), 25, 26)],
+            "clock time": [_offer(f"2026-10-{day}", time="10:00–12:00") for day in range(18, 30)],
+        }
+        for name, days in cases.items():
+            with self.subTest(name):
+                self.assertEqual(merge_exhibition_opening_days(days, {}), days)
 
 
 if __name__ == "__main__":

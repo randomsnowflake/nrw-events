@@ -15,6 +15,13 @@ Cancelled days inside the run are closing days and fold into it. A source's
 labelled final date (``details.final_date``) extends the run beyond the days it
 currently lists.
 
+Outside exhibitions the same applies to offers bookable on any day (self-guided
+city rallies, tours "täglich"): bonn.de expands such a daily repeat into one
+row per day, 28 pages with one text. Only untimed rows qualify, on at least
+``MIN_DAILY_DAYS`` consecutive days without a gap; a published run continues on
+fewer. A clock time or a skipped day means real dated sessions, which keep their
+own pages.
+
 The public ID must survive the daily loss of past dates. The start date is
 therefore anchored to the previous snapshot's run, and the replaced published
 per-day IDs travel on as ``previous_event_ids`` so the website redirects them.
@@ -38,15 +45,20 @@ MIN_OPENING_HOURS = 3
 #: A prior run still continues when the new first date follows its end within
 #: this many days: exhibitions close on some weekdays or for a short break.
 MAX_CLOSED_DAYS = 14
+#: Gap-free untimed days before a non-exhibition offer counts as daily.
+MIN_DAILY_DAYS = 7
 #: "Sonntag ab 12:00 Uhr" names an opening time, not a session start.
 _OPENS_FROM = re.compile(r"\bab\s+\d{1,2}(?:[:.]\d{2})?\s*uhr\b", re.IGNORECASE)
 
 
 def _run_key(event: Mapping[str, Any]) -> tuple[str, ...] | None:
-    if event.get("category_key") != "exhibition":
-        return None
     title = comparison_text(str(event.get("title") or ""))
-    venue = str(event.get("venue_id") or "").strip() or comparison_text(str(event.get("venue") or ""))
+    # A tour start point often has an address but no venue name.
+    venue = (
+        str(event.get("venue_id") or "").strip()
+        or comparison_text(str(event.get("venue") or ""))
+        or comparison_text(str(event.get("venue_address") or ""))
+    )
     if not title or not venue:
         return None
     return (
@@ -56,6 +68,7 @@ def _run_key(event: Mapping[str, Any]) -> tuple[str, ...] | None:
         # Municipality only: bonn.de labels some days of one run "Bonn" and
         # others "Bonn-Beuel"; the venue already pins the place.
         comparison_text(str(event.get("city") or "").split("-", 1)[0]),
+        "exhibition" if event.get("category_key") == "exhibition" else "daily",
     )
 
 
@@ -78,6 +91,15 @@ def _is_opening_day(event: CanonicalEvent) -> bool:
     untimed = not event.time and not event.start_at and not event.end_at
     opens_from = not event.end_at and "–" not in event.time and bool(_OPENS_FROM.search(event.time_note))
     return not event.daily_schedule and (untimed or opens_from or _opening_slot(event) is not None)
+
+
+def _is_daily_offer(rows: Sequence[CanonicalEvent], continues: bool) -> bool:
+    """Untimed rows on every day of their span: one offer, not separate sessions."""
+    if any(row.time or row.start_at or row.end_at or row.daily_schedule for row in rows):
+        return False
+    days = sorted(date.fromisoformat(row.start_date) for row in rows)
+    gap_free = (days[-1] - days[0]).days == len(days) - 1
+    return gap_free and (continues or len(days) >= MIN_DAILY_DAYS)
 
 
 def _anchor_start(key: tuple[str, ...], first: str, previous: Mapping[str, Any]) -> str:
@@ -162,7 +184,7 @@ def _merged(
 def merge_exhibition_opening_days(
     events: Sequence[CanonicalEvent], previous: Mapping[str, Any],
 ) -> list[CanonicalEvent]:
-    """Replace each exhibition's per-day opening rows by one ranged event."""
+    """Replace each exhibition's or daily offer's per-day rows by one ranged event."""
     rows_by_key: dict[tuple[str, ...], list[CanonicalEvent]] = defaultdict(list)
     runs_by_key: dict[tuple[str, ...], list[CanonicalEvent]] = defaultdict(list)
     closed_by_key: dict[tuple[str, ...], list[Mapping[str, Any]]] = defaultdict(list)
@@ -186,12 +208,17 @@ def merge_exhibition_opening_days(
     replaced: dict[int, CanonicalEvent | None] = {}
     for key, rows in rows_by_key.items():
         dates = Counter(row.start_date for row in rows)
-        if max(dates.values()) > 1 or not all(map(_is_opening_day, rows)):
+        if max(dates.values()) > 1:
             continue
         runs = runs_by_key.get(key, [])
+        first_row = min(dates)
         # A published run remains a run on its final opening day. A new
         # standalone day still keeps its original occurrence identity.
-        if len(rows) < 2 and not runs and _anchor_start(key, rows[0].start_date, previous) == rows[0].start_date:
+        continues = bool(runs) or _anchor_start(key, first_row, previous) != first_row
+        if key[-1] == "daily":
+            if not _is_daily_offer(rows, continues):
+                continue
+        elif not all(map(_is_opening_day, rows)) or (len(rows) < 2 and not continues):
             continue
         first = min([row.start_date for row in rows] + [run.start_date for run in runs])
         last = max([row.start_date for row in rows] + [run.end_date for run in runs])
