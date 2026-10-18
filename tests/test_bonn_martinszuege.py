@@ -102,6 +102,16 @@ class CityListFallbackTests(unittest.TestCase):
         self.assertEqual(replaced, [])
         self.assertEqual(len(kept), 2)
 
+    def test_shared_institution_kind_is_not_the_same_procession(self):
+        sonnenblume = _organiser(
+            title="Martinszug Kita Sonnenblume", start_date="2026-11-06", city="Bonn-Bad Godesberg",
+            venue="Kita Sonnenblume", link="https://example.test/kita-sonnenblume",
+        )
+        row = self.rows["Martinszug Förderverein Kita Rheinkinder"]
+        kept, replaced = partition_city_list_fallbacks([row, sonnenblume])
+        self.assertEqual(replaced, [])
+        self.assertEqual(len(kept), 2)
+
     def test_one_organiser_record_never_absorbs_two_rows(self):
         ippendorf = _organiser(
             title="Martinszug Ippendorf", start_date="2026-11-04", city="Bonn",
