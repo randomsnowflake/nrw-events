@@ -526,9 +526,11 @@ def _parse_detail_context(html: str) -> dict:
     if final:
         day, month, year = final.groups()
         context["final_date"] = f"{year}-{int(month):02d}-{int(day):02d}"
-    # A bold "Öffnungszeiten:" label names the event's weekly hours (NAHT,
-    # 10/2026); an inline "Ticketshop Öffnungszeiten" is the box office.
-    hours = re.search(r"<strong>\s*Öffnungszeiten\s*</strong>\s*:?(.*?)(?=<strong>|<h\d|</div>)", html or "", re.I | re.S)
+    # A bold "Öffnungszeiten:" label (NAHT, 10/2026) or a paragraph opening with
+    # it (Akademisches Kunstmuseum, 10/2026) names the event's weekly hours; an
+    # inline "Ticketshop Öffnungszeiten" is the box office.
+    hours = re.search(r"<strong>\s*Öffnungszeiten\s*</strong>\s*:?(.*?)(?=<strong>|<h\d|</div>)", html or "", re.I | re.S) or re.search(
+        r"<p>\s*Öffnungszeiten\s*:(.*?)</p>", html or "", re.I | re.S)
     hours_text = "; ".join(filter(None, (rc.clean(part) for part in re.split(r"</p>", hours.group(1))))) if hours else ""
     if 0 < len(hours_text) <= 200:
         context["opening_hours"] = hours_text

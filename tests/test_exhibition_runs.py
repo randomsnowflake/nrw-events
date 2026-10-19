@@ -174,6 +174,18 @@ class ExhibitionRunTests(unittest.TestCase):
         self.assertNotIn("2026-10-13", hours)  # Tuesday is closed
         self.assertEqual(len(hours), 11)
 
+    def test_short_labelled_opening_hours_fold_but_short_tours_do_not(self):
+        note = "Öffnungszeiten: Dienstag bis Freitag: 15.00-17.00 Uhr, Sonntag: 11.00-18.00 Uhr"
+        days = [_day("2026-10-18", time="11:00–18:00", time_note=note),
+                *(_day(f"2026-10-{day}", time="15:00–17:00", time_note=note) for day in range(20, 24))]
+
+        [merged] = merge_exhibition_opening_days(days, {})
+
+        self.assertEqual((merged.start_date, merged.end_date), ("2026-10-18", "2026-10-23"))
+        self.assertEqual(len(merged.daily_schedule), 5)
+        tours = [_day(day, time="15:00–16:00", time_note=note) for day in ("2026-10-20", "2026-10-21")]
+        self.assertEqual(merge_exhibition_opening_days(tours, {}), tours)
+
     def test_daily_untimed_offer_becomes_one_run_and_redirects_its_day_pages(self):
         days = [_offer(f"2026-10-{day}", details={"final_date": "2027-12-31"}) for day in range(18, 30)]
         day_ids = [event_id(day) for day in days]

@@ -6,9 +6,10 @@ produced up to 28 competing URLs. Here those rows become a single event.
 
 Only opening days qualify: category ``exhibition``, one scheduled single-day
 row per date, and the same source, title, venue and city. Each day is either a
-slot of at least three hours, carries no clock time at all, or only says when
-it opens ("ab 12:00 Uhr"). Guided tours, workshops and performances start at a
-clock time and keep one page per date.
+slot of at least three hours or of the opening hours its text labels
+("Dienstag bis Freitag: 15.00-17.00 Uhr"), carries no clock time at all, or only
+says when it opens ("ab 12:00 Uhr"). Guided tours, workshops and performances
+start at a clock time and keep one page per date.
 When every day has hours, ``daily_schedule`` keeps them; otherwise the run is
 an all-day range, because partial hours would present the other days as closed.
 Cancelled days inside the run are closing days and fold into it. A source's
@@ -82,9 +83,20 @@ def _opening_slot(event: CanonicalEvent) -> dict[str, str] | None:
         end = datetime.fromisoformat(event.end_at)
     except ValueError:
         return None
-    if end - start < timedelta(hours=MIN_OPENING_HOURS):
+    if end - start < timedelta(hours=MIN_OPENING_HOURS) and not _labelled_opening_hours(event, start, end):
         return None
     return {"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}
+
+
+def _labelled_opening_hours(event: CanonicalEvent, start: datetime, end: datetime) -> bool:
+    """A short slot the text labels as opening hours ("Dienstag bis Freitag: 15.00-17.00 Uhr")."""
+    # The prose parser expands weekly hours over a range; a one-day row needs one.
+    next_day = (date.fromisoformat(event.start_date) + timedelta(days=1)).isoformat()
+    return any(
+        slot["date"] == event.start_date
+        and (datetime.fromisoformat(slot["start_at"]), datetime.fromisoformat(slot["end_at"])) == (start, end)
+        for slot in _daily_schedule_from_prose({**event.to_dict(), "end_date": next_day})
+    )
 
 
 def _is_opening_day(event: CanonicalEvent) -> bool:

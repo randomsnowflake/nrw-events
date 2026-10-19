@@ -242,6 +242,14 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
         self.assertNotIn("opening_hours", bonn._parse_detail_context(
             '<div class="SP-Text"><p>Ticketshop Öffnungszeiten: Montag bis Samstag 17 bis 20 Uhr</p></div>'))
 
+    def test_paragraph_opening_with_the_hours_label_becomes_the_time_note(self):
+        # bonn.de "Lampen, Licht und Leben" (2026-10-19): the hours close the description.
+        context = bonn._parse_detail_context(
+            '<div class="SP-Text"><p>Das Museum ist umgezogen.</p>'
+            "<p>Öffnungszeiten: Dienstag bis Freitag: 15.00-17.00 Uhr, Sonntag: 11.00-18.00 Uhr, feiertags geschlossen.</p></div>")
+
+        self.assertEqual(context["opening_hours"], "Dienstag bis Freitag: 15.00-17.00 Uhr, Sonntag: 11.00-18.00 Uhr, feiertags geschlossen.")
+
     def test_bounded_listing_detail_pass_prioritizes_sparse_final_targets(self):
         events = [
             {
