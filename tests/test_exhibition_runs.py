@@ -44,6 +44,26 @@ def _offer(day: str, *, time: str = "", **extra):
     })
 
 
+def _show(day: str, *, time: str = "19:30–21:00", title: str = "Berühmt - von Markus Barth", source_id: str = "kleines-theater", **extra):
+    """One performance of a play; the source lists every evening separately."""
+    return validate_event({
+        **extra,
+        "status": "scheduled",
+        "title": title,
+        "source": "kleines theater",
+        "source_id": source_id,
+        "start_date": day,
+        "time": time,
+        "venue": "Kleines Theater Bad Godesberg",
+        "city": "Bonn-Bad Godesberg",
+        "category": "theater",
+        "category_key": "stage",
+        "link": f"https://kleinestheater.eu/event/beruehmt/{day}",
+        "link_kind": "detail",
+        "score": 1.0,
+    })
+
+
 class ExhibitionRunTests(unittest.TestCase):
     def test_opening_days_become_one_ranged_event_with_stable_id(self):
         days = [_day("2026-10-01"), _day("2026-10-02"), _day("2026-10-04")]
@@ -217,6 +237,39 @@ class ExhibitionRunTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(merge_exhibition_opening_days(days, {}), days)
 
+
+    def test_stage_run_becomes_one_event_with_its_performances(self):
+        shows = [_show("2026-11-02"), _show("2026-11-05", time="19:30", start_at="2026-11-05T19:30+01:00"), _show("2026-11-08", time="15:30–17:00")]
+        show_ids = [event_id(show) for show in shows]
+
+        [run] = merge_exhibition_opening_days(shows, {"events": [{"event_id": identifier} for identifier in show_ids]})
+
+        self.assertEqual((run.start_date, run.end_date, run.all_day, run.time), ("2026-11-02", "2026-11-08", False, ""))
+        self.assertEqual(
+            [(slot["date"], slot["start_at"][11:16], slot["end_at"][11:16]) for slot in run.daily_schedule],
+            [("2026-11-02", "19:30", "21:00"), ("2026-11-05", "19:30", ""), ("2026-11-08", "15:30", "17:00")],
+        )
+        self.assertEqual(run.previous_event_ids, show_ids)
+
+        # Played performances leave the schedule; the public ID stays.
+        published = assign_event_ids([run])[0]
+        [later] = merge_exhibition_opening_days([*shows[1:], _show("2026-11-09")], {"events": [published]})
+        self.assertEqual(event_id(later), published["event_id"])
+        self.assertEqual([slot["date"] for slot in later.daily_schedule], ["2026-11-05", "2026-11-08", "2026-11-09"])
+        [retained] = merge_exhibition_opening_days([run, _show("2026-11-09")], {})
+        self.assertEqual([slot["date"] for slot in retained.daily_schedule], ["2026-11-09"])
+
+    def test_weekly_curated_sparse_and_short_stage_dates_keep_their_pages(self):
+        cases = {
+            "two performances": [_show("2026-11-02"), _show("2026-11-03")],
+            "weekly fixture": [_show(day) for day in ("2026-11-03", "2026-11-10", "2026-11-17")],
+            "gap over two weeks": [_show(day) for day in ("2026-11-02", "2026-11-03", "2026-11-20")],
+            "curated per date": [_show(day, title="Die Zauberflöte", source_id="theater-bonn") for day in ("2026-11-02", "2026-11-03", "2026-11-05")],
+            "two shows a day": [_show("2026-11-02"), _show("2026-11-02", time="15:00–16:30"), _show("2026-11-03")],
+        }
+        for name, shows in cases.items():
+            with self.subTest(name):
+                self.assertEqual(merge_exhibition_opening_days(shows, {}), shows)
 
 if __name__ == "__main__":
     unittest.main()

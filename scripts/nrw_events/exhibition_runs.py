@@ -23,6 +23,15 @@ row per day, 28 pages with one text. Only untimed rows qualify, on at least
 fewer. A clock time or a skipped day means real dated sessions, which keep their
 own pages.
 
+Stage runs are the exception: a play performed on ``MIN_SESSIONS`` or more
+evenings at one venue, never more than ``MAX_CLOSED_DAYS`` apart, is one
+production, and ten dated pages with one text competed for the same searches.
+Its performances become ``daily_schedule`` slots (``end_at`` empty when the
+source names no end). A run on a single weekday is a weekly fixture, not a
+production, and keeps its pages; so do series the website curates per date
+(``dated_page_series.json``). Past performances leave the schedule; the anchored
+start keeps the public ID.
+
 The public ID must survive the daily loss of past dates. The start date is
 therefore anchored to the previous snapshot's run, and the replaced published
 per-day IDs travel on as ``previous_event_ids`` so the website redirects them.
@@ -31,16 +40,19 @@ Day pages that had already expired are redirected by the website archive.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
+from itertools import pairwise
+from pathlib import Path
 from typing import Any
 
 from .identity import event_id
 from .models import CanonicalEvent
 from .normalization import comparison_text
-from .validation import _daily_schedule_from_prose, validate_event
+from .validation import _MAX_SCHEDULE_SLOTS, _daily_schedule_from_prose, validate_event
 
 MIN_OPENING_HOURS = 3
 #: A prior run still continues when the new first date follows its end within
@@ -48,6 +60,13 @@ MIN_OPENING_HOURS = 3
 MAX_CLOSED_DAYS = 14
 #: Gap-free untimed days before a non-exhibition offer counts as daily.
 MIN_DAILY_DAYS = 7
+#: Performances before a stage production counts as a run.
+MIN_SESSIONS = 3
+#: Series the website curates per performance; their dated pages stay.
+_DATED_PAGE_SERIES = frozenset(
+    (entry["source_id"], comparison_text(entry["title"]))
+    for entry in json.loads(Path(__file__).with_name("dated_page_series.json").read_text(encoding="utf-8"))
+)
 #: "Sonntag ab 12:00 Uhr" names an opening time, not a session start.
 _OPENS_FROM = re.compile(r"\bab\s+\d{1,2}(?:[:.]\d{2})?\s*uhr\b", re.IGNORECASE)
 
@@ -114,6 +133,26 @@ def _is_daily_offer(rows: Sequence[CanonicalEvent], continues: bool) -> bool:
     return gap_free and (continues or len(days) >= MIN_DAILY_DAYS)
 
 
+def _session_slot(event: CanonicalEvent) -> dict[str, str]:
+    return {"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}
+
+
+def _is_session_run(rows: Sequence[CanonicalEvent], runs: Sequence[CanonicalEvent], continues: bool) -> bool:
+    """Dated performances of one stage production at one venue."""
+    if any(
+        row.category_key != "stage" or not row.start_at or row.daily_schedule
+        or (row.source_id, comparison_text(row.title)) in _DATED_PAGE_SERIES
+        for row in rows
+    ) or any(not run.daily_schedule for run in runs):
+        return False
+    days = sorted(date.fromisoformat(row.start_date) for row in rows)
+    if len(days) > _MAX_SCHEDULE_SLOTS or any((later - earlier).days > MAX_CLOSED_DAYS for earlier, later in pairwise(days)):
+        return False
+    if continues:
+        return True
+    return len(days) >= MIN_SESSIONS and len({day.weekday() for day in days}) > 1
+
+
 def _anchor_start(key: tuple[str, ...], first: str, previous: Mapping[str, Any]) -> str:
     """Return the start of the run published last time, if this continues it."""
     first_day = date.fromisoformat(first)
@@ -138,11 +177,13 @@ def _merged(
     closed: Sequence[Mapping[str, Any]], previous: Mapping[str, Any],
 ) -> CanonicalEvent:
     ordered = sorted(rows, key=lambda row: row.start_date)
-    slots = [_opening_slot(row) for row in ordered]
+    sessions = key[-1] == "daily" and _is_session_run(rows, runs, True)
+    slots = [_session_slot(row) if sessions else _opening_slot(row) for row in ordered]
     timed = all(slots) and all(run.daily_schedule for run in runs)
     by_date: dict[str, dict[str, str]] = {}
     for run in runs:  # an earlier run retained during a source outage
-        by_date.update((slot["date"], slot) for slot in run.daily_schedule)
+        # Played performances would fill the schedule's slot limit.
+        by_date.update((slot["date"], slot) for slot in run.daily_schedule if not sessions or slot["date"] >= ordered[0].start_date)
     by_date.update((slot["date"], slot) for slot in slots if slot)
     base = ordered[0].to_dict()
     start = min([_anchor_start(key, ordered[0].start_date, previous), *(run.start_date for run in runs)])
@@ -184,10 +225,11 @@ def _merged(
     # repeat (NAHT: 16–19 daily vs. "Mittwoch bis Freitag, 16 bis 19 Uhr ...").
     # Cancelled days stay closed even when the weekly hours name them.
     closed_dates = {str(day.get("start_date") or "") for day in closed}
-    prose = [slot for slot in _daily_schedule_from_prose(base) if slot["date"] not in closed_dates]
+    # Performances are dated; weekly hours describe opening days only.
+    prose = [] if sessions else [slot for slot in _daily_schedule_from_prose(base) if slot["date"] not in closed_dates]
     if base["daily_schedule"] and prose:
         base["daily_schedule"] = prose
-    elif base["daily_schedule"] and end > listed_end:
+    elif base["daily_schedule"] and end > listed_end and not sessions:
         # Slots exist only for the listed days; the rest of the run would read as closed.
         base.update(daily_schedule=[], all_day=True)
     return validate_event(base)
@@ -228,7 +270,7 @@ def merge_exhibition_opening_days(
         # standalone day still keeps its original occurrence identity.
         continues = bool(runs) or _anchor_start(key, first_row, previous) != first_row
         if key[-1] == "daily":
-            if not _is_daily_offer(rows, continues):
+            if not (_is_daily_offer(rows, continues) or _is_session_run(rows, runs, continues)):
                 continue
         elif not all(map(_is_opening_day, rows)) or (len(rows) < 2 and not continues):
             continue

@@ -302,13 +302,14 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
         end = _iso_datetime(end_value)
         if (
             not common.parse_iso_date(date_value)
-            or not start or not end or end <= start
+            # A performance may name its start only; an end must follow it.
+            or not start or (end_value and (not end or end <= start))
             or start.date().isoformat() != date_value
             or not event["start_date"] <= date_value <= event["end_date"]
         ):
             _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} violates the event date/time invariant")
             continue
-        slot = {"date": date_value, "start_at": start.isoformat(), "end_at": end.isoformat()}
+        slot = {"date": date_value, "start_at": start.isoformat(), "end_at": end.isoformat() if end else ""}
         if date_value in conflicted_dates:
             continue
         existing = next((item for item in slots if item["date"] == date_value), None)
