@@ -138,7 +138,6 @@ scripts/nrw_events/
     karneval_in_bonn.py
     katharinenhof.py
     kessenicher_herbstmarkt.py
-    kihapp.py
     kinderflohmarkt.py
     kleines_theater.py
     koelner_hallenflohmarkt.py
@@ -172,10 +171,8 @@ scripts/nrw_events/
     rhein_antik.py
     rheinbach_flohmarkt.py
     rheinevents.py
-    rieder_markets.py
     rif_events.py
     rossel_wilberhofen.py
-    ruhrguide.py
     salsainbonn.py
     schmitt_markets.py
     siebengebirge.py

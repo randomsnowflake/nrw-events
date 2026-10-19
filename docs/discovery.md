@@ -33,7 +33,7 @@ Siegburg landing page, Street Food Festival "Das Original", Choco Dealer),
 BV Holzlar (Bonn-Ost neighbourhood associations: Holzlar, Kohlkaul,
 Roleber-Gielgen, Mühlenverein), Rhein in Flammen Bonn,
 Literaturhaus Bonn, Parkbuchhandlung Bad Godesberg,
-Bonn.jetzt, Radio Bonn/Rhein-Sieg weekly tips, and Ruhr-Guide.
+Bonn.jetzt and Radio Bonn/Rhein-Sieg weekly tips.
 Event discovery has no online-search provider or search API credentials.
 Bonn sport-club scrape candidates discovered for
 Tag des Bonner Sports / local sport coverage: SSB Bonn root + Sport im Park,
