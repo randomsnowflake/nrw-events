@@ -22,15 +22,16 @@ row per day, 28 pages with one text. Only untimed rows qualify, on at least
 ``MIN_DAILY_DAYS`` consecutive days without a gap; a published run continues on
 fewer. A clock time or a skipped day means dated sessions (below).
 
-Dated sessions are the other case: a play, course, guided tour or weekly meetup
-held ``MIN_SESSIONS`` or more times at one venue, never more than
+Dated sessions are the other case: a play, course, guided tour, weekly meetup
+or market held ``MIN_SESSIONS`` or more times at one venue, never more than
 ``MAX_CLOSED_DAYS`` apart, is one offer, and ten dated pages with one (or a
 reworded) text competed for the same searches. Its sessions become
-``daily_schedule`` slots (``end_at`` empty when the source names no end) and
-``dated_sessions`` tells the website to list them as dates, not opening hours.
-Two sessions on one day keep their pages: a slot holds one time per date. So do
-series whose dates differ in programme (``dated_page_series.json``). Past
-sessions leave the schedule; the anchored start keeps the public ID.
+``daily_schedule`` slots, several per day for a matinee and an evening show,
+with empty ``end_at`` when the source names no end and empty ``start_at`` and
+``end_at`` when it names no clock time; ``dated_sessions`` tells the website to
+list them as dates, not opening hours. Series whose dates differ in programme
+keep their pages (``dated_page_series.json``). Past sessions leave the
+schedule; the anchored start keeps the public ID.
 
 The public ID must survive the daily loss of past dates. The start date is
 therefore anchored to the previous snapshot's run, and the replaced published
@@ -60,8 +61,9 @@ MIN_OPENING_HOURS = 3
 MAX_CLOSED_DAYS = 14
 #: Gap-free untimed days before a non-exhibition offer counts as daily.
 MIN_DAILY_DAYS = 7
-#: Sessions before repeats of one offer count as a run.
-MIN_SESSIONS = 3
+#: Sessions before repeats of one offer count as a run: two dated pages with
+#: one text already compete for the same searches.
+MIN_SESSIONS = 2
 #: Series with a different programme per date, or curated per date by the website; their dated pages stay.
 _DATED_PAGE_SERIES = frozenset(
     (entry["source_id"], comparison_text(entry["title"]))
@@ -145,11 +147,11 @@ def _is_session_run(rows: Sequence[CanonicalEvent], runs: Sequence[CanonicalEven
     """Dated sessions of one offer at one venue: performances, course dates, tours."""
     # shortcut: stage runs published before ``dated_sessions`` existed lack the
     # flag; drop the category fallback once no snapshot predates it.
+    # Untimed sessions (a market on some days) are dates too; mixed with timed rows they are separate offers.
     if any(
-        not row.start_at or row.daily_schedule
-        or (row.source_id, comparison_text(row.title)) in _DATED_PAGE_SERIES
+        row.daily_schedule or (row.source_id, comparison_text(row.title)) in _DATED_PAGE_SERIES
         for row in rows
-    ) or any(not (run.dated_sessions or (run.category_key == "stage" and run.daily_schedule)) for run in runs):
+    ) or len({bool(row.start_at) for row in rows}) > 1 or any(not (run.dated_sessions or (run.category_key == "stage" and run.daily_schedule)) for run in runs):
         return False
     days = sorted(date.fromisoformat(row.start_date) for row in rows)
     if len(days) > _MAX_SCHEDULE_SLOTS or any((later - earlier).days > MAX_CLOSED_DAYS for earlier, later in pairwise(days)):
@@ -183,11 +185,15 @@ def _merged(
     ordered = sorted(rows, key=lambda row: row.start_date)
     slots = [_session_slot(row) if sessions else _opening_slot(row) for row in ordered]
     timed = all(slots) and all(run.daily_schedule for run in runs)
-    by_date: dict[str, dict[str, str]] = {}
+    # Sessions may meet twice a day; opening hours hold one slot per date.
+    def slot_key(slot: dict[str, str]) -> tuple[str, str]:
+        return (slot["date"], slot["start_at"] if sessions else "")
+
+    by_date: dict[tuple[str, str], dict[str, str]] = {}
     for run in runs:  # an earlier run retained during a source outage
         # Played performances would fill the schedule's slot limit.
-        by_date.update((slot["date"], slot) for slot in run.daily_schedule if not sessions or slot["date"] >= ordered[0].start_date)
-    by_date.update((slot["date"], slot) for slot in slots if slot)
+        by_date.update((slot_key(slot), slot) for slot in run.daily_schedule if not sessions or slot["date"] >= ordered[0].start_date)
+    by_date.update((slot_key(slot), slot) for slot in slots if slot)
     base = ordered[0].to_dict()
     start = min([_anchor_start(key, ordered[0].start_date, previous), *(run.start_date for run in runs)])
     listed_end = max([ordered[-1].start_date, *(run.end_date for run in runs)])
@@ -269,18 +275,19 @@ def merge_exhibition_opening_days(
     replaced: dict[int, CanonicalEvent | None] = {}
     for key, rows in rows_by_key.items():
         dates = Counter(row.start_date for row in rows)
-        if max(dates.values()) > 1:
-            continue
+        one_per_day = max(dates.values()) == 1
         runs = runs_by_key.get(key, [])
         first_row = min(dates)
         # A published run remains a run on its final opening day. A new
         # standalone day still keeps its original occurrence identity.
         continues = bool(runs) or _anchor_start(key, first_row, previous) != first_row
         # An exhibition's opening days win; its timed tours are sessions.
-        opening_days = key[-1] == "exhibition" and all(map(_is_opening_day, rows))
-        sessions = not opening_days and _is_session_run(rows, runs, continues)
+        opening_days = key[-1] == "exhibition" and one_per_day and all(map(_is_opening_day, rows))
+        # A gap-free untimed offer is an all-day range, not a list of dates.
+        daily_offer = key[-1] == "daily" and one_per_day and _is_daily_offer(rows, continues)
+        sessions = not opening_days and not daily_offer and _is_session_run(rows, runs, continues)
         if key[-1] == "daily":
-            if not (sessions or _is_daily_offer(rows, continues)):
+            if not (sessions or daily_offer):
                 continue
         elif not sessions and (not opening_days or (len(rows) < 2 and not continues)):
             continue

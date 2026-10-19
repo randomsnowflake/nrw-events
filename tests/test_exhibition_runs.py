@@ -113,11 +113,18 @@ class ExhibitionRunTests(unittest.TestCase):
         self.assertEqual((merged.start_date, merged.end_date, merged.city), ("2026-10-01", "2026-10-03", "Bonn-Bad Godesberg"))
         self.assertEqual(event_id(merged), event_id(run))
 
-    def test_tours_and_same_day_sessions_keep_their_own_pages(self):
+    def test_tours_and_same_day_sessions_become_dated_sessions(self):
         tours = [_day("2026-10-01", time="15:00–16:00"), _day("2026-10-02", time="15:00–16:00")]
-        self.assertEqual(merge_exhibition_opening_days(tours, {}), tours)
+        [tour_run] = merge_exhibition_opening_days(tours, {})
+        self.assertEqual((tour_run.dated_sessions, len(tour_run.daily_schedule)), (True, 2))
+        # An evening on an opening day is no single opening slot: the times stay dates.
         sessions = [_day("2026-10-01"), _day("2026-10-01", time="18:00–22:00"), _day("2026-10-02")]
-        self.assertEqual(merge_exhibition_opening_days(sessions, {}), sessions)
+        [run] = merge_exhibition_opening_days(sessions, {})
+        self.assertEqual(
+            [(slot["date"], slot["start_at"][11:16]) for slot in run.daily_schedule],
+            [("2026-10-01", "14:00"), ("2026-10-01", "18:00"), ("2026-10-02", "14:00")],
+        )
+        self.assertTrue(run.dated_sessions)
 
     def test_retained_run_absorbs_fresh_days_instead_of_colliding(self):
         [run] = merge_exhibition_opening_days([_day("2026-10-01"), _day("2026-10-02")], {})
@@ -205,7 +212,8 @@ class ExhibitionRunTests(unittest.TestCase):
         self.assertEqual((merged.start_date, merged.end_date), ("2026-10-18", "2026-10-23"))
         self.assertEqual(len(merged.daily_schedule), 5)
         tours = [_day(day, time="15:00–16:00", time_note=note) for day in ("2026-10-20", "2026-10-21")]
-        self.assertEqual(merge_exhibition_opening_days(tours, {}), tours)
+        [tour_run] = merge_exhibition_opening_days(tours, {})
+        self.assertTrue(tour_run.dated_sessions)  # tours are dated sessions, not opening days
 
     def test_daily_untimed_offer_becomes_one_run_and_redirects_its_day_pages(self):
         days = [_offer(f"2026-10-{day}", details={"final_date": "2027-12-31"}) for day in range(18, 30)]
@@ -228,15 +236,21 @@ class ExhibitionRunTests(unittest.TestCase):
         [tail] = merge_exhibition_opening_days(later[-2:], {"events": [published]})
         self.assertEqual(event_id(tail), published["event_id"])
 
-    def test_untimed_days_with_a_gap_or_too_few_keep_their_own_pages(self):
-        # Without a clock time a slot cannot say which days the offer runs.
+    def test_untimed_days_with_a_gap_or_too_few_become_untimed_sessions(self):
+        # An all-day range would present the skipped days as open; untimed slots name the days.
         cases = {
             "too few days": [_offer(f"2026-10-{day}") for day in range(18, 24)],
             "skipped day": [_offer(f"2026-10-{day}") for day in (*range(18, 24), 25, 26)],
         }
         for name, days in cases.items():
             with self.subTest(name):
-                self.assertEqual(merge_exhibition_opening_days(days, {}), days)
+                [run] = merge_exhibition_opening_days(days, {})
+                self.assertEqual([slot["date"] for slot in run.daily_schedule], [day.start_date for day in days])
+                self.assertEqual({(slot["start_at"], slot["end_at"]) for slot in run.daily_schedule}, {("", "")})
+                self.assertEqual((run.dated_sessions, run.all_day), (True, False))
+        # Untimed and timed rows of one title are separate offers.
+        mixed = [_offer("2026-10-18"), _offer("2026-10-19", time="10:00–12:00")]
+        self.assertEqual(merge_exhibition_opening_days(mixed, {}), mixed)
 
 
     def test_stage_run_becomes_one_event_with_its_performances(self):
@@ -287,12 +301,19 @@ class ExhibitionRunTests(unittest.TestCase):
         [run] = merge_exhibition_opening_days(rows, {})
         self.assertEqual(run.ai_summary, "Im Repair-Café reparieren Ehrenamtliche Geräte.")
 
-    def test_curated_sparse_short_and_same_day_stage_dates_keep_their_pages(self):
+    def test_two_performances_and_two_shows_a_day_become_one_run(self):
+        [pair] = merge_exhibition_opening_days([_show("2026-11-02"), _show("2026-11-03")], {})
+        self.assertEqual(len(pair.daily_schedule), 2)
+        [run] = merge_exhibition_opening_days([_show("2026-11-02"), _show("2026-11-02", time="15:00–16:30"), _show("2026-11-03")], {})
+        self.assertEqual(
+            [(slot["date"], slot["start_at"][11:16]) for slot in run.daily_schedule],
+            [("2026-11-02", "15:00"), ("2026-11-02", "19:30"), ("2026-11-03", "19:30")],
+        )
+
+    def test_curated_and_sparse_stage_dates_keep_their_pages(self):
         cases = {
-            "two performances": [_show("2026-11-02"), _show("2026-11-03")],
             "gap over two weeks": [_show(day) for day in ("2026-11-02", "2026-11-03", "2026-11-20")],
             "curated per date": [_show(day, title="Die Zauberflöte", source_id="theater-bonn") for day in ("2026-11-02", "2026-11-03", "2026-11-05")],
-            "two shows a day": [_show("2026-11-02"), _show("2026-11-02", time="15:00–16:30"), _show("2026-11-03")],
         }
         for name, shows in cases.items():
             with self.subTest(name):

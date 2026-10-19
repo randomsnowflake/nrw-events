@@ -291,6 +291,8 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
         raise EventValidationError("daily_schedule_type")
     slots: list[dict[str, str]] = []
     conflicted_dates: set[str] = set()
+    # Dated sessions may meet twice a day or name no clock time; opening hours may not.
+    sessions = event.get("dated_sessions") is True
     for index, candidate in enumerate(value[:_MAX_SCHEDULE_SLOTS]):
         if not isinstance(candidate, dict):
             _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} is not an object")
@@ -300,16 +302,20 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
         end_value = str(candidate.get("end_at") or "").strip()
         start = _iso_datetime(start_value)
         end = _iso_datetime(end_value)
+        untimed = sessions and not start_value and not end_value
         if (
             not common.parse_iso_date(date_value)
             # A performance may name its start only; an end must follow it.
-            or not start or (end_value and (not end or end <= start))
-            or start.date().isoformat() != date_value
+            or (not untimed and (not start or (end_value and (not end or end <= start)) or start.date().isoformat() != date_value))
             or not event["start_date"] <= date_value <= event["end_date"]
         ):
             _publication_warning(event, "publication.schedule-invalid", "daily_schedule", "omitted", f"schedule slot {index} violates the event date/time invariant")
             continue
-        slot = {"date": date_value, "start_at": start.isoformat(), "end_at": end.isoformat() if end else ""}
+        slot = {"date": date_value, "start_at": start.isoformat() if start else "", "end_at": end.isoformat() if end else ""}
+        if sessions:
+            if slot not in slots:
+                slots.append(slot)
+            continue
         if date_value in conflicted_dates:
             continue
         existing = next((item for item in slots if item["date"] == date_value), None)
@@ -320,7 +326,7 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
             continue
         if not existing:
             slots.append(slot)
-    event["daily_schedule"] = sorted(slots, key=lambda slot: slot["start_at"])
+    event["daily_schedule"] = sorted(slots, key=lambda slot: (slot["date"], slot["start_at"]))
 
 
 def _daily_schedule_from_prose(event: dict[str, Any]) -> list[dict[str, str]]:
