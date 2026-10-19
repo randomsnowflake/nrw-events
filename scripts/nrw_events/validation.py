@@ -823,6 +823,7 @@ _LINK_LABEL_TAIL = re.compile(
     re.IGNORECASE,
 )
 _TRUNCATED_TAIL = re.compile(r"(?:\.{3}|…)\s*$")
+_THIN_COPY_WORDS = 20
 
 
 def _drop_clock_sentinels(event: dict[str, Any]) -> None:
@@ -912,6 +913,16 @@ def _visitor_copy_quality(event: dict[str, Any]) -> None:
         event["description_html"] = ""
         event["description_source"] = "generated"
         _publication_warning(event, "publication.description-truncated", "description", "ai_summary", "source copy ended with an ellipsis and is replaced by an AI summary")
+    elif (
+        description
+        and event["description_source"] == "scraped"
+        and len(description.split()) < _THIN_COPY_WORDS
+        and event["source_id"] not in ai_enrichment.TARGET_SOURCE_IDS
+        and not _requires_master_data_only(event)
+    ):
+        # A one-line teaser makes a thin page. The AI summary replaces it; the
+        # source copy stays the fallback (ai_policy.strip_restricted_copy).
+        _publication_warning(event, "publication.description-thin", "description", "ai_summary", f"source copy has fewer than {_THIN_COPY_WORDS} words and is replaced by an AI summary")
 
 
 def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:

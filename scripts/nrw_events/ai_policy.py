@@ -20,16 +20,38 @@ def is_target_event(event: Mapping[str, Any]) -> bool:
     source = normalize_source_id(event.get("source_id") or event.get("source"))
     if source in _impl_ai_contracts.TARGET_SOURCE_IDS:
         return True
-    # Validation dropped cut-off source copy; the AI writes the visitor text.
-    if any(
-        isinstance(warning, Mapping) and warning.get("rule_id") == "publication.description-truncated"
-        for warning in event.get("quality_warnings") or ()
+    # Validation dropped cut-off source copy or flagged a one-line teaser; the
+    # AI writes the visitor text.
+    if _has_warning(event, "publication.description-truncated") or _has_warning(
+        event, "publication.description-thin",
     ):
         return True
     return source in {"b-future-festival", "lupe-events"} and (
         event.get("description_source") == "generated"
         or not any(str(event.get(field) or "").strip() for field in ("description", "description_html"))
     )
+
+
+def _has_warning(event: Mapping[str, Any], rule_id: str) -> bool:
+    return any(
+        isinstance(warning, Mapping) and warning.get("rule_id") == rule_id
+        for warning in event.get("quality_warnings") or ()
+    )
+
+
+def _keeps_thin_source_copy(event: Mapping[str, Any]) -> bool:
+    return (
+        _has_warning(event, "publication.description-thin")
+        and event.get("description_source") == "scraped"
+        and bool(str(event.get("description") or "").strip())
+        and normalize_source_id(event.get("source_id") or event.get("source"))
+        not in _impl_ai_contracts.TARGET_SOURCE_IDS
+    )
+
+
+def _without_visitor_copy(event: Mapping[str, Any]) -> bool:
+    """A skipped target publishes master data only, unless it kept its own thin copy."""
+    return not str(event.get("ai_summary") or "").strip() and not _keeps_thin_source_copy(event)
 
 
 def strip_restricted_copy(event: RawEvent) -> RawEvent:
@@ -42,6 +64,10 @@ def strip_restricted_copy(event: RawEvent) -> RawEvent:
     """
     summary_value: object = event.get("ai_summary")
     summary = summary_value if isinstance(summary_value, str) else ""
+    if not summary.strip() and _keeps_thin_source_copy(event):
+        # Free sources may publish their own short copy. Without a summary it
+        # still says more than the generated master-data sentence.
+        return event
     event["description"] = ""
     event["description_html"] = ""
     event["description_source"] = "generated"

@@ -282,7 +282,7 @@ def enrich_events(
             capped += 1
             cached = cached_fallbacks[index]
             enriched[index] = cached
-            without_summary = int(not str(cached.get("ai_summary", "")).strip())
+            without_summary = int(_impl_ai_policy._without_visitor_copy(cached))
             capped_without_summary += without_summary
             source_id = normalize_source_id(target.get("source_id") or target.get("source"))
             bump(source_id, "ai_cap_skipped_event_count")
@@ -297,7 +297,7 @@ def enrich_events(
         generative_budget = remaining - decision_reserve
         if generative_budget <= 0 or generative_budget / maximum_calls_per_event < 20:
             cached = _impl_ai_cache._reuse_cached_success(target, configured)
-            return index, cached, source_id, True, not str(cached.get("ai_summary", "")).strip(), False, False, False
+            return index, cached, source_id, True, _impl_ai_policy._without_visitor_copy(cached), False, False, False
         # One event may need facts and summary retries. Divide the remaining
         # source budget across that worst case so every concurrently running
         # event still finishes within the shared wall-clock batch deadline.
@@ -313,12 +313,15 @@ def enrich_events(
                 configured_timeout_seconds=configured.timeout_seconds,
                 outcome=outcome,
             )
-            return index, result, source_id, False, False, False, False, outcome.get("failed", False)
+            # A thin-copy target that fails still publishes its own source copy;
+            # only a failure that leaves master data alone degrades the source.
+            failed = outcome.get("failed", False) and _impl_ai_policy._without_visitor_copy(result)
+            return index, result, source_id, False, False, False, False, failed
         except _impl_ai_contracts.AICacheMissBudgetExceeded:
             cached = _impl_ai_cache._reuse_cached_success(target, configured)
             return (
                 index, cached, source_id, False, False, True,
-                not str(cached.get("ai_summary", "")).strip(),
+                _impl_ai_policy._without_visitor_copy(cached),
                 False,
             )
 
