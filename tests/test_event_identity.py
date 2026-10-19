@@ -6,6 +6,7 @@ from pathlib import Path
 
 from nrw_events.identity import (
     assign_event_ids,
+    content_hash,
     duplicate_event_ids,
     event_id,
     identity_tuple,
@@ -210,6 +211,13 @@ class EventIdVectorTests(unittest.TestCase):
         for vector in vectors["vectors"]:
             with self.subTest(name=vector["name"]):
                 self.assertEqual(vector["eventId"], event_id(vector["event"]))
+
+
+class ContentHashTests(unittest.TestCase):
+    def test_unset_dated_sessions_keeps_the_pinned_hash(self):
+        pinned = content_hash(occurrence())
+        self.assertEqual(content_hash(occurrence(dated_sessions=False)), pinned)
+        self.assertNotEqual(content_hash(occurrence(dated_sessions=True)), pinned)
 
 
 if __name__ == "__main__":

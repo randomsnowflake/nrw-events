@@ -107,6 +107,8 @@ def content_fingerprint(event: Mapping[str, Any]) -> str:
             key: event[key]
             for key in sorted(event)
             if key not in {"event_id", "preserved_event_id", "content_hash", "first_seen_at", "details"}
+            # The flag arrived after hashes were pinned in reviewed copy; unset it must not move them.
+            and not (key == "dated_sessions" and not event[key])
         },
         ensure_ascii=False,
         sort_keys=True,
