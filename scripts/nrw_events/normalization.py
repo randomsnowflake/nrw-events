@@ -116,7 +116,8 @@ def _venue(
 # most frequent stable places in the current feed. Missing facts stay empty;
 # the registry never guesses coordinates or addresses from a broad category.
 VENUE_REGISTRY: tuple[VenueRecord, ...] = (
-    _venue("oper-bonn", "Oper Bonn", city="Bonn", district="Bonn", venue_type="theater", address="Am Boeselagerhof 1, 53111 Bonn", coordinates=(50.7366531557, 7.10680608)),
+    # Theater Bonn names the main stage, bonn.de the house (verified_venue_locations.json).
+    _venue("oper-bonn", "Oper Bonn", "Opernhaus Bühne", "Opernhaus Bonn", city="Bonn", district="Bonn", venue_type="theater", address="Am Boeselagerhof 1, 53111 Bonn", coordinates=(50.7366531557, 7.10680608)),
     _venue("schauspielhaus-bad-godesberg", "Schauspielhaus Bad Godesberg", "Schauspielhaus", city="Bonn", district="Bonn-Bad Godesberg", venue_type="theater", address="Am Michaelshof 9, 53177 Bonn", coordinates=(50.6832698865, 7.1538043057)),
     _venue("werkstattbuehne-bonn", "Werkstattbühne", city="Bonn", district="Bonn", venue_type="theater", address="Rheingasse 1, 53111 Bonn", coordinates=(50.7363281468, 7.1066077703)),
     _venue("contra-kreis-theater", "Contra-Kreis-Theater", city="Bonn", district="Bonn", venue_type="theater", address="Am Hof 3-5, 53113 Bonn", coordinates=(50.7333174226, 7.1011347839)),

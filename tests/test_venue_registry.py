@@ -7,12 +7,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from nrw_events.deduplication import deduplicate
 from nrw_events.normalization import (
     VENUE_REGISTRY,
     VERIFIED_VENUE_LOCATIONS,
     resolve_venue,
 )
-from nrw_events.validation import canonicalize_event
+from nrw_events.validation import canonicalize_event, validate_event
 
 from scripts import audit_venue_locations, enrich_verified_venue_locations
 
@@ -62,6 +63,25 @@ class VenueRegistryTests(unittest.TestCase):
 
         self.assertEqual(venue.venue_id, "stadtgarten-alter-zoll-bonn")
         self.assertEqual(resolve_venue("Bonner Stadtbefestigung", "Köln").venue_id, "")
+
+    def test_theater_bonn_main_stage_and_bonn_de_opera_are_one_occurrence(self):
+        # 2026-10-18: Theater Bonn lists "Opernhaus Bühne", bonn.de "Oper Bonn".
+        self.assertEqual(resolve_venue("Opernhaus Bühne", "Bonn").venue_id, "oper-bonn")
+        self.assertEqual(resolve_venue("Oper Foyerbühne", "Bonn").venue_id, "")  # a separate stage
+        theater = validate_event(event(
+            title="Das Mädchen aus dem goldenen Westen", source="Theater Bonn", source_id="theater-bonn",
+            start_date="2026-10-18", end_date="2026-10-18", time="18:00", venue="Opernhaus Bühne",
+            category_key="stage", link="https://www.theater-bonn.de/de/programm/das-madchen-aus-dem-goldenen-westen/234664",
+        ))
+        city_calendar = validate_event(event(
+            title="Das Mädchen aus dem Goldenen Westen", source="Bonn.de Events", source_id="bonn-de-events",
+            start_date="2026-10-18", end_date="2026-10-18", time="18:00–20:45", venue="Oper Bonn",
+            category_key="stage", link="https://www.bonn.de/veranstaltungskalender/das-maedchen-aus-dem-goldenen-westen.php",
+        ))
+
+        [merged] = deduplicate([city_calendar, theater])
+
+        self.assertEqual((merged.source_id, merged.venue_id), ("theater-bonn", "oper-bonn"))
 
     def test_st_josef_beuel_has_verified_structured_location(self):
         venue = resolve_venue("St. Josef Beuel", "Bonn-Beuel")
