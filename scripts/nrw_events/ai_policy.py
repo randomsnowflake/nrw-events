@@ -21,15 +21,44 @@ def is_target_event(event: Mapping[str, Any]) -> bool:
     if source in _impl_ai_contracts.TARGET_SOURCE_IDS:
         return True
     # Validation dropped cut-off source copy; the AI writes the visitor text.
-    if any(
-        isinstance(warning, Mapping) and warning.get("rule_id") == "publication.description-truncated"
-        for warning in event.get("quality_warnings") or ()
-    ):
+    if _has_warning(event, "publication.description-truncated"):
+        return True
+    # A free source's one-line teaser makes a thin page. Judged on the current
+    # copy, so a longer description adopted during dedup ends the targeting.
+    if is_thin_free_copy(event):
         return True
     return source in {"b-future-festival", "lupe-events"} and (
         event.get("description_source") == "generated"
         or not any(str(event.get(field) or "").strip() for field in ("description", "description_html"))
     )
+
+
+def _has_warning(event: Mapping[str, Any], rule_id: str) -> bool:
+    return any(
+        isinstance(warning, Mapping) and warning.get("rule_id") == rule_id
+        for warning in event.get("quality_warnings") or ()
+    )
+
+
+THIN_COPY_WORDS = 20
+
+
+def is_thin_free_copy(event: Mapping[str, Any]) -> bool:
+    """Scraped copy under THIN_COPY_WORDS words from a source we may republish."""
+    description = str(event.get("description") or "").strip()
+    return (
+        event.get("description_source") == "scraped"
+        and bool(description)
+        and len(description.split()) < THIN_COPY_WORDS
+        # Master-data-only sources are already "generated" after canonicalization.
+        and normalize_source_id(event.get("source_id") or event.get("source"))
+        not in _impl_ai_contracts.TARGET_SOURCE_IDS
+    )
+
+
+def _without_visitor_copy(event: Mapping[str, Any]) -> bool:
+    """A skipped target publishes master data only, unless it kept its own thin copy."""
+    return not str(event.get("ai_summary") or "").strip() and not is_thin_free_copy(event)
 
 
 def strip_restricted_copy(event: RawEvent) -> RawEvent:
@@ -42,6 +71,10 @@ def strip_restricted_copy(event: RawEvent) -> RawEvent:
     """
     summary_value: object = event.get("ai_summary")
     summary = summary_value if isinstance(summary_value, str) else ""
+    if not summary.strip() and is_thin_free_copy(event):
+        # Free sources may publish their own short copy. Without a summary it
+        # still says more than the generated master-data sentence.
+        return event
     event["description"] = ""
     event["description_html"] = ""
     event["description_source"] = "generated"

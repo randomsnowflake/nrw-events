@@ -110,7 +110,46 @@ class VisitorCopyTests(unittest.TestCase):
         self.assertIn("publication.description-truncated", _rules(event))
         self.assertEqual((event["description"], event["description_source"]), ("", "generated"))
         self.assertTrue(ai_enrichment.is_target_event(event))
-        self.assertFalse(ai_enrichment.is_target_event(_canonical()))
+        long_copy = " ".join(["Ein Abend mit Musik unter freiem Himmel."] * 4)
+        self.assertFalse(ai_enrichment.is_target_event(_canonical(description=long_copy)))
+
+
+    def test_thin_free_copy_becomes_an_ai_target_and_keeps_its_text_as_fallback(self):
+        teaser = "In diesem Workshop erhalten Sie eine Lizenz für den 3D-Drucker."
+        event = _canonical(description=teaser, description_source="scraped")
+        # A targeting signal, not a quality warning: it must not degrade the run.
+        self.assertEqual(event["quality_warnings"], [])
+        self.assertTrue(ai_enrichment.is_target_event(event))
+        # No summary yet: the free source's own short copy stays visible.
+        self.assertEqual(ai_enrichment.strip_restricted_copy(dict(event))["description"], teaser)
+        # With a summary the summary is the only prose.
+        replaced = ai_enrichment.strip_restricted_copy({**event, "ai_summary": "Ein Kurs zum 3D-Drucker."})
+        self.assertEqual((replaced["description"], replaced["description_source"]), ("", "generated"))
+
+    def test_long_restricted_and_generated_copy_are_not_thin(self):
+        long_copy = " ".join(["Ein Abend mit Musik unter freiem Himmel."] * 4)
+        self.assertFalse(ai_enrichment.is_thin_free_copy(_canonical(description=long_copy)))
+        self.assertFalse(ai_enrichment.is_thin_free_copy(_canonical(description_source="generated")))
+        restricted = _canonical(source_id="bonnlive", source="BonnLive", description_source="scraped")
+        self.assertFalse(ai_enrichment.is_thin_free_copy(restricted))
+
+    def test_adopted_longer_copy_ends_thin_targeting(self):
+        thin = _canonical(description="Ein kurzer Teaser.")
+        self.assertTrue(ai_enrichment.is_target_event(thin))
+        merged = canonicalize_event({**thin, "description": " ".join(["Ein Abend mit Musik unter freiem Himmel."] * 4),
+                                     "description_html": ""}).to_dict()
+        self.assertFalse(ai_enrichment.is_target_event(merged))
+
+    def test_retained_thin_copy_survives_as_ai_input_and_fallback(self):
+        from nrw_events.models import CanonicalEvent  # noqa: F401 - type only
+        from nrw_events.publication_enrichment import _publication_ai_input
+        from nrw_events.validation import validate_event
+        teaser = "Stricken und Klönen in der Stadtteilbibliothek."
+        retained = validate_event({**_canonical(description=teaser)})
+        # No current SourceResult carries private material for a retained event.
+        raw = _publication_ai_input(retained, {})
+        self.assertEqual(raw["description"], teaser)
+        self.assertEqual(ai_enrichment.strip_restricted_copy(raw)["description"], teaser)
 
 
 class SummaryPlaceholderTests(unittest.TestCase):
