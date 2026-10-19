@@ -54,7 +54,6 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Junges Theater Bonn | `junges-theater-bonn` | `python` |
 | bonn-region | Katharinenhof Flohmarkt | `katharinenhof-flohmarkt` | `python` |
 | bonn-region | Kessenicher Herbstmarkt | `kessenicher-herbstmarkt` | `python` |
-| bonn-region | Kihapp – Veranstalterdaten | `kihapp` | `python` |
 | bonn-region | Kinderflohmarkt.com | `kinderflohmarkt-com` | `python` |
 | bonn-region | Kirmes in Bonn | `bonnkirmes` | `python` |
 | bonn-region | Kleines Theater Bad Godesberg | `kleines-theater-bad-godesberg` | `python` |
@@ -90,9 +89,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Rheinauen-Flohmarkt | `rheinauen-flohmarkt` | `python` |
 | bonn-region | Rheinbach Flohmarkt | `rheinbach-flohmarkt` | `python` |
 | bonn-region | RheinEvents | `rheinevents` | `python` |
-| bonn-region | Rieder Märkte | `rieder-solingen-rewe` | `python` |
 | bonn-region | RiF Events | `rif-events` | `python` |
-| bonn-region | Ruhr-Guide | `ruhr-guide` | `python` |
 | bonn-region | Salsa in Bonn | `salsa-in-bonn` | `python` |
 | bonn-region | Schmitt Veranstaltungen | `schmitt-veranstaltungen` | `python` |
 | bonn-region | Siegburg | `siegburg` | `python` |

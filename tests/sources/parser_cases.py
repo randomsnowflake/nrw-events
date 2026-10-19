@@ -1780,7 +1780,6 @@ END:VCALENDAR
         expected_sources = {
             "Naturregion Sieg",
             "Troisdorf",
-            "Ruhr-Guide",
             "ionas4 regional",
             "SiteKit regional",
             "Standard regional feeds",

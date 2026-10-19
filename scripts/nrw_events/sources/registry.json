@@ -450,13 +450,6 @@
       "callable": "nrw_events.sources.schmitt_markets:fetch"
     },
     {
-      "id": "rieder-solingen-rewe",
-      "display_name": "Rieder Märkte",
-      "region": "bonn-region",
-      "adapter": "python",
-      "callable": "nrw_events.sources.rieder_markets:fetch"
-    },
-    {
       "id": "rheinbach-flohmarkt",
       "display_name": "Rheinbach Flohmarkt",
       "region": "bonn-region",
@@ -819,13 +812,6 @@
       "callable": "nrw_events.sources.bonnjetzt:fetch"
     },
     {
-      "id": "kihapp",
-      "display_name": "Kihapp – Veranstalterdaten",
-      "region": "bonn-region",
-      "adapter": "python",
-      "callable": "nrw_events.sources.kihapp:fetch"
-    },
-    {
       "id": "radio-bonn-rhein-sieg",
       "display_name": "Radio Bonn/Rhein-Sieg",
       "region": "bonn-region",
@@ -894,13 +880,6 @@
       "region": "bonn-region",
       "adapter": "python",
       "callable": "nrw_events.sources.bonn_literature:fetch_parkbuchhandlung"
-    },
-    {
-      "id": "ruhr-guide",
-      "display_name": "Ruhr-Guide",
-      "region": "bonn-region",
-      "adapter": "python",
-      "callable": "nrw_events.sources.ruhrguide:fetch"
     }
   ]
 }

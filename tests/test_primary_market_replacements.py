@@ -10,7 +10,6 @@ from nrw_events.runtime import EventWindow, RunContext
 from nrw_events.sources import (
     SOURCES,
     regional_common,
-    rieder_markets,
     rossel_wilberhofen,
     schmitt_markets,
 )
@@ -29,7 +28,6 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
             rossel_wilberhofen.fetch,
         )
         self.assertIs(SOURCES["Schmitt Veranstaltungen"], schmitt_markets.fetch)
-        self.assertIs(SOURCES["Rieder Märkte"], rieder_markets.fetch)
 
     def test_rossel_wilberhofen_requires_news_and_calendar_corroboration(self):
         news = """
@@ -125,59 +123,6 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         self.assertEqual(event["date"], "2026-09-06")
         self.assertEqual(event["time"], "11:00")
 
-    def test_rieder_combines_dated_card_with_official_location_facts(self):
-        terms = """
-        <a href="https://www.rieder-maerkte.de/produkt/solingen-16-08-2026/">
-        <h2 class="woocommerce-loop-product__title">16.08.2026
-        Solingen-Aufderhöhe, REWE Ihr Kaufpark</h2></a>
-        """
-        location = """
-        <h1>Solingen, REWE Ihr Kaufpark</h1>
-        <p>Friedenstraße 96, 42699 Solingen</p>
-        <p>Die offiziellen Verkaufszeiten sind an Sonn‐ &amp; Feiertagen von 11 bis 18 Uhr.</p>
-        """
-
-        [event] = rieder_markets._events_from_pages(terms, location, strict=True)
-
-        self.assertEqual(event["date"], "2026-08-16")
-        self.assertEqual(event["time"], "11:00–18:00")
-        self.assertEqual(event["venue"], "REWE Ihr Kaufpark")
-        self.assertEqual(event["venue_address"], "Friedenstraße 96")
-        self.assertEqual(event["source_id"], "rieder-solingen-rewe")
-
-    def test_rieder_refuses_uncorroborated_hours(self):
-        terms = """
-        <a href="/event"><h2>16.08.2026 Solingen-Aufderhöhe,
-        REWE Ihr Kaufpark</h2></a>
-        """
-        location = "<p>Friedenstraße 96, 42699 Solingen</p>"
-        with self.assertRaisesRegex(regional_common.ParserEmptyError, "address or hours"):
-            rieder_markets._events_from_pages(terms, location, strict=True)
-
-    def test_rieder_accepts_authoritative_schedule_without_target_dates(self):
-        terms = """
-        <a href="/produkt/monheim-06-09-2026/">
-        <h2 class="woocommerce-loop-product__title">06.09.2026 Monheim, HELLWEG</h2></a>
-        """
-        location = """
-        <p>Friedenstraße 96, 42699 Solingen</p>
-        <p>Die offiziellen Verkaufszeiten sind an Sonn‐ &amp; Feiertagen von 11 bis 18 Uhr.</p>
-        """
-
-        self.assertEqual(rieder_markets._events_from_pages(terms, location, strict=True), [])
-
-    def test_rieder_still_rejects_changed_target_card_markup(self):
-        terms = """
-        <article>06.09.2026 Solingen-Aufderhöhe, REWE Ihr Kaufpark</article>
-        """
-        location = """
-        <p>Friedenstraße 96, 42699 Solingen</p>
-        <p>Die offiziellen Verkaufszeiten sind an Sonn‐ &amp; Feiertagen von 11 bis 18 Uhr.</p>
-        """
-
-        with self.assertRaisesRegex(regional_common.ParserEmptyError, "dated cards changed"):
-            rieder_markets._events_from_pages(terms, location, strict=True)
-
     @staticmethod
     def _canonical(
         title, date, city, source, source_id, organizer="", venue="Marktplatz",
@@ -214,7 +159,6 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         rows = (
             ("Dorf-Flohmarkt Wilberhofen", "2026-08-16", "Windeck", "Bürgerverein Rossel-Wilberhofen", "rossel-wilberhofen-dorfflohmarkt"),
             ("Flohmarkt Andernach, Kaufland", "2026-08-16", "Andernach", "Schmitt Veranstaltungen", "schmitt-veranstaltungen"),
-            ("Trödelmarkt Solingen-Aufderhöhe, REWE Ihr Kaufpark", "2026-08-16", "Solingen", "Rieder Märkte", "rieder-solingen-rewe"),
             ("Flohmarkt Mülheim-Kärlich, Kaufland", "2026-08-23", "Mülheim-Kärlich", "Schmitt Veranstaltungen", "schmitt-veranstaltungen"),
             ("Flohmarkt Bendorf, Kaufland", "2026-08-30", "Bendorf", "Schmitt Veranstaltungen", "schmitt-veranstaltungen"),
         )
@@ -229,13 +173,12 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         ])
 
         self.assertEqual(len(kept), 7)
-        self.assertEqual(len(replaced), 5)
+        self.assertEqual(len(replaced), 4)
         self.assertEqual(
             {event.source_id for event in kept},
             {
                 "rossel-wilberhofen-dorfflohmarkt",
                 "schmitt-veranstaltungen",
-                "rieder-solingen-rewe",
                 "marktcom",
             },
         )
@@ -435,8 +378,7 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         sources = {
             "marktcom": lambda: directory,
             "Bürgerverein Rossel-Wilberhofen": lambda: primary[:1],
-            "Schmitt Veranstaltungen": lambda: [primary[1], *primary[3:]],
-            "Rieder Märkte": lambda: primary[2:3],
+            "Schmitt Veranstaltungen": lambda: primary[1:],
         }
         context = RunContext(
             config.RuntimeConfig(series_ledger_json=""),
@@ -457,7 +399,7 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         self.assertEqual(len(result.events), 7)
         self.assertEqual(
             result.source_results["marktcom"].rejection_reasons,
-            {"filter:first_party_replacement": 5},
+            {"filter:first_party_replacement": 4},
         )
 
     def test_runner_retains_fallback_when_primary_record_is_not_publishable(self):

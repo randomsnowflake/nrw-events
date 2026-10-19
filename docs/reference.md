@@ -487,7 +487,7 @@ See the generated [sources inventory](sources.md).
   zentralen Postleitzahlen bleiben „Bonn", weil der zentrale Stadtbezirk selbst
   so heißt.
 - **Kultur, Nachtleben und NRW-weite Ergänzungen:** Bundeskunsthalle, Bonn.jetzt,
-  Tanzschule Max7, AfterJobParty Bonn, RheinEvents, Salsa in Bonn und Ruhr-Guide.
+  Tanzschule Max7, AfterJobParty Bonn, RheinEvents und Salsa in Bonn.
 - **Bonn.jetzt nur als Fallback:** Die Veranstalter hinter Bonn.jetzt-Karten
   (Studierendenwerk Bonn, VHS Bonn, Datenburg, bitcircus101, Käpt'n Book
   Lesefest) liest `bonn_community.py` direkt. `bonn_jetzt_fallbacks.py`

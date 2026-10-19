@@ -14,7 +14,6 @@ from nrw_events.sources import (
     regional_ionas4,
     regional_tourism,
     requested_venues,
-    ruhrguide,
 )
 
 from tests.helpers import patch_window
@@ -427,68 +426,6 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertIn("Workshop", events[0]["description"])
         self.assertIn("15.07.2026", events[0]["description"])
         self.assertIn("Kunstmuseum Bonn", events[0]["description"])
-
-    def test_ruhrguide_discards_source_description_and_does_not_fetch_detail_copy(self):
-        events = [{
-            "title": "Conni – Das Musical!",
-            "start_date": "2026-07-19",
-            "end_date": "2026-07-19",
-            "time": "15:00",
-            "venue": "Theater am Tanzbrunnen, Köln",
-            "city": "Köln",
-            "link": "https://www.ruhr-guide.de/veranstaltung/conni-das-musical/",
-            "description": "Langer redaktioneller Ruhr-Guide-Text.",
-            "description_html": "<p>Langer redaktioneller Ruhr-Guide-Text.</p>",
-            "description_source": "scraped",
-        }]
-
-        [minimal] = ruhrguide._keep_only_master_data(events)
-
-        self.assertNotIn("redaktioneller", minimal["description"])
-        self.assertIn("19.07.2026", minimal["description"])
-        self.assertIn("Theater am Tanzbrunnen", minimal["description"])
-        self.assertEqual(minimal["description_source"], "generated")
-
-    def test_ruhrguide_expands_long_tour_span_into_explicit_local_dates(self):
-        broad = {
-            "title": "Conni – Das Musical!",
-            "start_date": "2025-10-25", "end_date": "2027-05-23",
-            "time": "15:00", "venue": "Theater am Tanzbrunnen", "city": "Köln",
-            "link": "https://www.ruhr-guide.de/veranstaltung/conni/",
-            "description": "Redaktioneller Tourtext.", "category": "Familie", "score": 0.68,
-        }
-        detail = """
-        <div class="wpem-single-event-body-content">
-          <p>Die redaktionelle Musicalbeschreibung darf nicht veröffentlicht werden.</p>
-          <p>Samstag 18.07.2026 – Theater am Tanzbrunnen, Köln (Vorstellungen um 13.00 &amp; 16.00 Uhr)</p>
-          <p>Sonntag 10.01.2027 – Stadthalle, Essen (Vorstellung um 14.00 Uhr)</p>
-        </div><!-- Event description section end -->
-        """
-
-        events = ruhrguide._expand_tour_ranges([broad], lambda _url: detail)
-
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["start_date"], "2026-07-18")
-        self.assertEqual(events[0]["end_date"], "2026-07-18")
-        self.assertEqual(events[0]["time"], "13:00")
-        self.assertEqual(events[0]["time_note"], "Weitere Vorstellungen: 16:00 Uhr")
-        self.assertEqual(events[0]["venue"], "Theater am Tanzbrunnen")
-        self.assertEqual(events[0]["city"], "Köln")
-        self.assertNotIn("redaktionelle", events[0]["description"].casefold())
-
-    def test_ruhrguide_drops_unverifiable_long_tour_span(self):
-        broad = {
-            "title": "Tour ohne Einzeldaten",
-            "start_date": "2025-10-25", "end_date": "2027-05-23",
-            "time": "", "venue": "Erster Tourort", "city": "Köln",
-            "link": "https://www.ruhr-guide.de/veranstaltung/tour/",
-            "description": "", "category": "Kultur", "score": 0.65,
-        }
-
-        self.assertEqual(
-            ruhrguide._expand_tour_ranges([broad], lambda _url: "<html>keine Einzeldaten</html>"),
-            [],
-        )
 
     def test_eitorf_cards_are_enriched_from_their_detail_page(self):
         listing = """

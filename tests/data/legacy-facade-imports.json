@@ -162,9 +162,6 @@
   "sources/kessenicher_herbstmarkt.py": [
     "nrw_events.common"
   ],
-  "sources/kihapp.py": [
-    "nrw_events.common"
-  ],
   "sources/kinderflohmarkt.py": [
     "nrw_events.common"
   ],
@@ -261,16 +258,10 @@
   "sources/rheinevents.py": [
     "nrw_events.common"
   ],
-  "sources/rieder_markets.py": [
-    "nrw_events.common"
-  ],
   "sources/rif_events.py": [
     "nrw_events.common"
   ],
   "sources/rossel_wilberhofen.py": [
-    "nrw_events.common"
-  ],
-  "sources/ruhrguide.py": [
     "nrw_events.common"
   ],
   "sources/salsainbonn.py": [
