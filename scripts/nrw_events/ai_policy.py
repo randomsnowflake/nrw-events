@@ -20,11 +20,12 @@ def is_target_event(event: Mapping[str, Any]) -> bool:
     source = normalize_source_id(event.get("source_id") or event.get("source"))
     if source in _impl_ai_contracts.TARGET_SOURCE_IDS:
         return True
-    # Validation dropped cut-off source copy or flagged a one-line teaser; the
-    # AI writes the visitor text.
-    if _has_warning(event, "publication.description-truncated") or _has_warning(
-        event, "publication.description-thin",
-    ):
+    # Validation dropped cut-off source copy; the AI writes the visitor text.
+    if _has_warning(event, "publication.description-truncated"):
+        return True
+    # A free source's one-line teaser makes a thin page. Judged on the current
+    # copy, so a longer description adopted during dedup ends the targeting.
+    if is_thin_free_copy(event):
         return True
     return source in {"b-future-festival", "lupe-events"} and (
         event.get("description_source") == "generated"
@@ -39,11 +40,17 @@ def _has_warning(event: Mapping[str, Any], rule_id: str) -> bool:
     )
 
 
-def _keeps_thin_source_copy(event: Mapping[str, Any]) -> bool:
+THIN_COPY_WORDS = 20
+
+
+def is_thin_free_copy(event: Mapping[str, Any]) -> bool:
+    """Scraped copy under THIN_COPY_WORDS words from a source we may republish."""
+    description = str(event.get("description") or "").strip()
     return (
-        _has_warning(event, "publication.description-thin")
-        and event.get("description_source") == "scraped"
-        and bool(str(event.get("description") or "").strip())
+        event.get("description_source") == "scraped"
+        and bool(description)
+        and len(description.split()) < THIN_COPY_WORDS
+        # Master-data-only sources are already "generated" after canonicalization.
         and normalize_source_id(event.get("source_id") or event.get("source"))
         not in _impl_ai_contracts.TARGET_SOURCE_IDS
     )
@@ -51,7 +58,7 @@ def _keeps_thin_source_copy(event: Mapping[str, Any]) -> bool:
 
 def _without_visitor_copy(event: Mapping[str, Any]) -> bool:
     """A skipped target publishes master data only, unless it kept its own thin copy."""
-    return not str(event.get("ai_summary") or "").strip() and not _keeps_thin_source_copy(event)
+    return not str(event.get("ai_summary") or "").strip() and not is_thin_free_copy(event)
 
 
 def strip_restricted_copy(event: RawEvent) -> RawEvent:
@@ -64,7 +71,7 @@ def strip_restricted_copy(event: RawEvent) -> RawEvent:
     """
     summary_value: object = event.get("ai_summary")
     summary = summary_value if isinstance(summary_value, str) else ""
-    if not summary.strip() and _keeps_thin_source_copy(event):
+    if not summary.strip() and is_thin_free_copy(event):
         # Free sources may publish their own short copy. Without a summary it
         # still says more than the generated master-data sentence.
         return event

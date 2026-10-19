@@ -37,6 +37,10 @@ def _publication_ai_input(
 ) -> dict[str, object]:
     """Reattach one dedup winner's private prose without serializing it."""
     raw: dict[str, object] = event.to_dict()
+    if ai_enrichment.is_thin_free_copy(raw):
+        # Free copy is public and is the AI material itself; keeping it also
+        # preserves the fallback for events retained through a source outage.
+        return raw
     raw["description"] = ""
     raw["description_html"] = ""
     # After AI enrichment filled time/venue/city, only the preserved ID still

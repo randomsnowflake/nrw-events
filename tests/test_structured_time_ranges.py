@@ -19,9 +19,7 @@ class StructuredTimeRangeTests(unittest.TestCase):
             day if end is None else end,
             "Rathaus",
             "Brühl",
-            # Long enough not to trip the thin-copy warning; these tests assert no warnings at all.
-            "Offizieller Veranstaltungstermin des Sommerprogramms im Rathaus mit Musik, Lesungen, "
-            "Führungen durch das Haus und einem Angebot für Familien mit Kindern.",
+            "Offizieller Veranstaltungstermin.",
             "https://example.test/sommerprogramm",
             source,
             "kultur",
