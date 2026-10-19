@@ -63,7 +63,6 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | KUNST!RASEN Bonn | `kunstrasen-bonn` | `python` |
 | bonn-region | Kunstmuseum Bonn | `kunstmuseum-bonn` | `python` |
 | bonn-region | Käpt’n Book Lesefest | `kaeptn-book-lesefest` | `python` |
-| bonn-region | Köln Open Data | `k-ln-open-data` | `python` |
 | bonn-region | Kölner Hallenflohmarkt | `koelner-hallenflohmarkt` | `python` |
 | bonn-region | Königswinter | `k-nigswinter` | `python` |
 | bonn-region | Lampert Märkte | `lampert-m-rkte` | `python` |

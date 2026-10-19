@@ -20,7 +20,7 @@ nur Python 3 Standardbibliothek.
 Die aufbereiteten Termine werden unter https://www.veranstaltungen-bonn.de/ veröffentlicht; jeder Eintrag verweist zur Originalquelle.
 
 > **Unabhängig und nicht verbunden.** Dieses Repository ist nicht mit Bonn.de,
-> Köln Open Data, Bundeskunsthalle oder irgendeiner
+> Bundeskunsthalle oder irgendeiner
 > anderen Quelle verbunden, gesponsert oder offiziell autorisiert. Es ist nur ein
 > freies Open-Source-Werkzeug, das öffentlich erreichbare Informationen bündelt.
 
@@ -362,7 +362,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_DETAIL_NEGATIVE_CACHE_HOURS` | `24` | Lebensdauer leerer Platzhalter, die Quellen mit `cache_failures=True` (z. B. Bonn.de) nach einem fehlgeschlagenen Detailabruf speichern. Das Auslaufen des eigenen Request- oder Quellbudgets wird nie als Fehler gecacht. |
 | `NRW_EVENTS_DETAIL_FAILURE_CACHE_HOURS` | `168` | Dauerhafte 4xx-Antworten (400/401/403/404/405/406/410/451) einer Detailseite werden eine Woche gemerkt und nicht erneut angefragt. Nach drei 401/403/429-Antworten eines Hosts stellt ein Lauf keine weiteren Detail-Requests an diesen Host. |
 | `NRW_EVENTS_DETAIL_ENRICHMENT` | `1` | Gemeinsame, gecachte Anreicherung aus primären Detailseiten; `0` deaktiviert sie. |
-| `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` | `45`, Köln Open Data: `240`, Bonn.de-Adapter: kein separates Standardbudget | Gesamtbudget für optionale Detailseiten-Abrufe je Quelle; ein expliziter Wert begrenzt auch den Bonn.de-Adapter und überschreibt das Köln-Budget. Bonn.de liest standardmäßig alle benötigten eindeutigen Detail-URLs innerhalb der Request- und Quellenlimits. Nach Ablauf bleiben die vorhandenen Listendaten erhalten. |
+| `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` | `45`, Bonn.de-Adapter: kein separates Standardbudget | Gesamtbudget für optionale Detailseiten-Abrufe je Quelle; ein expliziter Wert begrenzt auch den Bonn.de-Adapter. Bonn.de liest standardmäßig alle benötigten eindeutigen Detail-URLs innerhalb der Request- und Quellenlimits. Nach Ablauf bleiben die vorhandenen Listendaten erhalten. |
 | `XDG_CACHE_HOME` | `~/.cache` | Standardbasis für persistente Detail-Caches, wenn `NRW_EVENTS_CACHE_DIR` fehlt. |
 | `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS` | `0` | Optionale Obergrenze für den aus einer Bonn.de-Detailseite übernommenen Text. Standardmäßig werden alle erklärenden Absätze und Aufzählungen vollständig übernommen; Logistikblöcke werden weiterhin übersprungen. Ein positiver Wert aktiviert eine satz- bzw. wortnahe Kürzung. |
 | `NRW_EVENTS_JSON_OUT`         | Benutzer-State-Verzeichnis | Zielpfad für die Eventliste als JSON-Array. |
@@ -422,9 +422,9 @@ Redaktionsentscheidungen.
 
 See the generated [sources inventory](sources.md).
 
-- **Offizielle strukturierte Daten:** Köln Open Data (`koeln.py`), der primäre
-  Bonn.de-Kalender (`bonn.py`) und der Veranstaltungskalender der Universität
-  Bonn mit iCal-Feed und gecachten Detailseiten (`uni_bonn.py`).
+- **Offizielle strukturierte Daten:** der primäre Bonn.de-Kalender (`bonn.py`) und
+  der Veranstaltungskalender der Universität Bonn mit iCal-Feed und gecachten
+  Detailseiten (`uni_bonn.py`).
 - **Bonn.de-Ergänzungen:** Sportveranstaltungen sowie das jährliche
   „Veranstaltungsjahr“ mit Stadtteilfesten, Kirmes, Märkten und lokalen Terminen
   (`bonn.py`).
@@ -446,7 +446,7 @@ See the generated [sources inventory](sources.md).
   Jahreszahlen aus Tippfehlern werden als erwarteter Qualitätsausschluss
   verworfen, nicht repariert und degradieren keinen ansonsten gesunden Lauf.
 - **Kuratierte Kino-Sonderformate:** Bonner Kinemathek,
-  Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage, Filmhaus Köln,
+  Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage,
   Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer
   Kulturbad. Breite Kinoprogramme werden nur bei expliziten Festival-, Open-Air-,
   Preview-, Gesprächs-, Workshop- oder vergleichbaren Event-Markierungen

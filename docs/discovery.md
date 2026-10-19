@@ -189,7 +189,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_DETAIL_NEGATIVE_CACHE_HOURS=24` — lifetime of empty failure placeholders from `cache_failures=True` sources; our own budget stops are never cached.
 - `NRW_EVENTS_DETAIL_FAILURE_CACHE_HOURS=168` — remember permanent 4xx detail refusals for a week; three 401/403/429 answers stop further detail requests to that host for the run.
 - `NRW_EVENTS_DETAIL_ENRICHMENT=1` — shared primary-detail enrichment; set to `0` to disable.
-- `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` — whole-source budget for optional detail-page enrichment: 45 seconds by default, 240 for Köln Open Data's large teaser feed. An explicit value overrides both defaults; the outer source deadline still applies.
+- `NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS` — whole-source budget for optional detail-page enrichment: 45 seconds by default. An explicit value overrides it; the outer source deadline still applies.
 - `NRW_EVENTS_BONN_DETAIL_DESCRIPTION_MAX_CHARS=500` — target length for meaningful Bonn.de detail summaries after logistics boilerplate is removed.
 - `NRW_EVENTS_JSON_OUT` / `NRW_EVENTS_META_JSON_OUT` — override output paths.
 - `NRW_EVENTS_LOG_LEVEL=INFO` — log level for the importer.

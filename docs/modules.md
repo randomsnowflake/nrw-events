@@ -141,7 +141,6 @@ scripts/nrw_events/
     kihapp.py
     kinderflohmarkt.py
     kleines_theater.py
-    koeln.py
     koelner_hallenflohmarkt.py
     koenigswinter.py
     krewelshof.py

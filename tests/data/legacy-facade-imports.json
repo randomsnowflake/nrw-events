@@ -171,9 +171,6 @@
   "sources/kleines_theater.py": [
     "nrw_events.common"
   ],
-  "sources/koeln.py": [
-    "nrw_events.common"
-  ],
   "sources/koenigswinter.py": [
     "nrw_events.common"
   ],

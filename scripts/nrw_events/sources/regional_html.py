@@ -9,6 +9,8 @@ from typing import Any
 
 from .. import common, components, detail_enrichment
 from ..detail_parsing import _exact_title_key
+from ..detail_types import DetailContext
+from ..models import RawEvent
 from . import regional_common as rc
 
 _LOHMAR_BASE_URL = "https://www.lohmar.de/"
@@ -474,7 +476,7 @@ def _card_text_blocks(document: str) -> list[str]:
     return parser.blocks
 
 
-def _broeltal_detail_context(document: str, event: dict) -> dict:
+def _broeltal_detail_context(document: str, event: RawEvent) -> DetailContext:
     """Add venue facts only from exact occurrence or bounded event copy."""
     context = detail_enrichment.extract_detail_context(document, event)
     exact_place: dict[str, str] = {}
@@ -592,11 +594,11 @@ def _events_from_broeltal(html: str, base: str, detail_fetcher: Callable[[str], 
 
 
 def _enrich_regional_detail(
-    event: dict,
+    event: RawEvent,
     detail_fetcher: Callable[[str], str] | None,
     source: str,
     context_extractor: Callable[..., Any] = detail_enrichment.extract_detail_context,
-) -> dict:
+) -> RawEvent:
     if not detail_fetcher or not common.window_contains(
         common.parse_iso_date(str(event.get("start_date") or "")),
     ):

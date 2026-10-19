@@ -8,28 +8,25 @@ Ordinary repertory and first-run showtimes are intentionally not imported.
 
 from __future__ import annotations
 
-import json
 import re
-import urllib.parse
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
+from collections.abc import Callable
+from datetime import datetime
 
 from .. import common
 from ..dates import resolve_yearless_date
 from ..models import AdmissionDefault
+from ..source_types import TextParser
 from . import regional_common as rc
 
 _BONNER_KINEMATHEK_URL = "https://www.bonnerkinemathek.de/programm/"
 _STUMMFILMTAGE_URL = "https://www.internationale-stummfilmtage.de/"
 _REX_FILMBUEHNE_URL = "https://www.rex-filmbuehne.de/inhalt/vorschau"
-_FILMHAUS_API = "https://backend.filmhaus-koeln.de/events"
 _KURZFILMWANDERUNG_URL = "https://kurzfilmwanderung-bonn.de/"
 _KULTURBAD_ICAL = "https://ruengsdorfer-kulturbad.de/events/?ical=1"
 
 _BONNER_KINEMATHEK_SOURCE_ID = "bonner-kinemathek"
 _STUMMFILMTAGE_SOURCE_ID = "internationale-stummfilmtage"
 _REX_FILMBUEHNE_SOURCE_ID = "rex-filmbuehne-specials"
-_FILMHAUS_SOURCE_ID = "filmhaus-koeln"
 _KURZFILMWANDERUNG_SOURCE_ID = "kurzfilmwanderung-bonn"
 _KULTURBAD_SOURCE_ID = "ruengsdorfer-kulturbad"
 
@@ -38,13 +35,6 @@ _SPECIAL_FORMAT_PATTERN = re.compile(
     r"festival|open[ -]?air|freiluft(?:kino)?|preview|vorpremiere|premiere|"
     r"sondervorstellung|retrospektive|filmquiz|q\s*&\s*a|diskussion|"
     r"cineville|short monday|anniversary|jubiläum|jubilaeum|live[- ]?musik)\b",
-    re.I,
-)
-_FILMHAUS_SPECIAL_TAG_PATTERN = re.compile(
-    r"\b(?:open air|preview|premiere|sneak peek|workshop|film auf film|"
-    r"filmbildung|filmquiz|interaktives quiz|short monday|nrw on fire|"
-    r"familiensonntag|anniversary|jubiläum|jubilaeum|festival|filmgespräch|"
-    r"filmgespraech|diskussion|sonderveranstaltung)\b",
     re.I,
 )
 _KULTURBAD_CINEMA_PATTERN = re.compile(
@@ -106,7 +96,6 @@ def fetch() -> list:
         _REX_FILMBUEHNE_URL,
         _events_from_rex_filmbuehne,
     ))
-    events.extend(_fetch_filmhaus_events())
     events.extend(rc.fetch_html_events(
         "Kurzfilmwanderung Bonn",
         _KURZFILMWANDERUNG_URL,
@@ -117,7 +106,7 @@ def fetch() -> list:
     return rc.dedupe(events)
 
 
-def _fetch_optional_html(name: str, source_id: str, url: str, parser) -> list:
+def _fetch_optional_html(name: str, source_id: str, url: str, parser: TextParser) -> list:
     return rc.fetch_html_events(
         name, url, parser, source_id=source_id,
         empty_is_healthy=_kinemathek_regular_only if source_id == _BONNER_KINEMATHEK_SOURCE_ID else False,
@@ -150,7 +139,7 @@ def _kinemathek_blocks(html: str) -> list[str]:
     )
 
 
-def _events_from_bonner_kinemathek(html: str, detail_fetcher=None) -> list:
+def _events_from_bonner_kinemathek(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     blocks = _kinemathek_blocks(html)
     for body in blocks:
@@ -485,90 +474,6 @@ def _events_from_stummfilmtage(html: str) -> list:
     return events
 
 
-def _fetch_filmhaus_events() -> list:
-    berlin = ZoneInfo("Europe/Berlin")
-    window_start = common.runtime_window().start.replace(
-        hour=0, minute=0, second=0, microsecond=0, tzinfo=berlin,
-    ).astimezone(timezone.utc)
-    window_end = common.runtime_window().end.replace(
-        hour=23, minute=59, second=59, microsecond=999999, tzinfo=berlin,
-    ).astimezone(timezone.utc)
-    query = urllib.parse.urlencode({
-        "_sort": "date:ASC",
-        "date_gte": window_start.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
-        "date_lte": window_end.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
-        "_limit": 100,
-    })
-    url = f"{_FILMHAUS_API}?{query}"
-    try:
-        raw = common.fetch_url(
-            url,
-            timeout=20,
-            accept="application/json,*/*;q=0.8",
-            sec_fetch_mode="cors",
-            sec_fetch_dest="empty",
-            expected_content_types=("application/json",),
-        )
-        return _events_from_filmhaus_json(raw)
-    except Exception as exc:
-        common.log_source_error(
-            "Filmhaus Köln", exc, source_id=_FILMHAUS_SOURCE_ID,
-        )
-        return []
-
-
-def _events_from_filmhaus_json(raw: str) -> list:
-    try:
-        records = json.loads(raw)
-    except (TypeError, ValueError):
-        return []
-    if not isinstance(records, list):
-        return []
-    events = []
-    for record in records:
-        if not isinstance(record, dict):
-            continue
-        tags = [
-            rc.clean(tag.get("title", ""))
-            for tag in (record.get("tags") or [])
-            if isinstance(tag, dict)
-        ]
-        special_tags = [tag for tag in tags if _FILMHAUS_SPECIAL_TAG_PATTERN.search(tag)]
-        if not special_tags:
-            continue
-        title = rc.clean(record.get("title", ""))
-        start = _filmhaus_datetime(record.get("date", ""))
-        end = _filmhaus_datetime(record.get("end_date", "")) or start
-        description = rc.clean(record.get("description", ""))
-        formats = ", ".join(special_tags)
-        description = common.concise_description(f"Sonderformat: {formats}. {description}")
-        venue = "Filmhaus Köln"
-        if any(re.search(r"\bopen air\b", tag, re.I) for tag in special_tags):
-            venue = "Filmhaus Köln – Open-Air-Kino"
-        slug = urllib.parse.quote(str(record.get("slug") or "").strip())
-        link = f"https://www.filmhaus-koeln.de/event/{slug}" if slug else "https://www.filmhaus-koeln.de/kino"
-        event = common.make_event(
-            title,
-            start,
-            end,
-            venue,
-            "Köln",
-            description,
-            link,
-            "Filmhaus Köln",
-            f"cinema-special kino film sonderveranstaltung {formats}",
-            0.95,
-            source_id=_FILMHAUS_SOURCE_ID,
-        )
-        if event:
-            events.append(event)
-    return rc.dedupe(events)
-
-
-def _filmhaus_datetime(value: str):
-    return common.parse_iso_date(str(value or ""))
-
-
 def _events_from_kurzfilmwanderung(html: str) -> list:
     title_block_m = re.search(
         r'<(?P<tag>h[1-6]|p)\b[^>]*>(?P<body>.*?KURZFILMWANDERUNG\s+BONN\s+20\d{2}.*?)</(?P=tag)>',
@@ -653,7 +558,7 @@ def _fetch_kulturbad_cinema() -> list:
     return events
 
 
-def _kulturbad_is_cinema(props: dict, _start, _end) -> bool:
+def _kulturbad_is_cinema(props: dict[str, str], _start: datetime, _end: datetime) -> bool:
     return bool(_KULTURBAD_CINEMA_PATTERN.search(" ".join([
         props.get("SUMMARY", ""),
         props.get("DESCRIPTION", ""),

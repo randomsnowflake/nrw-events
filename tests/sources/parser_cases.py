@@ -11,7 +11,6 @@ from nrw_events.sources import (
     bonnjetzt,
     bundeskunsthalle,
     haus_der_geschichte,
-    koeln,
     kunstmuseum_bonn,
     regional_feeds,
     regional_ionas4,
@@ -651,52 +650,6 @@ END:VCALENDAR
 
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["title"], "Felix Mendelssohn Bartholdy · Elias")
-
-    def test_koeln_open_data_accepts_decimal_comma_coordinates(self):
-        payload = {
-            "items": [{
-                "title": "Kölner Konzert",
-                "beginndatum": "2026-06-12",
-                "endedatum": "2026-06-12",
-                "latitude": "50,94701",
-                "longitude": "6,95831",
-                "veranstaltungsort": "Kölner Bühne",
-                "description": "Konzert",
-                "preis": "",
-                "uhrzeit": "20:00 Uhr",
-                "stadtteil": "Innenstadt",
-                "link": "https://example.test/koeln",
-            }]
-        }
-        with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
-            events = koeln.fetch()
-
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["title"], "Kölner Konzert")
-        self.assertGreater(events[0]["distance_km"], 0)
-
-    def test_koeln_open_data_truncates_verbose_price_text(self):
-        payload = {
-            "items": [{
-                "title": "Kinderführung im Botanischen Garten",
-                "beginndatum": "2026-06-12",
-                "endedatum": "2026-06-12",
-                "latitude": "50,94701",
-                "longitude": "6,95831",
-                "veranstaltungsort": "Botanischer Garten",
-                "description": "Führung",
-                "preis": "Die Teilnahme an der Führung kostet sieben Euro für Erwachsene und vier Euro für Kinder, Schüler*innen und Studierende, für Mitglieder des Freundeskreises, Inhaber*innen von KölnPass, Behindertenausweis und mit der Ehrenamtskarte NRW.",
-                "uhrzeit": "15:00 Uhr",
-                "stadtteil": "Innenstadt",
-                "link": "https://example.test/koeln-price",
-            }]
-        }
-        with patch("nrw_events.common.fetch_url", return_value=__import__("json").dumps(payload)):
-            events = koeln.fetch()
-
-        self.assertEqual(len(events), 1)
-        self.assertEqual(len(events[0]["price"]), 160)
-        self.assertTrue(events[0]["price"].endswith("…"))
 
     def test_ecmaps_tiles_create_events_from_dated_destination_one_cards(self):
         html = """

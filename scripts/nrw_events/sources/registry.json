@@ -70,13 +70,6 @@
       "category_locked": false
     },
     {
-      "id": "k-ln-open-data",
-      "display_name": "Köln Open Data",
-      "region": "bonn-region",
-      "adapter": "python",
-      "callable": "nrw_events.sources.koeln:fetch"
-    },
-    {
       "id": "lupe-events",
       "display_name": "LuPe Events",
       "region": "bonn-region",

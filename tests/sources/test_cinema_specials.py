@@ -1,4 +1,3 @@
-import json
 import unittest
 from datetime import datetime
 from unittest.mock import patch
@@ -250,32 +249,6 @@ class CinemaSpecialSourceTests(unittest.TestCase):
             "source:locked-default:cinema",
         )
         self.assertNotIn("Rahmenprogramm", events[0]["description"])
-        self.assert_valid_cinema_events(events)
-
-    def test_filmhaus_requires_special_tag_and_converts_utc(self):
-        records = [
-            {
-                "title": "Open-Air-Film",
-                "slug": "open-air-film",
-                "date": "2026-07-20T19:45:00.000Z",
-                "end_date": "2026-07-20T21:45:00.000Z",
-                "description": "<p>Projektion auf dem Parkplatz.</p>",
-                "tags": [{"title": "Kino"}, {"title": "Open Air"}],
-            },
-            {
-                "title": "Normale Vorstellung",
-                "slug": "normal",
-                "date": "2026-07-21T18:00:00.000Z",
-                "description": "<p>Reguläre Vorstellung.</p>",
-                "tags": [{"title": "Kino"}, {"title": "Allgemein"}],
-            },
-        ]
-
-        events = cinema_specials._events_from_filmhaus_json(json.dumps(records))
-
-        self.assertEqual([event["title"] for event in events], ["Open-Air-Film"])
-        self.assertEqual(events[0]["time"], "21:45–23:45")
-        self.assertEqual(events[0]["venue"], "Filmhaus Köln – Open-Air-Kino")
         self.assert_valid_cinema_events(events)
 
     def test_kurzfilmwanderung_extracts_live_event_details(self):
