@@ -76,6 +76,7 @@ class ExhibitionRunTests(unittest.TestCase):
         self.assertEqual([slot["date"] for slot in merged.daily_schedule], ["2026-10-01", "2026-10-02", "2026-10-04"])
         self.assertEqual((merged.time, merged.start_at), ("", ""))
         self.assertEqual(merged.previous_event_ids, day_ids[:2])  # the unpublished day needs no alias
+        self.assertFalse(merged.dated_sessions)  # opening hours, not dated sessions
 
         # Next day: the first date has passed and left the window. The run
         # keeps its start, so the public ID does not move.
@@ -227,11 +228,11 @@ class ExhibitionRunTests(unittest.TestCase):
         [tail] = merge_exhibition_opening_days(later[-2:], {"events": [published]})
         self.assertEqual(event_id(tail), published["event_id"])
 
-    def test_dated_sessions_outside_exhibitions_keep_their_own_pages(self):
+    def test_untimed_days_with_a_gap_or_too_few_keep_their_own_pages(self):
+        # Without a clock time a slot cannot say which days the offer runs.
         cases = {
             "too few days": [_offer(f"2026-10-{day}") for day in range(18, 24)],
             "skipped day": [_offer(f"2026-10-{day}") for day in (*range(18, 24), 25, 26)],
-            "clock time": [_offer(f"2026-10-{day}", time="10:00–12:00") for day in range(18, 30)],
         }
         for name, days in cases.items():
             with self.subTest(name):
@@ -250,6 +251,7 @@ class ExhibitionRunTests(unittest.TestCase):
             [("2026-11-02", "19:30", "21:00"), ("2026-11-05", "19:30", ""), ("2026-11-08", "15:30", "17:00")],
         )
         self.assertEqual(run.previous_event_ids, show_ids)
+        self.assertTrue(run.dated_sessions)
 
         # Played performances leave the schedule; the public ID stays.
         published = assign_event_ids([run])[0]
@@ -259,10 +261,35 @@ class ExhibitionRunTests(unittest.TestCase):
         [retained] = merge_exhibition_opening_days([run, _show("2026-11-09")], {})
         self.assertEqual([slot["date"] for slot in retained.daily_schedule], ["2026-11-09"])
 
-    def test_weekly_curated_sparse_and_short_stage_dates_keep_their_pages(self):
+    def test_weekly_meetups_and_timed_daily_offers_become_session_runs(self):
+        weekly = [_offer(day, time="16:00–19:00") for day in ("2026-10-23", "2026-10-30", "2026-11-06")]
+        rally = [_offer(f"2026-10-{day}", time="08:00–20:00") for day in range(18, 30)]
+        for name, rows, dates in (("weekly", weekly, 3), ("daily rally", rally, 12)):
+            with self.subTest(name):
+                [run] = merge_exhibition_opening_days(rows, {})
+                self.assertEqual((run.start_date, run.end_date), (rows[0].start_date, rows[-1].start_date))
+                self.assertEqual((len(run.daily_schedule), run.dated_sessions, run.all_day), (dates, True, False))
+        # The flag describes a schedule; without one it is dropped.
+        self.assertFalse(validate_event({**weekly[0].to_dict(), "dated_sessions": True}).dated_sessions)
+
+    def test_exhibition_tours_become_session_runs_without_the_exhibition_end(self):
+        final = {"details": {"final_date": "2026-12-20"}}
+        tours = [_day(day, time="15:00–16:00", title="Führung durch die Ausstellung", **final) for day in ("2026-10-04", "2026-10-11", "2026-10-18")]
+        [run] = merge_exhibition_opening_days(tours, {})
+        self.assertEqual((run.end_date, len(run.daily_schedule), run.dated_sessions), ("2026-10-18", 3, True))
+
+    def test_run_prefers_a_summary_that_names_no_date(self):
+        rows = [
+            _offer("2026-10-23", time="16:00–19:00", ai_summary="Am 23. Oktober öffnet das Repair-Café."),
+            _offer("2026-10-30", time="16:00–19:00", ai_summary="Im Repair-Café reparieren Ehrenamtliche Geräte."),
+            _offer("2026-11-06", time="16:00–19:00", ai_summary="Am 6. November öffnet das Repair-Café."),
+        ]
+        [run] = merge_exhibition_opening_days(rows, {})
+        self.assertEqual(run.ai_summary, "Im Repair-Café reparieren Ehrenamtliche Geräte.")
+
+    def test_curated_sparse_short_and_same_day_stage_dates_keep_their_pages(self):
         cases = {
             "two performances": [_show("2026-11-02"), _show("2026-11-03")],
-            "weekly fixture": [_show(day) for day in ("2026-11-03", "2026-11-10", "2026-11-17")],
             "gap over two weeks": [_show(day) for day in ("2026-11-02", "2026-11-03", "2026-11-20")],
             "curated per date": [_show(day, title="Die Zauberflöte", source_id="theater-bonn") for day in ("2026-11-02", "2026-11-03", "2026-11-05")],
             "two shows a day": [_show("2026-11-02"), _show("2026-11-02", time="15:00–16:30"), _show("2026-11-03")],

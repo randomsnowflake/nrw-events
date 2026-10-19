@@ -1044,6 +1044,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["status"] = status
     event["title"] = strip_status_markers(event["title"], status)
     event["early_publication"] = bool(event.get("early_publication", False))
+    event["dated_sessions"] = event.get("dated_sessions") is True and bool(event["daily_schedule"])
     # Jev read the source and found no single visitor price; meaningless once admission is known.
     event["admission_checked"] = (
         event.get("admission_checked") is True

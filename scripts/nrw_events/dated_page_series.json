@@ -1,3 +1,8 @@
 [
-  {"source_id": "theater-bonn", "title": "Die Zauberflöte", "website_series": "die-zauberfloete-oper-bonn"}
+  {"source_id": "theater-bonn", "title": "Die Zauberflöte", "website_series": "die-zauberfloete-oper-bonn"},
+  {"source_id": "beethoven-haus-bonn", "title": "Candlelight-Konzert", "website_series": ""},
+  {"source_id": "kunstmuseum-bonn", "title": "Atelier am Sonntag", "website_series": "atelier-am-sonntag"},
+  {"source_id": "kunstmuseum-bonn", "title": "Kraftfelder", "website_series": ""},
+  {"source_id": "lvr-landesmuseum-bonn", "title": "Kino im Landesmuseum", "website_series": "kino-im-landesmuseum"},
+  {"source_id": "sitekit-wesseling", "title": "Kinotag im Rheinforum", "website_series": ""}
 ]

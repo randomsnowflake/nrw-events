@@ -20,17 +20,17 @@ Outside exhibitions the same applies to offers bookable on any day (self-guided
 city rallies, tours "täglich"): bonn.de expands such a daily repeat into one
 row per day, 28 pages with one text. Only untimed rows qualify, on at least
 ``MIN_DAILY_DAYS`` consecutive days without a gap; a published run continues on
-fewer. A clock time or a skipped day means real dated sessions, which keep their
-own pages.
+fewer. A clock time or a skipped day means dated sessions (below).
 
-Stage runs are the exception: a play performed on ``MIN_SESSIONS`` or more
-evenings at one venue, never more than ``MAX_CLOSED_DAYS`` apart, is one
-production, and ten dated pages with one text competed for the same searches.
-Its performances become ``daily_schedule`` slots (``end_at`` empty when the
-source names no end). A run on a single weekday is a weekly fixture, not a
-production, and keeps its pages; so do series the website curates per date
-(``dated_page_series.json``). Past performances leave the schedule; the anchored
-start keeps the public ID.
+Dated sessions are the other case: a play, course, guided tour or weekly meetup
+held ``MIN_SESSIONS`` or more times at one venue, never more than
+``MAX_CLOSED_DAYS`` apart, is one offer, and ten dated pages with one (or a
+reworded) text competed for the same searches. Its sessions become
+``daily_schedule`` slots (``end_at`` empty when the source names no end) and
+``dated_sessions`` tells the website to list them as dates, not opening hours.
+Two sessions on one day keep their pages: a slot holds one time per date. So do
+series whose dates differ in programme (``dated_page_series.json``). Past
+sessions leave the schedule; the anchored start keeps the public ID.
 
 The public ID must survive the daily loss of past dates. The start date is
 therefore anchored to the previous snapshot's run, and the replaced published
@@ -60,15 +60,19 @@ MIN_OPENING_HOURS = 3
 MAX_CLOSED_DAYS = 14
 #: Gap-free untimed days before a non-exhibition offer counts as daily.
 MIN_DAILY_DAYS = 7
-#: Performances before a stage production counts as a run.
+#: Sessions before repeats of one offer count as a run.
 MIN_SESSIONS = 3
-#: Series the website curates per performance; their dated pages stay.
+#: Series with a different programme per date, or curated per date by the website; their dated pages stay.
 _DATED_PAGE_SERIES = frozenset(
     (entry["source_id"], comparison_text(entry["title"]))
     for entry in json.loads(Path(__file__).with_name("dated_page_series.json").read_text(encoding="utf-8"))
 )
 #: "Sonntag ab 12:00 Uhr" names an opening time, not a session start.
 _OPENS_FROM = re.compile(r"\bab\s+\d{1,2}(?:[:.]\d{2})?\s*uhr\b", re.IGNORECASE)
+_NAMES_A_DATE = re.compile(
+    r"\b\d{1,2}\.\s?(?:\d{1,2}\.|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember)",
+    re.IGNORECASE,
+)
 
 
 def _run_key(event: Mapping[str, Any]) -> tuple[str, ...] | None:
@@ -138,19 +142,19 @@ def _session_slot(event: CanonicalEvent) -> dict[str, str]:
 
 
 def _is_session_run(rows: Sequence[CanonicalEvent], runs: Sequence[CanonicalEvent], continues: bool) -> bool:
-    """Dated performances of one stage production at one venue."""
+    """Dated sessions of one offer at one venue: performances, course dates, tours."""
+    # shortcut: stage runs published before ``dated_sessions`` existed lack the
+    # flag; drop the category fallback once no snapshot predates it.
     if any(
-        row.category_key != "stage" or not row.start_at or row.daily_schedule
+        not row.start_at or row.daily_schedule
         or (row.source_id, comparison_text(row.title)) in _DATED_PAGE_SERIES
         for row in rows
-    ) or any(not run.daily_schedule for run in runs):
+    ) or any(not (run.dated_sessions or (run.category_key == "stage" and run.daily_schedule)) for run in runs):
         return False
     days = sorted(date.fromisoformat(row.start_date) for row in rows)
     if len(days) > _MAX_SCHEDULE_SLOTS or any((later - earlier).days > MAX_CLOSED_DAYS for earlier, later in pairwise(days)):
         return False
-    if continues:
-        return True
-    return len(days) >= MIN_SESSIONS and len({day.weekday() for day in days}) > 1
+    return continues or len(days) >= MIN_SESSIONS
 
 
 def _anchor_start(key: tuple[str, ...], first: str, previous: Mapping[str, Any]) -> str:
@@ -174,10 +178,9 @@ def _anchor_start(key: tuple[str, ...], first: str, previous: Mapping[str, Any])
 
 def _merged(
     key: tuple[str, ...], rows: Sequence[CanonicalEvent], runs: Sequence[CanonicalEvent],
-    closed: Sequence[Mapping[str, Any]], previous: Mapping[str, Any],
+    closed: Sequence[Mapping[str, Any]], previous: Mapping[str, Any], sessions: bool,
 ) -> CanonicalEvent:
     ordered = sorted(rows, key=lambda row: row.start_date)
-    sessions = key[-1] == "daily" and _is_session_run(rows, runs, True)
     slots = [_session_slot(row) if sessions else _opening_slot(row) for row in ordered]
     timed = all(slots) and all(run.daily_schedule for run in runs)
     by_date: dict[str, dict[str, str]] = {}
@@ -188,13 +191,16 @@ def _merged(
     base = ordered[0].to_dict()
     start = min([_anchor_start(key, ordered[0].start_date, previous), *(run.start_date for run in runs)])
     listed_end = max([ordered[-1].start_date, *(run.end_date for run in runs)])
-    end = max([listed_end, *(str(row.details.get("final_date") or "") for row in ordered)])
+    # An exhibition's final date ends its opening days, not a tour's sessions.
+    end = listed_end if sessions else max([listed_end, *(str(row.details.get("final_date") or "") for row in ordered)])
     # A day's own note ("Sonntag ab 12:00 Uhr") does not describe the run.
     notes = {row.time_note for row in [*ordered, *runs]}
     # ponytail: the most frequent summary is the generic one; per-day summaries
     # tend to open with "Am 12. September ...". A regenerated range summary
     # would be better once the AI stage can target merged runs.
     summaries = Counter(row.ai_summary for row in ordered if row.ai_summary.strip())
+    # A summary naming its own date ("am 19. Oktober") misdescribes the other dates.
+    summaries = Counter({text: count for text, count in summaries.items() if not _NAMES_A_DATE.search(text)}) or summaries
     # Only published day pages need a redirect. Future days that enter the
     # window later were never public and would grow the list without bound.
     published = {str(prior.get("event_id") or "") for prior in previous.get("events") or [] if isinstance(prior, dict)}
@@ -213,6 +219,7 @@ def _merged(
         "all_day": not timed,
         "time_note": base["time_note"] if len(notes) == 1 else "",
         "daily_schedule": [by_date[day] for day in sorted(by_date)] if timed else [],
+        "dated_sessions": sessions,
         "preserved_event_id": "",
         "ai_summary": summaries.most_common(1)[0][0] if summaries else base["ai_summary"],
         "source_links": list(dict.fromkeys(link for row in ordered for link in row.source_links)),
@@ -269,16 +276,19 @@ def merge_exhibition_opening_days(
         # A published run remains a run on its final opening day. A new
         # standalone day still keeps its original occurrence identity.
         continues = bool(runs) or _anchor_start(key, first_row, previous) != first_row
+        # An exhibition's opening days win; its timed tours are sessions.
+        opening_days = key[-1] == "exhibition" and all(map(_is_opening_day, rows))
+        sessions = not opening_days and _is_session_run(rows, runs, continues)
         if key[-1] == "daily":
-            if not (_is_daily_offer(rows, continues) or _is_session_run(rows, runs, continues)):
+            if not (sessions or _is_daily_offer(rows, continues)):
                 continue
-        elif not all(map(_is_opening_day, rows)) or (len(rows) < 2 and not continues):
+        elif not sessions and (not opening_days or (len(rows) < 2 and not continues)):
             continue
         first = min([row.start_date for row in rows] + [run.start_date for run in runs])
         last = max([row.start_date for row in rows] + [run.end_date for run in runs])
         closed = [day for day in closed_by_key.get(key, []) if first <= str(day.get("start_date") or "") <= last]
         members = [*rows, *runs, *closed]
-        replaced[id(members[0])] = _merged(key, rows, runs, closed, previous)
+        replaced[id(members[0])] = _merged(key, rows, runs, closed, previous, sessions)
         for member in members[1:]:
             replaced[id(member)] = None
     if not replaced:

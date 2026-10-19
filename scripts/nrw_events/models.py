@@ -87,6 +87,7 @@ class RawEvent(TypedDict, total=False):
     series_title: str
     run_id: str
     early_publication: bool
+    dated_sessions: bool
     daily_schedule: list[dict[str, str]]
     quality_warnings: list[dict[str, str]]
 
@@ -225,6 +226,8 @@ class CanonicalEvent(Mapping[str, Any]):
     series_title: str = ""
     run_id: str = ""
     early_publication: bool = False
+    #: ``daily_schedule`` lists dated sessions (one run of repeats), not opening hours.
+    dated_sessions: bool = False
     daily_schedule: list[dict[str, str]] = field(default_factory=list)
     quality_warnings: list[dict[str, str]] = field(default_factory=list)
 

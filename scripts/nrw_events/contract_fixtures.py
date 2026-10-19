@@ -23,6 +23,9 @@ def semantic_contract() -> dict[str, Any]:
         ("cancelled", {"status": "cancelled", "cancelled_at": "2026-10-20", "cancellation_source": "https://example.test/cancelled"}),
         ("postponed", {"status": "postponed", "replacement_start_date": "2026-11-01"}),
         ("early-announcement", {"early_publication": True, "time": "", "all_day": True}),
+        ("dated-sessions", {"end_date": "2026-10-31", "time": "", "all_day": False, "dated_sessions": True, "daily_schedule": [
+            {"date": "2026-10-24", "start_at": "2026-10-24T16:00:00+02:00", "end_at": "2026-10-24T19:00:00+02:00"},
+            {"date": "2026-10-31", "start_at": "2026-10-31T16:00:00+01:00", "end_at": ""}]}),
         ("free", {"price": "Eintritt frei", "admission": {"isFree": True, "amount": 0, "currency": "EUR", "basis": "structured", "note": "", "donationSuggested": False}}),
         ("paid", {"price": "12 €", "admission": {"isFree": False, "amount": 12, "currency": "EUR", "basis": "structured", "note": "", "donationSuggested": False}}),
         ("unknown-admission", {"price": ""}),
