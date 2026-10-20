@@ -233,6 +233,18 @@ def _reviewed_occurrence_alias_matches(left: Mapping[str, Any], right: Mapping[s
     return bool(left_family and left_family == _reviewed_occurrence_alias_family(right))
 
 
+def _reviewed_source_conflict_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Fold a reviewed family across one publisher's wrong clock or house number."""
+    family = _reviewed_occurrence_alias_family(left)
+    return bool(
+        family in _impl_dedup_rules._REVIEWED_SOURCE_CONFLICT_FAMILIES
+        and family == _reviewed_occurrence_alias_family(right)
+        and left.get("source_id") != right.get("source_id")
+        and _date_bounds(left)
+        and _date_bounds(left) == _date_bounds(right)
+    )
+
+
 def _citywide_title_family(title: str) -> str:
     """Identify event formats whose source calendars commonly name an area differently."""
     words = comparison_text(title)
@@ -1151,7 +1163,11 @@ def _pre_programme_occurrence(left: Mapping[str, Any], right: Mapping[str, Any])
 def events_are_duplicates(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Return whether two canonical records represent the same occurrence."""
     performance.count("dedup_comparisons")
-    if _reviewed_telekom_market_occurrence_matches(left, right) or _performer_appearance_matches(left, right):
+    if (
+        _reviewed_telekom_market_occurrence_matches(left, right)
+        or _reviewed_source_conflict_matches(left, right)
+        or _performer_appearance_matches(left, right)
+    ):
         return True
     left_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(left.get("title", ""))))
     right_years = set(re.findall(r"\b(?:19|20)\d{2}\b", str(right.get("title", ""))))

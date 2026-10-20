@@ -132,10 +132,21 @@ def deduplicate(
             and {current.get("source"), candidate.get("source")}
             == {"Bonn district festivals", "Bonn.de Events"}
         )
+        confirmed_source = _impl_dedup_rules._REVIEWED_SOURCE_CONFLICT_FAMILIES.get(
+            _impl_duplicate_identity._reviewed_occurrence_alias_family(current), ""
+        )
         if reviewed_owner_pair:
             winner, duplicate = (
                 (current, candidate)
                 if current.get("source") == "Bonn.de Events"
+                else (candidate, current)
+            )
+        elif confirmed_source and _impl_duplicate_identity._reviewed_source_conflict_matches(
+            current, candidate
+        ):
+            winner, duplicate = (
+                (current, candidate)
+                if current.get("source_id") == confirmed_source
                 else (candidate, current)
             )
         else:
