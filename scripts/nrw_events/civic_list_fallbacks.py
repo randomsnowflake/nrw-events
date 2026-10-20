@@ -39,14 +39,24 @@ def _tokens(title: str) -> set[str]:
 
 
 def _covers(row: CanonicalEvent, primary: CanonicalEvent) -> bool:
-    return (
+    if not (
         row.start_date == primary.start_date
         and comparison_text(row.city) == comparison_text(primary.city)
         and _is_procession(primary)
         # Never hand the city's row to Bonn.jetzt-style aggregators.
         and source_authority(primary.source) >= 2
-        and bool(_tokens(row.title) & _tokens(primary.title))
-    )
+    ):
+        return False
+    row_tokens = _tokens(row.title)
+    primary_tokens = _tokens(primary.title)
+    if row_tokens & primary_tokens:
+        return True
+    # A district club calls its own procession just "St.Martinszug" while the
+    # city names it after the district ("Martinszug Brüser Berg"). When neither
+    # title names anything beyond the shared district, the district is the
+    # identity; the one-organiser-record rule below still guards ambiguity.
+    district = _tokens(row.city)
+    return bool(district) and row_tokens <= district and primary_tokens <= district
 
 
 def partition_city_list_fallbacks(events: list[EventT]) -> tuple[list[EventT], list[EventT]]:
