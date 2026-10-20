@@ -695,6 +695,8 @@ class CategoryTaxonomyTests(unittest.TestCase):
             # Real source tags around the bag still count.
             ("Konzert  Sinzig kommunal lokal markt kultur", "Herbstabend", "concert"),
             ("lohmar lokal natur kultur markt Brauchtum Konzert", "Abend im Saal", "concert"),
+            ("lohmar lokal natur kultur markt Konzert", "Abend im Saal", "concert"),
+            ("bornheim Ausstellung lokal markt kultur natur", "Offenes Atelier", "exhibition"),
         ]
         for source_category, title, expected in cases:
             with self.subTest(title=title):

@@ -357,11 +357,28 @@ _TOURING_SHOW_TITLE_PATTERN = re.compile(r"(?<!auf )(?<![^\W\d_])tour(?:nee)?\s*
 _TOURING_SHOW_TOKEN_PATTERN = re.compile(r"(?<!auf )(?<![^\W\d_])tour(?:nee)?s?\b")
 # Municipal adapters append one calendar-wide bag to every record
 # ("lokal veranstaltung markt kultur outdoor"); it says nothing about the
-# individual event, while real tags before or after it ("Konzert", "Brauchtum") stay.
-_CALENDAR_BAG_PATTERN = re.compile(
-    r"\b(?:lokal|kommunal|mittelrhein)"
-    r"(?:\s+(?:lokal|kommunal|veranstaltung|kultur|markt|outdoor|fest|natur|konzert|sport|ausstellung|fuehrung))*\b"
+# individual event. Only these exact adapter constants are removed, so real tags
+# before or after them stay (Lohmar appends its own tags: "… markt Konzert").
+_CALENDAR_BAGS = (
+    "kommunal kultur markt ausstellung konzert fuehrung",
+    "lokal kultur markt fest sport natur",
+    "lokal veranstaltung markt kultur outdoor",
+    "mittelrhein kultur markt fest fuehrung",
+    "lokal markt kultur outdoor konzert",
+    "lokal markt kultur outdoor fest",
+    "lokal markt kultur konzert fest",
+    "mittelrhein kultur konzert markt",
+    "lokal markt kultur konzert",
+    "lokal natur kultur markt",
+    "lokal markt kultur natur",
+    "kommunal lokal markt kultur",
+    "lokal natur markt fest",
+    "lokal kultur markt fest",
+    "lokal markt kultur",
+    "lokal kultur markt",
+    "lokal",
 )
+_CALENDAR_BAG_PATTERN = re.compile(r"\b(?:" + "|".join(map(re.escape, _CALENDAR_BAGS)) + r")\b")
 _PERFORMANCE_TOUR_TOKEN_PATTERN = re.compile(r"(?<![^\W\d_])tour(?:nee)?s?\b")
 _PERFORMANCE_COPY_PATTERN = re.compile(r"\b(?:konzert\w*|concert\w*|kabarett\w*|comedy)\b")
 
