@@ -440,6 +440,32 @@ def _date_bounds(ev: Mapping[str, Any]) -> tuple[date, date] | None:
     return (start, max(start, end))
 
 
+def _evening_bounds(ev: Mapping[str, Any]) -> tuple[date, date] | None:
+    """Return date bounds, counting a night that ends before 06:00 as its start day.
+
+    A party from 21:00 to 03:00 runs over midnight, so a ticket shop dates it
+    31.10.–01.11. while the venue's calendar says 31.10. Only a timed start and
+    an end within the following early morning qualify; real two-day runs keep
+    their range.
+    """
+    bounds = _date_bounds(ev)
+    if not bounds or (bounds[1] - bounds[0]).days != 1:
+        return bounds
+    try:
+        start = datetime.fromisoformat(str(ev.get("start_at") or "").replace("Z", "+00:00"))
+        end = datetime.fromisoformat(str(ev.get("end_at") or "").replace("Z", "+00:00"))
+    except ValueError:
+        return bounds
+    if (
+        start.date() == bounds[0]
+        and end.date() == bounds[1]
+        and end.hour < 6
+        and timedelta(0) < end - start <= timedelta(hours=12)
+    ):
+        return (bounds[0], bounds[0])
+    return bounds
+
+
 def _secondary_calendar_schedule_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Allow a small Bonn.jetzt opening-time discrepancy for one named event."""
     sources = {str(row.get("source") or "").casefold() for row in (left, right)}
@@ -732,13 +758,20 @@ _AGE_MARKER = re.compile(
 )
 
 
+# Only a bare "DD.MM." stamp without a year: a full date or range in a title
+# ("20.08.2026 - 23.08.2026 Weinfest") marks a different listing on purpose.
+_DAY_MONTH_STAMP = re.compile(r"(?<![\d.])\d{1,2}\.\d{1,2}\.(?!\d)")
+
+
 def _series_tokens(title: str) -> tuple[str, ...]:
     """Return numeric and explicit Roman-numeral episode markers in a title.
 
     Age ratings such as "(10+)" or "ab 6 Jahren" describe the audience, not an
     episode, and one calendar often omits them.
     """
-    words = comparison_text(_AGE_MARKER.sub(" ", title or ""))
+    # A bare day-month stamp ("11.11. Sessions-Start") dates the listing; it
+    # is not an episode, and the venue's own calendar usually leaves it out.
+    words = comparison_text(_DAY_MONTH_STAMP.sub(" ", _AGE_MARKER.sub(" ", title or "")))
     numbers = [
         token for token in re.findall(r"\b\d+\b", words)
         if not re.fullmatch(r"(?:19|20)\d{2}", token)
@@ -812,7 +845,22 @@ def _same_registered_venue_occurrence(left: Mapping[str, Any], right: Mapping[st
     if not same_identity or left_bounds is None or right_bounds is None:
         return False
     if left_category != "market":
-        return not start_times_conflict and left_bounds == right_bounds
+        if start_times_conflict:
+            return False
+        if left_bounds == right_bounds:
+            return True
+        # A ticket shop dates a party that ends at 03:00 over two days. Only
+        # then, and only with two shared title words besides the venue, is the
+        # night the venue's one-day listing: a venue can host a kids' party
+        # and a club night on the same date.
+        if _evening_bounds(left) != _evening_bounds(right):
+            return False
+        venue_words = set(_venue_comparison_text(left).split()) | set(_venue_comparison_text(right).split())
+        shared = (
+            set(_significant_title_words(left.get("title", "")))
+            & set(_significant_title_words(right.get("title", "")))
+        ) - venue_words
+        return len(shared) >= 2
     # A registered market area may host different market formats on one day.
     # Require the same narrow family before accepting exact or overlapping
     # source ranges (for example a city listing with only the first day).
@@ -953,7 +1001,17 @@ def _same_timed_venue_occurrence(left: Mapping[str, Any], right: Mapping[str, An
     left_words = _significant_title_words(left.get("title", ""))
     right_words = _significant_title_words(right.get("title", ""))
     shorter, longer = sorted((left_words, right_words), key=len)
-    return len(shorter) >= 2 and shorter[0] == longer[0] and set(shorter) <= set(longer)
+    if len(shorter) >= 2 and shorter[0] == longer[0] and set(shorter) <= set(longer):
+        return True
+    # Venue and city calendars put performer and programme in either order
+    # ("Georg Brinkmann & Stefan Horz: Klezmerdialog" / "Klezmerdialog - Georg
+    # Brinkmann & Stefan Horz"). The same words in another order, or four or
+    # more words fully contained in the other title, are enough at one minute
+    # and one venue; a short generic title still needs the shared lead word.
+    return len(set(shorter)) >= 2 and (
+        set(shorter) == set(longer)
+        or (len(set(shorter)) >= 4 and set(shorter) <= set(longer))
+    )
 
 
 def _secondary_copy_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
