@@ -32,6 +32,12 @@ _IFB_ICAL_URL = "https://www.ifb.uni-bonn.de/kultur/veranstaltungen/ics_view"
 _IFB_SOURCE = "Institut français Bonn"
 _IFB_SOURCE_ID = "institut-francais-bonn"
 _IFB_CACHE_NAMESPACE = "institut-francais-bonn-detail"
+# Plone's four "Zielgruppen" values; only these two admit the general public.
+# Events offered solely to Studierende and/or Wissenschaftler*innen are
+# university-internal trainings, counselling and networking dates.
+_PUBLIC_TARGET_GROUPS = re.compile(
+    r"\b(?:alle interessierten|kinder und jugendliche|all interested|children and young people)\b", re.I,
+)
 _VOID_TAGS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
@@ -158,6 +164,7 @@ def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
     return {
         "venue": ", ".join(part for part in venue_parts if part),
         "price": parser.fields.get("eintrittspreis", "") or parser.fields.get("preis", ""),
+        "target_groups": parser.fields.get("zielgruppen", "") or parser.fields.get("target groups", ""),
     }
 
 
@@ -173,6 +180,8 @@ def _valid_duration(props: dict, start: datetime, end: datetime) -> bool:
 
 def _merge_context(event: dict, context: dict) -> dict:
     enriched = dict(event)
+    if context.get("target_groups"):
+        enriched["target_groups"] = context["target_groups"]
     if context.get("venue"):
         enriched["venue"] = context["venue"]
     if context.get("price"):
@@ -213,6 +222,19 @@ def _enrich_details(
         needs_enrichment=lambda event: not event.get("venue"),
         merge_context=_merge_context,
     )
+
+
+def _public_events(events: list) -> list:
+    """Drop events whose detail page names only university-internal target groups.
+
+    A missing field (failed detail fetch, Institut français pages) keeps the event.
+    """
+    public = []
+    for event in events:
+        target_groups = event.pop("target_groups", "")
+        if not target_groups or _PUBLIC_TARGET_GROUPS.search(target_groups):
+            public.append(event)
+    return public
 
 
 def _correct_categories(events: list) -> list:
@@ -256,7 +278,7 @@ def fetch() -> list:
             event_filter=_valid_duration,
             fetcher=_fetch_calendar,
         )
-        return _correct_categories(_enrich_details(events))
+        return _correct_categories(_public_events(_enrich_details(events)))
     except Exception as exc:
         common.log_source_error(_SOURCE, exc, source_id=_SOURCE_ID)
         return []
@@ -273,12 +295,12 @@ def fetch_institut_francais() -> list:
             # Also drops the quarterly "Kulturkalender zum Download" pseudo-event.
             event_filter=_valid_duration,
         )
-        return _correct_categories(_enrich_details(
+        return _correct_categories(_public_events(_enrich_details(
             events,
             _fetch_ifb_detail,
             source=_IFB_SOURCE,
             cache_namespace=_IFB_CACHE_NAMESPACE,
-        ))
+        )))
     except Exception as exc:
         common.log_source_error(_IFB_SOURCE, exc, source_id=_IFB_SOURCE_ID)
         return []

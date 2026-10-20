@@ -126,6 +126,31 @@ class UniBonnSourceTests(unittest.TestCase):
             datetime(2027, 5, 27),
         ))
 
+    def test_events_only_for_students_or_researchers_are_dropped(self):
+        def detail(*groups):
+            values = "".join(f"<p>{group}</p>" for group in groups)
+            return (
+                '<div class="content-item"><div class="item-title"><span>Zielgruppen</span></div>'
+                f'<div class="item-value">{values}</div></div>'
+            )
+
+        pages = {
+            "internal": detail("Studierende", "Wissenschaftler*innen"),
+            "staff": detail("Wissenschaftler*innen"),
+            "public": detail("Studierende", "Alle Interessierten"),
+            "children": detail("Wissenschaftler*innen", "Kinder und Jugendliche"),
+            "unlabelled": "<p>Keine Angaben</p>",
+        }
+        events = [
+            uni_bonn._merge_context({"title": key}, uni_bonn._parse_detail_context(html))
+            for key, html in pages.items()
+        ]
+
+        kept = uni_bonn._public_events(events)
+
+        self.assertEqual([event["title"] for event in kept], ["public", "children", "unlabelled"])
+        self.assertTrue(all("target_groups" not in event for event in kept))
+
     def test_detail_context_deduplicates_identical_venue_and_room(self):
         html = """
         <div class="content-item"><div class="item-title">Ort</div>
