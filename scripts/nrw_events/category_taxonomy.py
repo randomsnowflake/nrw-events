@@ -318,6 +318,12 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
         return "cinema"
     if re.search(r"\b(?:sport|\w*tennis\w*|\w*sport(?:tag|fest|turnier|woche))\b", title_text):
         return "sports"
+    # A numbered edition of a "…lauf" is a race ("29. Altendorf-Ersdorfer Obstmeilenlauf").
+    numbered_run = re.match(r"\d+\.\s.*?([\w-]*lauf)\b", title_comparison)
+    if numbered_run and not re.search(
+        r"(?:^|-)(?:ab|an|auf|durch|ein|kreis|lebens|rueck|um|ver|vor)lauf$", numbered_run.group(1),
+    ):
+        return "sports"
     if re.search(r"\b(?:fahrrad|rad)tour\w*\b", title_comparison):
         return "sports"
     if re.search(r"\blearning[ -]?session\b", title_text):

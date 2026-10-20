@@ -708,6 +708,11 @@ class CategoryTaxonomyTests(unittest.TestCase):
         self.assertEqual(categorize_event("", "Herbstwanderung im Siebengebirge")["key"], "outdoor")
         self.assertEqual(categorize_event("", "Bonn Marathon 2027")["key"], "sports")
 
+    def test_numbered_run_editions_are_races(self):
+        self.assertEqual(categorize_event("lokal veranstaltung markt kultur outdoor", "29. Altendorf-Ersdorfer Obstmeilenlauf")["key"], "sports")
+        self.assertEqual(categorize_event("", "10. Siebengebirgs-Spendenlauf")["key"], "sports")
+        self.assertNotEqual(categorize_event("", "3. Ablauf der Sitzung")["key"], "sports")
+
     def test_known_indoor_museum_tours_are_exhibitions_without_reclassifying_outdoor_tours(self):
         indoor_cases = [
             (
