@@ -666,6 +666,10 @@ class CategoryTaxonomyTests(unittest.TestCase):
             ),
             ("konzert musik", "ONE of THESE a CELEBRATION of PINK FLOYD - TOUR 2026 - Animals Tour", "", "concert"),
             ("", "Irgendwer - Namenlos Tour 2026", "", "stage"),
+            # No year: the source category or the copy names the performance.
+            ("Concert", "Carl Carlton & Melanie Wiegmann - „Miles Of Time Tour“", "", "concert"),
+            ("brückenforum KONZERT konzert comedy theater show markt party", "Satoshi | Viva Moldova Europe Tour", "KONZERT", "concert"),
+            ("kabarett kleinkunst", "Gerd Köster & Weggefährten - Stabil nervös", "Seit 2024 gemeinsam auf Tour.", "stage"),
         ]
         for source_category, title, description, expected in touring_cases:
             with self.subTest(title=title):
@@ -682,6 +686,27 @@ class CategoryTaxonomyTests(unittest.TestCase):
         for source_category, title, description in guided_cases:
             with self.subTest(title=title):
                 self.assertEqual(categorize_event(source_category, title, description)["key"], "outdoor")
+
+    def test_calendar_wide_municipal_bags_do_not_classify_events(self):
+        cases = [
+            ("lokal veranstaltung markt kultur outdoor", "Sicherheit im Alter: Betrugsprävention", "other"),
+            ("unkel mittelrhein kultur konzert markt", "Gedenken an das Pogrom am 10. November 1938", "other"),
+            ("lokal markt kultur outdoor fest", "Herzwoche", "other"),
+            # Real source tags around the bag still count.
+            ("Konzert  Sinzig kommunal lokal markt kultur", "Herbstabend", "concert"),
+            ("lohmar lokal natur kultur markt Brauchtum Konzert", "Abend im Saal", "concert"),
+        ]
+        for source_category, title, expected in cases:
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(source_category, title)["key"], expected)
+
+    def test_mind_wandering_and_film_marathons_are_not_hikes_or_races(self):
+        self.assertNotEqual(categorize_event("", "Mind wandering and its relevance for mental health")["key"], "outdoor")
+        self.assertNotEqual(
+            categorize_event("", "Cine Bonn Bleu – Preisverleihung", "Der Kurz Film Marathon")["key"], "sports",
+        )
+        self.assertEqual(categorize_event("", "Herbstwanderung im Siebengebirge")["key"], "outdoor")
+        self.assertEqual(categorize_event("", "Bonn Marathon 2027")["key"], "sports")
 
     def test_known_indoor_museum_tours_are_exhibitions_without_reclassifying_outdoor_tours(self):
         indoor_cases = [

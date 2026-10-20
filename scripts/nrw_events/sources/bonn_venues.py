@@ -112,6 +112,9 @@ def events_from_kult41(html: str) -> list:
             "KULT41",
             f"kult41 {cats} konzert theater kunst kultur community spiele",
             0.92,
+            # KULT41's own "Konzert" tag outranks "zum Tanzen" in band blurbs.
+            default_category_key="concert" if re.search(r"\bkonzert\b", cats, re.I) else "",
+            category_locked=bool(re.search(r"\bkonzert\b", cats, re.I)),
         )
         if ev:
             ev["price"] = _clean_price(price)

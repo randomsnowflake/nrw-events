@@ -310,6 +310,23 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertNotIn("Ausstellung", events[0]["category"])
         self.assertNotIn("Literatur", events[0]["category"])
 
+    def test_kult41_konzert_tag_outranks_dance_words_in_band_copy(self):
+        html = """
+<div class="em-event em-item ">
+  <h3 class="em-item-title"><a href="https://kult41.de/events/punk">Global Discontent + Scorcher</a></h3>
+  <div class="em-event-date"><span></span>30.10.26</div>
+  <div class="em-event-time"><span class="em-icon-clock"></span>20:00 - 23:00</div>
+  <div class="em-item-taxonomy em-event-categories">
+    <a href="https://kult41.de/events/categories/konzert">Konzert</a>
+  </div>
+  <div class="em-item-desc">Punkrock aus Barcelona, zum Tanzen und Pogen.</div>
+</div>
+"""
+
+        events = bonn_venues.events_from_kult41(html)
+
+        self.assertEqual(events[0]["category_key"], "concert")
+
     def test_botanical_garden_uses_official_detail_description(self):
         listing_html = """
 <a href="https://www.botgart.uni-bonn.de/de/ihr-besuch/veranstaltungen/2026/gruene-schule/sonntagsfuehrungen/sonntagsfuehrung-19-juli">
