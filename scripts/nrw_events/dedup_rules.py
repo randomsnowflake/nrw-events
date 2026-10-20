@@ -85,6 +85,33 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
         "rathausmusik-2026-09-10-primary",
     ("beuel-net", "musikaufderrathaustreppethecottiesbeatrb"):
         "rathausmusik-2026-09-10-primary",
+    # Reviewed 2026-10-20: Theater Bonn plays 25.10. at 18:00; Bonn.de's
+    # mirror of the production says 19:30.
+    ("theater-bonn", "dieleidendesjungenwerther"): "theater-bonn-werther",
+    ("bonn-de-events", "dieleidendesjungenwerther"): "theater-bonn-werther",
+    # Reviewed 2026-10-20: the ADFC page runs the Quartiersmanagement's
+    # workshop the Repair Cafés list. Its header says Ellesdorfer Straße 50,
+    # its own copy "Garage an der Ellesdorfer Str. 40".
+    ("repair-cafes-bonn", "fahrradselbsthilfewerkstattlannesdorf"):
+        "lannesdorf-fahrrad-selbsthilfe-werkstatt",
+    ("adfc-bonn", "fahrradselbsthilfewerkstattlannesdorfmehlem"):
+        "lannesdorf-fahrrad-selbsthilfe-werkstatt",
+    # Reviewed 2026-10-20: Bonn.de's "Fotowalk" is the Institut français and
+    # LVR-LandesMuseum walk from Colmantstraße.
+    ("institut-francais-bonn", "fotowalkfranzoesischesbonn"):
+        "institut-francais-fotowalk",
+    ("bonn-de-events", "fotowalk"):
+        "institut-francais-fotowalk",
+}
+
+
+# Alias families whose publishers are reviewed to disagree on the start clock
+# or house number of one occurrence, mapped to the source whose facts were
+# confirmed. They fold across those conflicts when two sources list the family
+# on the same day, and the confirmed source's record wins.
+_REVIEWED_SOURCE_CONFLICT_FAMILIES = {
+    "theater-bonn-werther": "theater-bonn",
+    "lannesdorf-fahrrad-selbsthilfe-werkstatt": "repair-cafes-bonn",
 }
 
 
