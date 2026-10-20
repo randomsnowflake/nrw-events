@@ -253,6 +253,12 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool, literal_guard
         return False
     if keyword.compound_word:
         return any(match.group(0) != keyword.normalized_value for match in keyword.pattern.finditer(text))
+    if keyword.word_prefix and keyword.normalized_value == "wander":
+        # English "mind wandering" is a psychology lecture, not a hike.
+        return any(match.group(0) != "wandering" for match in keyword.pattern.finditer(text))
+    if keyword.word and keyword.normalized_value == "marathon":
+        # A "(Kurz-)Film Marathon" is a screening programme, not a race.
+        return re.search(r"(?<!film )(?<!\w)marathon(?!\w)", text) is not None
     if keyword.word_suffix and keyword.normalized_value == "fest":
         # "Manifest" ends in the same letters but is not a compound event
         # format such as Stadtfest or Sommerfest.
@@ -312,6 +318,12 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
         return "cinema"
     if re.search(r"\b(?:sport|\w*tennis\w*|\w*sport(?:tag|fest|turnier|woche))\b", title_text):
         return "sports"
+    # A numbered edition of a "…lauf" is a race ("29. Altendorf-Ersdorfer Obstmeilenlauf").
+    numbered_run = re.match(r"\d+\.\s.*?([\w-]*lauf)\b", title_comparison)
+    if numbered_run and not re.search(
+        r"(?:^|-)(?:ab|an|auf|durch|ein|kreis|lebens|rueck|um|ver|vor)lauf$", numbered_run.group(1),
+    ):
+        return "sports"
     if re.search(r"\b(?:fahrrad|rad)tour\w*\b", title_comparison):
         return "sports"
     if re.search(r"\blearning[ -]?session\b", title_text):
@@ -343,6 +355,32 @@ _TOURING_SHOW_TITLE_PATTERN = re.compile(r"(?<!auf )(?<![^\W\d_])tour(?:nee)?\s*
 # Once a title is a Tournee, every bare tour token in it belongs to the show
 # name ("… - TOUR 2026 - Animals Tour").
 _TOURING_SHOW_TOKEN_PATTERN = re.compile(r"(?<!auf )(?<![^\W\d_])tour(?:nee)?s?\b")
+# Municipal adapters append one calendar-wide bag to every record
+# ("lokal veranstaltung markt kultur outdoor"); it says nothing about the
+# individual event. Only these exact adapter constants are removed, so real tags
+# before or after them stay (Lohmar appends its own tags: "… markt Konzert").
+_CALENDAR_BAGS = (
+    "kommunal kultur markt ausstellung konzert fuehrung",
+    "lokal kultur markt fest sport natur",
+    "lokal veranstaltung markt kultur outdoor",
+    "mittelrhein kultur markt fest fuehrung",
+    "lokal markt kultur outdoor konzert",
+    "lokal markt kultur outdoor fest",
+    "lokal markt kultur konzert fest",
+    "mittelrhein kultur konzert markt",
+    "lokal markt kultur konzert",
+    "lokal natur kultur markt",
+    "lokal markt kultur natur",
+    "kommunal lokal markt kultur",
+    "lokal natur markt fest",
+    "lokal kultur markt fest",
+    "lokal markt kultur",
+    "lokal kultur markt",
+    "lokal",
+)
+_CALENDAR_BAG_PATTERN = re.compile(r"\b(?:" + "|".join(map(re.escape, _CALENDAR_BAGS)) + r")\b")
+_PERFORMANCE_TOUR_TOKEN_PATTERN = re.compile(r"(?<![^\W\d_])tour(?:nee)?s?\b")
+_PERFORMANCE_COPY_PATTERN = re.compile(r"\b(?:konzert\w*|concert\w*|kabarett\w*|comedy)\b")
 
 
 _GUIDED_TOUR_TITLE_PATTERN = re.compile(
@@ -738,7 +776,7 @@ def categorize_event(
     venue_text = normalize_text(venue)
     source_text = normalize_text(source)
     title_comparison = _comparison_from_normalized(title_text)
-    hint_comparison = _comparison_from_normalized(hint_text)
+    hint_comparison = _CALENDAR_BAG_PATTERN.sub(" ", _comparison_from_normalized(hint_text)).strip()
     description_comparison = _comparison_from_normalized(description_text)
 
     if (
@@ -895,10 +933,19 @@ def categorize_event(
 
     # Score without the Tournee marker so "Tour 2026" cannot rank as a guided
     # walk, while "Stadtführung … Tour 2026" keeps its real outdoor evidence.
-    touring_show = bool(_TOURING_SHOW_TITLE_PATTERN.search(title_comparison))
+    # Without a year, a "Tour" is still a Tournee when the source files the
+    # record as concert/stage or its copy calls it a concert or cabaret
+    # ("Satoshi | Viva Moldova Europe Tour", "Miles Of Time Tour").
+    performance_hint = bool(hint_category_keys & {"concert", "stage"})
+    performance_copy = bool(_PERFORMANCE_COPY_PATTERN.search(description_comparison))
+    # A performance source category also covers "seit 2024 gemeinsam auf Tour".
+    tour_token = _PERFORMANCE_TOUR_TOKEN_PATTERN if performance_hint else _TOURING_SHOW_TOKEN_PATTERN
+    touring_show = bool(_TOURING_SHOW_TITLE_PATTERN.search(title_comparison)) or (
+        bool(tour_token.search(title_comparison)) and (performance_hint or performance_copy)
+    ) or (bool(tour_token.search(description_comparison)) and performance_hint)
     if touring_show:
-        title_comparison = _TOURING_SHOW_TOKEN_PATTERN.sub(" ", title_comparison)
-        description_comparison = _TOURING_SHOW_TOKEN_PATTERN.sub(" ", description_comparison)
+        title_comparison = tour_token.sub(" ", title_comparison)
+        description_comparison = tour_token.sub(" ", description_comparison)
 
     evidence = score_category_evidence(title_comparison, description_comparison, hint_comparison)
     if evidence.key == "other":
