@@ -8,6 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from html import unescape
 from typing import Any
 
 from . import event_builder as _impl_event_builder
@@ -43,7 +44,12 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
                 if isinstance(description, str):
                     # The Events Calendar (WordPress) double-escapes line breaks,
                     # so decoded copy carries a literal backslash-n per break.
-                    obj["description"] = re.sub(r"\\r\\n|\\[nr]", "\n", description)
+                    description = re.sub(r"\\r\\n|\\[nr]", "\n", description)
+                    # It also entity-escapes the markup ("&lt;p&gt;"); decode it
+                    # once so the tag stripper sees tags, not visible "<p>" text.
+                    if re.search(r"&lt;/?[A-Za-z]", description):
+                        description = unescape(description)
+                    obj["description"] = description
                 items.append(obj)
             for value in obj.values():
                 walk(value)

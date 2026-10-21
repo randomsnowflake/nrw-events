@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from nrw_events import jsonld
+from nrw_events import common, jsonld
 
 
 class JsonLdBlockIdentityTests(unittest.TestCase):
@@ -40,4 +40,13 @@ class JsonLdBlockIdentityTests(unittest.TestCase):
                     '"description": "&lt;p&gt;Zeile eins&lt;br /&gt;\\\\nZeile zwei\\\\r\\\\n&lt;/p&gt;"}'
                     '</script>')
         [event] = jsonld.jsonld_event_items(document)
-        self.assertEqual(event['description'], '&lt;p&gt;Zeile eins&lt;br /&gt;\nZeile zwei\n&lt;/p&gt;')
+        self.assertEqual(event['description'], '<p>Zeile eins<br />\nZeile zwei\n</p>')
+
+    def test_entity_escaped_description_markup_is_not_published_as_text(self):
+        # vv-siebengebirge.de (The Events Calendar) emits "&lt;p&gt;" in JSON-LD.
+        document = ('<script type="application/ld+json">'
+                    '{"@type": "Event", "name": "Moose & Farne", "startDate": "2026-11-01T08:30:00+01:00", '
+                    '"description": "&lt;p&gt;Jeder kennt sie, die Moose &amp;amp; Farne.&lt;/p&gt;"}'
+                    '</script>')
+        [event] = common.events_from_jsonld(document, "Test", "Bonn", "natur", 1.0, "https://example.test")
+        self.assertEqual(event['description'], 'Jeder kennt sie, die Moose & Farne.')
