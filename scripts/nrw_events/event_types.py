@@ -2,7 +2,8 @@
 
 Categories answer what the primary programme is. Event types are additive:
 one occurrence may belong to a named series and also to topic collections such
-as funfairs or Christmas markets. Keep inference deliberately narrow because a
+as funfairs or Christmas markets. Audience types (children, family, adults) come
+only from the publication Jev decision (docs/jev-decisions.md). Keep inference deliberately narrow because a
 false topic assignment is more visible than an unknown type.
 """
 
@@ -14,7 +15,11 @@ from typing import Any
 
 from .category_taxonomy import comparison_text
 
-EVENT_TYPES = frozenset({"funfair", "christmas-market", "halloween"})
+EVENT_TYPES = frozenset({
+    "adults", "carnival", "children", "christmas-market", "family", "funfair", "halloween", "st-martin",
+})
+# Set only by the publication audience decision, never inferred from text here.
+AUDIENCE_EVENT_TYPES = frozenset({"adults", "children", "family"})
 
 # Kirmes compounds end in "kirmes" (Herbstkirmes, Rochuskirmes). Rummel may
 # likewise be a compound or occur as Rummelplatz. Do not match Kirmesabend or a
@@ -49,6 +54,39 @@ _HALLOWEEN_INCIDENTAL = re.compile(
     r"\b(?:kein\w*|nicht|ohne|statt|vorjahr|letztes\s+jahr|vergangenen\s+jahr"
     r"|bekannt\s+fuer|frueher|normalerweise)\b.{0,100}\bhalloween"
 )
+
+
+# Titles are matched after dashes became spaces, as on the website, so
+# "Sessions-Start" and "St. Martin-Umzug" read like their spaced spellings.
+_DASHES = re.compile(r"[-\u2010-\u2015]")
+
+# Carnival names itself through its season, its sessions and its royalty. Only
+# carnival sitting compounds count: a Ratssitzung is not a Prunksitzung, and
+# "Der kleine Prinz" is no Prinzenpaar. Saint-Saens' "Karneval der Tiere" and
+# a "Karneval der Kulturen" are figurative and say nothing about the season.
+_CARNIVAL_TITLE = re.compile(
+    r"(?<!\w)(?:\w*karneval\w*|\w*fastnacht\w*|\w*fasching\w*|fastelovend\w*"
+    r"|rosenmontag\w*|veilchendienstag\w*"
+    r"|\w*proklamation\w*"
+    r"|sessions?\s?eroef+nung\w*|sessions\s?(?:start|auftakt)"
+    r"|(?:prunk|damen|herren|kostuem|kneipen|maedchen|maedels|fremden|kinder|karnevals"
+    r"|narren|jecken|pyjama|gala|sing|mitmach)\s?sitzung\w*"
+    r"|veedels?\s?zoe?ch\w*|\w*prinzenpaar\w*|\w*dreigestirn\w*|prinzenempfang\w*"
+    r"|waescherprinzess\w*|gardetanz\w*|garde\s?(?:und|&)\s?showtanz\w*)(?!\w)",
+)
+_FIGURATIVE_CARNIVAL = re.compile(r"\bkarneval\s+der\s+(?:tiere|kulturen)\b")
+_CARNIVAL_SOURCES = frozenset({"karneval-in-bonn"})
+
+# St. Martin is also the patron of many churches ("Konzert in St. Martin",
+# "Pfarrei St. Martin"), so the name alone needs the children's category. The
+# parade, its fire, its lanterns and its songs name the custom by themselves.
+# Martinsmarkt, Martinsgans and Martini markets are seasonal trade, not the custom.
+_ST_MARTIN_TITLE = re.compile(
+    r"(?<!\w)(?:martins?\s?(?:zug|zuege|umzug|umzuege)|martins\s?(?:feuer\w*|fest|feier\w*)"
+    r"|martinslied\w*|martinslatern\w*|laternen\s?(?:umzug|umzuege))(?!\w)",
+)
+_ST_MARTIN_NAME = re.compile(r"(?<!\w)(?:sankt|st\.?)\s?martin(?!\w)")
+_ST_MARTIN_SOURCES = frozenset({"bonn-martinszuege"})
 
 
 def _description_is_halloween_programme(event: Mapping[str, Any]) -> bool:
@@ -87,6 +125,7 @@ def classify_event_types(event: Mapping[str, Any]) -> list[str]:
             for field in ("title", "series_title")
         )
     )
+    spaced_title = re.sub(r"\s+", " ", _DASHES.sub(" ", title))
     if source_id == "bonnkirmes" or (
         event.get("category_key") == "festival" and _FUNFAIR_TITLE.search(title)
     ):
@@ -97,5 +136,15 @@ def classify_event_types(event: Mapping[str, Any]) -> list[str]:
         event_types.add("christmas-market")
     if _HALLOWEEN_TITLE.search(title) or _description_is_halloween_programme(event):
         event_types.add("halloween")
+    if source_id in _CARNIVAL_SOURCES or _CARNIVAL_TITLE.search(
+        _FIGURATIVE_CARNIVAL.sub(" ", spaced_title)
+    ):
+        event_types.add("carnival")
+    if (
+        source_id in _ST_MARTIN_SOURCES
+        or _ST_MARTIN_TITLE.search(spaced_title)
+        or (event.get("category_key") == "kids" and _ST_MARTIN_NAME.search(spaced_title))
+    ):
+        event_types.add("st-martin")
 
     return sorted(event_types)

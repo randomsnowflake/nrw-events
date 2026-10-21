@@ -1,0 +1,385 @@
+[
+  {
+    "name": "committee-source-without-carnival-word",
+    "event": {
+      "title": "Ordensfest",
+      "source_id": "karneval-in-bonn",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "session-opening",
+    "event": {
+      "title": "Sessionseröffnung KG Rot-Gold 1953 Niederbachem e. V.",
+      "category_key": "other"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "session-opening-misspelt",
+    "event": {
+      "title": "Sessionseröfnung der KG Rievkooche",
+      "category_key": "other"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "session-start-hyphen",
+    "event": {
+      "title": "AfterJobParty -Sessions-Start mit Cat Ballou und den Höhnern",
+      "category_key": "nightlife"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "carnival-adjective",
+    "event": {
+      "title": "14.11.: Karnevalistischer Familienachmittag in Impekoven",
+      "category_key": "kids"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "carnival-session-dialect",
+    "event": {
+      "title": "Eröffnung der Karnevalssession „Tradition em Hätze, fastelovend he und jetzt!\"",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "men-sitting",
+    "event": {
+      "title": "Herrensitzung",
+      "category_key": "other"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "pub-sitting",
+    "event": {
+      "title": "Kneipensitzung \"Elferrat goes Treppchen\"",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "laundress-princess-proclamation",
+    "event": {
+      "title": "Proklamation Wäscherprinzessin",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "guard-dance",
+    "event": {
+      "title": "Garde-und Showtanztreffen",
+      "category_key": "activities"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "womens-carnival",
+    "event": {
+      "title": "Beueler Weiberfastnacht",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "rose-monday-parade",
+    "event": {
+      "title": "Rosenmontagszug Bonn",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "fasching-for-children",
+    "event": {
+      "title": "Kinderfasching im Jugendzentrum",
+      "category_key": "kids"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "district-parade-koelsch",
+    "event": {
+      "title": "Schull- un Veedelszöch",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "royal-couple",
+    "event": {
+      "title": "Empfang des Kinderprinzenpaares",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival"
+    ]
+  },
+  {
+    "name": "saint-saens-is-figurative",
+    "event": {
+      "title": "Karneval der Tiere – Familienkonzert",
+      "category_key": "concert"
+    },
+    "expected": []
+  },
+  {
+    "name": "council-sitting-is-civic",
+    "event": {
+      "title": "Sitzung des Bezirksausschusses",
+      "category_key": "talk"
+    },
+    "expected": []
+  },
+  {
+    "name": "council-sitting-compound",
+    "event": {
+      "title": "Ratssitzung der Stadt Bonn",
+      "category_key": "talk"
+    },
+    "expected": []
+  },
+  {
+    "name": "little-prince-is-a-play",
+    "event": {
+      "title": "Der kleine Prinz",
+      "category_key": "stage"
+    },
+    "expected": []
+  },
+  {
+    "name": "jam-session",
+    "event": {
+      "title": "Blues Gig & Session",
+      "category_key": "concert"
+    },
+    "expected": []
+  },
+  {
+    "name": "lecture-session",
+    "event": {
+      "title": "Game Design Studio Session - Part 19",
+      "category_key": "workshop"
+    },
+    "expected": []
+  },
+  {
+    "name": "city-list-source",
+    "event": {
+      "title": "Martinszug Holtorf Ungarten",
+      "source_id": "bonn-martinszuege",
+      "category_key": "kids"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "parade-plural-with-dates",
+    "event": {
+      "title": "St. Martinsumzüge (03.11.-12.11.)",
+      "category_key": "kids"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "parade-hyphenated",
+    "event": {
+      "title": "Karweiler leuchtet, St. Martin-Umzug mit Schauspieleinlage unterhalb der Pfarrkirche",
+      "category_key": "other"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "parade-emoji",
+    "event": {
+      "title": "⭐️ Großer Sankt Martinszug ab Ringstr 🏮",
+      "category_key": "kids"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "martins-fire-outdoor",
+    "event": {
+      "title": "Zu den Martinsfeuern in Dernau",
+      "category_key": "outdoor"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "martins-feast",
+    "event": {
+      "title": "St. Martinsfest Vettelhoven",
+      "category_key": "festival"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "martins-songs-concert",
+    "event": {
+      "title": "Martinslieder singen mit St. Martin",
+      "category_key": "concert"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "lantern-exhibition",
+    "event": {
+      "title": "Martinslaternen-Ausstellung im Stadthaus",
+      "category_key": "exhibition"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "lantern-parade",
+    "event": {
+      "title": "St. Martinsumzug / Laternenumzug Linz",
+      "category_key": "kids"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "saint-name-for-children",
+    "event": {
+      "title": "St. Martin in Bengen",
+      "category_key": "kids"
+    },
+    "expected": [
+      "st-martin"
+    ]
+  },
+  {
+    "name": "church-tour",
+    "event": {
+      "title": "Führungen in St. Martin",
+      "category_key": "outdoor"
+    },
+    "expected": []
+  },
+  {
+    "name": "church-concert",
+    "event": {
+      "title": "Orgelkonzert in St. Martin",
+      "category_key": "concert"
+    },
+    "expected": []
+  },
+  {
+    "name": "parish-name",
+    "event": {
+      "title": "Pfarrfest der Pfarrei St. Martin",
+      "category_key": "festival"
+    },
+    "expected": []
+  },
+  {
+    "name": "saint-name-without-children-category",
+    "event": {
+      "title": "St. Martin in Lantershofen",
+      "category_key": "other"
+    },
+    "expected": []
+  },
+  {
+    "name": "martins-market",
+    "event": {
+      "title": "Martinsmarkt (06.-08.11.)",
+      "category_key": "market"
+    },
+    "expected": []
+  },
+  {
+    "name": "martini-market",
+    "event": {
+      "title": "MartiniMarkt in Johann Baptist Bad Honnef",
+      "category_key": "market"
+    },
+    "expected": []
+  },
+  {
+    "name": "goose-dinner",
+    "event": {
+      "title": "Martinsessen auf der Moby Dick",
+      "category_key": "food"
+    },
+    "expected": []
+  },
+  {
+    "name": "person-named-martin",
+    "event": {
+      "title": "Martin Pfeiffer - Mitmachkonzert",
+      "category_key": "concert"
+    },
+    "expected": []
+  },
+  {
+    "name": "lantern-festival-is-not-the-custom",
+    "event": {
+      "title": "Laternenfest",
+      "category_key": "festival"
+    },
+    "expected": []
+  },
+  {
+    "name": "carnival-and-st-martin-titles-stay-additive",
+    "event": {
+      "title": "Martinszug mit Sessionseröffnung",
+      "category_key": "festival"
+    },
+    "expected": [
+      "carnival",
+      "st-martin"
+    ]
+  }
+]
