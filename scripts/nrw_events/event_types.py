@@ -2,7 +2,8 @@
 
 Categories answer what the primary programme is. Event types are additive:
 one occurrence may belong to a named series and also to topic collections such
-as funfairs or Christmas markets. Keep inference deliberately narrow because a
+as funfairs or Christmas markets. Audience types (children, family, adults) come
+only from the publication Jev decision (docs/jev-decisions.md). Keep inference deliberately narrow because a
 false topic assignment is more visible than an unknown type.
 """
 
@@ -14,7 +15,9 @@ from typing import Any
 
 from .category_taxonomy import comparison_text
 
-EVENT_TYPES = frozenset({"funfair", "christmas-market", "halloween"})
+EVENT_TYPES = frozenset({"adults", "children", "christmas-market", "family", "funfair", "halloween"})
+# Set only by the publication audience decision, never inferred from text here.
+AUDIENCE_EVENT_TYPES = frozenset({"adults", "children", "family"})
 
 # Kirmes compounds end in "kirmes" (Herbstkirmes, Rochuskirmes). Rummel may
 # likewise be a compound or occur as Rummelplatz. Do not match Kirmesabend or a

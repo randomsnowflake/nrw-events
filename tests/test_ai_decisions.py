@@ -288,3 +288,59 @@ class AdmissionDecisionTests(unittest.TestCase):
         self.assertIs(events[2], priced)
         # A later known price makes the review marker meaningless.
         self.assertFalse(validate_event({**events[1].to_dict(), "price": "5 €"}).admission_checked)
+
+
+class AudienceDecisionTests(unittest.TestCase):
+    def ask(self, connection, material, choice="children", probability=0.99, title="Kasperletheater"):
+        options = ai_decisions.AUDIENCE_QUESTION["criteria"]
+        probabilities = {key: (1 - probability) / (len(options) - 1) for key in options}
+        probabilities[choice] = probability
+        response = {"model": "typesafe/jev-1.13", "answers": {"audience": {
+            "type": "choice", "choice": choice, "confidence": probability, "probabilities": probabilities}}}
+        with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(response)) as evaluate:
+            audience = ai_decisions.resolve_audience(connection, {"title": title, "venue": "Brotfabrik"}, material,
+                                                     model="m", api_key="k", timeout_seconds=5)
+        return audience, evaluate.call_count
+
+    def test_confident_answers_are_returned_and_cached_without_dates(self):
+        with closing(sqlite3.connect(":memory:")) as connection:
+            self.assertEqual(self.ask(connection, "Für Kinder ab 4 Jahren."), ("children", 1))
+            self.assertEqual(self.ask(connection, "Für Kinder ab 4 Jahren.", "adults"), ("children", 0))
+            self.assertEqual(self.ask(connection, "Weinprobe ab 18.", "adults", title="Weinprobe"), ("adults", 1))
+            self.assertEqual(self.ask(connection, "Rundgang.", "general", title="Stadtführung"), ("general", 1))
+
+    def test_uncertain_and_failed_answers_are_distinguished(self):
+        with closing(sqlite3.connect(":memory:")) as connection:
+            self.assertEqual(self.ask(connection, "Mitmachaktion.", "family", 0.9), ("uncertain", 1))
+            with patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=DecisionError("http")):
+                self.assertIsNone(ai_decisions.resolve_audience(connection, {"title": "Neu"}, "Text",
+                                                                model="m", api_key="k", timeout_seconds=5))
+
+    def test_publication_replaces_only_audience_types_and_keeps_them_on_failure(self):
+        kids = validate_event(make_event(title="Kasperletheater", description="Für Kinder ab 4."))
+        party = validate_event(make_event(title="Halloween Party", description="Ab 18 Jahren."))
+        stale = validate_event({**make_event(title="Stadtführung", description="Rundgang."), "event_types": ["family"]})
+        retained = validate_event({**make_event(title="Familienfest", description="Für alle."), "event_types": ["family"]})
+        events = [kids, party, stale, retained]
+        answers = {"Kasperletheater": "children", "Halloween Party": "adults", "Stadtführung": "uncertain"}
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(ai_enrichment, "settings_from_env", return_value=ai_enrichment.AISettings(
+                    enabled=True, api_key="", model="m", cache_db=Path(tmp) / "c.sqlite3",
+                    jev_enabled=True, jev_api_key="k")), \
+                patch.object(ai_decisions, "resolve_audience",
+                             side_effect=lambda _, raw, *a, **k: answers.get(raw["title"])):
+            outcomes = publication_enrichment._resolve_audience(events, {})
+        self.assertEqual(events[0].event_types, ["children"])
+        self.assertEqual(events[1].event_types, ["adults", "halloween"])
+        self.assertEqual(events[2].event_types, [])
+        self.assertIs(events[3], retained)
+        self.assertEqual(outcomes, {"children": 1, "adults": 1, "uncertain": 1, "failed": 1})
+
+    def test_disabled_jev_leaves_events_untouched(self):
+        event = validate_event(make_event(title="Kasperletheater"))
+        events = [event]
+        with patch.object(ai_enrichment, "settings_from_env", return_value=ai_enrichment.AISettings(
+                enabled=True, api_key="", model="m", cache_db=Path("unused.sqlite3"),
+                jev_enabled=False, jev_api_key="k")):
+            self.assertEqual(publication_enrichment._resolve_audience(events, {}), {})
+        self.assertIs(events[0], event)

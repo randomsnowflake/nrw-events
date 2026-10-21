@@ -204,3 +204,23 @@ Evaluation on the 2 October feed (no dates in the state, distinct title/venue):
 - Whole publication step on 1,548 unknown occurrences, cold cache: 68 seconds,
   139 became free (previously 731 free in the feed); warm cache: 1 second.
   Each pass cost about two cents.
+
+## Audience (21 October 2026)
+
+Publication asks Jev for every published event who it is primarily intended for
+(`AUDIENCE_QUESTION`, `event-audience-v1`): `children`, `family`, `adults`,
+`general` or `unknown`. The state holds title, venue, city, organizer, series,
+category and the event's own source text without occurrence dates, so recurring
+dates share one cached answer. A choice at probability >= 0.95 adds the matching
+additive event type (`children`, `family`, `adults`); `general`, `unknown` and
+uncertain answers add none. Categories stay unchanged: a children's concert
+remains a concert and is found through its `children` type.
+
+Each answered run replaces earlier audience types, so a changed answer never
+leaves a stale type. Failed requests and the run budget (180 seconds, eight
+parallel requests) keep an event's previous audience types until a later run
+answers. The website lists `children` and `family` on `/kinder/` across
+categories and drops `adults` events filed under kids.
+
+The threshold is provisional until a hand-checked sample of the live feed is
+evaluated; do not lower it without such an evaluation.

@@ -13,6 +13,7 @@ from dataclasses import replace
 from . import (
     ai_decisions,
     ai_enrichment,
+    event_types,
     geocoding,
     performance,
 )
@@ -113,6 +114,49 @@ def _resolve_unknown_admission(events: list[CanonicalEvent], results: dict[str, 
         )
         try:
             events[index] = validate_event({**event.to_dict(), **update})
+        except EventValidationError:
+            outcomes["rejected"] += 1
+    return outcomes
+
+
+def _resolve_audience(events: list[CanonicalEvent], results: dict[str, SourceResult]) -> Counter[str]:
+    """Add a confident Jev audience (children, family, adults) as an additive event type."""
+    outcomes: Counter[str] = Counter()
+    settings = ai_enrichment.settings_from_env()
+    if not (settings.enabled and settings.jev_enabled and settings.jev_api_key):
+        return outcomes
+    # Same run budget as admission; answers are cached by date-free source text.
+    deadline = time.monotonic() + 180
+    settings.cache_db.parent.mkdir(parents=True, exist_ok=True)
+
+    def ask(index: int) -> str | None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return "out_of_time"
+        event = events[index]
+        raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
+        with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
+            return ai_decisions.resolve_audience(
+                connection, raw, ai_enrichment._source_material(raw),
+                model=settings.jev_model, api_key=settings.jev_api_key,
+                timeout_seconds=min(15.0, remaining),
+            )
+
+    with ThreadPoolExecutor(8) as pool:
+        answers = list(pool.map(ask, range(len(events))))
+    for index, choice in enumerate(answers):
+        outcomes[choice or "failed"] += 1
+        if choice is None or choice == "out_of_time":
+            # A retained event keeps its previous audience until a later run answers.
+            continue
+        event = events[index]
+        kept = set(event.event_types) - event_types.AUDIENCE_EVENT_TYPES
+        audience = ai_decisions.AUDIENCE_TYPES.get(choice)
+        updated = sorted(kept | ({audience} if audience else set()))
+        if updated == event.event_types:
+            continue
+        try:
+            events[index] = validate_event({**event.to_dict(), "event_types": updated})
         except EventValidationError:
             outcomes["rejected"] += 1
     return outcomes
@@ -303,6 +347,16 @@ def enrich_publication(context: RunContext, batch: SourceBatch, selected: Public
     except (sqlite3.Error, OSError) as exc:
         # Optional enrichment: resolved events are kept, the rest stay unknown.
         log(logger, 30, f"Jev admission skipped: {type(exc).__name__}",
+            run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
+    try:
+        with performance.span("audience.jev"):
+            audience_outcomes = _resolve_audience(deduped, source_results)
+        if audience_outcomes:
+            log(logger, 20, f"Jev audience: {dict(sorted(audience_outcomes.items()))}",
+                run_id=run_id, source="ai-enrichment")
+    except (sqlite3.Error, OSError) as exc:
+        # Optional enrichment: events without an answer simply carry no audience type.
+        log(logger, 30, f"Jev audience skipped: {type(exc).__name__}",
             run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
     try:
         with performance.span("geocoding.nominatim"):
