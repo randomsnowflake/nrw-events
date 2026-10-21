@@ -68,6 +68,17 @@ Kategorieliste (`categories`) und je Event die kanonischen Felder
 `category_key`/`category_label`; das rohe Quellenfeld `category` bleibt für
 Debugging und Rückwärtskompatibilität erhalten.
 
+`event_types` ergänzt die Kategorie um Themen, zu denen ein Termin zusätzlich
+gehört: `carnival`, `christmas-market`, `funfair`, `halloween` und
+`st-martin` (`scripts/nrw_events/event_types.py`). Explizite Quellwerte werden
+validiert; abgeleitet wird nur aus Titel oder Serientitel, aus eng begrenzten
+Quellen (`karneval-in-bonn`, `bonn-martinszuege`, `bonnkirmes`) und für
+Halloween aus einer belegten Programmbeschreibung. „St. Martin“ allein zählt nur
+in der Kategorie `kids`, weil der Name sonst meist eine Kirche meint. Die
+Website spiegelt diese Regeln für ältere Snapshots; die gemeinsamen Testvektoren
+stehen in `tests/data/halloween-topic-vectors.json` und
+`tests/data/event-type-vectors.json`.
+
 Zusätzlich zu den kompatiblen Anzeige-Feldern `date` und `time` enthält jedes
 Event kanonische Zeitfelder: `start_date`, `end_date`, `start_at`, `end_at`,
 `all_day` und `timezone`. Ort und Datenqualität sind als
