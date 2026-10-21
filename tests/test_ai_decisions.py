@@ -336,6 +336,24 @@ class AudienceDecisionTests(unittest.TestCase):
         self.assertIs(events[3], retained)
         self.assertEqual(outcomes, {"children": 1, "adults": 1, "uncertain": 1, "failed": 1})
 
+    def test_recurring_dates_without_prose_share_one_cached_answer(self):
+        first = validate_event(make_event(title="Kinderturnen", description="", date="2026-11-02", start_date="2026-11-02", end_date="2026-11-02"))
+        second = validate_event(make_event(title="Kinderturnen", description="", date="2026-11-09", start_date="2026-11-09", end_date="2026-11-09"))
+        options = ai_decisions.AUDIENCE_QUESTION["criteria"]
+        probabilities = dict.fromkeys(options, 0.01)
+        probabilities["children"] = 0.96
+        response = {"model": "m", "answers": {"audience": {
+            "type": "choice", "choice": "children", "confidence": 0.96, "probabilities": probabilities}}}
+        events = [first, second]
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(ai_enrichment, "settings_from_env", return_value=ai_enrichment.AISettings(
+                    enabled=True, api_key="", model="m", cache_db=Path(tmp) / "c.sqlite3",
+                    jev_enabled=True, jev_api_key="k")), \
+                patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(response)) as evaluate:
+            publication_enrichment._resolve_audience(events, {})
+        self.assertEqual(evaluate.call_count, 1)
+        self.assertEqual([event.event_types for event in events], [["children"], ["children"]])
+
     def test_disabled_jev_leaves_events_untouched(self):
         event = validate_event(make_event(title="Kasperletheater"))
         events = [event]

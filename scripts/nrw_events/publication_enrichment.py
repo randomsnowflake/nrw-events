@@ -119,6 +119,9 @@ def _resolve_unknown_admission(events: list[CanonicalEvent], results: dict[str, 
     return outcomes
 
 
+OCCURRENCE_FIELDS = ("start_date", "date", "end_date", "time", "time_note")
+
+
 def _resolve_audience(events: list[CanonicalEvent], results: dict[str, SourceResult]) -> Counter[str]:
     """Add a confident Jev audience (children, family, adults) as an additive event type."""
     outcomes: Counter[str] = Counter()
@@ -135,9 +138,12 @@ def _resolve_audience(events: list[CanonicalEvent], results: dict[str, SourceRes
             return "out_of_time"
         event = events[index]
         raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
+        # Without prose the label-bound fallback would carry occurrence dates into
+        # the cache key; recurring dates must share one answer.
+        material = ai_enrichment._source_material({**raw, **dict.fromkeys(OCCURRENCE_FIELDS, "")})
         with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
             return ai_decisions.resolve_audience(
-                connection, raw, ai_enrichment._source_material(raw),
+                connection, raw, material,
                 model=settings.jev_model, api_key=settings.jev_api_key,
                 timeout_seconds=min(15.0, remaining),
             )
