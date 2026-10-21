@@ -222,5 +222,18 @@ parallel requests) keep an event's previous audience types until a later run
 answers. The website lists `children` and `family` on `/kinder/` across
 categories and drops `adults` events filed under kids.
 
-The threshold is provisional until a hand-checked sample of the live feed is
-evaluated; do not lower it without such an evaluation.
+Evaluation on the 21 October snapshot (`typesafe/jev-1.13`, no dates in the
+state, distinct title/venue/source text): 1,512 requests in 90 seconds, 9
+failed. Choices: 796 general, 407 adults, 170 children, 110 family, 20 unknown.
+At >= 0.95: 153 adults, 58 children, 43 family. All 59 children/family events
+outside the kids category were checked by hand: children's theatre, picture-book
+cinema, children's film festival, family tours, children's flea markets,
+parent-child courses and holiday workshops for primary-school children. Borderline
+only: a youth centre's autumn holiday programme (`general` would fit teenagers
+better) and a homework club without event prose. Known traps stay out: "Achtung
+Baby - A Tribute To U2" and the parents' first-aid course "Schnelle Hilfe bei
+Kindernotfällen" are `general`. No kids-category event is `adults` at >= 0.95, so
+the exclusion on `/kinder/` drops nothing yet; a sample of 25 accepted `adults`
+answers (tastings, nightlife, professional talks, grief groups) held. Recall is
+conservative: identical cinema days split between 1.0 and 0.62. Keep 0.95; do not
+lower it without a new hand-checked evaluation.
