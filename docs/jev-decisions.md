@@ -204,3 +204,36 @@ Evaluation on the 2 October feed (no dates in the state, distinct title/venue):
 - Whole publication step on 1,548 unknown occurrences, cold cache: 68 seconds,
   139 became free (previously 731 free in the feed); warm cache: 1 second.
   Each pass cost about two cents.
+
+## Audience (21 October 2026)
+
+Publication asks Jev for every published event who it is primarily intended for
+(`AUDIENCE_QUESTION`, `event-audience-v1`): `children`, `family`, `adults`,
+`general` or `unknown`. The state holds title, venue, city, organizer, series,
+category and the event's own source text without occurrence dates, so recurring
+dates share one cached answer. A choice at probability >= 0.95 adds the matching
+additive event type (`children`, `family`, `adults`); `general`, `unknown` and
+uncertain answers add none. Categories stay unchanged: a children's concert
+remains a concert and is found through its `children` type.
+
+Each answered run replaces earlier audience types, so a changed answer never
+leaves a stale type. Failed requests and the run budget (180 seconds, eight
+parallel requests) keep an event's previous audience types until a later run
+answers. The website lists `children` and `family` on `/kinder/` across
+categories and drops `adults` events filed under kids.
+
+Evaluation on the 21 October snapshot (`typesafe/jev-1.13`, no dates in the
+state, distinct title/venue/source text): 1,512 requests in 90 seconds, 9
+failed. Choices: 796 general, 407 adults, 170 children, 110 family, 20 unknown.
+At >= 0.95: 153 adults, 58 children, 43 family. All 59 children/family events
+outside the kids category were checked by hand: children's theatre, picture-book
+cinema, children's film festival, family tours, children's flea markets,
+parent-child courses and holiday workshops for primary-school children. Borderline
+only: a youth centre's autumn holiday programme (`general` would fit teenagers
+better) and a homework club without event prose. Known traps stay out: "Achtung
+Baby - A Tribute To U2" and the parents' first-aid course "Schnelle Hilfe bei
+Kindernotfällen" are `general`. No kids-category event is `adults` at >= 0.95, so
+the exclusion on `/kinder/` drops nothing yet; a sample of 25 accepted `adults`
+answers (tastings, nightlife, professional talks, grief groups) held. Recall is
+conservative: identical cinema days split between 1.0 and 0.62. Keep 0.95; do not
+lower it without a new hand-checked evaluation.

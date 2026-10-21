@@ -73,7 +73,9 @@ gehört: `carnival`, `christmas-market`, `funfair`, `halloween` und
 `st-martin` (`scripts/nrw_events/event_types.py`). Explizite Quellwerte werden
 validiert; abgeleitet wird nur aus Titel oder Serientitel, aus eng begrenzten
 Quellen (`karneval-in-bonn`, `bonn-martinszuege`, `bonnkirmes`) und für
-Halloween aus einer belegten Programmbeschreibung. „St. Martin“ allein zählt nur
+Halloween aus einer belegten Programmbeschreibung. Die Zielgruppen-Typen `adults`,
+`children` und `family` setzt allein die JEV-Entscheidung bei der
+Veröffentlichung (`docs/jev-decisions.md`), nie eine Textregel. „St. Martin“ allein zählt nur
 in der Kategorie `kids`, weil der Name sonst meist eine Kirche meint. Die
 Website spiegelt diese Regeln für ältere Snapshots; die gemeinsamen Testvektoren
 stehen in `tests/data/halloween-topic-vectors.json` und
