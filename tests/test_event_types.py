@@ -34,6 +34,57 @@ class EventTypeTests(unittest.TestCase):
             with self.subTest(name=vector["name"]):
                 self.assertEqual(classify_event_types(vector["event"]), vector["expected"])
 
+    def test_carnival_and_st_martin_vectors_shared_with_the_website(self):
+        vectors = json.loads((Path(__file__).parent / "data/event-type-vectors.json").read_text())
+        for vector in vectors:
+            with self.subTest(name=vector["name"]):
+                self.assertEqual(classify_event_types(vector["event"]), vector["expected"])
+
+    def test_validation_publishes_carnival_and_st_martin_types(self):
+        self.assertEqual(
+            event(title="Prunksitzung der KG Blau-Weiß", category_key="stage").event_types,
+            ["carnival"],
+        )
+        self.assertEqual(
+            event(title="Martinszug Holzlar", category_key="kids").event_types,
+            ["st-martin"],
+        )
+        self.assertEqual(
+            event(title="Laternen-Workshop", event_types=["st-martin", "carnival"]).event_types,
+            ["carnival", "st-martin"],
+        )
+
+    def test_dedicated_carnival_and_martinszug_sources_are_strong_evidence(self):
+        self.assertEqual(
+            event(title="Kadettenappell", source_id="karneval-in-bonn").event_types,
+            ["carnival"],
+        )
+        self.assertEqual(
+            event(title="Umzug Grundschule", source_id="bonn-martinszuege").event_types,
+            ["st-martin"],
+        )
+
+    def test_church_named_st_martin_is_not_a_lantern_parade(self):
+        for title, category_key in (
+            ("Konzert in St. Martin", "concert"),
+            ("Pfarrei St. Martin: Gemeindefest", "festival"),
+            ("Sankt Martin Rheinbach: Orgelführung", "outdoor"),
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(
+                    event(title=title, category_key=category_key).event_types,
+                    [],
+                )
+        # A description is never evidence for these types.
+        self.assertEqual(
+            event(
+                title="Familiennachmittag",
+                category_key="kids",
+                description="Danach geht es zum Martinszug und zur Karnevalsparty.",
+            ).event_types,
+            [],
+        )
+
     def test_classifies_kirmes_and_rummel_titles_as_funfairs(self):
         for title in ("Kirmes Röttgen", "Herbstkirmes Duisdorf", "Frühlingsrummel"):
             with self.subTest(title=title):
