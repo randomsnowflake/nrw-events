@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import ai_enrichment, category_taxonomy, common, event_details, event_types, page_chrome, performance, richtext
 from .admission_amounts import admission_amount
+from .location import city_from_address_postcode
 from .models import (
     MAX_DISCOVERY_PROVENANCE_SOURCES,
     CanonicalEvent,
@@ -21,6 +22,7 @@ from .models import (
 )
 from .normalization import addresses_conflict, canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
+from .scoring import distance_score
 from .title_normalization import normalize_event_title, strip_status_markers
 from .venue_quality import sanitize_venue_fields
 
@@ -964,6 +966,13 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         )
     except (KeyError, TypeError, ValueError):
         explicit_point = None
+    postal_city = city_from_address_postcode(
+        event["city"], f"{event['venue']}, {_text(event, 'venue_address', 500)}",
+    )
+    city_moved = explicit_point is None and postal_city != event["city"]
+    if city_moved:
+        # The source's default "Bonn" placed an off-site address at Bonn's centre.
+        event.update(city=postal_city, location_confidence="", location_source="", distance_km=None)
     event.update(canonical_venue_fields(event))
     if explicit_point is not None and event["venue_latitude"] is None:
         # The dropped registry pin took its provenance and distance with it.
@@ -1051,6 +1060,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
             event["score"] = min(event["score"], 0.3)
         elif event.get("distance_km") is None and resolved_coords:
             event["distance_km"] = round(common.haversine(common.BONN_LAT, common.BONN_LON, *resolved_coords), 2)
+            if city_moved:
+                # The source score assumed Bonn itself; rank by the real distance.
+                event["score"] = round(event["score"] * distance_score(event["distance_km"]), 2)
     status = _text(event, "status", 32) or "scheduled"
     if status not in {"scheduled", "cancelled", "postponed", "unknown"}:
         raise EventValidationError("status_invalid")

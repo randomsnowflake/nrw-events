@@ -129,6 +129,33 @@ def municipality_for_locality(locality: str, postcode_text: str) -> str:
     return municipality
 
 
+_POSTCODE_TOWN = re.compile(r"(?<!\d)(\d{5})\s+([A-ZÄÖÜ][^,;|()\d]*)")
+
+
+def city_from_address_postcode(city: str, address: str) -> str:
+    """Let a non-Bonn postal address overrule a source's default city "Bonn".
+
+    Sources such as the Uni Bonn calendar stamp every record "Bonn", so an
+    off-site event (Messe Essen) would otherwise sit at Bonn's centre and pass
+    every radius check. A Bonn postcode anywhere in the address keeps the city.
+    Otherwise the postcode's configured municipality, else the town written
+    after it, wins. When that town is "Bonn" too (``Düsseldorf, 40210 Bonn``),
+    a configured town named elsewhere in the address does; failing that the
+    city becomes unknown, and an unknown city never counts as near Bonn.
+    """
+    if not comparison_text(city).startswith("bonn"):
+        return city
+    matches = _POSTCODE_TOWN.findall(address or "")
+    if not matches or any(config.POSTCODE_MUNICIPALITIES.get(code) == "Bonn" for code, _town in matches):
+        return city
+    code, town = matches[0]
+    town = config.POSTCODE_MUNICIPALITIES.get(code) or town.strip()
+    if comparison_text(town).startswith("bonn"):
+        other = guess_city_from_text(re.sub(r"(?i)\bbonn\b", " ", address))
+        town = other.title() if other else ""
+    return canonicalize_city(town)
+
+
 def refine_bonn_location(city: str, text: str) -> str:
     """Resolve a bare "Bonn" to its district using a postcode, then a name.
 

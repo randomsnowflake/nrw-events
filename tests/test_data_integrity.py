@@ -514,3 +514,25 @@ END:VCALENDAR"""
         self.assertIsNone(event["distance_km"])
         self.assertEqual(event["location_confidence"], "unresolved")
         self.assertLessEqual(event["score"], 0.3)
+
+    def test_off_site_postal_address_overrules_default_bonn_city(self):
+        base = {"title": "Event", "date": "2026-10-22", "source": "Universität Bonn", "score": 1.1, "city": "Bonn", "distance_km": 0}
+        # Uni Bonn stamps "Bonn" on a fair stand in Essen: unknown city, below the publication floor.
+        essen = validate_event({**base, "venue_address": "Messeplatz 1, 45131 Essen"})
+        self.assertEqual((essen["city"], essen["distance_km"], essen["location_confidence"]), ("Essen", None, "unresolved"))
+        self.assertLess(essen["score"], 0.4)
+        # A wrong "Bonn" after the postcode yields to the town named in the address.
+        duesseldorf = validate_event({**base, "venue": "Zentralbibliothek Düsseldorf",
+                                      "venue_address": "Konrad-Adenauer-Platz 1, Düsseldorf, 40210 Bonn"})
+        self.assertEqual(duesseldorf["city"], "Düsseldorf")
+        self.assertGreater(duesseldorf["distance_km"], 50)
+        self.assertLess(duesseldorf["score"], 1.1)
+        honnef = validate_event({**base, "venue_address": "Hauptstraße 5, 53604 Bad Honnef"})
+        self.assertEqual(honnef["city"], "Bad Honnef")
+        self.assertLess(honnef["distance_km"], 20)
+        for address in ("Konviktstraße 9, 53113 Bonn", "Regina-Pacis-Weg 3, 53113 Bonn, Hörsaal 1", ""):
+            kept = validate_event({**base, "venue_address": address})
+            self.assertEqual((kept["city"], kept["score"]), ("Bonn", 1.1), address)
+        pinned = validate_event({**base, "venue_address": "Messeplatz 1, 45131 Essen",
+                                 "venue_latitude": 50.7374, "venue_longitude": 7.0982})
+        self.assertEqual(pinned["city"], "Bonn")
