@@ -453,5 +453,165 @@
       "start_date": "2026-10-23"
     },
     "expected": []
+  },
+  {
+    "name": "much-pumpkin-carving",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Zunächst werden wir gemeinsam Halloweenkürbisse schnitzen."
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "pumpkin-carving-reversed",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir schnitzen gemeinsam Halloween-Kürbisse."
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "dransdorf-seasonal-programme",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Passend zu Halloween verwandeln wir das JuZe Dransdorf in einen Ort für echte Entdecker."
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "mint-digital-drawing",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Digitales Zeichnen – Halloween-Spezial: Gestaltet animierte Bilder."
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "halloween-english-special",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Heute gibt es ein Halloween Special zum digitalen Zeichnen."
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "ordinary-pumpkin-carving",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir schnitzen Kürbisse und kochen Kürbissuppe."
+    },
+    "expected": []
+  },
+  {
+    "name": "pumpkin-decoration-only",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Unsere Halloweenkürbisse stehen am Eingang."
+    },
+    "expected": []
+  },
+  {
+    "name": "pumpkin-sentence-boundary",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir schnitzen heute Holzfiguren. Halloweenkürbisse stehen am Eingang."
+    },
+    "expected": []
+  },
+  {
+    "name": "special-boundary",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Der Halloween-Spezialist hält einen Vortrag."
+    },
+    "expected": []
+  },
+  {
+    "name": "special-negated",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Heute gibt es kein Halloween-Spezial."
+    },
+    "expected": []
+  },
+  {
+    "name": "special-generated",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "generated",
+      "start_date": "2026-10-31",
+      "description": "Digitales Zeichnen – Halloween-Spezial."
+    },
+    "expected": []
+  },
+  {
+    "name": "special-past-year",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Digitales Zeichnen – Halloween-Spezial 2025."
+    },
+    "expected": []
+  },
+  {
+    "name": "special-out-of-season",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-07-31",
+      "description": "Digitales Zeichnen – Halloween-Spezial."
+    },
+    "expected": []
+  },
+  {
+    "name": "seasonal-programme-negated",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Nicht passend zu Halloween gestalten wir einen Gartentag."
+    },
+    "expected": []
+  },
+  {
+    "name": "pumpkin-negated",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir schnitzen keine Halloweenkürbisse."
+    },
+    "expected": []
+  },
+  {
+    "name": "pumpkin-distant",
+    "event": {
+      "title": "Kreativprogramm",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir schnitzen Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren und zeigen Halloweenkürbisse."
+    },
+    "expected": []
   }
 ]

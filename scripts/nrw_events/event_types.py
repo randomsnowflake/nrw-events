@@ -43,12 +43,13 @@ _CHRISTMAS_MARKET_CATEGORIES = frozenset({"market", "festival"})
 _HALLOWEEN_TITLE = re.compile(r"(?<!\w)\w*halloween\w*(?!\w)", re.IGNORECASE)
 _HALLOWEEN_PROGRAMME = re.compile(
     r"\bhalloween\s*(?:party\w*|parties|disco\w*|dragshow\w*|workshop\w*"
-    r"|abend(?:e|en|s)?|action|stimmung|atmosphaere(?:n)?|motive\w*|familie\w*)\b"
-    r"|\b(?:bald|passend\s+an|einstimmung\s+auf)\s+halloween\b"
+    r"|abend(?:e|en|s)?|special|spezial|action|stimmung|atmosphaere(?:n)?|motive\w*|familie\w*)\b"
+    r"|\b(?:bald|passend\s+(?:an|zu)|einstimmung\s+auf)\s+halloween\b"
     r"|\b(?:wissen|fragen|quiz|raetsel)\b.{0,40}\b(?:ueber|zu)\s+halloween\b"
     r"|\bhalloween\s+feiern\b"
     r"|\bhalloween\s*monster\w*\b.{0,60}\bbastel\w*\b"
     r"|\bbastel\w*\b.{0,60}\bhalloween\s*monster\w*\b"
+    r"|\bhalloween\s*kuerbis(?:se|sen)?\b.{0,60}\bschnitz\w*\b|\bschnitz\w*\b.{0,60}\bhalloween\s*kuerbis(?:se|sen)?\b"
 )
 _HALLOWEEN_INCIDENTAL = re.compile(
     r"\b(?:kein\w*|nicht|ohne|statt|vorjahr|letztes\s+jahr|vergangenen\s+jahr"
