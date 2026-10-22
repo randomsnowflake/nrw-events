@@ -234,6 +234,14 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(enriched["price"], "kostenlos")
         self.assertEqual(enriched["venue_address"], "Dreikönigenstr. 67 53343 Wachtberg")
 
+    def test_precise_jsonld_address_replaces_a_contradicting_venue_name_registry_address(self):
+        context = {"venue_address": "Mülheimer Platz 1 53111 Bonn"}
+        registry = self.event(venue_address="Warschauer Straße 66, 53117 Bonn", location_source="venue_registry")
+        source = self.event(venue_address="Warschauer Straße 66, 53117 Bonn", location_source="geocoded_address")
+
+        self.assertEqual(detail_enrichment.apply_detail_context(registry, context)["venue_address"], "Mülheimer Platz 1 53111 Bonn")
+        self.assertEqual(detail_enrichment.apply_detail_context(source, context)["venue_address"], "Warschauer Straße 66, 53117 Bonn")
+
     def test_visible_first_party_time_range_overrides_conflicting_jsonld_schedule(self):
         document = """
         <script type="application/ld+json">

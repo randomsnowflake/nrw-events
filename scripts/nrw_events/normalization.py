@@ -298,11 +298,48 @@ def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | Non
                     and verified_key
                     and explicit_key not in verified_key
                     and verified_key not in explicit_key
+                    and not _same_building(explicit_address, location.address)
                 ):
                     continue
             if city or len(locations) == 1:
                 return location
     return None
+
+
+_HOUSE_NUMBER = re.compile(r"[^\W\d]{2,}\.?\s+(\d{1,4})\s*[a-z]?(?:\s*[-–]\s*(\d{1,4}))?(?!\d)", re.IGNORECASE)
+
+
+def _house_numbers(address: str) -> set[int]:
+    match = _HOUSE_NUMBER.search(address or "")
+    if not match:
+        return set()
+    low = int(match.group(1))
+    return set(range(low, max(low, int(match.group(2) or low)) + 1))
+
+
+def _same_building(left: str, right: str) -> bool | None:
+    """Compare two street addresses with house numbers; None when either lacks one."""
+    # shortcut: postcode and house-number range only, so street typos still match; compare street keys if a same-postcode namesake bites.
+    left_numbers, right_numbers = _house_numbers(left), _house_numbers(right)
+    if not left_numbers or not right_numbers:
+        return None
+    left_postcode, right_postcode = _POSTCODE.search(left), _POSTCODE.search(right)
+    if left_postcode and right_postcode and left_postcode.group() != right_postcode.group():
+        return False
+    return bool(left_numbers & right_numbers)
+
+
+def addresses_conflict(source: str, registry: str) -> bool:
+    """Whether two street addresses with house numbers name different buildings."""
+    return _same_building(source, registry) is False
+
+
+def source_address_wins(event: Mapping[str, object], address: str) -> bool:
+    """Whether a source ``address`` fills a gap or replaces a contradicting venue-name registry address."""
+    current = str(event.get("venue_address") or "").strip()
+    return bool(address.strip()) and (not current or (
+        event.get("location_source") == "venue_registry" and addresses_conflict(address, current)
+    ))
 
 
 def _looks_like_address(segment: str, *, first: bool = False) -> bool:
@@ -413,6 +450,11 @@ def resolve_venue(
     record = _record_for(cleaned, city, explicit_id)
     parsed_name, parsed_address = _split_venue(cleaned, city)
     location = _verified_location_for(cleaned, city)
+    if record and addresses_conflict(parsed_address, record.address):
+        # The source names another building: keep the identity, not the registry pin.
+        return VenueResolution(
+            record.display_name, record.id, parsed_address, record.district, record.venue_type,
+        )
     if record:
         return VenueResolution(
             record.display_name,

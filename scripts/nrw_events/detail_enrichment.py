@@ -38,6 +38,7 @@ from .detail_parsing import (
 )
 from .detail_types import DetailContext
 from .models import RawEvent
+from .normalization import source_address_wins
 from .venue_quality import invalid_venue_reason
 
 _NON_DOCUMENT_SUFFIXES = (
@@ -274,7 +275,8 @@ def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
     for field in fields:
         current = str(enriched.get(field) or "").strip()
         candidate = str(context.get(field) or "").strip()
-        if candidate and (not current or (field == "venue" and (_invalid_short_venue(current) or invalid_venue_reason(current)))):
+        if candidate and (not current or (field == "venue" and (_invalid_short_venue(current) or invalid_venue_reason(current)))
+                          or (field == "venue_address" and source_address_wins(enriched, candidate))):
             enriched[field] = candidate
         elif field == "venue_address" and candidate:
             words = current.split()
