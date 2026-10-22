@@ -6,6 +6,7 @@ from unittest.mock import patch
 from nrw_events import common
 from nrw_events.normalization import resolve_venue
 from nrw_events.sources import SOURCE_IDS, SOURCES, uni_bonn
+from nrw_events.validation import validate_event
 
 from tests.helpers import patch_window
 
@@ -21,6 +22,32 @@ IFB_CINECLUB_URL = "https://www.ifb.uni-bonn.de/kultur/veranstaltungen/cineclub-
 
 
 class UniBonnSourceTests(unittest.TestCase):
+    def test_explicit_workshop_format_survives_shared_validation(self):
+        # https://www.uni-bonn.de/de/veranstaltungen/mastering-the-art-of-sales-part-1-4 (2026-10-22)
+        html = '<div class="content-item"><div class="item-title">Veranstaltungsformat</div><div class="item-value">Workshop</div></div>'
+        event = uni_bonn._merge_context({
+            "title": "Mastering the Art of Sales Part 1", "description": "Bring your product to market.",
+            "start_date": "2026-11-12", "end_date": "2026-11-12", "city": "Bonn",
+            "venue": "Transfer Center enaCom", "source": "Universität Bonn", "source_id": "uni-bonn",
+            "link": "https://www.uni-bonn.de/de/veranstaltungen/mastering-the-art-of-sales-part-1-4",
+            "category_key": "market", "category_reason": "market:description=market", "category_confidence": 0.6,
+            "score": 1.0, "distance_km": 0,
+        }, uni_bonn._parse_detail_context(html))
+        [corrected] = uni_bonn._correct_categories([event])
+        validated = validate_event(corrected)
+        self.assertEqual(validated.category_key, "workshop")
+        self.assertEqual(validated.category_reason, "source:locked-default:workshop")
+        self.assertNotIn("event_format", corrected)
+
+    def test_missing_or_other_formats_do_not_force_workshop(self):
+        for format_, key in (("", "market"), ("Markt", "market"), ("Vortrag", "talk"), ("Ausstellung", "exhibition")):
+            with self.subTest(format=format_):
+                [event] = uni_bonn._correct_categories([{
+                    "title": "Campus event", "description": "Public programme", "event_format": format_, "category_key": key,
+                }])
+                self.assertEqual(event["category_key"], key)
+                self.assertNotIn("event_format", event)
+
     def setUp(self):
         patch_window(self, datetime(2026, 7, 19), datetime(2026, 8, 2))
 

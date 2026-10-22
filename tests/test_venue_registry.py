@@ -8,6 +8,8 @@ from pathlib import Path
 from unittest import mock
 
 from nrw_events.deduplication import deduplicate
+from nrw_events.identity import assign_event_ids
+from nrw_events.identity_reconciliation import _reconcile_published_ids
 from nrw_events.normalization import (
     VENUE_REGISTRY,
     VERIFIED_VENUE_LOCATIONS,
@@ -37,6 +39,43 @@ def event(**overrides):
 
 
 class VenueRegistryTests(unittest.TestCase):
+    def test_record_fair_alias_requires_the_brueckenforum_address(self):
+        label = "SCHALLPLATTENBÖRSE Bonn"
+        address = "Friedrich-Breuer-Straße 17 53225 Bonn, Beuel"
+        self.assertEqual(resolve_venue(f"{label}, {address}", "Bonn").venue_id, "brueckenforum-bonn")
+        for value, city in ((label, "Bonn"), (f"{label}, Kaiserplatz 1, 53113 Bonn", "Bonn"),
+                            (f"{label}, {address}", "Köln")):
+            with self.subTest(value=value, city=city):
+                self.assertEqual(resolve_venue(value, city).venue_id, "")
+
+    def test_record_fair_duplicates_merge_without_losing_other_occurrences(self):
+        market = validate_event(event(
+            event_id="schallplattenboerse-bonn-b433802eb3", title="Schallplattenbörse Bonn",
+            source="marktcom", source_id="marktcom", venue="SCHALLPLATTENBÖRSE Bonn",
+            venue_address="Friedrich-Breuer-Straße 17 53225 Bonn, Beuel",
+            start_date="2026-10-25", end_date="2026-10-25", category_key="market",
+            link="https://www.marktcom.de/veranstaltung/record-fair",
+        ))
+        richer = event(
+            event_id="schallplattenboerse-d7a1c8bbfd", title="Schallplattenbörse",
+            source="Brückenforum Bonn", source_id="brueckenforum-bonn", venue="Brückenforum Bonn",
+            start_date="2026-10-25", end_date="2026-10-25", category_key="market",
+            time="11:00–16:00", price="5 Euro", link="https://www.brueckenforum.de/events/schallplattenboerse/",
+        )
+        [merged] = deduplicate([market, validate_event(richer)])
+        self.assertEqual((merged.venue_id, merged.time, merged.price), ("brueckenforum-bonn", "11:00–16:00", "5 Euro"))
+        self.assertEqual(set(merged.source_links), {market.link, richer["link"]})
+        previous = {"events": [
+            {**market.to_dict(), "event_id": "schallplattenboerse-bonn-b433802eb3", "venue": "SCHALLPLATTENBÖRSE Bonn", "venue_id": ""},
+            richer,
+        ]}
+        [published] = assign_event_ids(_reconcile_published_ids([merged], previous))
+        self.assertEqual(published["event_id"], "schallplattenboerse-d7a1c8bbfd")
+        self.assertIn("schallplattenboerse-bonn-b433802eb3", published["previous_event_ids"])
+        for patch in ({"start_date": "2026-11-08", "end_date": "2026-11-08"}, {"title": "Mädelsflohmarkt"}):
+            with self.subTest(patch=patch):
+                self.assertEqual(len(deduplicate([market, validate_event({**richer, **patch})])), 2)
+
     def test_generic_alias_requires_a_city(self):
         self.assertEqual(resolve_venue("Marktplatz", "").venue_id, "")
         self.assertEqual(
