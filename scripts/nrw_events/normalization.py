@@ -8,6 +8,7 @@ import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from functools import lru_cache
 from html import unescape
 from pathlib import Path
@@ -298,11 +299,66 @@ def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | Non
                     and verified_key
                     and explicit_key not in verified_key
                     and verified_key not in explicit_key
+                    and not _same_building(explicit_address, location.address)
                 ):
                     continue
             if city or len(locations) == 1:
                 return location
     return None
+
+
+_HOUSE_NUMBER = re.compile(r"[^\W\d]{2,}\.?\s+(\d{1,4})\s*([a-z]?)(?:\s*[-–]\s*(\d{1,4}))?(?!\d)", re.IGNORECASE)
+
+
+def _house_numbers(address: str) -> set[str]:
+    match = _HOUSE_NUMBER.search(address or "")
+    if not match:
+        return set()
+    low = int(match.group(1))
+    # "1a" and "1b" are different buildings; a range "22-24" covers whole numbers only.
+    if match.group(2) and not match.group(3):
+        return {f"{low}{match.group(2).lower()}"}
+    return {str(number) for number in range(low, max(low, int(match.group(3) or low)) + 1)}
+
+
+def _street_key(address: str) -> str:
+    match = _HOUSE_NUMBER.search(address or "")
+    street = (address or "")[:match.start(1)].rsplit(",", 1)[-1] if match else ""
+    return re.sub(r"(?:strasse|str)\b", "str", comparison_text(street, separator=""))
+
+
+def _same_street(left: str, right: str) -> bool:
+    left_key, right_key = _street_key(left), _street_key(right)
+    # "HIT Georgstr." names Georgstr.; "Friederich-Breuer-Str." and "Amt Burggraben" are typos of one street.
+    return (
+        not left_key or not right_key
+        or left_key.endswith(right_key) or right_key.endswith(left_key)
+        or SequenceMatcher(None, left_key, right_key).ratio() >= 0.8
+    )
+
+
+def _same_building(left: str, right: str) -> bool | None:
+    """Compare two street addresses with house numbers; None when either lacks one."""
+    left_numbers, right_numbers = _house_numbers(left), _house_numbers(right)
+    if not left_numbers or not right_numbers:
+        return None
+    left_postcode, right_postcode = _POSTCODE.search(left), _POSTCODE.search(right)
+    if left_postcode and right_postcode and left_postcode.group() != right_postcode.group():
+        return False
+    return bool(left_numbers & right_numbers) and _same_street(left, right)
+
+
+def addresses_conflict(source: str, registry: str) -> bool:
+    """Whether two street addresses with house numbers name different buildings."""
+    return _same_building(source, registry) is False
+
+
+def source_address_wins(event: Mapping[str, object], address: str) -> bool:
+    """Whether a source ``address`` fills a gap or replaces a contradicting venue-name registry address."""
+    current = str(event.get("venue_address") or "").strip()
+    return bool(address.strip()) and (not current or (
+        event.get("location_source") == "venue_registry" and addresses_conflict(address, current)
+    ))
 
 
 def _looks_like_address(segment: str, *, first: bool = False) -> bool:
@@ -413,6 +469,11 @@ def resolve_venue(
     record = _record_for(cleaned, city, explicit_id)
     parsed_name, parsed_address = _split_venue(cleaned, city)
     location = _verified_location_for(cleaned, city)
+    if record and addresses_conflict(parsed_address, record.address):
+        # The source names another building: keep the identity, not the registry pin.
+        return VenueResolution(
+            record.display_name, record.id, parsed_address, record.district, record.venue_type,
+        )
     if record:
         return VenueResolution(
             record.display_name,

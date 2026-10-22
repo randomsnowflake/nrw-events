@@ -182,6 +182,45 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertEqual(venue.coordinate_source, "verified_venue_locations")
         self.assertAlmostEqual(venue.venue_latitude or 0, 50.7501925)
 
+    def test_umbrella_library_name_alone_invents_no_branch(self):
+        venue = resolve_venue("Stadtbibliothek Bonn", "Bonn")
+        self.assertEqual((venue.venue_address, venue.venue_latitude), ("", None))
+        result = canonicalize_event(event(venue="Stadtbibliothek Bonn"))
+        self.assertNotEqual(result["location_source"], "venue_registry")
+        self.assertEqual(resolve_venue("Stadtteilbibliothek Auerberg", "Bonn").venue_address, "Warschauer Straße 66, 53117 Bonn")
+
+    def test_registry_point_survives_only_a_matching_source_address(self):
+        # Kulturraum Auerberg is registered at Kölnstraße 367, 53117 Bonn.
+        pin = resolve_venue("Kulturraum Auerberg", "Bonn")
+        registry_point = {"venue_latitude": pin.venue_latitude, "venue_longitude": pin.venue_longitude}
+        same = canonicalize_event(event(
+            venue="Kulturraum Auerberg", venue_address="Kölnstraße 367, 53117 Bonn",
+            location_source="venue_registry", **registry_point,
+        ))
+        self.assertEqual((same["venue_latitude"], same["location_source"]), (pin.venue_latitude, "venue_registry"))
+
+        other = canonicalize_event(event(
+            venue="Kulturraum Auerberg", venue_address="Mülheimer Platz 1, 53111 Bonn",
+            location_source="venue_registry", **registry_point,
+        ))
+        self.assertEqual(other["venue_address"], "Mülheimer Platz 1, 53111 Bonn")
+        self.assertIsNone(other["venue_latitude"])
+        self.assertNotEqual(other["location_source"], "venue_registry")
+
+    def test_house_number_ranges_and_spelling_variants_are_one_building(self):
+        from nrw_events.normalization import addresses_conflict
+        self.assertFalse(addresses_conflict("Bonngasse 22-24, 53111 Bonn", "Bonngasse 22–24 53111"))
+        self.assertFalse(addresses_conflict("Friederich-Breuer-Str. 17, 53225 Bonn", "Friedrich-Breuer-Straße 17, 53225 Bonn"))
+        self.assertFalse(addresses_conflict("Münsterplatz, 53111 Bonn", "Bonngasse 22, 53111 Bonn"))
+        self.assertTrue(addresses_conflict("Moltkestraße 2-8, 53173 Bonn", "Moltkestraße 41, 53173 Bonn"))
+        self.assertTrue(addresses_conflict("Oppelner Str. 128, 53119 Bonn", "Warschauer Straße 66, 53117 Bonn"))
+        self.assertFalse(addresses_conflict("Amt Burggraben 18, 53121 Bonn", "Am Burggraben 18, 53121 Bonn"))
+        # Same postcode and number on another street is another building (Codex review, PR #419).
+        self.assertTrue(addresses_conflict("Roitzheimer Str. 22, 53879 Euskirchen", "HIT Georgstr. 22, 53879 Euskirchen"))
+        self.assertIsNone(resolve_venue("Flohmarkt, Roitzheimer Str. 22, 53879 Euskirchen", "Euskirchen").venue_latitude)
+        self.assertFalse(addresses_conflict("Breite Straße 107a, 53111 Bonn", "Breitestraße 107a, 53111 Bonn"))
+        self.assertTrue(addresses_conflict("Renoisstraße 1b, 53129 Bonn", "Renoisstraße 1a, 53129 Bonn"))
+
     def test_registry_rebuild_is_diff_free(self):
         root = Path(__file__).resolve().parents[1]
         completed = subprocess.run(

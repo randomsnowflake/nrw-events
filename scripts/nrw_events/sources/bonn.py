@@ -32,6 +32,7 @@ from .. import (
     richtext,
 )
 from ..location import municipality_for_locality
+from ..normalization import source_address_wins
 from . import regional_common as rc
 from .bonn_policy import _active_reviewed_map, _clean_event_href
 from .bonn_press_parser import (
@@ -691,6 +692,8 @@ def _fetch_detail_context(link: str, timeout: float = 15) -> dict:
 
 def _apply_detail_location(event: dict, context: dict) -> dict:
     """Fill missing canonical location fields from Bonn.de's Event JSON-LD."""
+    if source_address_wins(event, str(context.get("venue_address") or "")):
+        event["venue_address"] = context["venue_address"]
     for field in (
         "venue_address",
         "venue_latitude",
@@ -956,7 +959,7 @@ def _finish_structured_event(
     # Place does not move an already published event URL.
     ev["identity_venue"] = identity_venue
     ev["identity_venue_locked"] = True
-    if location_address and not ev.get("venue_address"):
+    if source_address_wins(ev, location_address):
         ev["venue_address"] = location_address
     ev = _apply_detail_location(ev, detail_context)
     ev = _apply_detail_final_date(ev, detail_context)

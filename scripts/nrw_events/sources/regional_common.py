@@ -13,6 +13,7 @@ from typing import Any
 
 from .. import common, http
 from ..dates import MONTH_ALL, resolve_yearless_date
+from ..normalization import source_address_wins
 from ..source_types import TextParser
 
 
@@ -340,7 +341,7 @@ def enrich_descriptions(
             event["description_html"] = context["description_html"]
         if not event.get("venue") and context.get("venue"):
             event["venue"] = context["venue"]
-        if not event.get("venue_address") and context.get("venue_address"):
+        if source_address_wins(event, str(context.get("venue_address") or "")):
             event["venue_address"] = context["venue_address"]
     return events
 

@@ -19,7 +19,7 @@ from .models import (
     RawEvent,
     normalize_source_id,
 )
-from .normalization import canonical_venue_id, resolve_venue
+from .normalization import addresses_conflict, canonical_venue_id, resolve_venue
 from .quality import evaluate_event_quality
 from .title_normalization import normalize_event_title, strip_status_markers
 from .venue_quality import sanitize_venue_fields
@@ -786,6 +786,12 @@ def canonical_venue_fields(raw: dict[str, Any]) -> VenueFields:
         event["identity_venue"] = "Herrenhaus Burg Altendorf"
         event["identity_venue_locked"] = True
     venue = resolve_venue(venue_input, event["city"], explicit_id=explicit_venue_id)
+    if explicit_venue_latitude is not None and explicit_venue_address:
+        named = resolve_venue(event["venue"], event["city"], explicit_id=explicit_venue_id)
+        # A venue-name registry pin of another building than the source address names is no point for it.
+        if ((named.venue_latitude, named.venue_longitude) == (explicit_venue_latitude, explicit_venue_longitude)
+                and addresses_conflict(explicit_venue_address, named.venue_address)):
+            explicit_venue_latitude = explicit_venue_longitude = None
     event["venue"] = venue.venue
     event["venue_id"] = venue.venue_id or explicit_venue_id
     event["venue_address"] = venue.venue_address or explicit_venue_address
@@ -959,6 +965,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     except (KeyError, TypeError, ValueError):
         explicit_point = None
     event.update(canonical_venue_fields(event))
+    if explicit_point is not None and event["venue_latitude"] is None:
+        # The dropped registry pin took its provenance and distance with it.
+        event.update(location_confidence="", location_source="", distance_km=None)
     canonical_time, inferred_time_note = common.normalize_time_fields(event["time"])
     event["time"] = canonical_time
     event["time_note"] = common.combine_time_notes(

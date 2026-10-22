@@ -121,6 +121,19 @@ class BonnRssWindowTests(unittest.TestCase):
         monthly = {"startDate": "2026-10-01", "endDate": "2026-12-31", "repeatFrequency": "P1M"}
         self.assertEqual(bonn._schedule_occurrences([monthly], date(2026, 10, 14), date(2026, 11, 10)), [])
 
+    def test_source_address_beats_umbrella_venue_name(self):
+        # bonn.de romantasy.php (2026-10-22): "Stadtbibliothek Bonn" names every branch; the address names the building.
+        detail = HOMEWORK_DETAIL.replace(json.dumps("Internationale Begegnungsstätte"), json.dumps("Stadtbibliothek Bonn")).replace(
+            json.dumps("Ollenhauerstraße 1"), json.dumps("Mülheimer Platz 1")).replace('"53113"', '"53111"')
+        original = self.fake_fetch
+        self.fake_fetch = lambda url, *args, **kwargs: detail if url == HOMEWORK else original(url, *args, **kwargs)
+
+        first = self.fetch()[0]
+
+        self.assertEqual(first["venue_address"], "Mülheimer Platz 1, 53111 Bonn")
+        self.assertNotEqual(first["location_source"], "venue_registry")
+        self.assertNotEqual(first["venue_latitude"], 50.7567024)  # Stadtteilbibliothek Auerberg
+
 
 if __name__ == "__main__":
     unittest.main()
