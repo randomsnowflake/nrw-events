@@ -214,6 +214,10 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertFalse(addresses_conflict("Münsterplatz, 53111 Bonn", "Bonngasse 22, 53111 Bonn"))
         self.assertTrue(addresses_conflict("Moltkestraße 2-8, 53173 Bonn", "Moltkestraße 41, 53173 Bonn"))
         self.assertTrue(addresses_conflict("Oppelner Str. 128, 53119 Bonn", "Warschauer Straße 66, 53117 Bonn"))
+        self.assertFalse(addresses_conflict("Amt Burggraben 18, 53121 Bonn", "Am Burggraben 18, 53121 Bonn"))
+        # Same postcode and number on another street is another building (Codex review, PR #419).
+        self.assertTrue(addresses_conflict("Roitzheimer Str. 22, 53879 Euskirchen", "HIT Georgstr. 22, 53879 Euskirchen"))
+        self.assertIsNone(resolve_venue("Flohmarkt, Roitzheimer Str. 22, 53879 Euskirchen", "Euskirchen").venue_latitude)
 
     def test_registry_rebuild_is_diff_free(self):
         root = Path(__file__).resolve().parents[1]

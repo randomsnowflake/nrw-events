@@ -8,6 +8,7 @@ import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 from functools import lru_cache
 from html import unescape
 from pathlib import Path
@@ -317,16 +318,31 @@ def _house_numbers(address: str) -> set[int]:
     return set(range(low, max(low, int(match.group(2) or low)) + 1))
 
 
+def _street_key(address: str) -> str:
+    match = _HOUSE_NUMBER.search(address or "")
+    street = (address or "")[:match.start(1)].rsplit(",", 1)[-1] if match else ""
+    return re.sub(r"(?:strasse|str)\b", "str", comparison_text(street, separator=""))
+
+
+def _same_street(left: str, right: str) -> bool:
+    left_key, right_key = _street_key(left), _street_key(right)
+    # "HIT Georgstr." names Georgstr.; "Friederich-Breuer-Str." and "Amt Burggraben" are typos of one street.
+    return (
+        not left_key or not right_key
+        or left_key.endswith(right_key) or right_key.endswith(left_key)
+        or SequenceMatcher(None, left_key, right_key).ratio() >= 0.8
+    )
+
+
 def _same_building(left: str, right: str) -> bool | None:
     """Compare two street addresses with house numbers; None when either lacks one."""
-    # shortcut: postcode and house-number range only, so street typos still match; compare street keys if a same-postcode namesake bites.
     left_numbers, right_numbers = _house_numbers(left), _house_numbers(right)
     if not left_numbers or not right_numbers:
         return None
     left_postcode, right_postcode = _POSTCODE.search(left), _POSTCODE.search(right)
     if left_postcode and right_postcode and left_postcode.group() != right_postcode.group():
         return False
-    return bool(left_numbers & right_numbers)
+    return bool(left_numbers & right_numbers) and _same_street(left, right)
 
 
 def addresses_conflict(source: str, registry: str) -> bool:
