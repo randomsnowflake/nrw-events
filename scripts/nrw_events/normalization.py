@@ -150,7 +150,7 @@ VENUE_REGISTRY: tuple[VenueRecord, ...] = (
     _venue("museum-koenig-bonn", "Museum Koenig Bonn", "Museum Koenig", "Zoologisches Forschungsmuseum Alexander Koenig", city="Bonn", district="Bonn-Gronau", venue_type="museum", address="Adenauerallee 160, 53113 Bonn", coordinates=(50.7221437, 7.1134825)),
     _venue("lvr-landesmuseum-bonn", "LVR-LandesMuseum Bonn", "LVR-LandesMuseum", city="Bonn", venue_type="museum"),
     _venue("interim-zentralbibliothek-koeln", "Interim Zentralbibliothek", city="Köln", venue_type="library"),
-    _venue("brueckenforum-bonn", "Brückenforum Bonn", "Brückenforum", "Brückenforum GmbH", city="Bonn", district="Bonn-Beuel", venue_type="event_venue"),
+    _venue("brueckenforum-bonn", "Brückenforum Bonn", "Brückenforum", "Brückenforum GmbH", "SCHALLPLATTENBÖRSE Bonn, Friedrich-Breuer-Straße 17 53225 Bonn, Beuel", city="Bonn", district="Bonn-Beuel", venue_type="event_venue"),
     _venue("arkadenhof-universitaet-bonn", "Arkadenhof Universität Bonn", city="Bonn", venue_type="university"),
     _venue("kult41", "KULT41", city="Bonn", venue_type="cultural_center"),
     _venue("selbstwerk-bonn", "Selbstwerk Bonn", city="Bonn", venue_type="workshop"),

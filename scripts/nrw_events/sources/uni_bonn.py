@@ -165,6 +165,7 @@ def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
         "venue": ", ".join(part for part in venue_parts if part),
         "price": parser.fields.get("eintrittspreis", "") or parser.fields.get("preis", ""),
         "target_groups": parser.fields.get("zielgruppen", "") or parser.fields.get("target groups", ""),
+        "event_format": parser.fields.get("veranstaltungsformat", ""),
     }
 
 
@@ -180,6 +181,8 @@ def _valid_duration(props: dict, start: datetime, end: datetime) -> bool:
 
 def _merge_context(event: dict, context: dict) -> dict:
     enriched = dict(event)
+    if context.get("event_format"):
+        enriched["event_format"] = context["event_format"]
     if context.get("target_groups"):
         enriched["target_groups"] = context["target_groups"]
     if context.get("venue"):
@@ -239,6 +242,17 @@ def _public_events(events: list) -> list:
 
 def _correct_categories(events: list) -> list:
     for event in events:
+        event_format = event.pop("event_format", "").strip().casefold()
+        if event_format == "workshop":
+            # The explicit format outranks incidental words such as "market" in a sales course.
+            result = category_taxonomy.categorize_event(
+                event_format, event.get("title", ""), default_category_key="workshop", category_locked=True,
+            )
+            event["category_key"] = result["key"]
+            event["category_label"] = result["label"]
+            event["category_confidence"] = result["confidence"]
+            event["category_reason"] = result["reason"]
+            continue
         category_text = event.get("category", "").casefold()
         event_text = f"{event.get('title', '')} {event.get('description', '')}"
         title_text = event.get("title", "")

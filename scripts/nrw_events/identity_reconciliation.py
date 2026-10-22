@@ -16,7 +16,7 @@ from .dates import parse_iso_date
 from .duplicate_identity import events_are_duplicates
 from .identity import event_id
 from .models import CanonicalEvent, normalize_source_id
-from .normalization import comparison_text
+from .normalization import comparison_text, resolve_venue
 from .reconciliation_rules import occurrence_clock
 from .title_normalization import normalize_event_title, strip_status_markers
 
@@ -277,9 +277,15 @@ def _adopt_orphaned_ids(
         prior_id = str(prior.get("event_id") or "").strip() if isinstance(prior, dict) else ""
         if not prior_id or prior_id in referenced or prior.get("status", "scheduled") != "scheduled":
             continue
+        # Old snapshots predate newly reviewed venue aliases; compare with today's registry.
+        venue = resolve_venue(
+            ", ".join(str(prior.get(field) or "") for field in ("venue", "venue_address") if prior.get(field)),
+            str(prior.get("city") or ""), explicit_id=str(prior.get("venue_id") or ""),
+        )
+        normalized_prior = {**prior, "venue": venue.venue, "venue_id": venue.venue_id}
         successors = [
             index for index in by_date.get(str(prior.get("start_date") or prior.get("date") or ""), [])
-            if events_are_duplicates(prior, events[index])
+            if events_are_duplicates(normalized_prior, events[index])
         ]
         if len(successors) == 1:
             aliases.setdefault(successors[0], []).extend([prior_id, *(prior.get("previous_event_ids") or [])])
