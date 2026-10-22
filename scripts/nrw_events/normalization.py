@@ -307,15 +307,18 @@ def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | Non
     return None
 
 
-_HOUSE_NUMBER = re.compile(r"[^\W\d]{2,}\.?\s+(\d{1,4})\s*[a-z]?(?:\s*[-–]\s*(\d{1,4}))?(?!\d)", re.IGNORECASE)
+_HOUSE_NUMBER = re.compile(r"[^\W\d]{2,}\.?\s+(\d{1,4})\s*([a-z]?)(?:\s*[-–]\s*(\d{1,4}))?(?!\d)", re.IGNORECASE)
 
 
-def _house_numbers(address: str) -> set[int]:
+def _house_numbers(address: str) -> set[str]:
     match = _HOUSE_NUMBER.search(address or "")
     if not match:
         return set()
     low = int(match.group(1))
-    return set(range(low, max(low, int(match.group(2) or low)) + 1))
+    # "1a" and "1b" are different buildings; a range "22-24" covers whole numbers only.
+    if match.group(2) and not match.group(3):
+        return {f"{low}{match.group(2).lower()}"}
+    return {str(number) for number in range(low, max(low, int(match.group(3) or low)) + 1)}
 
 
 def _street_key(address: str) -> str:

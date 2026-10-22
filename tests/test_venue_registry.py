@@ -218,6 +218,8 @@ class VenueRegistryTests(unittest.TestCase):
         # Same postcode and number on another street is another building (Codex review, PR #419).
         self.assertTrue(addresses_conflict("Roitzheimer Str. 22, 53879 Euskirchen", "HIT Georgstr. 22, 53879 Euskirchen"))
         self.assertIsNone(resolve_venue("Flohmarkt, Roitzheimer Str. 22, 53879 Euskirchen", "Euskirchen").venue_latitude)
+        self.assertFalse(addresses_conflict("Breite Straße 107a, 53111 Bonn", "Breitestraße 107a, 53111 Bonn"))
+        self.assertTrue(addresses_conflict("Renoisstraße 1b, 53129 Bonn", "Renoisstraße 1a, 53129 Bonn"))
 
     def test_registry_rebuild_is_diff_free(self):
         root = Path(__file__).resolve().parents[1]
