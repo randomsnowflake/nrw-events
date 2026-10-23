@@ -307,7 +307,8 @@ def _verified_location_for(value: str, city: str) -> VerifiedVenueLocation | Non
     return None
 
 
-_HOUSE_NUMBER = re.compile(r"[^\W\d]{2,}\.?\s+(\d{1,4})\s*([a-z]?)(?:\s*[-–]\s*(\d{1,4}))?(?!\d)", re.IGNORECASE)
+# A suffix letter stands alone: the "B" of "160 Bonn" starts the city, it is no "160b".
+_HOUSE_NUMBER = re.compile(r"[^\W\d]{2,}\.?\s+(\d{1,4})\s*([a-z]?)(?![^\W\d_])(?:\s*[-–]\s*(\d{1,4}))?(?!\d)", re.IGNORECASE)
 
 
 def _house_numbers(address: str) -> set[str]:
