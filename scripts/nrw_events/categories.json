@@ -2801,6 +2801,13 @@
           "comment": "classifier"
         },
         {
+          "value": "kunstwerk",
+          "match_mode": "word_prefix",
+          "scope": "all",
+          "weight": 1.0,
+          "comment": "classifier"
+        },
+        {
           "value": "karikatur",
           "match_mode": "word_prefix",
           "scope": "all",

@@ -682,6 +682,7 @@ def score_category_evidence(
     best_key = "other"
     best_score = 0
     best_priority = -1
+    best_match_count = 0
     best_reason = "other:no-match"
     best_title_matches: list[str] = []
     best_description_matches: list[str] = []
@@ -718,10 +719,16 @@ def score_category_evidence(
         score += 1 if hint_matches else 0
         if score == 0:
             continue
-        if score > best_score or (score == best_score and rule.priority > best_priority):
+        # On a tie, more distinct keywords in visitor copy beat rule priority, so
+        # one incidental "Musik" cannot outrank "Kunst" plus "Kunstwerke".
+        match_count = len(title_matches) + len(description_matches)
+        if score > best_score or (score == best_score and (
+            (match_count, rule.priority) > (best_match_count, best_priority)
+        )):
             best_key = rule.key
             best_score = score
             best_priority = rule.priority
+            best_match_count = match_count
             best_title_matches = title_matches
             best_description_matches = description_matches
             best_hint_matches = hint_matches

@@ -653,6 +653,16 @@ class CategoryTaxonomyTests(unittest.TestCase):
                     expected,
                 )
 
+    def test_incidental_music_mention_does_not_outrank_art_exhibition_copy(self):
+        result = categorize_event(
+            "official calendar rss bonn",
+            "Eintritt frei: Interactions 2026",
+            "Wir laden zum Spiel mit vielen Kunstwerken ein. Die Werke beschäftigen "
+            "sich mit Bildern, Sprache oder Musik/Sound und laden ein, an der Kunst "
+            "aktiv teilzuhaben.",
+        )
+        self.assertEqual(result["key"], "exhibition")
+
     def test_touring_shows_are_stage_or_music_programme_not_guided_tours(self):
         touring_cases = [
             ("kabarett kleinkunst", "Miss Allie - Paradiesvogel Tour 2026", "", "stage"),
