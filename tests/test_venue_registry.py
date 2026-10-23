@@ -220,6 +220,10 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertIsNone(resolve_venue("Flohmarkt, Roitzheimer Str. 22, 53879 Euskirchen", "Euskirchen").venue_latitude)
         self.assertFalse(addresses_conflict("Breite Straße 107a, 53111 Bonn", "Breitestraße 107a, 53111 Bonn"))
         self.assertTrue(addresses_conflict("Renoisstraße 1b, 53129 Bonn", "Renoisstraße 1a, 53129 Bonn"))
+        # A city after the number without a comma is no suffix: "160 Bonn" is 160, not 160b.
+        self.assertFalse(addresses_conflict("Adenauerallee 160 Bonn", "Adenauerallee 160, 53113 Bonn"))
+        self.assertFalse(addresses_conflict("Kaiserplatz 1 a, 53113 Bonn", "Kaiserplatz 1a, 53113 Bonn"))
+        self.assertIsNotNone(resolve_venue("Museum Koenig, Adenauerallee 160 Bonn", "Bonn").venue_latitude)
 
     def test_registry_rebuild_is_diff_free(self):
         root = Path(__file__).resolve().parents[1]
