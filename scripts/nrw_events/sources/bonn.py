@@ -209,8 +209,11 @@ def _venue_points() -> dict:
                 sec_fetch_dest="empty",
             ))
         except Exception as e:
-            common.log_source_error("Bonn venue GeoJSON", e)
+            common.log_source_error("Bonn venue GeoJSON", e, source_id="bonn-venue-geojson")
             continue
+        finally:
+            # Retry-budget errors differ from socket errors; attribute by identity.
+            http._record_endpoint(url, source_id="bonn-venue-geojson")
         for feat in data.get("features", []):
             name = ((feat.get("properties") or {}).get("name") or "").strip().lower()
             coords = (feat.get("geometry") or {}).get("coordinates") or []
