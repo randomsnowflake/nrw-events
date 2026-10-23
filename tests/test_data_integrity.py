@@ -530,7 +530,9 @@ END:VCALENDAR"""
         honnef = validate_event({**base, "venue_address": "Hauptstraße 5, 53604 Bad Honnef"})
         self.assertEqual(honnef["city"], "Bad Honnef")
         self.assertLess(honnef["distance_km"], 20)
-        for address in ("Konviktstraße 9, 53113 Bonn", "Regina-Pacis-Weg 3, 53113 Bonn, Hörsaal 1", ""):
+        remagen = validate_event({**base, "venue_address": "Bahnhofstraße 1, 53424 Remagen Deutschland"})
+        self.assertEqual(remagen["city"], "Remagen")
+        for address in ("Konviktstraße 9, 53113 Bonn", "Regina-Pacis-Weg 3, 53113 Bonn, Hörsaal 1", "Postfach 1, 53105 Bonn", ""):
             kept = validate_event({**base, "venue_address": address})
             self.assertEqual((kept["city"], kept["score"]), ("Bonn", 1.1), address)
         pinned = validate_event({**base, "venue_address": "Messeplatz 1, 45131 Essen",

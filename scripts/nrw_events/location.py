@@ -146,10 +146,19 @@ def city_from_address_postcode(city: str, address: str) -> str:
     if not comparison_text(city).startswith("bonn"):
         return city
     matches = _POSTCODE_TOWN.findall(address or "")
-    if not matches or any(config.POSTCODE_MUNICIPALITIES.get(code) == "Bonn" for code, _town in matches):
+    if not matches or any(
+        config.POSTCODE_MUNICIPALITIES.get(code) == "Bonn"
+        # PO-box and large-customer codes (53105, 53012 Bonn) are not in the table.
+        or (code.startswith("53") and comparison_text(town).startswith("bonn"))
+        for code, town in matches
+    ):
         return city
     code, town = matches[0]
-    town = config.POSTCODE_MUNICIPALITIES.get(code) or town.strip()
+    if not (town := config.POSTCODE_MUNICIPALITIES.get(code) or ""):
+        # "53424 Remagen-Rolandseck" or "Remagen Deutschland": the configured town inside.
+        written = matches[0][1].strip()
+        guessed = guess_city_from_text(written)
+        town = guessed.title() if guessed and not guessed.startswith("bonn") else written
     if comparison_text(town).startswith("bonn"):
         other = guess_city_from_text(re.sub(r"(?i)\bbonn\b", " ", address))
         town = other.title() if other else ""

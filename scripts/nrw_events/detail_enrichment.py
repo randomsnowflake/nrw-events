@@ -38,7 +38,7 @@ from .detail_parsing import (
 )
 from .detail_types import DetailContext
 from .models import RawEvent
-from .normalization import source_address_wins
+from .normalization import resolve_venue, source_address_wins
 from .venue_quality import invalid_venue_reason
 
 _NON_DOCUMENT_SUFFIXES = (
@@ -271,14 +271,18 @@ def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
     ):
         enriched["price"] = common.clean_html(price)[:160]
         enriched["admission_basis"] = "explicit"
-    # A registry address only echoes the listing's venue name. When the detail
-    # page places the event elsewhere (Springmaus show in the Post Tower), its
-    # venue name must move with its address.
-    relocated = bool(
-        str(enriched.get("venue_address") or "").strip()
-        and str(context.get("venue") or "").strip()
-        and source_address_wins(enriched, str(context.get("venue_address") or ""))
+    # A registry address only echoes the listing's venue name. A contradicting
+    # detail address moves the event, so the registry pin goes with it. The venue
+    # name moves only when the detail page names another known venue (Springmaus
+    # show in the Post Tower); a room ("Auditorium") or an old street name of the
+    # same house keeps the registry identity.
+    moved = bool(str(enriched.get("venue_address") or "").strip()) and source_address_wins(
+        enriched, str(context.get("venue_address") or "")
     )
+    detail_venue = str(context.get("venue") or "").strip()
+    known = resolve_venue(detail_venue, str(enriched.get("city") or "")) if moved and detail_venue else None
+    relocated = bool(known and (known.venue_id or known.venue_latitude is not None)
+                     and known.venue_id != str(enriched.get("venue_id") or ""))
     if relocated:
         enriched.pop("venue_id", None)
         enriched.pop("venue_district", None)
@@ -300,6 +304,13 @@ def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
                 )
             ):
                 enriched[field] = candidate
+    if moved:
+        # After the loop: source_address_wins reads location_source.
+        enriched.pop("venue_latitude", None)
+        enriched.pop("venue_longitude", None)
+        enriched.pop("location_source", None)
+        enriched.pop("location_confidence", None)
+        enriched.pop("distance_km", None)
     organizer = str(context.get("organizer") or "").strip()
     if organizer and not str(enriched.get("organizer") or "").strip():
         enriched["organizer"] = organizer

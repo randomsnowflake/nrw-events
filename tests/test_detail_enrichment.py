@@ -258,6 +258,19 @@ class DetailEnrichmentTests(unittest.TestCase):
         same = detail_enrichment.apply_detail_context(house, {"venue": "Springmaus", "venue_address": "Frongasse 8-10 53121 Bonn"})
         self.assertEqual((same["venue"], same["venue_id"]), ("Haus der Springmaus", "haus-der-springmaus"))
 
+    def test_moved_address_drops_the_registry_pin_but_a_room_keeps_the_venue(self):
+        house = self.event(
+            venue="Haus der Springmaus", venue_id="haus-der-springmaus", venue_address="Frongasse 8-10, 53121 Bonn",
+            location_source="venue_registry", venue_latitude=50.7, venue_longitude=7.1,
+        )
+        # An unknown hall elsewhere: its address wins, the Springmaus pin must not stay on it.
+        away = detail_enrichment.apply_detail_context(house, {"venue": "Kurhaus Saal", "venue_address": "Hauptstr. 1, 53604 Bad Honnef"})
+        self.assertEqual((away["venue"], away["venue_id"], away["venue_address"]), ("Haus der Springmaus", "haus-der-springmaus", "Hauptstr. 1, 53604 Bad Honnef"))
+        self.assertFalse({"venue_latitude", "venue_longitude", "location_source"} & away.keys())
+        # A room is no other venue: the identity stays.
+        room = detail_enrichment.apply_detail_context(house, {"venue": "Großer Saal", "venue_address": "Siegburger Straße 42a, 53229 Bonn"})
+        self.assertEqual((room["venue"], room["venue_id"]), ("Haus der Springmaus", "haus-der-springmaus"))
+
     def test_visible_first_party_time_range_overrides_conflicting_jsonld_schedule(self):
         document = """
         <script type="application/ld+json">
