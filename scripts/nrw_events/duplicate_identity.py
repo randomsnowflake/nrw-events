@@ -962,9 +962,13 @@ _TITLE_FILLER_WORDS = frozenset({
 })
 
 
+_KIDS_SECONDHAND_MARKET = re.compile(r"\bkinder ?(?:sachen|kleider|kleidungs)? ?(?:flohmarkt|troedelmarkt|basar)\b")
+
+
 def _significant_title_words(title: str) -> tuple[str, ...]:
+    # Directories and organisers spell one format differently: "Kinderflohmarkt", "Kindersachen-Flohmarkt", "Kinderbasar".
     return tuple(
-        word for word in comparison_text(title).split()
+        word for word in _KIDS_SECONDHAND_MARKET.sub("kinderflohmarkt", comparison_text(title)).split()
         if len(word) >= 3
         and word not in _TITLE_FILLER_WORDS
         and not re.fullmatch(r"(?:19|20)\d{2}", word)

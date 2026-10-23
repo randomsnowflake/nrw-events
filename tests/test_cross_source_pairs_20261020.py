@@ -112,6 +112,20 @@ class CrossSourcePairTests(unittest.TestCase):
                    link="https://www.bonn.de/veranstaltungskalender/rilke.php", **brotfabrik),
         )
 
+    def test_kids_secondhand_market_spellings_at_one_venue_and_minute(self):
+        directory = _event(title="Kinderflohmarkt Kita St. Barbara in Ippendorf", source="Kinderflohmarkt.com",
+                           source_id="kinderflohmarkt-com", venue="Pfarrheim St.Barbara", city="Ippendorf",
+                           start_date="2026-11-14", start_at="2026-11-14T11:00+01:00", end_at="2026-11-14T14:00+01:00",
+                           link="https://kinderflohmarkt.com/de/nordrhein-westfalen-nrw/bonn/pfarrheim-stbarbara-53127-ippendorf-5516/")
+        submission = _event(title="Kindersachenflohmarkt Kita St. Barbara", source="Veranstaltungen Bonn Einreichung",
+                            source_id="veranstaltungen-bonn-submission", venue="Pfarrheim St. Barbara",
+                            venue_address="Röttgener Str. 34", city="Bonn", start_date="2026-11-14",
+                            start_at="2026-11-14T11:00+01:00", link="https://maps.app.goo.gl/A93p8q8E1rsBrQpR9")
+        self.assertDuplicate(directory, submission)
+        self.assertDuplicate(directory, dict(submission, title="Kinderkleider-Basar Kita St. Barbara"))
+        # Another start minute is another market, or one source is wrong: the candidate report flags it.
+        self.assertSeparate(directory, dict(submission, start_at="2026-11-14T15:00+01:00"))
+
     def test_short_or_different_titles_at_one_venue_and_minute_stay_separate(self):
         # No registry id: an unregistered stage isolates the title rule from
         # the existing same-venue-same-minute-same-category rule.
