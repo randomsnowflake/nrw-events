@@ -152,6 +152,11 @@ def _parse_detail_context(html: str, _event: dict | None = None) -> dict:
         # "Ort" holds only the street address and "Raum" names the place
         # (LVR-LandesMuseum for an off-site walk): lead with the name.
         place, room = room, place
+    head, _, rest = place.partition(",")
+    if rest.strip() and room and head.strip().casefold() == room.strip().casefold():
+        # "Auditorium, Kunstmuseum Bonn …" with Raum "Auditorium": the building
+        # must lead, the room follows below.
+        place = rest.strip()
     for raw_part in (place, room):
         part = _address_last(raw_part)
         key = re.sub(r"\s*\([^)]*\)", "", part).strip(" ,").casefold()

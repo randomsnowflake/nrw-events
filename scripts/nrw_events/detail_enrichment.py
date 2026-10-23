@@ -271,11 +271,23 @@ def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
     ):
         enriched["price"] = common.clean_html(price)[:160]
         enriched["admission_basis"] = "explicit"
+    # A registry address only echoes the listing's venue name. When the detail
+    # page places the event elsewhere (Springmaus show in the Post Tower), its
+    # venue name must move with its address.
+    relocated = bool(
+        str(enriched.get("venue_address") or "").strip()
+        and str(context.get("venue") or "").strip()
+        and source_address_wins(enriched, str(context.get("venue_address") or ""))
+    )
+    if relocated:
+        enriched.pop("venue_id", None)
+        enriched.pop("venue_district", None)
+        enriched.pop("venue_type", None)
     fields: tuple[Literal["venue", "venue_address"], ...] = ("venue", "venue_address")
     for field in fields:
         current = str(enriched.get(field) or "").strip()
         candidate = str(context.get(field) or "").strip()
-        if candidate and (not current or (field == "venue" and (_invalid_short_venue(current) or invalid_venue_reason(current)))
+        if candidate and (not current or (field == "venue" and (relocated or _invalid_short_venue(current) or invalid_venue_reason(current)))
                           or (field == "venue_address" and source_address_wins(enriched, candidate))):
             enriched[field] = candidate
         elif field == "venue_address" and candidate:

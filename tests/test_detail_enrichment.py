@@ -242,6 +242,22 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(detail_enrichment.apply_detail_context(registry, context)["venue_address"], "Mülheimer Platz 1 53111 Bonn")
         self.assertEqual(detail_enrichment.apply_detail_context(source, context)["venue_address"], "Warschauer Straße 66, 53117 Bonn")
 
+    def test_detail_page_elsewhere_replaces_registry_venue_name_with_its_address(self):
+        # Springmaus lists every show at its house; "LOL" (13.11.2026) plays in the Post Tower.
+        context = {"venue": "Post Tower", "venue_address": "Charles-de-Gaulle-Str. 20 53113 Bonn"}
+        house = self.event(
+            venue="Haus der Springmaus", venue_id="haus-der-springmaus", venue_type="theater",
+            venue_address="Frongasse 8-10, 53121 Bonn", location_source="venue_registry",
+        )
+
+        enriched = detail_enrichment.apply_detail_context(house, context)
+
+        self.assertEqual((enriched["venue"], enriched["venue_address"]), ("Post Tower", "Charles-de-Gaulle-Str. 20 53113 Bonn"))
+        self.assertNotIn("venue_id", enriched)
+        # The same house on its own page keeps the registry identity.
+        same = detail_enrichment.apply_detail_context(house, {"venue": "Springmaus", "venue_address": "Frongasse 8-10 53121 Bonn"})
+        self.assertEqual((same["venue"], same["venue_id"]), ("Haus der Springmaus", "haus-der-springmaus"))
+
     def test_visible_first_party_time_range_overrides_conflicting_jsonld_schedule(self):
         document = """
         <script type="application/ld+json">

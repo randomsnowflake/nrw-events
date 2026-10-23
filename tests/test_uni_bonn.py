@@ -283,6 +283,19 @@ class UniBonnSourceTests(unittest.TestCase):
 
         self.assertEqual([event["category_key"] for event in events], ["activities", "activities"])
 
+    def test_place_leading_with_the_room_puts_the_building_first(self):
+        # uni-bonn.de "Das neue Schiedsgericht NS-Raubgut", 22.10.2026.
+        html = (
+            '<div class="content-item"><div class="item-title"><span>Ort</span></div>'
+            '<div class="item-value"><span>Auditorium, Kunstmuseum Bonn Helmut-Kohl-Allee 2, D – 53113 Bonn</span></div></div>'
+            '<div class="content-item"><div class="item-title"><span>Raum</span></div>'
+            '<div class="item-value"><span>Auditorium</span></div></div>'
+        )
+        venue = uni_bonn._parse_detail_context(html)["venue"]
+
+        self.assertEqual(venue, "Kunstmuseum Bonn Helmut-Kohl-Allee 2, D – 53113 Bonn, Auditorium")
+        self.assertEqual(resolve_venue(venue, "Bonn").venue, "Kunstmuseum Bonn")
+
     def test_source_is_registered_with_stable_id(self):
         self.assertIs(SOURCES["Universität Bonn"], uni_bonn.fetch)
         self.assertEqual(SOURCE_IDS["Universität Bonn"], "uni-bonn")
