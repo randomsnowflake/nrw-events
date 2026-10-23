@@ -100,3 +100,15 @@ class SeptemberVenueLocationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BonnStadtbezirkTests(unittest.TestCase):
+    # OSM admin boundaries: both sites lie in the Stadtbezirk Bonn (Meßdorf, Bonn-Zentrum).
+    def test_verified_bonn_sites_name_their_real_stadtbezirk(self):
+        path = Path(__file__).resolve().parents[1] / "scripts/nrw_events/verified_venue_locations.json"
+        cities = {item["venue"]: item["city"] for item in json.loads(path.read_text(encoding="utf-8"))["locations"]}
+        self.assertEqual(cities["Dorfplatz Lessenich"], "Bonn")
+        self.assertEqual(cities["Galerie Geißler Bentler"], "Bonn")
+        # A Bonn event still finds both points.
+        for venue in ("Dorfplatz Lessenich", "Galerie Geißler Bentler"):
+            self.assertIsNotNone(resolve_venue(venue, "Bonn").venue_latitude)
