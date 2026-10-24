@@ -124,6 +124,37 @@ def _bonn_fotowalk(**updates):
     ) | updates
 
 
+def _brueckenforum_flohmarkt(**updates):
+    return _day(
+        "2026-10-25", "2026-10-25T11:00+01:00", "2026-10-25T17:00+01:00",
+        title="Floh- und Trödelmarkt Beueler Rathausplatz",
+        category_key="market",
+        source="Brückenforum Bonn",
+        source_id="brueckenforum-bonn",
+        venue="Beueler Rathausplatz (Möhneplatz)",
+        link=(
+            "https://www.brueckenforum.de/events/"
+            "ausser-haus-floh-und-troedelmarkt-auf-dem-rathausplatz-5/"
+        ),
+        score=0.95,
+    ) | updates
+
+
+def _beuel_net_flohmarkt(**updates):
+    return _event(
+        date="2026-10-25", start_date="2026-10-25", end_date="2026-10-25",
+        start_at="", time="11:00–17:00",
+        title="Flohmarkt am Beueler Rathaus",
+        category_key="market",
+        source="Beuel.net",
+        source_id="beuel-net",
+        city="Bonn-Beuel",
+        venue="Möhneplatz",
+        link="https://beuelhats.de/",
+        score=0.9,
+    ) | updates
+
+
 class ReviewedSourceConflictDedupTests(unittest.TestCase):
     """Pairs from the 2026-10-19 release, reviewed against the publishers."""
 
@@ -151,6 +182,20 @@ class ReviewedSourceConflictDedupTests(unittest.TestCase):
         self.assert_folds_into(
             _institut_fotowalk(), _bonn_fotowalk(),
             source_id="institut-francais-bonn",
+        )
+
+    def test_beuel_net_rathaus_flohmarkt_folds_into_brueckenforum(self):
+        self.assert_folds_into(
+            _brueckenforum_flohmarkt(), _beuel_net_flohmarkt(),
+            source_id="brueckenforum-bonn",
+        )
+
+    def test_beuel_rathaus_flohmarkt_months_stay_apart(self):
+        september = _beuel_net_flohmarkt(
+            date="2026-09-27", start_date="2026-09-27", end_date="2026-09-27",
+        )
+        self.assertEqual(
+            len(report.deduplicate([_brueckenforum_flohmarkt(), september])), 2
         )
 
     def test_reviewed_families_stay_apart_on_different_days(self):

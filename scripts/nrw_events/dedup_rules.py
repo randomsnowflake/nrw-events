@@ -102,6 +102,12 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
         "institut-francais-fotowalk",
     ("bonn-de-events", "fotowalk"):
         "institut-francais-fotowalk",
+    # Reviewed 2026-10-24: Beuel.net lists the Gewerbegemeinschaft's
+    # last-Sunday market (beuelhats.de) that Brückenforum runs on the square.
+    ("brueckenforum-bonn", "flohundtroedelmarktbeuelerrathausplatz"):
+        "beuel-rathausplatz-flohmarkt",
+    ("beuel-net", "flohmarktambeuelerrathaus"):
+        "beuel-rathausplatz-flohmarkt",
 }
 
 
