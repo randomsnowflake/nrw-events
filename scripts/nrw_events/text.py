@@ -49,7 +49,7 @@ def extract_json_array(text: str) -> list:
 def clean_html(text: str) -> str:
     """Strip tags/entities and collapse whitespace."""
     text = text or ""
-    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
+    text = re.sub(r"<!--.*?-->|<!DOCTYPE[^>]*>", " ", text, flags=re.S | re.I)
     text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.S | re.I)
     text = re.sub(r"</?[A-Za-z][^>]*>", " ", text)
     text = unescape(text)
@@ -82,7 +82,7 @@ def clean_html_blocks(text: str) -> str:
     and only horizontal whitespace is collapsed.
     """
     text = text or ""
-    text = re.sub(r"<!--.*?-->", " ", text, flags=re.S)
+    text = re.sub(r"<!--.*?-->|<!DOCTYPE[^>]*>", " ", text, flags=re.S | re.I)
     text = re.sub(r"<script.*?</script>|<style.*?</style>", " ", text, flags=re.S | re.I)
     text = _LINE_BREAK_TAG_PATTERN.sub("\n", text)
     text = _LIST_ITEM_CLOSE_PATTERN.sub("", text)

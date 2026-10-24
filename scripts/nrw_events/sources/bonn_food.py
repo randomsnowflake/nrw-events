@@ -2,7 +2,9 @@
 
 import re
 import urllib.parse
+from collections.abc import Callable
 from datetime import datetime, timedelta
+from typing import Any
 
 from .. import common
 from ..dates import MONTH_ALL
@@ -148,7 +150,7 @@ def fetch_choco_dealer() -> list:
     return rc.fetch_html_events("Choco Dealer", _CHOCO_DEALER_URL, events_from_choco_dealer, source_id="choco-dealer")
 
 
-def events_from_craftquelle(html: str, detail_fetcher=None) -> list:
+def events_from_craftquelle(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for row in re.findall(r"<tr\b.*?</tr>", html or "", re.S | re.I):
         cells = [rc.clean(cell) for cell in re.findall(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", row, re.S | re.I)]
@@ -171,7 +173,7 @@ def events_from_craftquelle(html: str, detail_fetcher=None) -> list:
                 start = parsed.get("start") or start
                 end = parsed.get("end") or start
                 venue = parsed.get("venue") or venue
-                description = _food_description(parsed.get("description")) or listing_description
+                description = _food_description(parsed.get("description") or "") or listing_description
         if re.search(r"ausverkauft|0\s+plätze", cells[0], re.I):
             description = _append_sentence(description, "Ausverkauft.")
         ev = common.make_event(
@@ -239,7 +241,7 @@ def events_from_bff(html: str) -> list:
     return rc.dedupe_occurrences(events)
 
 
-def events_from_vomfass(html: str, detail_fetcher=None) -> list:
+def events_from_vomfass(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for article in re.findall(r"<article\b[^>]*data-event-card[^>]*>.*?</article>", html or "", re.S | re.I):
         attrs = article.split(">", 1)[0]
@@ -258,7 +260,7 @@ def events_from_vomfass(html: str, detail_fetcher=None) -> list:
         venue = "vomFASS Bonn, Friedrichstraße 49, 53111 Bonn"
         description = f"Tasting bei vomFASS Bonn: {title}."
         end = start
-        if detail_fetcher and _in_window(start):
+        if detail_fetcher and start and _in_window(start):
             detail = _safe_detail(detail_fetcher, link, "vomFASS Bonn")
             if detail:
                 detailed = _events_from_schema_html(
@@ -315,7 +317,7 @@ def events_from_biertasting(html: str) -> list:
     return rc.dedupe(events)
 
 
-def events_from_ludwigs(html: str, detail_fetcher=None) -> list:
+def events_from_ludwigs(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for card in re.findall(r"<div class=['\"]card\s+no-r['\"]>.*?</div>\s*</div>", html or "", re.S | re.I):
         href = _match(r"href=['\"]([^'\"]*\/veranstaltungen/termin/20\d{2}/\d{2}/[^'\"]+)", card)
@@ -347,7 +349,7 @@ def events_from_ludwigs(html: str, detail_fetcher=None) -> list:
     return rc.dedupe(events)
 
 
-def events_from_reduettchen(html: str, detail_fetcher=None) -> list:
+def events_from_reduettchen(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     blocks = re.findall(
         r"<div[^>]+av_one_third[^>]*>.*?(?=<div[^>]+av_one_third|<div[^>]+av_two_third|\Z)",
@@ -443,7 +445,7 @@ def events_from_original_street_food(html: str) -> list:
     from it; without a readable date in the page body nothing is published and
     the source reports an empty parse.
     """
-    item = next((entry for entry in _deep_jsonld_events(html)), {})
+    item: dict[str, Any] = next(iter(_deep_jsonld_events(html)), {})
     visible_html = _without_scripts(html)
     title = rc.clean(str(item.get("name") or "")) or rc.first_group_clean(
         r"<h[1-3][^>]*>\s*([^<]*Street Food Festival in Bonn[^<]*)</h[1-3]>",
@@ -451,8 +453,8 @@ def events_from_original_street_food(html: str) -> list:
     )
     if not title:
         return []
-    location = item.get("location") if isinstance(item.get("location"), dict) else {}
-    address = location.get("address") if isinstance(location.get("address"), dict) else {}
+    location = _mapping(item.get("location"))
+    address = _mapping(location.get("address"))
     city = rc.clean(str(address.get("addressLocality") or "Bonn"))
     venue = ", ".join(
         rc.clean(str(part)) for part in
@@ -501,7 +503,7 @@ def events_from_choco_dealer(html: str) -> list:
                 title = f"{tasting_kind.title()}: {title}"
         day, month, year, start_time, end_time = stamp.groups()
         try:
-            start = datetime(2000 + int(year), int(month), int(day))
+            start: datetime | None = datetime(2000 + int(year), int(month), int(day))
         except ValueError:
             continue
         start = rc.with_time(start, start_time)
@@ -556,7 +558,7 @@ def _events_from_schema_html(html: str, *, source: str, default_url: str,
         start = _parse_schema_date(item.get("startDate"))
         if not start:
             continue
-        location = item.get("location") if isinstance(item.get("location"), dict) else {}
+        location = _mapping(item.get("location"))
         address = location.get("address")
         if not isinstance(address, dict):
             address = {"streetAddress": address} if address else {}
@@ -576,7 +578,7 @@ def _events_from_schema_html(html: str, *, source: str, default_url: str,
         availability = str(offers.get("availability") or "")
         if availability.endswith("SoldOut"):
             description = _append_sentence(description, "Ausverkauft.")
-        geo = location.get("geo") if isinstance(location.get("geo"), dict) else {}
+        geo = _mapping(location.get("geo"))
         coords = None
         try:
             if geo.get("latitude") is not None and geo.get("longitude") is not None:
@@ -603,13 +605,17 @@ def _events_from_schema_html(html: str, *, source: str, default_url: str,
     return rc.dedupe(events)
 
 
-def _parse_schema_date(value):
+def _mapping(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _parse_schema_date(value: object) -> datetime | None:
     """Normalize compact ISO offsets unsupported by Python 3.10."""
     normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", str(value or ""))
     return common.parse_iso_date(normalized)
 
 
-def _deep_jsonld_events(html: str) -> list:
+def _deep_jsonld_events(html: str) -> list[dict[str, Any]]:
     return common.jsonld_event_items(html)
 
 
@@ -641,7 +647,7 @@ def _ludwigs_detail(html: str, fallback_date: datetime) -> dict:
         r"Am\s+(\d{1,2}\.\d{1,2}\.20\d{2})\s+ab\s+(\d{1,2})(?::(\d{2}))?\s+Uhr",
         text, re.I,
     )
-    start = fallback_date
+    start: datetime | None = fallback_date
     if timing:
         start = rc.with_time(
             common.parse_date(timing.group(1)),
@@ -657,12 +663,21 @@ def _reduettchen_detail(html: str) -> dict:
     price_match = re.search(
         r"(?:Preis\s*:?\s*)?(\d+(?:[,.]\d+)?)\s*(?:€|Euro|pro Person)", text, re.I,
     )
-    description = _between(text, "Gourmet BBQ", "Kurfürstenallee 1") or text
+    description = _reduettchen_copy(html)
     return {
         "time": (int(time_match.group(1)), int(time_match.group(2) or 0)) if time_match else None,
         "price": f"{price_match.group(1)} EUR" if price_match else "",
         "description": description,
     }
+
+
+def _reduettchen_copy(html: str) -> str:
+    # Enfold theme: event copy sits between #main and #footer; header nav, booking
+    # buttons and SVG scroll arrows are page chrome.
+    main = _match(r"<div[^>]+id=['\"]main['\"][^>]*>(.*?)<div[^>]+id=['\"]footer['\"]", html)
+    main = re.sub(r"<svg\b.*?</svg>|<a\b[^>]*avia-(?:slideshow-)?button[^>]*>.*?</a>", " ", main,
+                  flags=re.S | re.I)
+    return rc.clean(main)
 
 
 def _exact_reduettchen_dates(text: str) -> list:
@@ -684,7 +699,7 @@ def _exact_reduettchen_dates(text: str) -> list:
     return dates
 
 
-def _parse_german_date(text: str):
+def _parse_german_date(text: str) -> datetime | None:
     match = re.search(r"\b(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\.?\s+(\d{2,4})\b", text or "")
     if not match:
         return None
@@ -696,7 +711,7 @@ def _parse_german_date(text: str):
     return common.parse_date(f"{day}.{month}.{year_value}")
 
 
-def _date_from_href(href: str):
+def _date_from_href(href: str) -> datetime | None:
     match = re.search(r"(\d{1,2})-(\d{1,2})-(\d{2})(?:/|$)", href or "")
     if not match:
         return None
@@ -717,7 +732,7 @@ def _force_food(event: dict) -> dict:
     return event
 
 
-def _safe_detail(fetcher, url: str, source: str) -> str:
+def _safe_detail(fetcher: Callable[[str], str], url: str, source: str) -> str:
     try:
         return fetcher(url)
     except Exception as exc:
@@ -738,7 +753,7 @@ def _price(text: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def _offer_price(amount, currency) -> str:
+def _offer_price(amount: object, currency: object) -> str:
     value = f"{amount:.2f}" if isinstance(amount, float) else str(amount)
     return f"{value.replace('.', ',')} {currency or ''}".strip()
 

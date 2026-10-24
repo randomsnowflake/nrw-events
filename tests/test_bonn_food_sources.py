@@ -230,13 +230,22 @@ class BonnFoodSourceTests(unittest.TestCase):
         <a href="https://reduettchen.de/gourmet-bbq/">Mehr erfahren</a></div>
         <div class="av_one_third"><h2>Gänseessen</h2><p>November 2026</p><p>Bald buchbar</p></div>
         """
-        detail = """<main><h1>Gourmet BBQ</h1><p>Genuss aus Smoker und Grill.</p>
+        detail = """<!DOCTYPE html><html><body><header><nav>Home Speisen Weine Events</nav></header>
+        <div id='main' role='main'><svg><title>Zum nächsten Abschnitt scrollen</title></svg>
+        <h1>Gourmet BBQ</h1><p>Genuss aus Smoker und Grill.</p>
         <p>Datum: 24. &amp; 25. Juli 2026</p><p>200 pro Person (alles inklusive)</p>
-        <p>Kurfürstenallee 1, 53177 Bonn-Bad Godesberg</p></main>"""
+        <a href='https://reduettchen.de/reservierung/' class='avia-button avia-size-large'>
+        <span class='avia_iconbox_title'>JETZT RESERVIEREN</span></a></div>
+        <div class='container_wrap footer_color' id='footer'>Kurfürstenallee 1, 53177 Bonn-Bad Godesberg</div>
+        </body></html>"""
         events = bonn_food.events_from_reduettchen(listing, lambda _url: detail)
         self.assert_food_events(events, 2)
         self.assertEqual([event["start_date"] for event in events], ["2026-07-24", "2026-07-25"])
         self.assertTrue(all(event["price"] == "200 EUR" for event in events))
+        self.assertTrue(all(event["description"].startswith("Gourmet BBQ Genuss aus Smoker")
+                            for event in events))
+        for chrome in ("DOCTYPE", "Home Speisen", "scrollen", "RESERVIEREN", "Kurfürstenallee"):
+            self.assertNotIn(chrome, events[0]["description"])
 
     def test_street_food_expands_date_ranges_and_normalizes_bonn_city(self):
         html = """

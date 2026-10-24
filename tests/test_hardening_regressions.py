@@ -89,6 +89,8 @@ class HardeningRegressionTests(unittest.TestCase):
             common.clean_html("Vorher<!-- internal > metadata -->Nachher"),
             "Vorher Nachher",
         )
+        self.assertEqual(common.clean_html("<!DOCTYPE html><title>Gänseessen</title>"), "Gänseessen")
+        self.assertEqual(common.clean_html_blocks("<!doctype html><p>Gänseessen</p>"), "Gänseessen")
         self.assertEqual(common.clean_html("&lt;b&gt;fett&lt;/b&gt;"), "<b>fett</b>")
         self.assertEqual(common.clean_html("Kinder < 6 Jahre > frei"), "Kinder < 6 Jahre > frei")
         self.assertEqual(
