@@ -208,6 +208,31 @@ def _normalize_quoted_subtitle(title: str) -> str:
     return f"{title[:match.start()].rstrip()} – {subtitle}"
 
 
+_DAY_OR_DATE = r"\d{1,2}\.(?:\d{1,2}\.)?(?:20\d{2}|\d{2}(?!\d))?"
+_DATE_RANGE = rf"{_DAY_OR_DATE}(?:\s*[-–]\s*{_DAY_OR_DATE})?"
+_LEADING_DATE_LIST = re.compile(
+    rf"^(?:(?:am|vom|ab)\s+)?{_DATE_RANGE}(?:\s*(?:&|,|\+|/|und)\s*{_DATE_RANGE})*\s*:\s+(?P<rest>.+)$",
+    re.IGNORECASE,
+)
+_WRAPPING_QUOTES = re.compile(r'^(?:„([^„“”"]+)[“”]|"([^"„“”]+)"|“([^“”"]+)”)$')
+
+
+def _strip_leading_date_list(title: str) -> str:
+    """Drop a schedule prefix such as "23.-25.10. & 14.-15.11.2026: …".
+
+    Each occurrence carries its own structured date, so the prefix repeats
+    other dates in front of the name. A title wrapped in quotes after the
+    prefix loses them too: the quotes only set the name off from the dates.
+    """
+    match = _LEADING_DATE_LIST.match(title)
+    if not match or not re.search(r"\d\.\d{1,2}\.", title[:match.start("rest")]):
+        return title
+    rest = match.group("rest")
+    quoted = _WRAPPING_QUOTES.match(rest)
+    rest = next(group for group in quoted.groups() if group) if quoted else rest
+    return rest.strip() if len(rest.strip()) >= 3 else title
+
+
 def _strip_redundant_place(title: str, venue: str, city: str) -> str:
     """Drop a ", <venue>" suffix or "<city>, " prefix that repeats structured fields.
 
@@ -240,6 +265,10 @@ def normalize_event_title(
         # This source once separated decorative initial spans from the rest of
         # a word. Keep the repair source-bound so ordinary phrases stay intact.
         normalized = re.sub(r"\b([A-ZÄÖÜ])\s+([a-zäöüß]{2,})\b", r"\1\2", normalized)
+    # "Ausstellung : …" and "Stepptanz!!!" are source typing habits, not part of the name.
+    normalized = re.sub(r"\s+([,;:!?])(?=\s|$)", r"\1", normalized)
+    normalized = re.sub(r"!{2,}", "!", normalized)
+    normalized = _strip_leading_date_list(normalized)
     normalized = _strip_redundant_place(normalized, venue, city)
     normalized = _strip_redundant_date_suffix(normalized, start, end)
     normalized = _strip_redundant_inline_dates(normalized, start, end)

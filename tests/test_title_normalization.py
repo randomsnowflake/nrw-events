@@ -88,6 +88,38 @@ class TitleNormalizationTests(unittest.TestCase):
         self.assertEqual(normalize_event_title("Miku Sophie Kühmel »Hannah«"), "Miku Sophie Kühmel »Hannah«")
         self.assertEqual(normalize_event_title("«Hannah»"), "«Hannah»")
 
+    def test_repairs_source_punctuation_and_leading_date_lists(self):
+        cases = {
+            "Ausstellung : Als die Flechte den Zeitpunkt weiter spannte":
+                "Ausstellung: Als die Flechte den Zeitpunkt weiter spannte",
+            "Stepptanz!!!": "Stepptanz!",
+            "Wer kommt mit ?": "Wer kommt mit?",
+            "23.-25.10. & 14.-15.11.2026: „Life Is Life – So Stop Making Sense“":
+                "Life Is Life – So Stop Making Sense",
+            "12.10.2026: Herbstkonzert": "Herbstkonzert",
+        }
+        for title, expected in cases.items():
+            with self.subTest(title=title):
+                self.assertEqual(normalize_event_title(title, source="Fixture"), expected)
+        for title in (
+            "1. FC Köln: Heimspiel", "2. Bonner Jazznacht: Eröffnung", "Lachen :-) im Pantheon",
+            "Rüngsdorfer KulturBad: „Life Is Life – So Stop Making Sense“", "Hubertusmarkt (23.-25.10.)",
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(normalize_event_title(title, source="Fixture"), title)
+
+    def test_date_prefix_cleanup_keeps_the_published_event_id(self):
+        prior = {
+            "title": "23.-25.10. & 14.-15.11.2026: „Life Is Life“", "start_date": "2026-10-23",
+            "end_date": "2026-10-23", "time": "19:00", "source": "Bonn.de Events",
+            "source_id": "bonn-de", "venue": "Rüngsdorfer KulturBad", "city": "Bonn",
+        }
+        prior["event_id"] = event_id(prior)
+        current = {**prior, "title": normalize_event_title(prior["title"])}
+        del current["event_id"]
+        reconciled = _reconcile_published_ids([current], {"events": [prior]})[0]
+        self.assertEqual(event_id(reconciled), prior["event_id"])
+
     def test_strips_place_repeating_structured_venue_or_city(self):
         self.assertEqual(
             normalize_event_title("Kindersachenbasar der FeG Bonn, FeG-Bonn", venue="FeG-Bonn", city="Bonn"),
