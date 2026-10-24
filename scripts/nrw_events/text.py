@@ -100,6 +100,8 @@ def normalize_block_text(text: str) -> str:
     # Stripping an inline tag leaves a space where the markup was, so copy that
     # ends a sentence inside a link reads as "willkommen ." once the tag is gone.
     text = re.sub(r" +([,.;:!?])", r"\1", text)
+    # "Flohmarkt ab 12 Uhr!!!" ends up verbatim in search snippets.
+    text = re.sub(r"!{2,}", "!", text)
     text = re.sub(r" *\n *", "\n", text)
     # Three or more breaks are layout padding, not a third kind of separator.
     text = re.sub(r"\n{3,}", "\n\n", text)
