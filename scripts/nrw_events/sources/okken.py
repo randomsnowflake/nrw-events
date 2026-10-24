@@ -15,7 +15,7 @@ _SPEC = FixedMarketSpec(
     venue="REWE Center Bonn-Beuel, Am Weidenbach 31",
     city="Bonn", source=_SOURCE, source_id=_SOURCE_ID, url=_URL, trust=1.0,
     description=(
-        "Flohmarkt mit privaten Händlerinnen und Händlern aus der Region. "
+        "Flohmarkt mit privaten Händlern aus der Region. "
         "Der Eintritt für Besucher ist kostenlos."
     ),
     price="kostenlos", admission_basis="explicit",

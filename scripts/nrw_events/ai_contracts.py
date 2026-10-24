@@ -299,7 +299,7 @@ Rechne keine Dauer oder Endzeit vor ("dauert zwei Stunden, sodass sie um 16 Uhr 
 und relevante praktische Hinweise.
 Erwähne niemals, welche Angaben fehlen oder nicht vorliegen. Verändere Satzbau und Wortwahl gegenüber den
 Fakten deutlich, ohne Namen, Zahlen oder Fachbegriffe zu verfälschen.
-Sprich die Lesenden nicht direkt an, auch nicht mit Sie. Vermeide insbesondere du, ihr, euch, bitte beachten,
+Sprich den Leser nicht direkt an, auch nicht mit Sie. Vermeide insbesondere du, ihr, euch, bitte beachten,
 man sollte, lädt ein, lockt,
 Gelegenheit, Erlebnis, Paradies, Geheimtipp, vormerken und jede Empfehlung. Verweise nie auf die Quelle,
 eine Website für weitere Informationen oder darauf, dass Veranstalter später noch Details mitteilen.
@@ -309,6 +309,8 @@ Schreibe keine Aussagen wie scheint, typischerweise, vermutlich, wahrscheinlich 
 Verwende ausschließlich Fakten zum ausgewählten start_date/end_date-Termin; andere Termine derselben Reihe
 bleiben vollständig weg. Verkäufer-, Händler- und Standinformationen bleiben auch im Text vollständig weg.
 Gesundheitliche Wirkungsbehauptungen werden nicht wiedergegeben.
+Nicht gendern: Personengruppen stehen im generischen Maskulinum (Besucher, Aussteller, Teilnehmer, Künstler),
+nie als Doppelnennung (Besucherinnen und Besucher), mit Genderzeichen oder als Partizip (Teilnehmende).
 Wenn target_group leer ist, formuliere keine Zielgruppe und verwende nicht "richtet sich an". Eine vorhandene
 age_information darf nur als neutrale Altersangabe erscheinen, zum Beispiel "Teilnahme ab 8 Jahren".
 Das Objekt field_policy nennt gesperrte vorhandene Werte. Widersprich ihnen weder im Text noch in Attributen;

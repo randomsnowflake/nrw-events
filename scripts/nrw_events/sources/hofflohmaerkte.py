@@ -67,8 +67,8 @@ def _events_from_page(html: str) -> list:
         time_text = f"{int(start_hour):02d}:00–{int(end_hour):02d}:00"
         title = f"Hofflohmarkt {neighborhood}"
         description = (
-            f"Beim Hofflohmarkt in {neighborhood} verkaufen Hausanwohnerinnen und "
-            "Hausanwohner auf ihren eigenen Höfen und in ihren Gärten."
+            f"Beim Hofflohmarkt in {neighborhood} verkaufen Anwohner auf ihren "
+            "eigenen Höfen und in ihren Gärten."
         )
         tour_plan = _tour_plan(html, neighborhood, start)
         if context:
