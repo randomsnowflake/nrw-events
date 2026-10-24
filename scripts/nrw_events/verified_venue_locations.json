@@ -1201,6 +1201,19 @@
     },
     {
       "city": "Bonn",
+      "venue": "Dorfplatz Lessenich",
+      "address": "Roncallistraße",
+      "latitude": 50.7232039,
+      "longitude": 7.0433428,
+      "checkedAt": "2026-09-28",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+        "osmUrl": "https://www.openstreetmap.org/way/45568905",
+        "method": "venue name and municipality matched"
+      }
+    },
+    {
+      "city": "Bonn",
       "venue": "DRK Kreisverband Bonn e. V.",
       "address": "Endenicher Str. 131, 53115 Bonn",
       "latitude": 50.7312077,
@@ -1368,6 +1381,19 @@
       "evidence": {
         "eventUrl": "https://www.coelln-konzept.de/markt/antikmarkt_bonn.html",
         "osmUrl": "https://www.openstreetmap.org/way/144595005",
+        "method": "venue name and municipality matched"
+      }
+    },
+    {
+      "city": "Bonn",
+      "venue": "Galerie Geißler Bentler",
+      "address": "Friedrichstraße 55, 53111 Bonn",
+      "latitude": 50.7370445,
+      "longitude": 7.1034393,
+      "checkedAt": "2026-09-28",
+      "evidence": {
+        "eventUrl": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/45-Jahre-Galerie-Geissler-Bentler-Grosse-Jubilaeumsausstellung.php",
+        "osmUrl": "https://www.openstreetmap.org/node/1319466384",
         "method": "venue name and municipality matched"
       }
     },
@@ -2989,19 +3015,6 @@
     },
     {
       "city": "Bonn-Bad Godesberg",
-      "venue": "Galerie Geißler Bentler",
-      "address": "Friedrichstraße 55, 53111 Bonn",
-      "latitude": 50.7370445,
-      "longitude": 7.1034393,
-      "checkedAt": "2026-09-28",
-      "evidence": {
-        "eventUrl": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/45-Jahre-Galerie-Geissler-Bentler-Grosse-Jubilaeumsausstellung.php",
-        "osmUrl": "https://www.openstreetmap.org/node/1319466384",
-        "method": "venue name and municipality matched"
-      }
-    },
-    {
-      "city": "Bonn-Bad Godesberg",
       "venue": "Historischer Gemeindesaal Bad Godesberg",
       "address": "Kronprinzenstraße 31 53173 Bonn",
       "latitude": 50.6885798,
@@ -3348,19 +3361,6 @@
       "evidence": {
         "eventUrl": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/extern/LOL-Das-Comedy-Start-Up.php",
         "osmUrl": "https://www.openstreetmap.org/way/38281538",
-        "method": "venue name and municipality matched"
-      }
-    },
-    {
-      "city": "Bonn-Hardtberg",
-      "venue": "Dorfplatz Lessenich",
-      "address": "Roncallistraße",
-      "latitude": 50.7232039,
-      "longitude": 7.0433428,
-      "checkedAt": "2026-09-28",
-      "evidence": {
-        "eventUrl": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
-        "osmUrl": "https://www.openstreetmap.org/way/45568905",
         "method": "venue name and municipality matched"
       }
     },
