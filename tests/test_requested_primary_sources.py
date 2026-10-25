@@ -8,6 +8,11 @@ from nrw_events.validation import canonicalize_event
 
 
 class RequestedPrimarySourceTests(unittest.TestCase):
+    def test_lupe_uses_canonical_feed_endpoint_without_redirect(self):
+        with patch.object(lupe_events.common, "fetch_ical", return_value=[]) as fetch:
+            self.assertEqual(lupe_events.fetch(), [])
+        self.assertEqual(fetch.call_args.args[0], "https://lupe-events.de/events?ical=1")
+
     def test_lupe_lessenich_is_reconciled_to_reviewed_calendar_occurrence(self):
         raw = [{
             "title": "Kirmes in Lessenich 2026",
