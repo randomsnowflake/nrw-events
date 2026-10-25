@@ -286,6 +286,31 @@ class ExhibitionRunTests(unittest.TestCase):
         # The flag describes a schedule; without one it is dropped.
         self.assertFalse(validate_event({**weekly[0].to_dict(), "dated_sessions": True}).dated_sessions)
 
+    def test_festival_listed_once_per_day_becomes_one_run_redirecting_its_day_pages(self):
+        # Troisdorf's ICS lists its Street Food Festival 16.–18.10.2026 as three VEVENTs;
+        # imported before session runs existed, they became three competing detail pages.
+        days = [
+            validate_event({
+                "status": "scheduled", "title": "Street Food Festival", "source": "Troisdorf", "source_id": "troisdorf",
+                "start_date": day, "time": time, "venue": "Fußgängerzone Troisdorf", "city": "Troisdorf", "category_key": "food",
+                "link": f"https://www.troisdorf.de/de/kalender/startseite/allgemeine-veranstaltungen/2026/oktober/{day}-street-food-festival/",
+                "link_kind": "detail", "score": 0.95,
+            })
+            for day, time in (("2026-10-16", "17:00–22:00"), ("2026-10-17", "15:00–22:00"), ("2026-10-18", "12:00–19:00"))
+        ]
+        day_ids = ["street-food-festival-e6e4e35943", "street-food-festival-dec8741b34", "street-food-festival-5f7db16201"]
+        self.assertEqual([event_id(day) for day in days], day_ids)
+
+        [run] = merge_exhibition_opening_days(days, {"events": [{"event_id": identifier} for identifier in day_ids]})
+
+        self.assertEqual((run.start_date, run.end_date, run.dated_sessions), ("2026-10-16", "2026-10-18", True))
+        self.assertEqual(
+            [(slot["start_at"][:16], slot["end_at"][11:16]) for slot in run.daily_schedule],
+            [("2026-10-16T17:00", "22:00"), ("2026-10-17T15:00", "22:00"), ("2026-10-18T12:00", "19:00")],
+        )
+        self.assertEqual(run.previous_event_ids, day_ids)
+        self.assertEqual(len(run.source_links), 3)
+
     def test_exhibition_tours_become_session_runs_without_the_exhibition_end(self):
         final = {"details": {"final_date": "2026-12-20"}}
         tours = [_day(day, time="15:00–16:00", title="Führung durch die Ausstellung", **final) for day in ("2026-10-04", "2026-10-11", "2026-10-18")]
