@@ -93,6 +93,7 @@ class TitleNormalizationTests(unittest.TestCase):
             "Ausstellung : Als die Flechte den Zeitpunkt weiter spannte":
                 "Ausstellung: Als die Flechte den Zeitpunkt weiter spannte",
             "Stepptanz!!!": "Stepptanz!",
+            "Stepptanz !!!": "Stepptanz!",
             "Wer kommt mit ?": "Wer kommt mit?",
             "23.-25.10. & 14.-15.11.2026: „Life Is Life – So Stop Making Sense“":
                 "Life Is Life – So Stop Making Sense",
@@ -100,7 +101,30 @@ class TitleNormalizationTests(unittest.TestCase):
         }
         for title, expected in cases.items():
             with self.subTest(title=title):
-                self.assertEqual(normalize_event_title(title, source="Fixture"), expected)
+                start = datetime(2026, 10, 12) if "Herbstkonzert" in title else datetime(2026, 10, 23)
+                self.assertEqual(normalize_event_title(title, start=start, source="Fixture"), expected)
+
+    def test_keeps_a_leading_date_list_the_structured_dates_do_not_confirm(self):
+        # The end date lives only in the title; only the repeated start date may go.
+        self.assertEqual(
+            normalize_event_title("01.10.2026 - 31.12.2026: Ausstellung „X“", start=datetime(2026, 10, 1)),
+            "31.12.2026: Ausstellung „X“",
+        )
+        cases = [
+            # A different date is information, not a repeat.
+            ("12.10.2026: Herbstkonzert", datetime(2026, 10, 19), None),
+            # Without a structured date nothing confirms the prefix.
+            ("12.10.2026: Herbstkonzert", None, None),
+        ]
+        for title, start, end in cases:
+            with self.subTest(title=title, start=start):
+                self.assertEqual(normalize_event_title(title, start=start, end=end, source="Fixture"), title)
+        self.assertEqual(
+            normalize_event_title(
+                "01.10.2026 - 31.12.2026: Ausstellung „X“", start=datetime(2026, 10, 1), end=datetime(2026, 12, 31)
+            ),
+            "Ausstellung „X“",
+        )
         for title in (
             "1. FC Köln: Heimspiel", "2. Bonner Jazznacht: Eröffnung", "Lachen :-) im Pantheon",
             "Rüngsdorfer KulturBad: „Life Is Life – So Stop Making Sense“", "Hubertusmarkt (23.-25.10.)",
@@ -115,7 +139,7 @@ class TitleNormalizationTests(unittest.TestCase):
             "source_id": "bonn-de", "venue": "Rüngsdorfer KulturBad", "city": "Bonn",
         }
         prior["event_id"] = event_id(prior)
-        current = {**prior, "title": normalize_event_title(prior["title"])}
+        current = {**prior, "title": normalize_event_title(prior["title"], start=datetime(2026, 10, 23))}
         del current["event_id"]
         reconciled = _reconcile_published_ids([current], {"events": [prior]})[0]
         self.assertEqual(event_id(reconciled), prior["event_id"])

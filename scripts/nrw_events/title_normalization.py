@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from .normalization import comparison_text
 
@@ -217,15 +217,50 @@ _LEADING_DATE_LIST = re.compile(
 _WRAPPING_QUOTES = re.compile(r'^(?:„([^„“”"]+)[“”]|"([^"„“”]+)"|“([^“”"]+)”)$')
 
 
-def _strip_leading_date_list(title: str) -> str:
+_PREFIX_DATE = re.compile(r"(\d{1,2})\.(?:(\d{1,2})\.)?(20\d{2}|\d{2}(?!\d))?")
+
+
+def _prefix_ranges(prefix: str, year: int) -> list[tuple[date, date]] | None:
+    """Read "23.-25.10. & 14.-15.11.2026" as date ranges; month and year carry leftwards."""
+    parts = [
+        [match.groups() for match in _PREFIX_DATE.finditer(part)]
+        for part in re.split(r"\s*(?:&|,|\+|/|\bund\b)\s*", prefix, flags=re.IGNORECASE)
+    ]
+    month: str | None = None
+    year_text: str | None = None
+    ranges: list[tuple[date, date]] = []
+    try:
+        for tokens in reversed([part for part in parts if part]):
+            dates: list[date] = []
+            for day, token_month, token_year in reversed(tokens):
+                month, year_text = token_month or month, token_year or year_text
+                if not month:
+                    return None
+                full_year = int(year_text) if year_text else year
+                dates.append(date(full_year + 2000 if full_year < 100 else full_year, int(month), int(day)))
+            ranges.append((dates[-1], dates[0]))
+    except ValueError:
+        return None
+    return ranges
+
+
+def _strip_leading_date_list(title: str, start: datetime | None, end: datetime | None) -> str:
     """Drop a schedule prefix such as "23.-25.10. & 14.-15.11.2026: …".
 
     Each occurrence carries its own structured date, so the prefix repeats
     other dates in front of the name. A title wrapped in quotes after the
     prefix loses them too: the quotes only set the name off from the dates.
+    Like the other date helpers, it strips only what the structured dates
+    confirm: the start must fall in a listed range, and a single range must
+    not outlast the structured end ("01.10.-31.12.2026: Ausstellung" keeps
+    an end date the feed did not give).
     """
     match = _LEADING_DATE_LIST.match(title)
-    if not match or not re.search(r"\d\.\d{1,2}\.", title[:match.start("rest")]):
+    if not start or not match or not re.search(r"\d\.\d{1,2}\.", title[:match.start("rest")]):
+        return title
+    ranges = _prefix_ranges(title[:match.start("rest")], start.year)
+    covering = [(low, high) for low, high in ranges or [] if low <= start.date() <= high]
+    if not covering or (len(ranges or []) == 1 and covering[0][1] > (end or start).date()):
         return title
     rest = match.group("rest")
     quoted = _WRAPPING_QUOTES.match(rest)
@@ -266,9 +301,9 @@ def normalize_event_title(
         # a word. Keep the repair source-bound so ordinary phrases stay intact.
         normalized = re.sub(r"\b([A-ZÄÖÜ])\s+([a-zäöüß]{2,})\b", r"\1\2", normalized)
     # "Ausstellung : …" and "Stepptanz!!!" are source typing habits, not part of the name.
-    normalized = re.sub(r"\s+([,;:!?])(?=\s|$)", r"\1", normalized)
     normalized = re.sub(r"!{2,}", "!", normalized)
-    normalized = _strip_leading_date_list(normalized)
+    normalized = re.sub(r"\s+([,;:!?])(?=\s|$)", r"\1", normalized)
+    normalized = _strip_leading_date_list(normalized, start, end)
     normalized = _strip_redundant_place(normalized, venue, city)
     normalized = _strip_redundant_date_suffix(normalized, start, end)
     normalized = _strip_redundant_inline_dates(normalized, start, end)
