@@ -126,9 +126,6 @@
   "sources/fixed_markets.py": [
     "nrw_events.common"
   ],
-  "sources/flohmarkt.py": [
-    "nrw_events.common"
-  ],
   "sources/geide.py": [
     "nrw_events.common"
   ],
