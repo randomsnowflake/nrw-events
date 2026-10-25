@@ -1,6 +1,7 @@
 """Literary programme in Bonn: readings, book premieres and author talks."""
 
 import re
+from collections.abc import Callable
 
 from .. import common
 from ..category_taxonomy import CATEGORY_BY_KEY
@@ -97,7 +98,7 @@ _PARK_CARD = r'(?=<div class="mkdf-event-content)'
 _PARK_DATE = re.compile(r'mkdf-event-date">\s*([^<]+?)\s*<')
 _PARK_LOCATION = re.compile(r'mkdf-event-location">\s*([^<]*?)\s*<')
 _PARK_TITLE = re.compile(
-    r'mkdf-event-title">\s*<a href="([^"]+)"[^>]*>\s*(.*?)\s*</a>', re.S
+    r'mkdf-event-title"[^>]*>\s*<a href="([^"]+)"[^>]*>\s*(.*?)\s*</a>', re.S
 )
 _PARK_DETAIL_TIME = re.compile(r'mkdf-event-header-time">\s*(\d{1,2}:\d{2})\s*<')
 _PARK_DETAIL_PRICE = re.compile(r'mkdf-event-header-price">\s*([^<]+?)\s*<')
@@ -126,7 +127,9 @@ def _park_detail(html: str) -> dict[str, str]:
     }
 
 
-def events_from_parkbuchhandlung_html(html: str, detail_fetcher=None) -> list:
+def events_from_parkbuchhandlung_html(
+    html: str, detail_fetcher: Callable[[str], str] | None = None,
+) -> list:
     events = []
     detail_cache = {}
     for card in re.split(_PARK_CARD, html or "")[1:]:

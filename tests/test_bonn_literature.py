@@ -1,11 +1,14 @@
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events.quality import evaluate_event_quality
 from nrw_events.sources import SOURCES, bonn_literature
 
 from tests.helpers import patch_window
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 # Trimmed from https://www.parkbuchhandlung.de/veranstaltungen/. The listing
 # repeats every card in an archive block further down the page; the duplicate
@@ -119,6 +122,36 @@ class BonnLiteratureSourceTests(unittest.TestCase):
         )
         self.assertTrue(carofiglio["description"])
         self.assertEqual(by_date["2026-09-20"]["venue"], "Schauspielhaus Bonn (Foyer)")
+
+    def test_parkbuchhandlung_reads_title_tag_with_space_before_bracket(self):
+        # Since mid-October 2026 the theme renders `class="mkdf-event-title" >`.
+        html = (FIXTURES / "parkbuchhandlung_listing_20261025.html").read_text(encoding="utf-8")
+
+        events = bonn_literature.events_from_parkbuchhandlung_html(html)
+
+        by_date = {event["start_date"]: event for event in events}
+        self.assertEqual(sorted(by_date), [
+            "2026-10-18", "2026-11-07", "2026-11-10", "2026-11-18", "2026-12-05", "2026-12-17",
+        ])
+        highlights = by_date["2026-11-07"]
+        self.assertEqual(highlights["title"], "Unsere Lese-Highlights im Rampenlicht")
+        self.assertEqual(highlights["venue"], "Parkbuchhandlung")
+        self.assertEqual(
+            highlights["link"],
+            "https://www.parkbuchhandlung.de/event/unsere-lese-highlights-im-rampenlicht/",
+        )
+        self.assertEqual(by_date["2026-11-18"]["venue"], "Rheinhotel Dreesen")
+
+    def test_parkbuchhandlung_title_holder_alone_is_not_a_title(self):
+        # The looser tag match must not fall back to the surrounding
+        # `mkdf-event-title-holder` wrapper when the heading itself is missing.
+        html = (FIXTURES / "parkbuchhandlung_listing_20261025.html").read_text(encoding="utf-8")
+        html = html.replace('<h5 class="mkdf-event-title" >', "<h5>", 1)
+
+        events = bonn_literature.events_from_parkbuchhandlung_html(html)
+
+        self.assertNotIn("2026-11-07", {event["start_date"] for event in events})
+        self.assertEqual(len(events), 5)
 
     def test_parkbuchhandlung_skips_cards_without_a_date(self):
         html = PARK_HTML.replace('<div class="mkdf-event-date">27.09.2026</div>', "")
