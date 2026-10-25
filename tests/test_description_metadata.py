@@ -155,6 +155,9 @@ class DescriptionParagraphTests(unittest.TestCase):
             "Die Teilnahme ist kostenfrei.\nEinstieg jederzeit.",
         )
 
+    def test_repeated_exclamation_marks_collapse(self):
+        self.assertEqual(common.normalize_block_text("Flohmarkt ab 12 Uhr!!!"), "Flohmarkt ab 12 Uhr!")
+
     def test_clean_html_still_flattens_single_value_fields(self):
         self.assertEqual(
             common.clean_html("<p>Haus der<br>Springmaus</p>"),
