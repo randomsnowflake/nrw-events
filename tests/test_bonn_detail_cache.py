@@ -611,19 +611,27 @@ class BonnDetailEnrichmentTests(unittest.TestCase):
   </a>
 </article>
 """
-        full_description = "Ein vollständiger Detailabsatz. " + ("Weitere belegte Information. " * 30) + "Letzter Fakt."
-        context = {
-            "description": full_description,
-            "venue": "Collegium Leoninum",
-            "venue_address": "Noeggerathstraße 34, 53111 Bonn",
-            "city": "Bonn",
-        }
+        for repetitions in (30, 400):
+            with self.subTest(repetitions=repetitions):
+                full_description = "Ein vollständiger Detailabsatz. " + ("Weitere belegte Information. " * repetitions) + "Letzter Fakt."
+                context = {
+                    "description": full_description,
+                    "venue": "Collegium Leoninum",
+                    "venue_address": "Noeggerathstraße 34, 53111 Bonn",
+                    "city": "Bonn",
+                }
 
-        with patch.object(bonn, "_fetch_detail_context", return_value=context):
-            events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
+                with patch.object(bonn, "_fetch_detail_context", return_value=context):
+                    events = bonn._calendar_listing_events_from_html(html, "Bonn.de Events")
 
-        self.assertGreater(len(full_description), common.DESCRIPTION_MAX_CHARS)
-        self.assertEqual(events[0]["description"], full_description)
+                self.assertGreater(len(full_description), common.DESCRIPTION_MAX_CHARS)
+                self.assertEqual(events[0]["description"], common.concise_description(full_description, max_chars=8000))
+                self.assertEqual(bonn.richtext.to_plain_text(events[0]["description_html"]), full_description)
+                canonical = validation.validate_event(events[0])
+                self.assertLessEqual(len(canonical.description), 8000)
+                for field, limit in (("description", 8000), ("description_html", 100000)):
+                    with self.subTest(field=field), self.assertRaisesRegex(validation.EventValidationError, f"^{field}_too_long$"):
+                        validation.validate_event({**events[0], field: "x" * (limit + 1)})
 
     def test_detail_description_is_trimmed_before_it_is_cached_or_exported(self):
         long_description = " ".join(
