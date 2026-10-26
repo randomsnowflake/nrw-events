@@ -967,8 +967,9 @@ def _finish_structured_event(
     ev = _apply_detail_location(ev, detail_context)
     ev = _apply_detail_final_date(ev, detail_context)
     ev = _apply_detail_source_link(ev, detail_context)
-    ev["description"] = common.concise_description(description, max_chars=0)
-    ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
+    # Match shared detail enrichment: bounded search copy, complete detail document.
+    ev["description"] = common.concise_description(description, max_chars=8000)
+    ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(description)
     ev = _apply_source_category_mapping(ev, tags)
     if free_allow and not allow:
         ev = _apply_free_category_override(ev, tags)
@@ -1098,7 +1099,8 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
         # Skipped or failed requests must remain eligible for recovery.
         event["_detail_page_enriched"] = True
         if weak_description and context.get("description"):
-            event["description"] = common.concise_description(context["description"], max_chars=0)
+            event["description"] = common.concise_description(context["description"], max_chars=8000)
+            event["description_html"] = context.get("description_html") or richtext.from_plain_text(context["description"])
             event["description_source"] = "scraped"
         if weak_description and context.get("description_html"):
             event["description_html"] = context["description_html"]
@@ -1209,8 +1211,9 @@ def _listing_events_from_html(
                 ev = _apply_detail_source_link(ev, detail_context)
                 ev = _apply_source_category_mapping(ev, tags)
                 if description != classification_description:
-                    ev["description"] = common.concise_description(description, max_chars=0)
-                ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(ev["description"])
+                    ev["description"] = common.concise_description(description, max_chars=8000)
+                    ev["description_source"] = "scraped"
+                ev["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(description)
                 fallback_price = common.infer_free_admission_price(
                     raw_title, description,
                     "kostenlos" if free_only or "Kostenlos" in tags else "",
@@ -1372,8 +1375,9 @@ def _fetch_rss_events(
                     )
                     if enriched:
                         enriched["description"] = common.concise_description(
-                            detail_description, max_chars=0
+                            detail_description, max_chars=8000
                         )
+                        enriched["description_html"] = detail_context.get("description_html") or richtext.from_plain_text(detail_description)
                         ev = enriched
             if ev:
                 price = common.infer_free_admission_price(title, desc)
