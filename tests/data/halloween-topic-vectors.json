@@ -613,5 +613,105 @@
       "description": "Wir schnitzen Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren Holzfiguren und zeigen Halloweenkürbisse."
     },
     "expected": []
+  },
+  {
+    "name": "celebrate-inverted",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir feiern mit euch Halloween!"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "celebrate-direct",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir feiern Halloween."
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "celebrate-future-season",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2027-10-31",
+      "description": "Wir feiern mit euch Halloween!"
+    },
+    "expected": ["halloween"]
+  },
+  {
+    "name": "celebrate-generated",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "generated",
+      "start_date": "2026-10-31",
+      "description": "Wir feiern mit euch Halloween!"
+    },
+    "expected": []
+  },
+  {
+    "name": "celebrate-negated",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir feiern nicht Halloween."
+    },
+    "expected": []
+  },
+  {
+    "name": "celebrate-negated-prefix",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Dieses Jahr feiern wir kein Halloween."
+    },
+    "expected": []
+  },
+  {
+    "name": "celebrate-past-year",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir feiern mit euch Halloween 2025."
+    },
+    "expected": []
+  },
+  {
+    "name": "celebrate-outside-season",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-07-31",
+      "description": "Wir feiern mit euch Halloween!"
+    },
+    "expected": []
+  },
+  {
+    "name": "celebrate-unrelated-sentences",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir feiern mit euch. Halloween ist erst später."
+    },
+    "expected": []
+  },
+  {
+    "name": "celebrate-incidental",
+    "event": {
+      "title": "Salsa Bachata Party",
+      "description_source": "scraped",
+      "start_date": "2026-10-31",
+      "description": "Wir feiern mit euch den Geburtstag einer Halloween-Darstellerin."
+    },
+    "expected": []
   }
 ]

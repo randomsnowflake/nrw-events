@@ -47,6 +47,7 @@ _HALLOWEEN_PROGRAMME = re.compile(
     r"|\b(?:bald|passend\s+(?:an|zu)|einstimmung\s+auf)\s+halloween\b"
     r"|\b(?:wissen|fragen|quiz|raetsel)\b.{0,40}\b(?:ueber|zu)\s+halloween\b"
     r"|\bhalloween\s+feiern\b"
+    r"|\bfeiern\s+(?:mit\s+euch\s+)?halloween\b"
     r"|\bhalloween\s*monster\w*\b.{0,60}\bbastel\w*\b"
     r"|\bbastel\w*\b.{0,60}\bhalloween\s*monster\w*\b"
     r"|\bhalloween\s*kuerbis(?:se|sen)?\b.{0,60}\bschnitz\w*\b|\bschnitz\w*\b.{0,60}\bhalloween\s*kuerbis(?:se|sen)?\b"
