@@ -58,6 +58,13 @@ def fetch() -> list:
                     "http://www.rathausmusik.com/",
                     _events_from_rathausmusik,
                     source_id="rathausmusik",
+                    # Only the finished 2026 season is confirmed; review next year's schedule.
+                    empty_is_healthy=lambda _html: (
+                        common.runtime_window().start.year == 2026
+                        and not reviewed_corrections.active_entries(
+                            "rathausmusik_schedule", common.runtime_window().start,
+                        )
+                    ),
                 ),
             ),
         ]
