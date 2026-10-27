@@ -363,6 +363,17 @@ class JunkFilterTests(unittest.TestCase):
         self.assertEqual(common.event_status(title, description), "scheduled")
         self.assertFalse(evaluate_event_quality({"title": title, "description": description}).should_drop)
 
+    def test_verlegt_onto_dated_replacement_is_postponed(self):
+        # Harmonie Bonn, 27 Oct 2026: the dotted date broke the sentence-bound context pattern.
+        for title in (
+            "Carl Carlton & Melanie Wiegmann - „Miles Of Time Tour“ - Konzert muss leider auf den "
+            "15.03.27 verlegt werden! Karten behalten ihre Gültigkeit",
+            "Lesung auf den 15. März 2027 verlegt",
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(common.event_status(title, ""), "postponed")
+        self.assertEqual(common.event_status("Fliesenkurs", "Fliesen werden auf dem Boden verlegt."), "scheduled")
+
     def test_full_sold_out_sentence_is_unavailable(self):
         for description in (
             "Die Veranstaltung ist ausverkauft.",

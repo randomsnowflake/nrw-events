@@ -87,7 +87,9 @@ _POSTPONED_VERLEGT_TITLE_PATTERN = re.compile(
 _POSTPONED_VERLEGT_CONTEXT_PATTERN = re.compile(
     rf"\b(?:{_CANCELLED_STATUS_SUBJECTS})\b\s+(?:wurde|wird|ist)\b"
     r"[^\n.!?]{0,80}\bverlegt\b"
-    r"|\bverlegt\b[^\n.!?]{0,80}\b(?:vom|auf|neuer\s+termin|neues\s+datum)\b",
+    r"|\bverlegt\b[^\n.!?]{0,80}\b(?:vom|auf|neuer\s+termin|neues\s+datum)\b"
+    # "auf den 15.03.27 verlegt": the dotted date breaks the sentence-bound patterns above.
+    r"|\bauf\s+(?:den\s+)?\d{1,2}\.[^\n!?]{0,20}?\bverlegt\b",
     re.IGNORECASE,
 )
 
