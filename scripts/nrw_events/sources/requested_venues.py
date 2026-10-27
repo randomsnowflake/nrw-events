@@ -1,6 +1,7 @@
 """Requested Bonn/Rhein-Sieg venue and municipal calendars."""
 
 import re
+from collections.abc import Callable
 from datetime import datetime
 
 from .. import common, components, reviewed_corrections, richtext
@@ -141,7 +142,7 @@ def _events_from_pantheon(html: str) -> list:
         if last_month and month < last_month:
             current_year += 1
         last_month = month
-        start = datetime(current_year, month, int(day_m.group(1)))
+        start: datetime | None = datetime(current_year, month, int(day_m.group(1)))
         start = _with_hhmm(start, time_m.group(1) if time_m else "")
         link = f"https://www.pantheon.de/programm/#t{event_id}"
         ev = common.make_event(
@@ -364,7 +365,7 @@ def _brueckenforum_detail_context(html: str) -> dict:
     }
 
 
-def _events_from_brueckenforum(html: str, detail_fetcher=None) -> list:
+def _events_from_brueckenforum(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for block in re.findall(r'<div class="event-single">(.*?)</div>\s*</div>\s*</div>',
                             html, re.S | re.I):
@@ -423,14 +424,14 @@ def _events_from_brueckenforum(html: str, detail_fetcher=None) -> list:
     return events
 
 
-def _with_hhmm(dt, time_text: str):
+def _with_hhmm(dt: datetime | None, time_text: str) -> datetime | None:
     if not dt or not time_text:
         return dt
     m = re.search(r"(\d{1,2}):(\d{2})", time_text)
     return dt.replace(hour=int(m.group(1)), minute=int(m.group(2))) if m else dt
 
 
-def _date_from_occurrence_or_label(occurrence: str, label: str):
+def _date_from_occurrence_or_label(occurrence: str, label: str) -> datetime | None:
     if occurrence:
         return common.parse_iso_date(occurrence)
     parts = rc.clean(label).split()
@@ -441,11 +442,11 @@ def _date_from_occurrence_or_label(occurrence: str, label: str):
     return None
 
 
-def _parse_slash_date(text: str):
+def _parse_slash_date(text: str) -> datetime | None:
     return common.parse_date((text or "").replace("/", "."))
 
 
-def _parse_springmaus_dt(text: str):
+def _parse_springmaus_dt(text: str) -> datetime | None:
     normalized = re.sub(r"\b([A-Za-zäöüÄÖÜ]{3,})\.", r"\1", text or "")
     return rc.parse_dt(normalized)
 
