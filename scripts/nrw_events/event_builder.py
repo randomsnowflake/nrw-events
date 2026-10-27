@@ -92,6 +92,29 @@ _POSTPONED_VERLEGT_CONTEXT_PATTERN = re.compile(
 )
 
 
+_STATUS_DATE = (
+    r"\d{1,2}\.(?:\d{1,2}\.(?:\d{4}|\d{2})?"
+    r"|\s*(?:Januar|Jan|Februar|Feb|März|Maerz|Mär|Mae|April|Apr|Mai|Juni|Jun|Juli|Jul|August|Aug"
+    r"|September|Sep|Oktober|Okt|November|Nov|Dezember|Dez)\.?(?:\s+\d{4})?)"
+)
+
+
+# "auf den 15.03.27 verlegt": the dotted date breaks the sentence-bound patterns above.
+_POSTPONED_ONTO_DATE_PATTERN = re.compile(
+    rf"\bauf\s+(?:den\s+)?{_STATUS_DATE}\s+(?:\w+\s+){{0,2}}verlegt\b", re.IGNORECASE,
+)
+_MOVED_FROM_DATE_SUFFIX = re.compile(rf"\bvom\s+{_STATUS_DATE}\s+$", re.IGNORECASE)
+
+
+def _postponed_onto_date(text: str) -> bool:
+    # shortcut: "vom X auf den Y verlegt" is skipped because the listing may be dated Y;
+    # compare against the event start if listings dated X must count as postponed.
+    return any(
+        not _MOVED_FROM_DATE_SUFFIX.search(text, 0, match.start())
+        for match in _POSTPONED_ONTO_DATE_PATTERN.finditer(text)
+    )
+
+
 def has_cancelled_status(title: str, description: str) -> bool:
     """True when text marks this event as cancelled/postponed."""
     combined = " ".join([title or "", description or ""])
@@ -100,6 +123,7 @@ def has_cancelled_status(title: str, description: str) -> bool:
         or _CANCELLED_CONTEXT_PATTERN.search(combined)
         or _POSTPONED_VERLEGT_TITLE_PATTERN.search(title or "")
         or _POSTPONED_VERLEGT_CONTEXT_PATTERN.search(combined)
+        or _postponed_onto_date(combined)
     )
 
 
