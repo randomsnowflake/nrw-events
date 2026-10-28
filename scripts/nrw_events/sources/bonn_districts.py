@@ -4,6 +4,7 @@ import calendar
 import json
 import re
 import urllib.parse
+from collections.abc import Callable
 from datetime import datetime
 from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
@@ -371,8 +372,9 @@ def _beuel_dates(value: str) -> tuple[datetime | None, datetime | None, str]:
     if not matches:
         return None, None, ""
 
-    def resolve(match, *, start: datetime | None = None) -> datetime | None:
+    def resolve(match: re.Match[str], *, start: datetime | None = None) -> datetime | None:
         day, month, year, hour, minute = match.groups()
+        result: datetime | None
         if year:
             result = datetime(int(year), int(month), int(day))
         elif start:
@@ -414,7 +416,7 @@ def _dedupe_beuel_combined_festival(events: list) -> list:
         "beuelfest und promenadenfest",
         "promenadenfest und beuelfest",
     }
-    combined = {}
+    combined: dict[tuple, int] = {}
     output = []
     for event in events:
         title = common.clean_html(event.get("title", "")).casefold()
@@ -555,7 +557,7 @@ def _reviewed_beuel_primary_link(event: dict, link: str) -> str:
     return link
 
 
-def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
+def _confirm_beuel_primary_sources(events: list, primary_fetcher: Callable[[str], str]) -> list:
     """Keep discovery records only when their linked first-party page is readable."""
     confirmed = []
     primary_pages: dict[str, str] = {}
@@ -846,7 +848,7 @@ def _roleber_detail_context(html: str) -> dict[str, str]:
 
 
 def _enrich_roleber_descriptions(events: list) -> list:
-    def fallback(event):
+    def fallback(event: dict) -> str:
         start = common.parse_iso_date(event.get("start_date") or "")
         return common.factual_event_description(
             event.get("title", ""), date_value=start,
