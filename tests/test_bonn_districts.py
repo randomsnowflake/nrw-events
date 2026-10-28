@@ -6,7 +6,7 @@ from email.message import Message
 from unittest.mock import Mock, patch
 
 from nrw_events import common, report, validation
-from nrw_events.sources import SOURCES, bonn, bonn_districts
+from nrw_events.sources import SOURCES, bonn, bonn_districts, regional_common
 
 BEUEL_HTML = """
 <div class="yel"><a href="/events/#31.07.2026"><span class="title">Green Juice Festival 2026</span><br>
@@ -84,6 +84,16 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.end.stop()
         self.today.stop()
 
+    def _late_october(self):
+        # Re-point this class's own patches; a second patch layer would be
+        # unwound after tearDown and leak the April window into later tests.
+        self.end.stop()
+        self.today.stop()
+        self.today = patch.object(common, "TODAY", datetime(2026, 10, 28))
+        self.end = patch.object(common, "END_DATE", datetime(2026, 11, 24))
+        self.today.start()
+        self.end.start()
+
     def test_all_sources_are_registered_separately(self):
         self.assertIs(SOURCES["Bürgerverein Vilich-Müldorf"], bonn_districts.fetch_vilich_mueldorf)
         self.assertIs(SOURCES["Beuel.net"], bonn_districts.fetch_beuel)
@@ -124,6 +134,19 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(start.strftime("%Y-%m-%d %H:%M"), "2026-06-12 19:30")
         self.assertEqual(end.strftime("%Y-%m-%d %H:%M"), "2026-06-12 22:00")
         self.assertEqual(time_text, "19:30–22:00")
+
+    def test_beuel_yearless_range_started_beyond_grace_stays_running(self):
+        self._late_october()
+        start, end, _ = bonn_districts._beuel_dates("01.09. 10:00 - 15.11.")
+        self.assertEqual(start.strftime("%Y-%m-%d %H:%M"), "2026-09-01 10:00")
+        self.assertEqual(end.strftime("%Y-%m-%d"), "2026-11-15")
+
+    def test_shared_yearless_range_anchors_start_to_its_end(self):
+        self._late_october()
+        start, end = regional_common.range_dates("01.09. - 15.11.")
+        self.assertEqual((start.date().isoformat(), end.date().isoformat()), ("2026-09-01", "2026-11-15"))
+        start, end = regional_common.range_dates("27.09. - 11.10.")
+        self.assertEqual((start.date().isoformat(), end.date().isoformat()), ("2026-09-27", "2026-10-11"))
 
     def test_beuel_rathaus_flea_market_uses_shared_canonical_identity(self):
         html = """

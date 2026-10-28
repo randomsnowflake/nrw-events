@@ -4,11 +4,13 @@ import calendar
 import json
 import re
 import urllib.parse
+from collections.abc import Callable
 from datetime import datetime
 from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .. import common, normalization, reviewed_corrections, richtext
+from ..dates import yearless_start_before
 from . import regional_common
 
 VILICH_MUELDORF_ICAL = "https://www.bv-vilich-mueldorf.de/events/?ical=1"
@@ -370,8 +372,9 @@ def _beuel_dates(value: str) -> tuple[datetime | None, datetime | None, str]:
     if not matches:
         return None, None, ""
 
-    def resolve(match, *, start: datetime | None = None) -> datetime | None:
+    def resolve(match: re.Match[str], *, start: datetime | None = None) -> datetime | None:
         day, month, year, hour, minute = match.groups()
+        result: datetime | None
         if year:
             result = datetime(int(year), int(month), int(day))
         elif start:
@@ -384,8 +387,14 @@ def _beuel_dates(value: str) -> tuple[datetime | None, datetime | None, str]:
             result = result.replace(hour=int(hour), minute=int(minute))
         return result
 
-    start = resolve(matches[0])
-    end = resolve(matches[1], start=start) if len(matches) > 1 else start
+    if len(matches) > 1 and not (matches[0].group(3) or matches[1].group(3)):
+        end = resolve(matches[1])
+        start = end and yearless_start_before(int(matches[0].group(1)), int(matches[0].group(2)), end)
+        if start and matches[0].group(4):
+            start = start.replace(hour=int(matches[0].group(4)), minute=int(matches[0].group(5)))
+    else:
+        start = resolve(matches[0])
+        end = resolve(matches[1], start=start) if len(matches) > 1 else start
     start_time = ":".join(matches[0].groups()[3:5]) if matches[0].group(4) else ""
     end_time = ":".join(matches[1].groups()[3:5]) if len(matches) > 1 and matches[1].group(4) else ""
     if len(matches) == 1 and start:
@@ -407,7 +416,7 @@ def _dedupe_beuel_combined_festival(events: list) -> list:
         "beuelfest und promenadenfest",
         "promenadenfest und beuelfest",
     }
-    combined = {}
+    combined: dict[tuple, int] = {}
     output = []
     for event in events:
         title = common.clean_html(event.get("title", "")).casefold()
@@ -548,7 +557,7 @@ def _reviewed_beuel_primary_link(event: dict, link: str) -> str:
     return link
 
 
-def _confirm_beuel_primary_sources(events: list, primary_fetcher) -> list:
+def _confirm_beuel_primary_sources(events: list, primary_fetcher: Callable[[str], str]) -> list:
     """Keep discovery records only when their linked first-party page is readable."""
     confirmed = []
     primary_pages: dict[str, str] = {}
@@ -839,7 +848,7 @@ def _roleber_detail_context(html: str) -> dict[str, str]:
 
 
 def _enrich_roleber_descriptions(events: list) -> list:
-    def fallback(event):
+    def fallback(event: dict) -> str:
         start = common.parse_iso_date(event.get("start_date") or "")
         return common.factual_event_description(
             event.get("title", ""), date_value=start,

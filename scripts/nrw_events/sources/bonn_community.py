@@ -112,6 +112,8 @@ KB_URL = "https://kaeptnbook-lesefest.de/veranstaltungen"
 KB_SOURCE = "Käpt’n Book Lesefest"
 KB_SOURCE_ID = "kaeptn-book-lesefest"
 _KB_DAY = re.compile(r'<div class="h3 mb-0">\s*(.*?)\s*</div>', re.S)
+_KB_DATE_FILTER = re.compile(r'<select id="event-filter-date".*?</select>', re.S)
+_KB_ISO_OPTION = re.compile(r'<option value="(\d{4}-\d{2}-\d{2})"')
 
 
 def events_from_kaeptn_book(document: str) -> list:
@@ -120,17 +122,20 @@ def events_from_kaeptn_book(document: str) -> list:
     The ~140 programme rows are mostly already published by the hosting venues
     (museums, Bonn.de); importing them individually would duplicate those.
     """
-    reference = runtime_window().start
-    days = sorted(filter(None, (
-        parse_date(clean_html(raw), reference_date=reference)
-        for raw in _KB_DAY.findall(document)
-    )))
+    # Cards say "27. Sept." without a year; resolving those against today rolls
+    # the opening days of a finished edition into next year once they leave the
+    # grace window. The page's date filter carries the explicit ISO dates.
+    date_filter = _KB_DATE_FILTER.search(document)
+    days = sorted(
+        datetime.fromisoformat(value)
+        for value in _KB_ISO_OPTION.findall(date_filter.group(0) if date_filter else "")
+    )
     if not days:
         return []
     first, last = days[0], days[-1]
     event = make_event(
         f"Käpt’n Book Lesefest {first.year}", first, last, "Bonn und Region", "Bonn",
-        f"Kinder- und Jugendbuchfestival mit {len(days)} Lesungen, Theaterstücken und "
+        f"Kinder- und Jugendbuchfestival mit {len(_KB_DAY.findall(document))} Lesungen, Theaterstücken und "
         "Familienfesten in Bonn und der Region.",
         KB_URL, KB_SOURCE, "Lesung Kinder Literatur Festival", 1.0, source_id=KB_SOURCE_ID,
     )

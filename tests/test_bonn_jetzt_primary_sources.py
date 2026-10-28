@@ -24,6 +24,11 @@ _STW_DETAIL = """
 <p><strong>Eintritt:</strong> frei</p></div>
 """
 _KB = """
+<select id="event-filter-date" class="form-select" name="tx_news_pi1[eventFilter][date]">
+<option value="">Alle Termine</option>
+<option value="2026-09-27">Sonntag, 27. September 2026</option>
+<option value="2026-10-11">Sonntag, 11. Oktober 2026</option>
+</select>
 <article class="card"><div class="h3 mb-0"> 27. Sept. </div><div class="kb-event-time">10:30 Uhr</div>
 <h3 class="mb-0">Titus Dittmann liest</h3></article>
 <article class="card"><div class="h3 mb-0"> 11. Okt. </div><h3 class="mb-0">Abschlussfest</h3></article>
@@ -80,6 +85,15 @@ class BonnJetztPrimarySourceTests(unittest.TestCase):
         [event] = bonn_community.events_from_kaeptn_book(_KB)
         self.assertEqual(event["title"], "Käpt’n Book Lesefest 2026")
         self.assertEqual((event["start_date"], event["end_date"]), ("2026-09-27", "2026-10-11"))
+        self.assertIn("mit 2 Lesungen", event["description"])
+
+    def test_kaeptn_book_keeps_finished_edition_in_its_own_year(self):
+        # "27. Sept." left the yearless grace window on 2026-10-28 and resolved
+        # to 2027, publishing the finished festival as running until 2027-09-27.
+        patch_window(self, datetime(2026, 10, 28), datetime(2027, 1, 26))
+        [event] = bonn_community.events_from_kaeptn_book(_KB)
+        self.assertEqual((event["start_date"], event["end_date"]), ("2026-09-27", "2026-10-11"))
+        self.assertEqual(bonn_community.events_from_kaeptn_book(_KB.split("</select>")[1]), [])
 
     def test_datenburg_expands_published_weekly_opening(self):
         events = bonn_community.events_from_datenburg(_DATENBURG)
