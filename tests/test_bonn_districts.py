@@ -6,7 +6,9 @@ from email.message import Message
 from unittest.mock import Mock, patch
 
 from nrw_events import common, report, validation
-from nrw_events.sources import SOURCES, bonn, bonn_districts
+from nrw_events.sources import SOURCES, bonn, bonn_districts, regional_common
+
+from tests.helpers import patch_window
 
 BEUEL_HTML = """
 <div class="yel"><a href="/events/#31.07.2026"><span class="title">Green Juice Festival 2026</span><br>
@@ -124,6 +126,19 @@ class BonnDistrictSourceTests(unittest.TestCase):
         self.assertEqual(start.strftime("%Y-%m-%d %H:%M"), "2026-06-12 19:30")
         self.assertEqual(end.strftime("%Y-%m-%d %H:%M"), "2026-06-12 22:00")
         self.assertEqual(time_text, "19:30–22:00")
+
+    def test_beuel_yearless_range_started_beyond_grace_stays_running(self):
+        patch_window(self, datetime(2026, 10, 28), datetime(2026, 11, 24))
+        start, end, _ = bonn_districts._beuel_dates("01.09. 10:00 - 15.11.")
+        self.assertEqual(start.strftime("%Y-%m-%d %H:%M"), "2026-09-01 10:00")
+        self.assertEqual(end.strftime("%Y-%m-%d"), "2026-11-15")
+
+    def test_shared_yearless_range_anchors_start_to_its_end(self):
+        patch_window(self, datetime(2026, 10, 28), datetime(2026, 11, 24))
+        start, end = regional_common.range_dates("01.09. - 15.11.")
+        self.assertEqual((start.date().isoformat(), end.date().isoformat()), ("2026-09-01", "2026-11-15"))
+        start, end = regional_common.range_dates("27.09. - 11.10.")
+        self.assertEqual((start.date().isoformat(), end.date().isoformat()), ("2026-09-27", "2026-10-11"))
 
     def test_beuel_rathaus_flea_market_uses_shared_canonical_identity(self):
         html = """

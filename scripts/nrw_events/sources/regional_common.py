@@ -12,7 +12,7 @@ from html.parser import HTMLParser
 from typing import Any
 
 from .. import common, http
-from ..dates import MONTH_ALL, resolve_yearless_date
+from ..dates import MONTH_ALL, resolve_yearless_date, yearless_start_before
 from ..normalization import source_address_wins
 from ..source_types import TextParser
 
@@ -461,6 +461,11 @@ def range_dates(text: str) -> tuple[datetime | None, datetime | None]:
     last_year = re.search(r"(20\d{2})$", last)
     if not re.search(r"20\d{2}$", first) and last_year:
         first = f"{first}{last_year.group(1)}"
+    if len(dates) > 1 and not re.search(r"20\d{2}", "".join(dates)):
+        end = common.parse_date(last, reference_date=common.runtime_window().start)
+        day, month = map(int, re.findall(r"\d+", first)[:2])
+        start = yearless_start_before(day, month, end) if end else None
+        return (start, end) if start and start < end else (start, None)
     start = common.parse_date(first, reference_date=common.runtime_window().start)
     later_dates = [
         parsed

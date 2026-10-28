@@ -100,6 +100,23 @@ def resolve_yearless_date(
     return None
 
 
+def yearless_start_before(day: int, month: int, end: datetime) -> datetime | None:
+    """Resolve a yearless range start to its last occurrence on or before ``end``.
+
+    Resolving a start on its own rolls it into next year once it is more than
+    the grace window old, which hides a still-running range today and turns it
+    into a phantom edition next year. Anchor it to the resolved end instead.
+    """
+    for year in (end.year, end.year - 1):
+        try:
+            candidate = datetime(year, month, day)
+        except ValueError:
+            continue
+        if candidate.date() <= end.date():
+            return candidate
+    return None
+
+
 def _range_start(text: str) -> str:
     """Return a range's start while inheriting missing month/year context."""
     parts = re.split(r"\s*(?:[–—]|\bbis(?:\s+zum)?\b|\s-\s)\s*", text, maxsplit=1, flags=re.I)

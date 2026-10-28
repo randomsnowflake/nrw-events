@@ -9,6 +9,7 @@ from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
 
 from .. import common, normalization, reviewed_corrections, richtext
+from ..dates import yearless_start_before
 from . import regional_common
 
 VILICH_MUELDORF_ICAL = "https://www.bv-vilich-mueldorf.de/events/?ical=1"
@@ -384,8 +385,14 @@ def _beuel_dates(value: str) -> tuple[datetime | None, datetime | None, str]:
             result = result.replace(hour=int(hour), minute=int(minute))
         return result
 
-    start = resolve(matches[0])
-    end = resolve(matches[1], start=start) if len(matches) > 1 else start
+    if len(matches) > 1 and not (matches[0].group(3) or matches[1].group(3)):
+        end = resolve(matches[1])
+        start = end and yearless_start_before(int(matches[0].group(1)), int(matches[0].group(2)), end)
+        if start and matches[0].group(4):
+            start = start.replace(hour=int(matches[0].group(4)), minute=int(matches[0].group(5)))
+    else:
+        start = resolve(matches[0])
+        end = resolve(matches[1], start=start) if len(matches) > 1 else start
     start_time = ":".join(matches[0].groups()[3:5]) if matches[0].group(4) else ""
     end_time = ":".join(matches[1].groups()[3:5]) if len(matches) > 1 and matches[1].group(4) else ""
     if len(matches) == 1 and start:
