@@ -75,8 +75,7 @@ class BonnGeojsonAttributionTests(unittest.TestCase):
 
     def test_retry_budget_failure_tracks_only_geojson_and_keeps_fresh_events(self):
         result, payload = self.import_days(days=(0, 1))
-        self.assertEqual([row["source_id"] for row in payload["retained_sources"]], [GEOJSON_SOURCE_ID])
-        self.assertEqual(payload["retained_sources"][0]["consecutive_failures"], 2)
+        self.assertEqual(payload["retained_sources"], [])
         self.assertEqual(payload["retained_event_count"], 0)
         self.assertIn("Fresh concert", {row.title for row in result.events})
         self.assertNotIn("Old concert", {row.title for row in result.events})
@@ -93,7 +92,7 @@ class BonnGeojsonAttributionTests(unittest.TestCase):
     def test_independent_calendar_failure_still_retains_calendar_events(self):
         result, payload = self.import_days(base_failure=True)
         self.assertEqual({row["source_id"] for row in payload["retained_sources"]},
-                         {"bonn-de-events", GEOJSON_SOURCE_ID})
+                         {"bonn-de-events"})
         self.assertIn("Old concert", {row.title for row in result.events})
         base = payload["source_results"]["Bonn.de Events"]["endpoints"][bonn._EVENTS_JSON_URL]
         self.assertNotEqual(base.get("source_id"), GEOJSON_SOURCE_ID)
@@ -107,21 +106,18 @@ class BonnGeojsonAttributionTests(unittest.TestCase):
         with fixtures.make_runner_env() as env:
             _, previous = case.run_day(env, 0, sources)
             previous["retained_sources"].append({
-                **previous["retained_sources"][0],
                 "source": "Bonn.de Events", "source_id": "bonn-de-events",
+                "runner_source": "Bonn.de Events", "consecutive_failures": 1,
             })
             env.previous_path.write_text(json.dumps(previous))
             _, payload = case.run_day(env, 1, sources)
-            self.assertEqual([row["source_id"] for row in payload["retained_sources"]], [GEOJSON_SOURCE_ID])
-            self.assertEqual(payload["retained_sources"][0]["consecutive_failures"], 2)
+            self.assertEqual(payload["retained_sources"], [])
             self.failed_urls = set()
             _, recovered = case.run_day(env, 2, sources)
             self.assertEqual(recovered["retained_sources"], [])
             self.failed_urls = set(bonn._VENUE_GEOJSON_URLS)
             _, outage = case.run_day(env, 3, sources)
-            self.assertEqual(outage["retained_sources"][0]["consecutive_failures"], 1)
-            self.assertNotEqual(outage["retained_sources"][0]["first_failure_at"],
-                                previous["retained_sources"][0]["first_failure_at"])
+            self.assertEqual(outage["retained_sources"], [])
 
     def test_one_healthy_layer_still_supplies_coordinates(self):
         self.failed_urls = {bonn._VENUE_GEOJSON_URLS[0]}

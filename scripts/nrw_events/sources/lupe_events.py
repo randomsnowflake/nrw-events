@@ -34,6 +34,7 @@ def fetch() -> list:
         1.0,
         "lupe-events",
         city_resolver=_city_for,
+        empty_calendar_is_valid=True,
     )
     for event in events:
         if event.get("link", "").rstrip("/") != _LESSENICH_URL:

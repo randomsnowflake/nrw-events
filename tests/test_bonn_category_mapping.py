@@ -155,6 +155,7 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "Kurs": "workshop",
             "Treffen/Austausch": "activities",
             "Karneval": "festival",
+            "Martinszug": "festival",
             "Gedenkveranstaltung": "other",
             "Tag des offenen Denkmals": "festival",
             "Beethovenfest": "concert",
@@ -176,7 +177,9 @@ class BonnCategoryMappingTests(unittest.TestCase):
         self.assertFalse(neutral_facets & bonn._ALLOW)
 
     def test_september_audience_and_hub_facets_do_not_change_admission_or_format(self):
-        for facet in ("Kinder (10 bis 14 Jahre)", "Nachhaltigkeits-Hub Region Bonn"):
+        for facet in ("Kinder (10 bis 14 Jahre)", "Nachhaltigkeits-Hub Region Bonn",
+                      "! Stadtbezirk", "Beethovenjahr 2027", "Integration/Migration/Interkultur (intern)",
+                      "Förderschule", "Polylino - Alle lesen", "Theater Bonn. Tanz."):
             with self.subTest(facet=facet), patch.object(common, "log_source_error") as warning:
                 self.assertNotIn(facet, bonn._FREE_ACTIVITY_ALLOW)
                 events = self._fetch_json([
@@ -251,6 +254,7 @@ class BonnCategoryMappingTests(unittest.TestCase):
         categories = {
             "Führung/Rundgang": "outdoor",
             "Karneval": "festival",
+            "Martinszug": "festival",
             "Kurs": "workshop",
             "Treffen/Austausch": "activities",
             "Vortrag/Diskussion": "talk",

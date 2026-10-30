@@ -137,7 +137,7 @@ class _SemanticHTML(HTMLParser):
 
 
 def _jsonld_candidates(document: str, title: str) -> list[dict]:
-    candidates = common.jsonld_event_items(document)
+    candidates = common.jsonld_event_items(document, optional=True)
     if not candidates:
         return []
     title_key = re.sub(r"[^a-z0-9]+", "", title.casefold())
@@ -179,7 +179,7 @@ def _exact_jsonld_description(document: str, event: RawEvent) -> tuple[str, str]
     event_date = str(event.get("start_date") or event.get("date") or "")[:10]
     if not expected_title_key or not event_date:
         return "", ""
-    for item in common.jsonld_event_items(document or ""):
+    for item in common.jsonld_event_items(document or "", optional=True):
         if (
             _exact_title_key(item.get("name")) != expected_title_key
             or str(item.get("startDate") or "")[:10] != event_date

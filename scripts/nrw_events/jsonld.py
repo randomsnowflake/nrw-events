@@ -21,7 +21,7 @@ from .location import (
 from .models import AdmissionDefault, RawEvent
 
 
-def jsonld_event_items(html: str) -> list[dict[str, Any]]:
+def jsonld_event_items(html: str, *, optional: bool = False) -> list[dict[str, Any]]:
     """Extract schema.org Event objects from JSON-LD blobs."""
     items: list[dict[str, Any]] = []
     seen: set[int] = set()
@@ -73,7 +73,9 @@ def jsonld_event_items(html: str) -> list[dict[str, Any]]:
             seen.clear()
             walk(json.JSONDecoder(strict=False).raw_decode(raw)[0])
         except json.JSONDecodeError as exc:
-            _impl_run_state.log_source_error("JSON-LD", exc)
+            _impl_run_state.log_source_error(
+                "JSON-LD", exc, error_type="OptionalDetailWarning" if optional else "",
+            )
             continue
     return items
 

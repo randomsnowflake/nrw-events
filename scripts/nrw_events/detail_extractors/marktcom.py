@@ -35,7 +35,7 @@ def location_context(document: str, event: RawEvent) -> DetailContext:
     title = str(event.get('title') or '').casefold()
     city = str(event.get('city') or '').strip()
     locations: set[tuple[str, str]] = set()
-    for item in jsonld_event_items(document):
+    for item in jsonld_event_items(document, optional=True):
         if not isinstance(item.get('url'), str) or _url_key(item['url']) != (host, path):
             continue
         name = clean_html(str(item.get('name') or '')).strip().casefold()

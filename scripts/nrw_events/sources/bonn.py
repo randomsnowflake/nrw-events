@@ -98,6 +98,7 @@ _SOURCE_CATEGORY_MAP = {
     "Kurs": "workshop",
     "Treffen/Austausch": "activities",
     "Karneval": "festival",
+    "Martinszug": "festival",
     "Gedenkveranstaltung": "other",
     "Tag des offenen Denkmals": "festival",
     "Beethovenfest": "concert",
@@ -122,7 +123,8 @@ _BLOCK = {
 }
 _KNOWN_SOURCE_CATEGORIES = (
     _ALLOW | _FREE_ACTIVITY_ALLOW | _BLOCK | {
-        "Bonn", "Kostenlos",
+        "Bonn", "Kostenlos", "! Stadtbezirk", "Beethovenjahr 2027",
+        "Integration/Migration/Interkultur (intern)", "Förderschule", "Polylino - Alle lesen",
         # Section/navigation labels can appear in teaser markup, but are not
         # event topics and must not make those cards importable.
         "Ausgehen. Erleben.", "Veranstaltungen. Kalender.", "Barrierefreie Stadt.",
@@ -153,7 +155,7 @@ _KNOWN_SOURCE_CATEGORIES = (
         "Ludwig-van-Beethoven-Musikschule Bonn", "Medienzentrum",
         "Nachhaltigkeit/Umwelt", "Quatsch keine Oper!", "Realschule",
         "Schule/Bildung", "Schulpsychologie", "Stadtmuseum", "Theater Bonn. Oper.",
-        "Theater Bonn. Schauspiel.", "Waldorfschule", "Weiterbildungskolleg", "Wirtschaft",
+        "Theater Bonn. Schauspiel.", "Theater Bonn. Tanz.", "Waldorfschule", "Weiterbildungskolleg", "Wirtschaft",
         # Reading-festival umbrella, not an occurrence's format or admission.
         # Its events also carry topics such as Aktion/Workshop or Lesung.
         "Käpt´n Book",
@@ -201,15 +203,19 @@ def _venue_points() -> dict:
     pts: dict = {}
     for url in _VENUE_GEOJSON_URLS:
         try:
-            data = json.loads(common.fetch_url(
-                url,
-                timeout=15,
-                accept="application/geo+json,application/json,*/*;q=0.8",
-                sec_fetch_mode="cors",
-                sec_fetch_dest="empty",
-            ))
+            with http._optional_detail_request(url):
+                data = json.loads(common.fetch_url(
+                    url,
+                    timeout=15,
+                    accept="application/geo+json,application/json,*/*;q=0.8",
+                    sec_fetch_mode="cors",
+                    sec_fetch_dest="empty",
+                ))
         except Exception as e:
-            common.log_source_error("Bonn venue GeoJSON", e, source_id="bonn-venue-geojson")
+            common.log_source_error(
+                "Bonn venue GeoJSON", e, source_id="bonn-venue-geojson",
+                error_type="OptionalDetailWarning",
+            )
             continue
         finally:
             # Retry-budget errors differ from socket errors; attribute by identity.

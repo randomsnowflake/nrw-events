@@ -319,7 +319,7 @@ class _BeuelParser(HTMLParser):
             self._title_depth = 1
         elif self._title_depth and tag not in {"br", "img", "input"}:
             self._title_depth += 1
-        if tag == "b":
+        if tag == "b" or (tag == "span" and "timing" in classes):
             self._date_depth = 1
         elif self._date_depth and tag not in {"br", "img", "input"}:
             self._date_depth += 1

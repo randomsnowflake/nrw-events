@@ -264,7 +264,7 @@ def _klimaviertel_overview_context(document: str, event: RawEvent) -> DetailCont
     wanted_date = str(event.get("start_date") or event.get("date") or "")[:10]
     item = next((
         candidate
-        for candidate in common.jsonld_event_items(document or "")
+        for candidate in common.jsonld_event_items(document or "", optional=True)
         if isinstance(candidate, dict)
         and _title_key(str(candidate.get("name") or "")) == wanted_title
         and str(candidate.get("startDate") or "")[:10] == wanted_date

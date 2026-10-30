@@ -9,8 +9,10 @@ runtime clock never guesses it. A listed date without a booking label is skipped
 import re
 from datetime import datetime
 
+from .. import reviewed_corrections
 from ..event_builder import make_event, window_contains
 from ..models import AdmissionDefault
+from ..run_state import runtime_window
 from ..text import clean_html
 from . import regional_common as rc
 
@@ -26,8 +28,41 @@ _BOOKING_LABEL = re.compile(r'data-hook="checkbox-(\d{2})\.(\d{2})\.(\d{2})"')
 _DESCRIPTION = re.compile(r"Wir laden Sie ein, die besondere Atmosphäre.*?genießen\.", re.S)
 
 
+def _programme_closed(html: str) -> bool:
+    text = clean_html(html or "")
+    return bool(
+        "Kommende Termine" in text
+        and "KEINE WEITEREN TERMINE GEPLANT!" in text
+        and re.search(r"Kölner Hallenflohmarkt.*?Industriestraße\s+131\b", text, re.I)
+    )
+
+
 def _events_from_page(html: str, *, strict: bool = False) -> list:
     text = clean_html(html or "")
+    if _programme_closed(html):
+        cancelled = []
+        years = {(int(d), int(m)): 2000 + int(y) for d, m, y in _BOOKING_LABEL.findall(html or "")}
+        for entry in reviewed_corrections.active_entries("koelner_hallenflohmarkt_cancellations", runtime_window().start):
+            day, month = entry["match"]
+            years.setdefault((int(day), int(month)), int(entry["value"]))
+        for day, month in re.findall(r"So,?\s*(\d{1,2})\.(\d{1,2})\.\s*\|\s*ABGESAGT!", text, re.I):
+            # A removed booking form must not turn an old cancellation into a
+            # future edition. Only its reviewed, expiring year can fill the gap.
+            year = years.get((int(day), int(month)))
+            if not year:
+                continue
+            start = datetime(year, int(month), int(day))
+            if start.weekday() != 6 or not window_contains(start, start):
+                continue
+            event = make_event(
+                _TITLE, start, start, "Kölner Hallenflohmarkt, Industriestraße 131",
+                "Köln", "Der Veranstalter hat diesen Termin abgesagt.", _URL,
+                _SOURCE, "flohmarkt markt", 1.0, source_id=_SOURCE_ID,
+            )
+            if event:
+                event["status"] = "cancelled"
+                cancelled.append(event)
+        return cancelled
     if not re.search(r"Industriestraße\s+131,?\s+50999\s+Köln", text):
         if strict:
             raise rc.ParserEmptyError("Kölner Hallenflohmarkt address contract changed")
@@ -81,4 +116,5 @@ def fetch() -> list:
         lambda html: _events_from_page(html, strict=True),
         timeout=25,
         source_id=_SOURCE_ID,
+        empty_is_healthy=_programme_closed,
     )

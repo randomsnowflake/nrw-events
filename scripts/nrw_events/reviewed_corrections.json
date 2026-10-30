@@ -248,6 +248,17 @@
         "valid_until": "2026-09-30",
         "evidence": "Reviewed visually positioned 2026 band schedule"
       }
+    ],
+    "koelner_hallenflohmarkt_cancellations": [
+      {
+        "match": [
+          "1",
+          "11"
+        ],
+        "value": 2026,
+        "valid_until": "2026-11-01",
+        "evidence": "Reviewed 2026-10-30: https://www.koelnerhallenflohmarkt.de/ explicitly says So, 01.11. | ABGESAGT! and KEINE WEITEREN TERMINE GEPLANT. The organizer booking labels in tests/fixtures/koelner_hallenflohmarkt_20261011.html establish 01.11.26. The current page has removed that booking form; never roll this cancellation into another year."
+      }
     ]
   }
 }

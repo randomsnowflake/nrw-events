@@ -320,16 +320,22 @@ def events_from_biertasting(html: str) -> list:
 def events_from_ludwigs(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for card in re.findall(r"<div class=['\"]card\s+no-r['\"]>.*?</div>\s*</div>", html or "", re.S | re.I):
-        href = _match(r"href=['\"]([^'\"]*\/veranstaltungen/termin/20\d{2}/\d{2}/[^'\"]+)", card)
+        href = _match(r"href=['\"](/veranstaltungen/termin/[^'\"]+)", card)
         title = rc.clean(_match(r"<h3[^>]*>(.*?)</h3>", card))
         if not (href and title):
             continue
         link = rc.abs_url(_LUDWIGS_URL, href)
         date_match = re.search(r"/termin/(20\d{2})/(\d{2})/", href)
-        day_match = re.search(r"<p[^>]*class=['\"]small mb-1['\"][^>]*>\s*(\d{1,2})\.", card, re.I)
-        if not (date_match and day_match):
+        date_text = rc.clean(_match(r"<p[^>]*class=['\"]small mb-1['\"][^>]*>(.*?)</p>", card))
+        if date_match:
+            day_match = re.match(r"(\d{1,2})\.", date_text)
+            start = common.parse_date(
+                f"{day_match.group(1)}.{date_match.group(2)}.{date_match.group(1)}"
+            ) if day_match else None
+        else:
+            start = common.parse_date(date_text, reference_date=common.runtime_window().start)
+        if not start:
             continue
-        start = datetime(int(date_match.group(1)), int(date_match.group(2)), int(day_match.group(1)))
         description = rc.clean(_match(r"<h3[^>]*>.*?</h3>\s*<p>(.*?)</p>", card))
         end = start
         if detail_fetcher and _in_window(start):
@@ -653,8 +659,14 @@ def _ludwigs_detail(html: str, fallback_date: datetime) -> dict:
             common.parse_date(timing.group(1)),
             f"{timing.group(2)}:{timing.group(3) or '00'}",
         )
+    end = start
+    if start and not timing:
+        clock = re.search(r"\b(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})\s*Uhr", text)
+        if clock:
+            start = rc.with_time(start, f"{clock.group(1)}:{clock.group(2)}")
+            end = rc.with_time(start, f"{clock.group(3)}:{clock.group(4)}")
     description = re.sub(r"\s*(?:Tickets sichern|Zurück)\s*(?:-->)?.*$", "", text, flags=re.I)
-    return {"start": start, "end": start, "description": description}
+    return {"start": start, "end": end, "description": description}
 
 
 def _reduettchen_detail(html: str) -> dict:

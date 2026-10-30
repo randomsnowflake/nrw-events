@@ -10,7 +10,7 @@ from .fixed_markets import FixedMarketSpec, MarketOccurrence, events_from_occurr
 
 _SOURCE = "Krewelshof Kindersachen-Flohmarkt"
 _SOURCE_ID = "krewelshof-lohmar"
-_URL = "https://krewelshof.de/kinder-familie/flohmarkt/"
+_URL = "https://krewelshof.de/lohmar/termine-events/kindersachen-flohmarkt/"
 _SPEC = FixedMarketSpec(
     title="Kindersachen-Flohmarkt Krewelshof Lohmar",
     venue="Krewelshof Lohmar, Krewelshof 1", city="Lohmar",

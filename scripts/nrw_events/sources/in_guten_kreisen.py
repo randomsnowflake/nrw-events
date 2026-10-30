@@ -45,6 +45,7 @@ def fetch() -> list:
         "Weinprobe Genuss",
         1.0,
         "in-guten-kreisen",
+        empty_calendar_is_valid=True,
     )
     try:
         document = common.fetch_detail_url(
