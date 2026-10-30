@@ -399,6 +399,17 @@ def evaluate_event_quality(event: Mapping[str, Any]) -> QualityDecision:
             (voucher_product.group(0),),
         )
 
+    # The site is for recreation only. The website applies the same rule to
+    # persisted feeds and its archive (political-events.ts).
+    political_mention = re.search(r"\bafd\b|\balternative für deutschland\b|\bomas gegen rechts\b|feminis", text)
+    if political_mention:
+        return QualityDecision(
+            QualityAction.DROP,
+            "political.blocked",
+            "blocked political topic is not a recreational event",
+            (political_mention.group(0),),
+        )
+
     advertising_marker = next(
         (match for content in (title, description) if (match := _ADVERTISING_MARKER.match(content))),
         None,

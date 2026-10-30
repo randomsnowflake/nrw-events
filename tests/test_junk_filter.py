@@ -41,6 +41,28 @@ class JunkFilterTests(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertFalse(evaluate_event_quality(event(title)).should_drop)
 
+    def test_blocked_political_events_are_dropped(self):
+        for fields in (
+            {"title": "Wie gefährlich die AfD wirklich ist"},
+            {"title": "AFD-Stammtisch"},
+            {"title": "Lesung", "description": "Ein Abend über die Entwicklung der AfD."},
+            {"title": "Diskussion", "description": "Die Alternative für Deutschland im Bundestag."},
+            {"title": "Omas gegen Rechts - Lesung und Gespräch"},
+            {"title": "Feministischer Protestchor"},
+            {"title": "Führung", "description": "Über eine feministische Antikenrezeption."},
+            {"title": "Vortrag", "description": "Antifeminismus im Netz."},
+        ):
+            with self.subTest(fields=fields):
+                decision = evaluate_event_quality(event(**fields))
+                self.assertTrue(decision.should_drop)
+                self.assertEqual(decision.rule_id, "political.blocked")
+
+    def test_similar_words_stay(self):
+        for title in ("Kaffeeklatsch", "Staffdinner", "Alternative Musik für Deutschland",
+                      "Omas Küche", "Frauenchor"):
+            with self.subTest(title=title):
+                self.assertFalse(evaluate_event_quality(event(title)).should_drop)
+
     def test_recurring_service_reports_the_actual_longest_matches(self):
         decision = evaluate_event_quality(event(
             "Kleiderverkauf im Bürgerhaus",
