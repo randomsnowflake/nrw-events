@@ -34,7 +34,7 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
         re.I,
     )
     schedule_match = re.search(
-        r"(Sonntag\s+\d{1,2}\..*?Im\s+Dezember\s+keine\s+Termine)",
+        r"((?:Sonntag|Samstag)\s+\d{1,2}\..*?Im\s+Dezember\s+keine\s+Termine)",
         clean,
         re.S | re.I,
     )
