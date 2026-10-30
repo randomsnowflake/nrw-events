@@ -279,6 +279,32 @@ class FirstPartyMarketSourceTests(unittest.TestCase):
         self.assertTrue(all(event["time"] == "09:00–15:00" for event in events))
         self.assertTrue(all(event["source_id"] == "krewelshof-lohmar" for event in events))
 
+    def test_krewelshof_parses_remaining_saturday_only_schedule(self):
+        html = """
+        <h3>Nächster Flohmarkttermin: 28. Oktober 2026</h3>
+        <p>Auf dem Krewelshof in der Eifel/Mechernich und dem Krewelshof in Köln/Lohmar
+        erwartet Euch jeden Monat (außer im Dezember) unser Kindersachen-Flohmarkt.</p>
+        <h3>Samstag</h3><h3>28. November</h3>
+        <h3>Im Dezember</h3><h3>keine Termine</h3>
+        <p>Flohmarkt-Zeitraum für Besuchende: zwischen 09:00 und 15:00 Uhr</p>
+        """
+
+        events = krewelshof._events_from_page(html, strict=True)
+
+        self.assertEqual([event["date"] for event in events], ["2026-11-28"])
+        self.assertEqual(events[0]["time"], "09:00–15:00")
+        self.assertEqual(events[0]["city"], "Lohmar")
+        self.assertEqual(events[0]["source_id"], "krewelshof-lohmar")
+        for missing_contract in (
+            html.replace("2026", ""),
+            html.replace("Köln/Lohmar", "Eifel/Mechernich"),
+            html.replace("09:00 und 15:00", "vormittags"),
+            html.replace("keine Termine", ""),
+        ):
+            with self.subTest(html=missing_contract):
+                with self.assertRaises(regional_common.ParserEmptyError):
+                    krewelshof._events_from_page(missing_contract, strict=True)
+
     def test_krewelshof_refuses_yearless_or_locationless_page(self):
         valid = """
         <h3>Nächster Flohmarkttermin: 26. Juli 2026</h3>
