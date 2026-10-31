@@ -249,7 +249,53 @@ def _reconcile_published_ids(
         )
         used_current.add(index)
         used_prior_ids.add(prior_id)
-    return _adopt_orphaned_ids(reconciled, previous)
+    return _adopt_orphaned_ids(_cancel_published_runs(reconciled, previous), previous)
+
+
+def _cancel_published_runs(
+    events: list[CanonicalEvent | dict], previous: dict,
+) -> list[CanonicalEvent | dict]:
+    """Show a cancelled last date on the run page that absorbed its URL.
+
+    A date folded into a published run ("25.10. bis 1.11.") starts on another
+    day, so title/date matching misses its cancellation: the tombstone lands on
+    the alias, which redirects to a run still advertising the date. Only a run
+    whose single remaining date is the cancelled one qualifies; a date cancelled
+    inside a longer run must not close the run.
+    """
+    runs_by_alias: dict[str, list[dict]] = {}
+    for prior in previous.get("events") or []:
+        if not isinstance(prior, dict) or not str(prior.get("event_id") or "").strip():
+            continue
+        if prior.get("status", "scheduled") == "scheduled":
+            for alias in prior.get("previous_event_ids") or []:
+                runs_by_alias.setdefault(alias, []).append(prior)
+    occupied = {event_id(event) for event in events}
+    resolved = list(events)
+    for index, current in enumerate(events):
+        if current.get("status") not in {"cancelled", "postponed"} or current.get("preserved_event_id"):
+            continue
+        runs = runs_by_alias.get(event_id(current), [])
+        day = str(current.get("start_date") or "")
+        if len(runs) != 1 or str(current.get("end_date") or day) != day:
+            continue
+        run = runs[0]
+        if (
+            run["event_id"] in occupied
+            or str(run.get("end_date") or "") != day
+            or [entry.get("date") for entry in run.get("daily_schedule") or []] != [day]
+            or normalize_source_id(current.get("source_id") or current.get("source"))
+            != _impl_retention_policy._event_source_id(run)
+        ):
+            continue
+        inherited = list(dict.fromkeys([*(current.get("previous_event_ids") or []), *run["previous_event_ids"]]))
+        occupied.add(run["event_id"])
+        resolved[index] = (
+            {**current, "preserved_event_id": run["event_id"], "previous_event_ids": inherited}
+            if isinstance(current, dict)
+            else replace(current, preserved_event_id=run["event_id"], previous_event_ids=inherited)
+        )
+    return resolved
 
 
 def _adopt_orphaned_ids(

@@ -117,6 +117,47 @@ class UrlContinuityTests(unittest.TestCase):
         published = {event["source_id"]: event for event in assign_event_ids([run, stale])}
         self.assertEqual(published["lvr-landesmuseum-bonn"]["previous_event_ids"], ["fluchtpunkt-paris-c360a2fcb6"])
 
+    def _cancelled_last_day(self, **prior_updates):
+        day = "2026-11-01"
+        cancelled = _event("Hallenflohmarkt", "Halle", status="cancelled", start_date=day, end_date=day, date=day,
+                           start_at="", time="")
+        [natural] = assign_event_ids([cancelled])
+        run = _event("Hallenflohmarkt", "Halle", event_id="hallenflohmarkt-run", start_date="2026-10-25",
+                     date="2026-10-25", end_date=day, start_at="", time="",
+                     previous_event_ids=[natural["event_id"]], daily_schedule=[{"date": day}])
+        run.update(prior_updates)
+        return cancelled, natural["event_id"], run
+
+    def test_cancelled_last_open_date_reaches_the_published_run_page(self):
+        cancelled, natural_id, run = self._cancelled_last_day()
+        [current] = _published([cancelled], [run])
+        self.assertEqual(current["event_id"], "hallenflohmarkt-run")
+        self.assertEqual(current["status"], "cancelled")
+        self.assertEqual(current["previous_event_ids"], [natural_id])
+
+    def test_cancelled_single_date_does_not_cancel_a_run_with_open_dates(self):
+        cancelled, natural_id, run = self._cancelled_last_day(
+            daily_schedule=[{"date": "2026-10-31"}, {"date": "2026-11-01"}])
+        [current] = _published([cancelled], [run])
+        self.assertEqual(current["event_id"], natural_id)
+
+    def test_cancelled_middle_date_does_not_cancel_a_longer_run(self):
+        cancelled, natural_id, run = self._cancelled_last_day(end_date="2026-11-27")
+        [current] = _published([cancelled], [run])
+        self.assertEqual(current["event_id"], natural_id)
+
+    def test_cancellation_leaves_a_run_that_is_still_published(self):
+        cancelled, natural_id, run = self._cancelled_last_day()
+        live = {key: value for key, value in run.items() if key != "event_id"}
+        live["preserved_event_id"] = "hallenflohmarkt-run"
+        published = _published([cancelled, live], [run])
+        self.assertEqual({event["event_id"] for event in published}, {natural_id, "hallenflohmarkt-run"})
+
+    def test_cancellation_ignores_another_sources_run(self):
+        cancelled, natural_id, run = self._cancelled_last_day(source="Andere", source_id="andere")
+        [current] = _published([cancelled], [run])
+        self.assertEqual(current["event_id"], natural_id)
+
 
 if __name__ == "__main__":
     unittest.main()
