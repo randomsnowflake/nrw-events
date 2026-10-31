@@ -79,7 +79,7 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
     ): "pantheon-ursli-pfister-peggy-march",
     (
         "bonn-de-events",
-        "urslipfisterjoroloffbandpeggymarchfrauhuggenbergerundichmusikshow",
+        "urslipfisterundjoroloffbandpeggymarchfrauhuggenbergerundichmusikshow",
     ): "pantheon-ursli-pfister-peggy-march",
     ("rathausmusik", "musikaufderrathaustreppetheroots"):
         "rathausmusik-2026-09-10-primary",

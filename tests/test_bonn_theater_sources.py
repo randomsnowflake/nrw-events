@@ -345,6 +345,18 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertIn("schwarze Komödie", events[0]["description"])
         self.assert_canonical(events[0], "tik-theater-im-keller")
 
+    def test_tik_does_not_read_the_upload_clock_from_pubdate_as_start_time(self):
+        rss = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><item>
+          <title>Ein unglücklicher Zufall &amp; Der Tod klopft</title>
+          <link>https://tik-bonn.de/2026/11/07/ein-ungluecklicher-zufall-der-tod-klopft/</link>
+          <pubDate>Sat, 07 Nov 2026 19:40:07 +0000</pubDate>
+          <content:encoded><![CDATA[<p>Einakter von James Saunders und Woody Allen.</p>]]></content:encoded>
+        </item></channel></rss>"""
+        events = tik_bonn.events_from_rss(rss)
+        self.assertEqual(events[0]["start_date"], "2026-11-07")
+        self.assertEqual(events[0]["time"], "")
+
     def test_tik_rejects_pubdate_when_body_names_a_different_event_date(self):
         rss = """<?xml version="1.0" encoding="UTF-8"?>
         <rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><item>

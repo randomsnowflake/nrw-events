@@ -24,7 +24,8 @@ def events_from_rss(raw: str) -> list[dict]:
         description = common.concise_description(body)
         pub_date = rc.clean(item.findtext("pubDate", ""))
         try:
-            date_value = parsedate_to_datetime(pub_date).replace(tzinfo=None)
+            # WordPress schedules posts by show date; the clock is the upload time, not the curtain.
+            date_value = parsedate_to_datetime(pub_date).replace(tzinfo=None, hour=0, minute=0, second=0)
         except (TypeError, ValueError, OverflowError):
             date_value = common.parse_date(pub_date)
         if rc.has_conflicting_explicit_date(body, date_value):

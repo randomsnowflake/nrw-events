@@ -46,7 +46,8 @@ def normalize_title(title: str) -> str:
         "flohmarkt ",
         t,
     )
-    return comparison_text(t, separator="")
+    # "A & B" and "A und B" are one title across calendars; "R&B" stays a word.
+    return comparison_text(re.sub(r"\s&\s", " und ", t), separator="")
 
 
 def _normalized_link_key(link: str) -> str:

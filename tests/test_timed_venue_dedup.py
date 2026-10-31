@@ -34,6 +34,18 @@ class TimedVenueDedupTests(unittest.TestCase):
         self.assertTrue(events_are_duplicates(left, right))
         self.assertTrue(events_are_duplicates(right, left))
 
+    def test_ampersand_and_und_name_one_performance_when_only_one_listing_has_a_clock(self):
+        self.assertDuplicate(
+            _event(
+                "Ein unglücklicher Zufall & Der Tod klopft", "TiK – Theater im Keller", "Bonn",
+                "TiK Theater im Keller", start="2026-11-07", time="", start_at="",
+            ),
+            _event(
+                "Ein unglücklicher Zufall und Der Tod klopft", "TiK Theater im Keller", "Bonn",
+                "Bonn.de Events", start="2026-11-07T20:00+01:00",
+            ),
+        )
+
     def test_district_spelling_of_the_same_venue(self):
         self.assertDuplicate(
             _event("This is America!", "Burg Adendorf", "Wachtberg", "Beethovenfest Bonn"),
