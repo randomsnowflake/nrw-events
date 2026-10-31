@@ -82,11 +82,16 @@ def fetch() -> list:
 
 def events_from_kult41(html: str) -> list:
     events = []
-    for block in re.findall(r'<div class="em-event em-item .*?(?=<div class="em-event em-item |\Z)', html, re.S | re.I):
+    # mo/yr selects the sidebar calendar; the main lists can skip that month.
+    block_start = r'<div class="(?:em-event em-item\b|em-cal-event-content em em-event em-item\b)[^"]*"'
+    for block in re.findall(rf'{block_start}.*?(?={block_start}|\Z)', html, re.S | re.I):
         # The final card otherwise extends to the end of the page and picks up
         # unrelated category links from the sidebar/footer.
         metadata = block.split('<div class="em-item-desc">', 1)[0]
-        title = re.search(r'<h3 class="em-item-title">\s*<a href="([^"]+)">(.*?)</a>\s*</h3>', block, re.S | re.I)
+        title = re.search(
+            r'<(?:h3|div) class="em-item-title(?: em-event-title)?">\s*<a href="([^"]+)">(.*?)</a>\s*</(?:h3|div)>',
+            block, re.S | re.I,
+        )
         date = re.search(r'class="[^"]*em-event-date[^"]*".*?</span>\s*([^<]+)</div>', block, re.S | re.I)
         time = re.search(r'class="[^"]*em-event-time[^"]*".*?em-icon-clock.*?</span>\s*([^<]+)</div>', block, re.S | re.I)
         desc = re.search(r'<div class="em-item-desc">\s*(.*?)\s*</div>', block, re.S | re.I)
