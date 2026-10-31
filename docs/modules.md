@@ -126,6 +126,7 @@ scripts/nrw_events/
     fedcon_events.py
     fixed_markets.py
     flohmarkt.py
+    frauenmuseum.py
     geide.py
     grote_hiller.py
     harmonie.py
@@ -173,6 +174,7 @@ scripts/nrw_events/
     rheinevents.py
     rif_events.py
     rossel_wilberhofen.py
+    rpz_bonn.py
     salsainbonn.py
     schmitt_markets.py
     siebengebirge.py

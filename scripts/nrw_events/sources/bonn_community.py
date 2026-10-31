@@ -284,6 +284,9 @@ def events_from_vhs(listing: str, read_calendar: Callable[[str], str]) -> list:
             if part.strip() and "adresse folgt" not in part.casefold()
         ))
         venue = "VHS Bonn" if parts[:1] == ["VHS"] else (parts[0] if parts else "")
+        # Its main building: "VHS, Mülheimer Platz 1, Raum 3.49" or "Mülheimer Platz 1, Garten der Bildung".
+        if parts[:1] == ["Mülheimer Platz 1"] or (parts[:1] == ["VHS"] and parts[1:2] == ["Mülheimer Platz 1"]):
+            venue = "Haus der Bildung"
         number = course_id.rsplit("-", 1)[-1]
         event = make_event(
             f"{title} – {subtitle}" if subtitle else title, start, end, venue,

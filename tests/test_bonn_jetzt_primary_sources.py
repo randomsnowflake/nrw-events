@@ -113,9 +113,15 @@ class BonnJetztPrimarySourceTests(unittest.TestCase):
         events = bonn_community.events_from_vhs(rows, lambda url: calendars[url.split("484-C-")[1].split("/")[0]])
         [event] = events
         self.assertEqual(event["start_at"], "2026-10-05T18:00+02:00")
-        self.assertEqual(event["venue"], "VHS Bonn")
+        self.assertEqual(event["venue"], "Haus der Bildung")
         self.assertEqual(event["venue_address"], "Mülheimer Platz 1, Raum 3.49, 53111 Bonn")
         self.assertEqual(event["link"], "https://www.vhs-bonn.de/kurs/N1538")
+
+    def test_vhs_room_in_its_main_building_counts_as_the_house(self):
+        calendar = _VHS_ICAL.replace("VHS\\, Mülheimer Platz 1\\, Raum 3.49", "Mülheimer Platz 1\\, Garten der Bildung")
+        self.assertNotEqual(calendar, _VHS_ICAL)
+        [event] = bonn_community.events_from_vhs(_VHS_ROW.format(cid="N1538", state="Course_Bookable_OK"), lambda _url: calendar)
+        self.assertEqual(event["venue"], "Haus der Bildung")
 
     def test_bitcircus_keeps_only_own_space(self):
         props = {"LOCATION": "Dorotheenstraße 101, 53111 Bonn"}

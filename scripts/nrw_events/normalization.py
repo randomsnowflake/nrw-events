@@ -154,6 +154,11 @@ VENUE_REGISTRY: tuple[VenueRecord, ...] = (
     _venue("brueckenforum-bonn", "Brückenforum Bonn", "Brückenforum", "Brückenforum GmbH", "SCHALLPLATTENBÖRSE Bonn, Friedrich-Breuer-Straße 17 53225 Bonn, Beuel", city="Bonn", district="Bonn-Beuel", venue_type="event_venue"),
     _venue("arkadenhof-universitaet-bonn", "Arkadenhof Universität Bonn", city="Bonn", venue_type="university"),
     _venue("kult41", "KULT41", city="Bonn", venue_type="cultural_center"),
+    _venue("deutsches-museum-bonn", "Deutsches Museum Bonn", city="Bonn", district="Bonn-Bad Godesberg", venue_type="museum", address="Ahrstraße 45, 53175 Bonn", coordinates=(50.6989455, 7.1506573)),
+    _venue("frauenmuseum-bonn", "Frauenmuseum", "Frauenmuseum Bonn", "Café Feminista", "Cafe Feminista des Frauenmuseums Bonn", city="Bonn", district="Bonn", venue_type="museum", address="Im Krausfeld 10, 53111 Bonn", coordinates=(50.7407435, 7.0923439)),
+    _venue("rpz-bonn", "RPZ Bonn", "RPZ", "Rock & Pop Zentrum Bonn", "Rock & Pop Zentrum", city="Bonn", district="Bonn-Bad Godesberg", venue_type="music_venue", address="Moltkestraße 41, 53173 Bonn", coordinates=(50.6851613, 7.1569953)),
+    # VHS and Stadtbibliothek also run other sites, so their names count here only with this address.
+    _venue("haus-der-bildung-bonn", "Haus der Bildung", "Saal im Haus der Bildung", "Zentralbibliothek im Haus der Bildung", "VHS Bonn, Mülheimer Platz 1", "VHS Bonn, Mülheimer Platz 1, 53111 Bonn", "Volkshochschule Bonn, Mülheimer Platz 1", "Volkshochschule Bonn, Mülheimer Platz 1, 53111 Bonn", "Stadtbibliothek Bonn, Mülheimer Platz 1, 53111 Bonn", "Stadtbibliothek Bonn, Bottlerplatz 1, 53111 Bonn", city="Bonn", district="Bonn", venue_type="cultural_center", address="Mülheimer Platz 1, 53111 Bonn", coordinates=(50.7339657, 7.0969862)),
     _venue("selbstwerk-bonn", "Selbstwerk Bonn", city="Bonn", venue_type="workshop"),
     _venue("rex-lichtspieltheater", "Rex-Lichtspieltheater", city="Bonn", venue_type="cinema"),
     _venue("arithmeum-bonn", "Arithmeum", "Arithmeum - rechnen einst und heute", city="Bonn", venue_type="museum", address="Lennestraße 2, 53113 Bonn"),

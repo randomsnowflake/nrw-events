@@ -38,6 +38,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Deutsches Museum Bonn | `deutsches-museum-bonn` | `python` |
 | bonn-region | FedCon Events | `fedcon-events` | `python` |
 | bonn-region | Festausschuss Bonner Karneval | `karneval-in-bonn` | `python` |
+| bonn-region | Frauenmuseum Bonn | `frauenmuseum-bonn` | `python` |
 | bonn-region | Geide Märkte | `geide-m-rkte` | `python` |
 | bonn-region | Grote & Hiller | `grote-hiller` | `python` |
 | bonn-region | Hardtberg Kultur | `hardtberg-kultur` | `python` |
@@ -89,6 +90,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Rheinbach Flohmarkt | `rheinbach-flohmarkt` | `python` |
 | bonn-region | RheinEvents | `rheinevents` | `python` |
 | bonn-region | RiF Events | `rif-events` | `python` |
+| bonn-region | RPZ Bonn | `rpz-bonn` | `python` |
 | bonn-region | Salsa in Bonn | `salsa-in-bonn` | `python` |
 | bonn-region | Schmitt Veranstaltungen | `schmitt-veranstaltungen` | `python` |
 | bonn-region | Siegburg | `siegburg` | `python` |

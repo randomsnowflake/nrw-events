@@ -23,7 +23,7 @@ _SMALL_GERMAN_WORDS = frozenset({
     "ohne", "und", "vom", "von", "vor", "zu", "zum", "zur", "dem", "den", "ins", "beim",
 })
 _KNOWN_ACRONYMS = frozenset({
-    "AI", "ARD", "DJ", "FLINTA", "KI", "LGBTQ", "LVR", "NRW", "UNESCO", "UNICEF", "VHS", "WDR", "ZDF",
+    "AI", "ARD", "DJ", "FLINTA", "KI", "LGBTQ", "LVR", "NRW", "RPZ", "UNESCO", "UNICEF", "VHS", "WDR", "ZDF",
 })
 
 

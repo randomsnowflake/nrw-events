@@ -266,6 +266,20 @@
       "callable": "nrw_events.sources.deutsches_museum_bonn:fetch"
     },
     {
+      "id": "frauenmuseum-bonn",
+      "display_name": "Frauenmuseum Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.frauenmuseum:fetch"
+    },
+    {
+      "id": "rpz-bonn",
+      "display_name": "RPZ Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.rpz_bonn:fetch"
+    },
+    {
       "id": "kunstmuseum-bonn",
       "display_name": "Kunstmuseum Bonn",
       "region": "bonn-region",
