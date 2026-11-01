@@ -97,6 +97,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Siegburg | `siegburg` | `python` |
 | bonn-region | SiteKit regional | `sitekit-regional` | `python` |
 | bonn-region | SSF Bonn | `ssf-bonn` | `python` |
+| bonn-region | Stadt Brühl Martinszüge | `bruehl-martinszuege` | `python` |
 | bonn-region | Standard regional feeds | `standard-regional-feeds` | `python` |
 | bonn-region | Street Food Bonn | `street-food-bonn` | `python` |
 | bonn-region | Street Food Festival Original | `street-food-festival-original` | `python` |

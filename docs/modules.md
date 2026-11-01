@@ -117,6 +117,7 @@ scripts/nrw_events/
     bonnjetzt.py
     bonnkirmes.py
     bonnlive.py
+    bruehl_martinszuege.py
     bundeskunsthalle.py
     cinema_specials.py
     coelln_antik_design.py

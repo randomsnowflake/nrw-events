@@ -53,7 +53,8 @@ _CUSTOM_PATTERN_BODIES = {
     "viertel": r"viertel",
     "workshop": r"\w*workshops?\w*",
     "techno": r"(?:techno(?:party|nacht|club|festival|event|musik|set|abend)?s?|(?:hard|acid|melodic|industrial|minimal|dark)techno)",
-    "sport": r"(?:sport\w*|(?:rad|motor|wasser|winter|breiten|leistung|freizeit|tanz|kampf|team|e|reit|ball|renn|schul|hochschul)sport\w*)",
+    # A Sportheim is a venue or route point ("Kunibertweg zum Sportheim"), not a sports event.
+    "sport": r"(?:sport(?!heim)\w*|(?:rad|motor|wasser|winter|breiten|leistung|freizeit|tanz|kampf|team|e|reit|ball|renn|schul|hochschul)sport\w*)",
     "tour": r"\w*tour(?:en|s)?",
 }
 

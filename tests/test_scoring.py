@@ -14,6 +14,8 @@ class CategoryScoreTests(unittest.TestCase):
     def test_configured_demotions_are_not_hidden_by_a_floor(self):
         self.assertEqual(category_score("Workshop für Erwachsene"), 0.7)
         self.assertEqual(category_score("Sport am Abend"), 0.5)
+        self.assertEqual(category_score("Sportfest am Sportheim"), 0.5)
+        self.assertEqual(category_score("Kunibertweg zum Sportheim"), 1.0)
         self.assertEqual(category_score("Reading class"), 0.4)
         self.assertEqual(category_score("Vorlesen für Kinder"), 0.2)
 

@@ -154,6 +154,13 @@
       "callable": "nrw_events.sources.bonn_martinszuege:fetch"
     },
     {
+      "id": "bruehl-martinszuege",
+      "display_name": "Stadt Brühl Martinszüge",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bruehl_martinszuege:fetch"
+    },
+    {
       "id": "in-guten-kreisen",
       "display_name": "In guten Kreisen",
       "region": "bonn-region",
