@@ -118,6 +118,35 @@ def suppress_redundant_series_umbrellas(
     return result
 
 
+def _merge_close_start_copies(rows: list, events: list, merge: Any) -> list:
+    """Fold two sources' listings of one occurrence whose clocks differ slightly.
+
+    This needs the whole import, not a pair: a source listing the title twice
+    that day proves separate shows. Three remaining rows are ambiguous too.
+    shortcut: two single listings of real shows under an hour apart still merge;
+    no feed shows that today, reconsider if one does.
+    """
+    starts: defaultdict[tuple, defaultdict[str, set]] = defaultdict(lambda: defaultdict(set))
+    for event in events:
+        key = _impl_duplicate_identity._close_start_key(event)
+        if key:
+            starts[key][str(event.get("source") or "")].add(_impl_duplicate_identity._explicit_start(event))
+    groups: defaultdict[tuple, list[int]] = defaultdict(list)
+    for index, row in enumerate(rows):
+        key = _impl_duplicate_identity._close_start_key(row)
+        if key:
+            groups[key].append(index)
+    dropped: set[int] = set()
+    for key, indexes in groups.items():
+        if len(indexes) != 2 or any(len(clocks) > 1 for clocks in starts[key].values()):
+            continue
+        left, right = indexes
+        if _impl_duplicate_identity._close_start_copy_matches(rows[left], rows[right]):
+            rows[left] = merge(rows[left], rows[right])
+            dropped.add(right)
+    return [row for index, row in enumerate(rows) if index not in dropped]
+
+
 def deduplicate(
     events: list[CanonicalEvent],
     *,
@@ -148,6 +177,19 @@ def deduplicate(
                 (current, candidate)
                 if current.get("source_id") == confirmed_source
                 else (candidate, current)
+            )
+        elif current.get("source") != candidate.get("source") and (
+            _impl_dedup_rules.source_authority(current.get("source", ""))
+            == _impl_dedup_rules.source_authority(candidate.get("source", ""))
+        ) and (
+            _impl_duplicate_identity._single_day_inside_run(current, candidate)
+            or _impl_duplicate_identity._single_day_inside_run(candidate, current)
+        ):
+            # Among equals the run survives: a score lead must not shrink three days to one.
+            winner, duplicate = (
+                (candidate, current)
+                if _impl_duplicate_identity._single_day_inside_run(current, candidate)
+                else (current, candidate)
             )
         else:
             current_rank = (
@@ -186,9 +228,15 @@ def deduplicate(
             _impl_duplicate_identity._reviewed_telekom_market_occurrence_matches(winner, duplicate)
         ) or (
             # A daily calendar slot must not stamp its clock onto the whole run.
-            _impl_duplicate_identity._secondary_copy_matches(winner, duplicate)
-            and _impl_duplicate_identity._duration_days(winner)
-            > _impl_duplicate_identity._duration_days(duplicate)
+            _impl_duplicate_identity._single_day_inside_run(duplicate, winner)
+            and (
+                _impl_duplicate_identity._secondary_copy_matches(winner, duplicate)
+                or (
+                    winner.get("source") != duplicate.get("source")
+                    and _impl_dedup_rules.source_authority(winner.get("source", ""))
+                    == _impl_dedup_rules.source_authority(duplicate.get("source", ""))
+                )
+            )
         ) or (
             _impl_duplicate_identity._venue_qualified_aggregator_title_matches(winner, duplicate)
             and _impl_dedup_rules.source_authority(winner.get("source", ""))
@@ -271,6 +319,8 @@ def deduplicate(
             result[match_index] = replace(result[match_index], **updates)
         else:
             result[match_index] = {**result[match_index], **updates}
+
+    result = _merge_close_start_copies(result, events, merge_preferred)
 
     # Metadata enrichment can make a winner comparable to an earlier result
     # that neither of its inputs matched on its own. Collapse those transitive

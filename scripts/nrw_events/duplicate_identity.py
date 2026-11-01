@@ -571,10 +571,13 @@ def _same_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
                         == normalize_title(right.get("title", ""))
                         or _reviewed_occurrence_alias_matches(left, right)
                     )
-                    and min(
-                        _impl_dedup_rules.source_authority(left.get("source", "")),
-                        _impl_dedup_rules.source_authority(right.get("source", "")),
-                    ) <= 2
+                    and (
+                        min(
+                            _impl_dedup_rules.source_authority(left.get("source", "")),
+                            _impl_dedup_rules.source_authority(right.get("source", "")),
+                        ) <= 2
+                        or _same_place_evidence(left, right)
+                    )
                     and (
                         (left_single_day and right_bounds[0] <= left_bounds[0] <= right_bounds[1])
                         or (right_single_day and left_bounds[0] <= right_bounds[0] <= left_bounds[1])
@@ -588,6 +591,80 @@ def _same_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
         dates_match = (_dedup_key(left).rsplit("|", 1)[-1]
                        == _dedup_key(right).rsplit("|", 1)[-1])
     return dates_match and _locations_compatible(left, right)
+
+
+def _same_place_evidence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Require more than a shared title between two first-party listings.
+
+    Two organisers can run a "Weihnachtsmarkt" in one city, so a day only folds
+    into a run at the same named venue, or when one record names no venue. A
+    timed day stays bookable on its own: the Skulpturenpark's 15:00 tour is not
+    absorbed by the open-data entry spanning its whole season.
+    """
+    if _explicit_start(left if _duration_days(left) == 0 else right):
+        return False
+    if _normalized_city(left.get("city", "")) != _normalized_city(right.get("city", "")):
+        return False
+    left_id = str(left.get("venue_id") or "")
+    if left_id and left_id == str(right.get("venue_id") or ""):
+        return True
+    return (
+        not _venue_comparison_text(left)
+        or not _venue_comparison_text(right)
+        or _venue_heads_overlap(left, right)
+    )
+
+
+def _single_day_inside_run(day: Mapping[str, Any], run: Mapping[str, Any]) -> bool:
+    day_bounds = _date_bounds(day)
+    run_bounds = _date_bounds(run)
+    return bool(
+        day_bounds and run_bounds
+        and day_bounds[0] == day_bounds[1]
+        and run_bounds[0] < run_bounds[1]
+        and run_bounds[0] <= day_bounds[0] <= run_bounds[1]
+    )
+
+
+def _explicit_start(event: Mapping[str, Any]) -> datetime | None:
+    start = str(event.get("start_at") or "")
+    if not start or event.get("all_day") or "T00:00" in start:
+        return None
+    try:
+        return datetime.fromisoformat(start.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _close_start_key(event: Mapping[str, Any]) -> tuple[str, str, str, str] | None:
+    """Group timed one-day records by normalized title, day, city and venue name."""
+    bounds = _date_bounds(event)
+    venue = comparison_text(str(event.get("venue") or "").split(",", 1)[0], separator="")
+    title = normalize_title(event.get("title", ""))
+    if not bounds or bounds[0] != bounds[1] or not venue or not title or not _explicit_start(event):
+        return None
+    return (title, bounds[0].isoformat(), _normalized_city(event.get("city", "")), venue)
+
+
+def _close_start_copy_matches(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Match two sources disagreeing by up to an hour about one start (doors vs. show)."""
+    key = _close_start_key(left)
+    left_start, right_start = _explicit_start(left), _explicit_start(right)
+    if (
+        not key or key != _close_start_key(right)
+        or not left_start or not right_start
+        or left.get("source") == right.get("source")
+        or left.get("status", "scheduled") != "scheduled"
+        or right.get("status", "scheduled") != "scheduled"
+        or not _locations_compatible(left, right)
+        # An exhibition's opening hours are no copy of the 11:15 tour through it.
+        or "exhibition" in {left.get("category_key"), right.get("category_key")}
+    ):
+        return False
+    try:
+        return abs(left_start - right_start) <= timedelta(minutes=60)
+    except TypeError:  # one timestamp lacks an offset, so the gap is unknown
+        return False
 
 
 def _duration_days(ev: Mapping[str, Any]) -> int:

@@ -183,6 +183,13 @@ die Deduplizierung getrennt ließ, mit dem Widerspruch (`time`, `venue`,
 `title`). Das ist eine Prüfliste, keine Warnung: Ein geprüftes Paar wird durch
 eine Quellenkorrektur oder einen Regressionstest aufgelöst.
 
+Zwei Quellen mit gleichem normalisiertem Titel, Ort und Tag gelten bis 60 Minuten
+Startabstand als ein Termin (Einlass vs. Beginn), außer eine Quelle listet den
+Titel an dem Tag selbst mehrfach. Ein Einzeltag gleichen Titels im Zeitraum eines
+Mehrtagestermins derselben Stadt geht in diesen auf; zwischen zwei
+Erstquellen braucht das denselben Ort oder eine Quelle ohne Ortsangabe, und der
+Einzeltag darf keine eigene Uhrzeit haben (eine datierte Führung bleibt buchbar).
+
 Die kanonische Grenze repariert Veröffentlichungsfehler für alle Quellen und
 vermerkt sie als `quality_warnings` am Event: Platzhalter-Uhrzeiten (`00:00`,
 `05:00–04:59`) werden ganztägig (`publication.clock-sentinel`), unformatierte
