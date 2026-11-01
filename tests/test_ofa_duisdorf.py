@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from nrw_events import common, report
 from nrw_events.sources import bonn, ofa_duisdorf
+from nrw_events.validation import canonicalize_event
 
 from tests.helpers import patch_window
 
@@ -34,6 +35,17 @@ class OfaDuisdorfTests(unittest.TestCase):
         self.assertEqual(event["category_key"], "market")
         self.assertIn("ehrenamtlich organisierter Adventsmarkt", event["description"])
         self.assertIn("ortsansässigen Vereinen", event["description"])
+
+    def test_source_records_pass_canonical_validation(self):
+        for html in (PAGE_HTML, PAGE_HTML.split("<p>", 1)[0]):
+            with self.subTest(has_description="ehrenamtlich" in html):
+                [event] = ofa_duisdorf.events_from_page(html)
+                canonical = canonicalize_event(event)
+                self.assertEqual(
+                    canonical.description_source,
+                    "scraped" if event["description"] else "generated",
+                )
+                self.assertEqual(canonical.description, event["description"])
 
     def test_conflicting_current_ranges_are_not_guessed(self):
         html = PAGE_HTML + (

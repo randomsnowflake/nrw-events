@@ -75,7 +75,7 @@ def events_from_page(html: str) -> list[dict]:
         "adventsmarkt weihnachtsmarkt vereine familie",
         1.0,
         source_id=SOURCE_ID,
-        description_source="source",
+        description_source="scraped",
         default_category_key="market",
         category_locked=True,
         link_kind="detail",
