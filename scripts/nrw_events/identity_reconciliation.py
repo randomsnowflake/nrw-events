@@ -300,6 +300,22 @@ def _cancel_published_runs(
     return resolved
 
 
+def _alias_stem(event_identifier: str) -> str:
+    return re.sub(r"-[0-9a-f]{10}$", "", event_identifier)
+
+
+def _venue_key(event: CanonicalEvent | dict) -> str:
+    return str(event.get("venue_id") or "").strip() or comparison_text(str(event.get("venue") or ""))
+
+
+def _with_aliases(event: CanonicalEvent | dict, aliases: list[str]) -> CanonicalEvent | dict:
+    if aliases == list(event.get("previous_event_ids") or []):
+        return event
+    if isinstance(event, dict):
+        return {**event, "previous_event_ids": aliases}
+    return replace(event, previous_event_ids=aliases)
+
+
 def _keep_published_aliases(
     events: list[CanonicalEvent | dict], previous: dict,
 ) -> list[CanonicalEvent | dict]:
@@ -313,25 +329,45 @@ def _keep_published_aliases(
         for prior in previous.get("events") or []
         if isinstance(prior, dict)
     }
-    # An alias a current record owns again or claims itself must not stay on the
-    # record a wrong merge once gave it: the old URL belongs to the new owner.
     current_ids = {event_id(event) for event in events}
-    claimed = {alias for event in events for alias in event.get("previous_event_ids") or []}
+    # A wrong merge once left another show's day URL on a record of this venue.
+    # The URL belongs to that show, and a run is the page that outlives the day.
+    shows: dict[tuple[str, str], list[int]] = {}
+    for index, event in enumerate(events):
+        if event.get("category_key") == "exhibition":
+            shows.setdefault((_venue_key(event), _alias_stem(event_id(event))), []).append(index)
+    fresh_owner = {
+        alias: event_id(event)
+        for event in events
+        for alias in event.get("previous_event_ids") or []
+        if alias not in prior_aliases.get(event_id(event), [])
+    }
     kept = list(events)
+    moved: dict[int, list[str]] = {}
     for index, current in enumerate(events):
-        inherited = list(dict.fromkeys([
+        own_id = event_id(current)
+        aliases = []
+        for alias in dict.fromkeys([
             *(current.get("previous_event_ids") or []),
-            *(
-                alias for alias in prior_aliases.get(event_id(current), [])
-                if alias not in current_ids and alias not in claimed
-            ),
-        ]))
-        if inherited != list(current.get("previous_event_ids") or []):
-            kept[index] = (
-                {**current, "previous_event_ids": inherited}
-                if isinstance(current, dict)
-                else replace(current, previous_event_ids=inherited)
-            )
+            *(alias for alias in prior_aliases.get(own_id, []) if alias not in current_ids),
+        ]):
+            if fresh_owner.get(alias, own_id) != own_id:
+                continue
+            owners = shows.get((_venue_key(current), _alias_stem(alias)), [])
+            if not owners or _alias_stem(alias) == _alias_stem(own_id):
+                aliases.append(alias)
+                continue
+            runs = [
+                owner for owner in owners
+                if str(events[owner].get("end_date") or "") > str(events[owner].get("start_date") or "")
+            ]
+            if len(runs) == 1:
+                moved.setdefault(runs[0], []).append(alias)
+        kept[index] = _with_aliases(current, aliases)
+    for index, aliases in moved.items():
+        kept[index] = _with_aliases(
+            kept[index], list(dict.fromkeys([*(kept[index].get("previous_event_ids") or []), *aliases])),
+        )
     return kept
 
 

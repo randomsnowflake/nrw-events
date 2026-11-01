@@ -47,17 +47,28 @@ class UrlContinuityTests(unittest.TestCase):
         # An alias whose page is live again must not redirect away from it.
         self.assertNotIn("now-live", run["previous_event_ids"])
 
-    def test_alias_of_a_wrong_merge_moves_to_the_event_that_claims_it(self):
-        previous = [{**_event("Aki Inomata", "SiteKit"), "event_id": "aki",
-                     "preserved_event_id": "aki", "previous_event_ids": ["kraftfelder-day"]}]
-        tour = _event("Aki Inomata", "SiteKit", preserved_event_id="aki")
-        run = _event("Kraftfelder", "SiteKit", previous_event_ids=["kraftfelder-day"])
+    def test_alias_of_a_wrong_merge_moves_to_the_exhibition_it_names(self):
+        previous = [{**_event("Aki Inomata", "SiteKit"), "event_id": "aki-inomata-0123456789",
+                     "preserved_event_id": "aki-inomata-0123456789", "category_key": "exhibition",
+                     "previous_event_ids": ["kraftfelder-40e0b456a8", "aki-inomata-mit-werden-ea4c110c0a"]}]
+        tour = _event("Aki Inomata", "SiteKit", category_key="outdoor")
+        run = _event("Kraftfelder", "SiteKit", category_key="exhibition", end_date="2028-06-11")
 
-        published = _published([tour, run], previous)
+        by_title = {event["title"]: event for event in _published([tour, run], previous)}
 
-        by_title = {event["title"]: event for event in published}
-        self.assertNotIn("kraftfelder-day", by_title["Aki Inomata"]["previous_event_ids"])
-        self.assertIn("kraftfelder-day", by_title["Kraftfelder"]["previous_event_ids"])
+        self.assertEqual(by_title["Aki Inomata"]["previous_event_ids"], ["aki-inomata-mit-werden-ea4c110c0a"])
+        self.assertEqual(by_title["Kraftfelder"]["previous_event_ids"], ["kraftfelder-40e0b456a8"])
+
+    def test_alias_named_in_this_run_beats_the_same_alias_carried_from_a_wrong_merge(self):
+        previous = [{**_event("Aki Inomata", "SiteKit"), "event_id": "aki-inomata-0123456789",
+                     "preserved_event_id": "aki-inomata-0123456789", "previous_event_ids": ["freier-eintritt-70c90a3bb6"]}]
+        tour = _event("Aki Inomata", "SiteKit")
+        offer = _event("Museumssonntag", "SiteKit", previous_event_ids=["freier-eintritt-70c90a3bb6"])
+
+        by_title = {event["title"]: event for event in _published([tour, offer], previous)}
+
+        self.assertEqual(by_title["Aki Inomata"]["previous_event_ids"], [])
+        self.assertEqual(by_title["Museumssonntag"]["previous_event_ids"], ["freier-eintritt-70c90a3bb6"])
 
     def test_merged_away_record_redirects_to_its_successor(self):
         winner_prior = _event("Rachel Joyce liest aus »Sommerhaus«", "Parkbuchhandlung", event_id="rachel-joyce-liest-winner",
