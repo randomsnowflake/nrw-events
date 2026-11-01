@@ -357,6 +357,18 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["start_date"], "2026-11-07")
         self.assertEqual(events[0]["time"], "")
 
+    def test_tik_reads_the_show_date_as_the_local_day_of_the_gmt_pubdate(self):
+        # Posted 00:30 Bonn time on the show day: GMT is still the previous evening.
+        rss = """<?xml version="1.0" encoding="UTF-8"?>
+        <rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><item>
+          <title>Kunst</title>
+          <link>https://tik-bonn.de/2026/11/08/kunst/</link>
+          <pubDate>Sat, 07 Nov 2026 23:30:00 +0000</pubDate>
+          <content:encoded><![CDATA[<p>Komödie von Yasmina Reza.</p>]]></content:encoded>
+        </item></channel></rss>"""
+        events = tik_bonn.events_from_rss(rss)
+        self.assertEqual(events[0]["start_date"], "2026-11-08")
+
     def test_tik_rejects_pubdate_when_body_names_a_different_event_date(self):
         rss = """<?xml version="1.0" encoding="UTF-8"?>
         <rss xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0"><channel><item>
