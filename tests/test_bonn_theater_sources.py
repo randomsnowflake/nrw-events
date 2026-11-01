@@ -281,12 +281,10 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertIn("Halbgott", event["description"])
         self.assertEqual(_publication_filter_reason(canonicalize_event(event), config.RuntimeConfig()), "")
 
+        # A children's play is a public performance: it clears the floor like any other play.
         family_page = page.replace("Ein Musical über einen Halbgott auf der Bühne.", "Ein Musical für Kinder.")
         [family_event] = junges_theater_bonn.events_from_html(html, lambda _url: family_page)
-        self.assertEqual(
-            _publication_filter_reason(canonicalize_event(family_event), config.RuntimeConfig()),
-            "filter:score_floor",
-        )
+        self.assertEqual(_publication_filter_reason(canonicalize_event(family_event), config.RuntimeConfig()), "")
 
     def test_marabu_keeps_bonn_performances_and_filters_touring_dates(self):
         html = """
