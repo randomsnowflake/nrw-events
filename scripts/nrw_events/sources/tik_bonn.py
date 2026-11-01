@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 
 from .. import common
+from ..dates import LOCAL_TIMEZONE
 from . import regional_common as rc
 
 _SOURCE = "TiK Theater im Keller"
@@ -25,7 +26,11 @@ def events_from_rss(raw: str) -> list[dict]:
         pub_date = rc.clean(item.findtext("pubDate", ""))
         try:
             # WordPress schedules posts by show date; the clock is the upload time, not the curtain.
-            date_value = parsedate_to_datetime(pub_date).replace(tzinfo=None, hour=0, minute=0, second=0)
+            # pubDate is GMT, the show date is the site's local day (Europe/Berlin, as in the permalink).
+            published = parsedate_to_datetime(pub_date)
+            if published.tzinfo is not None:
+                published = published.astimezone(LOCAL_TIMEZONE)
+            date_value = published.replace(tzinfo=None, hour=0, minute=0, second=0)
         except (TypeError, ValueError, OverflowError):
             date_value = common.parse_date(pub_date)
         if rc.has_conflicting_explicit_date(body, date_value):
