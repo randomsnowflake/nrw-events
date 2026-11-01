@@ -3,7 +3,6 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common, config
-from nrw_events.source_specs import AdapterType
 from nrw_events.sources import SOURCE_SPECS, regional_ionas4, regional_sitekit
 
 from tests.helpers import patch_window
