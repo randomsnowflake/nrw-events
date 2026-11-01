@@ -531,6 +531,13 @@
       "callable": "nrw_events.sources.rheinevents:fetch"
     },
     {
+      "id": "ruengsdorfer-kulturbad",
+      "display_name": "Rüngsdorfer KulturBad",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.ruengsdorfer_kulturbad:fetch"
+    },
+    {
       "id": "salsa-in-bonn",
       "display_name": "Salsa in Bonn",
       "region": "bonn-region",

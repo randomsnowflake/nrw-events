@@ -2030,6 +2030,28 @@ class CrossRunRetentionTests(unittest.TestCase):
         self.assertEqual(events[0]["source"], "SiteKit regional")
         self.assertEqual(events[0]["source_id"], "sitekit-bruehl")
 
+    def test_sitekit_parser_reads_the_last_day_of_a_multi_day_teaser(self):
+        html = """
+        <article class="SP-Teaser">
+          <a class="SP-Teaser__inner" href="/calendar/market">
+            <div class="SP-Scheduling"><span class="SP-Scheduling__begin"><span class="SP-Scheduling__date">06.11.2026</span><span class="SP-Scheduling__time">11:00</span><span class="SP-Scheduling__dash">–</span></span><span class="SP-Scheduling__end"><span class="SP-Scheduling__date">08.11.2026</span><span class="SP-Scheduling__time">19:00</span></span></div>
+            <h4 class="SP-Teaser__headline">Martinsmarkt (06.-08.11.)</h4>
+          </a>
+        </article>
+        <article class="SP-Teaser">
+          <a class="SP-Teaser__inner" href="/calendar/friday">
+            <div class="SP-Scheduling"><span class="SP-Scheduling__begin"><span class="SP-Scheduling__date">06.11.2026</span><span class="SP-Scheduling__time">14:00</span><span class="SP-Scheduling__dash">–</span><span class="SP-Scheduling__time">19:00</span></span></div>
+            <h4 class="SP-Teaser__headline">Konzert</h4>
+          </a>
+        </article>
+        """
+        market, concert = regional_sitekit._events_from_teasers(
+            html, "https://www.bruehl.de/calendar", "Brühl", 0.9, "sitekit-bruehl"
+        )
+
+        self.assertEqual((market["start_date"], market["end_date"]), ("2026-11-06", "2026-11-08"))
+        self.assertEqual((concert["start_date"], concert["end_date"]), ("2026-11-06", "2026-11-06"))
+
     def test_authoritative_empty_rest_collection_clears_hardtberg(self):
         with mock.patch("nrw_events.common.fetch_url", return_value="[]"):
             result, events = runner._run_source(

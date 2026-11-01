@@ -97,6 +97,18 @@ _DAILY_HOURS = re.compile(
     r"(?:[-–]|–|bis)\s*(?P<end>\d{1,2}(?:[:.]\d{2})?)\s*uhr",
     re.IGNORECASE,
 )
+_ABBREVIATED_DAY = r"\b(?:Mo|Di|Mi|Do|Fr|Sa|So)\b\.?"
+_ABBREVIATED_DAY_NAMES = {
+    "Mo": "Montag", "Di": "Dienstag", "Mi": "Mittwoch", "Do": "Donnerstag",
+    "Fr": "Freitag", "Sa": "Samstag", "So": "Sonntag",
+}
+#: "Fr 14-19 Uhr; Sa/So 11-19 Uhr". Case-sensitive and only before hours: "so" is also a word.
+_ABBREVIATED_DAYS = re.compile(
+    rf"{_ABBREVIATED_DAY}(?:\s*(?:,|und|&|/|\+|bis|[-–])\s*{_ABBREVIATED_DAY})*"
+    r"(?=\s*[,:]?\s*(?:von\s*)?\d{1,2}(?:[:.]\d{2})?\s*(?:[Uu]hr\s*)?(?:[-–]|bis)\s*\d{1,2}(?:[:.]\d{2})?\s*[Uu]hr)",
+)
+#: The shops' hours on a shopping Sunday, not the event's.
+_SHOPPING_SUNDAY = re.compile(r"\bverkaufsoffene[mnrs]?\s+sonntags?\b[^.;\n]*", re.IGNORECASE)
 #: A weekly day the hours must cover. Closing days ("montags geschlossen") and
 #: dated days ("Vernissage am Freitag, 4. September") are no opening rule.
 _UNCOVERED_WEEKDAY = re.compile(
@@ -331,6 +343,13 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
     event["daily_schedule"] = sorted(slots, key=lambda slot: (slot["date"], slot["start_at"]))
 
 
+def _spelled_out_days(days: re.Match[str]) -> str:
+    # Bracketed days are an aside such as a hotline's hours: "Anmeldung: 0228 123 (Di, Do 10–13 Uhr)".
+    if days.string.rfind("(", 0, days.start()) > days.string.rfind(")", 0, days.start()):
+        return days.group(0)
+    return re.sub(r"[A-Z][a-z]\b\.?", lambda day: _ABBREVIATED_DAY_NAMES[day.group(0).rstrip(".")], days.group(0))
+
+
 def _daily_schedule_from_prose(event: dict[str, Any]) -> list[dict[str, str]]:
     start_day = common.parse_iso_date(str(event.get("start_date") or ""))
     end_day = common.parse_iso_date(str(event.get("end_date") or ""))
@@ -341,6 +360,7 @@ def _daily_schedule_from_prose(event: dict[str, Any]) -> list[dict[str, str]]:
     except ZoneInfoNotFoundError:
         return []
     text_value = " ".join(str(event.get(field) or "") for field in ("time_note", "description"))
+    text_value = _ABBREVIATED_DAYS.sub(_spelled_out_days, _SHOPPING_SUNDAY.sub("", text_value))
     matches = list(_DAILY_HOURS.finditer(text_value))
     # Hours for only some of the named days ("Freitag: 8…" cut off, "Samstag
     # 13.00 (Eröffnung) bis 02.00 Uhr") would present the others as closed.

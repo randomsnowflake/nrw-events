@@ -122,6 +122,8 @@ VENUE_REGISTRY: tuple[VenueRecord, ...] = (
     _venue("schauspielhaus-bad-godesberg", "Schauspielhaus Bad Godesberg", "Schauspielhaus", city="Bonn", district="Bonn-Bad Godesberg", venue_type="theater", address="Am Michaelshof 9, 53177 Bonn", coordinates=(50.6832698865, 7.1538043057)),
     _venue("werkstattbuehne-bonn", "Werkstattbühne", city="Bonn", district="Bonn", venue_type="theater", address="Rheingasse 1, 53111 Bonn", coordinates=(50.7363281468, 7.1066077703)),
     _venue("contra-kreis-theater", "Contra-Kreis-Theater", city="Bonn", district="Bonn", venue_type="theater", address="Am Hof 3-5, 53113 Bonn", coordinates=(50.7333174226, 7.1011347839)),
+    # Address from the operator's site; pin from the named OSM building (way/109711625).
+    _venue("ruengsdorfer-kulturbad", "Rüngsdorfer KulturBad", "KulturBad Rüngsdorf", "Rüngsdorfer KulturBad e.V.", city="Bonn", district="Bonn-Bad Godesberg", venue_type="cultural_center", address="Rheinstraße 82, 53179 Bonn", coordinates=(50.6811666, 7.1780678)),
     _venue("kleines-theater-bad-godesberg", "Kleines Theater Bad Godesberg", "Kleines Theater", city="Bonn", district="Bonn-Bad Godesberg", venue_type="theater", address="Koblenzer Straße 78, 53177 Bonn", coordinates=(50.6808563311, 7.1554770039)),
     _venue("junges-theater-bonn", "Junges Theater Bonn", city="Bonn", district="Bonn-Beuel", venue_type="theater", address="Hermannstraße 50, 53225 Bonn", coordinates=(50.7364969604, 7.116846546)),
     _venue("st-josef-beuel", "St. Josef Beuel", "St Josef", "St. Josef", "Sankt Josef", "Pfarrkirche St. Josef", "Pfarrkirche St. Joseph", city="Bonn", district="Bonn-Beuel", venue_type="church", address="Hermannstraße 35, 53225 Bonn", coordinates=(50.7369187, 7.1177258)),

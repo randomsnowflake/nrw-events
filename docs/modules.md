@@ -175,6 +175,7 @@ scripts/nrw_events/
     rif_events.py
     rossel_wilberhofen.py
     rpz_bonn.py
+    ruengsdorfer_kulturbad.py
     salsainbonn.py
     schmitt_markets.py
     siebengebirge.py

@@ -119,6 +119,39 @@ class PreProgrammeTests(unittest.TestCase):
         self.assertTrue(events_are_duplicates(venue, festival))
         self.assertTrue(events_are_duplicates(festival, venue))
 
+    def test_tour_stays_separate_from_a_day_row_of_another_exhibition(self):
+        tour = _event(
+            "Führung für Sehbehinderte & Blinde: Nie Wieder!", "Bundeskunsthalle", "Bonn", "Bundeskunsthalle",
+            "2026-11-01T11:30+01:00", venue_id="bundeskunsthalle", category_key="exhibition",
+        )
+        day_row = _event(
+            "Touch/ing Transformation", "Bundeskunsthalle", "Bonn", "Bonn.de Events",
+            "2026-11-01T00:00+01:00", venue_id="bundeskunsthalle", category_key="exhibition",
+            start_at="", time="", price="kostenlos",
+        )
+        self.assertFalse(events_are_duplicates(tour, day_row))
+        self.assertFalse(events_are_duplicates(day_row, tour))
+        other_tour = {**tour, "title": "Führung: Kraftfelder", "start_at": "", "time": "", "source": "Bonn.de Events"}
+        self.assertFalse(events_are_duplicates({**tour, "start_at": "", "time": ""}, other_tour))
+        self.assertFalse(events_are_duplicates(
+            {**day_row, "title": "Bundeskunsthalle: Kraftfelder"},
+            {**day_row, "title": "Bundeskunsthalle: Touch/ing", "source": "Museum"},
+        ))
+        self.assertTrue(events_are_duplicates(tour, {**day_row, "title": tour["title"]}))
+
+    def test_untimed_theatre_rows_need_a_shared_title_word(self):
+        base = {"start_at": "", "time": "", "venue_id": "theater-marabu", "category_key": "stage"}
+        blaupause = _event("BlauPause", "Theater Marabu", "Bonn", "Theater Marabu", "2026-10-25T00:00+01:00", **base)
+        summ = _event("Summ & Brumm", "Theater Marabu", "Bonn", "Bonn.de Events", "2026-10-25T00:00+01:00", **base)
+        self.assertFalse(events_are_duplicates(blaupause, summ))
+        self.assertFalse(events_are_duplicates(summ, blaupause))
+
+        karneval = {"start_at": "", "time": "", "venue_id": "markt", "category_key": "festival"}
+        self.assertTrue(events_are_duplicates(
+            _event("Eröffnung der Karnevalssession", "Marktplatz", "Bonn", "Karneval", "2026-11-11T00:00+01:00", **karneval),
+            _event("Karnevalseröffnung", "Marktplatz", "Bonn", "Bonn.de Events", "2026-11-11T00:00+01:00", **karneval),
+        ))
+
     def test_distinct_or_distant_listings_stay_separate(self):
         for updates in (
             {"start_at": "2026-09-30T18:00+02:00", "time": "18:00"},  # 90 minutes earlier

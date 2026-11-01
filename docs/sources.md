@@ -91,6 +91,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | RheinEvents | `rheinevents` | `python` |
 | bonn-region | RiF Events | `rif-events` | `python` |
 | bonn-region | RPZ Bonn | `rpz-bonn` | `python` |
+| bonn-region | Rüngsdorfer KulturBad | `ruengsdorfer-kulturbad` | `python` |
 | bonn-region | Salsa in Bonn | `salsa-in-bonn` | `python` |
 | bonn-region | Schmitt Veranstaltungen | `schmitt-veranstaltungen` | `python` |
 | bonn-region | Siegburg | `siegburg` | `python` |

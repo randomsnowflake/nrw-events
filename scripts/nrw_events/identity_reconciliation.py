@@ -249,7 +249,9 @@ def _reconcile_published_ids(
         )
         used_current.add(index)
         used_prior_ids.add(prior_id)
-    return _adopt_orphaned_ids(_cancel_published_runs(reconciled, previous), previous)
+    return _keep_published_aliases(
+        _adopt_orphaned_ids(_cancel_published_runs(reconciled, previous), previous), previous,
+    )
 
 
 def _cancel_published_runs(
@@ -296,6 +298,41 @@ def _cancel_published_runs(
             else replace(current, preserved_event_id=run["event_id"], previous_event_ids=inherited)
         )
     return resolved
+
+
+def _keep_published_aliases(
+    events: list[CanonicalEvent | dict], previous: dict,
+) -> list[CanonicalEvent | dict]:
+    """Keep an event's redirects from the last snapshot.
+
+    Sources only name an alias in the run that creates it. Without this the 301
+    disappears one import later and the old URL returns as a second page.
+    """
+    prior_aliases = {
+        str(prior.get("event_id") or "").strip(): prior.get("previous_event_ids") or []
+        for prior in previous.get("events") or []
+        if isinstance(prior, dict)
+    }
+    # An alias a current record owns again or claims itself must not stay on the
+    # record a wrong merge once gave it: the old URL belongs to the new owner.
+    current_ids = {event_id(event) for event in events}
+    claimed = {alias for event in events for alias in event.get("previous_event_ids") or []}
+    kept = list(events)
+    for index, current in enumerate(events):
+        inherited = list(dict.fromkeys([
+            *(current.get("previous_event_ids") or []),
+            *(
+                alias for alias in prior_aliases.get(event_id(current), [])
+                if alias not in current_ids and alias not in claimed
+            ),
+        ]))
+        if inherited != list(current.get("previous_event_ids") or []):
+            kept[index] = (
+                {**current, "previous_event_ids": inherited}
+                if isinstance(current, dict)
+                else replace(current, previous_event_ids=inherited)
+            )
+    return kept
 
 
 def _adopt_orphaned_ids(

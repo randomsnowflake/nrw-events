@@ -34,6 +34,31 @@ class UrlContinuityTests(unittest.TestCase):
         [current] = _published([_event("Quintetto Encuentro im Löhrerhof", "SiteKit Hürth")], [prior])
         self.assertEqual(current["event_id"], "quintetto-encuentro-old")
 
+    def test_redirects_survive_imports_that_no_longer_name_them(self):
+        previous = [{**_event("Martinsmarkt", "SiteKit"), "event_id": "martinsmarkt-run",
+                     "preserved_event_id": "martinsmarkt-run", "previous_event_ids": ["martinsmarkt-day", "now-live"]}]
+        current = _event("Martinsmarkt", "SiteKit")
+        other = _event("Anderes Event", "SiteKit", preserved_event_id="now-live")
+
+        published = _published([current, other], previous)
+
+        run = next(event for event in published if event["event_id"] == "martinsmarkt-run")
+        self.assertIn("martinsmarkt-day", run["previous_event_ids"])
+        # An alias whose page is live again must not redirect away from it.
+        self.assertNotIn("now-live", run["previous_event_ids"])
+
+    def test_alias_of_a_wrong_merge_moves_to_the_event_that_claims_it(self):
+        previous = [{**_event("Aki Inomata", "SiteKit"), "event_id": "aki",
+                     "preserved_event_id": "aki", "previous_event_ids": ["kraftfelder-day"]}]
+        tour = _event("Aki Inomata", "SiteKit", preserved_event_id="aki")
+        run = _event("Kraftfelder", "SiteKit", previous_event_ids=["kraftfelder-day"])
+
+        published = _published([tour, run], previous)
+
+        by_title = {event["title"]: event for event in published}
+        self.assertNotIn("kraftfelder-day", by_title["Aki Inomata"]["previous_event_ids"])
+        self.assertIn("kraftfelder-day", by_title["Kraftfelder"]["previous_event_ids"])
+
     def test_merged_away_record_redirects_to_its_successor(self):
         winner_prior = _event("Rachel Joyce liest aus »Sommerhaus«", "Parkbuchhandlung", event_id="rachel-joyce-liest-winner",
                               venue="Rheinhotel Dreesen", link="https://example.test/park")

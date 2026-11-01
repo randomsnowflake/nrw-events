@@ -458,10 +458,11 @@ See the generated [sources inventory](sources.md).
   mehrere Tage per `+` oder `und`, Monat nur einmal am Ende). Unplausible
   Jahreszahlen aus Tippfehlern werden als erwarteter Qualitätsausschluss
   verworfen, nicht repariert und degradieren keinen ansonsten gesunden Lauf.
+- **Rüngsdorfer KulturBad:** komplettes Programm aus dem offiziellen
+  Tribe-REST-Feed (`ruengsdorfer_kulturbad.py`) mit Preisen und Ausverkauft-Status.
 - **Kuratierte Kino-Sonderformate:** Bonner Kinemathek,
-  Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage,
-  Kurzfilmwanderung Bonn und das saisonale Open-Air-Kino im Rüngsdorfer
-  Kulturbad. Breite Kinoprogramme werden nur bei expliziten Festival-, Open-Air-,
+  Rex-Lichtspieltheater/Neue Filmbühne, Internationale Stummfilmtage und
+  Kurzfilmwanderung Bonn. Breite Kinoprogramme werden nur bei expliziten Festival-, Open-Air-,
   Preview-, Gesprächs-, Workshop- oder vergleichbaren Event-Markierungen
   übernommen (`cinema_specials.py`); reguläre Vorstellungen bleiben draußen.
 - **Food & Genuss in Bonn:** Craftquelle, BFF Bonner Schifffahrt, vomFASS,

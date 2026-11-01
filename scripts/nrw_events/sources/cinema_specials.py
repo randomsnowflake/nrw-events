@@ -22,23 +22,17 @@ _BONNER_KINEMATHEK_URL = "https://www.bonnerkinemathek.de/programm/"
 _STUMMFILMTAGE_URL = "https://www.internationale-stummfilmtage.de/"
 _REX_FILMBUEHNE_URL = "https://www.rex-filmbuehne.de/inhalt/vorschau"
 _KURZFILMWANDERUNG_URL = "https://kurzfilmwanderung-bonn.de/"
-_KULTURBAD_ICAL = "https://ruengsdorfer-kulturbad.de/events/?ical=1"
 
 _BONNER_KINEMATHEK_SOURCE_ID = "bonner-kinemathek"
 _STUMMFILMTAGE_SOURCE_ID = "internationale-stummfilmtage"
 _REX_FILMBUEHNE_SOURCE_ID = "rex-filmbuehne-specials"
 _KURZFILMWANDERUNG_SOURCE_ID = "kurzfilmwanderung-bonn"
-_KULTURBAD_SOURCE_ID = "ruengsdorfer-kulturbad"
 
 _SPECIAL_FORMAT_PATTERN = re.compile(
     r"\b(?:film(?:tage|tag|fest(?:ival)?|nacht|nächte|naechte|gespräch|gespraech)|"
     r"festival|open[ -]?air|freiluft(?:kino)?|preview|vorpremiere|premiere|"
     r"sondervorstellung|retrospektive|filmquiz|q\s*&\s*a|diskussion|"
     r"cineville|short monday|anniversary|jubiläum|jubilaeum|live[- ]?musik)\b",
-    re.I,
-)
-_KULTURBAD_CINEMA_PATTERN = re.compile(
-    r"\b(?:open[ -]?air[ -]?kino|freiluftkino|film(?:nacht|nächte|naechte|festival|fest|tage))\b",
     re.I,
 )
 _REX_SPECIAL_PATTERN = re.compile(
@@ -102,7 +96,6 @@ def fetch() -> list:
         _events_from_kurzfilmwanderung,
         source_id=_KURZFILMWANDERUNG_SOURCE_ID,
     ))
-    events.extend(_fetch_kulturbad_cinema())
     return rc.dedupe(events)
 
 
@@ -537,30 +530,3 @@ def _events_from_kurzfilmwanderung(html: str) -> list:
         source_id=_KURZFILMWANDERUNG_SOURCE_ID,
     )
     return [event] if event else []
-
-
-def _fetch_kulturbad_cinema() -> list:
-    try:
-        events = common.fetch_ical(
-            _KULTURBAD_ICAL,
-            "Rüngsdorfer Kulturbad",
-            "Bonn",
-            "cinema-special kino film festival open air",
-            0.95,
-            source_id=_KULTURBAD_SOURCE_ID,
-            event_filter=_kulturbad_is_cinema,
-        )
-    except Exception as exc:
-        common.log_source_error(
-            "Rüngsdorfer Kulturbad", exc, source_id=_KULTURBAD_SOURCE_ID,
-        )
-        return []
-    return events
-
-
-def _kulturbad_is_cinema(props: dict[str, str], _start: datetime, _end: datetime) -> bool:
-    return bool(_KULTURBAD_CINEMA_PATTERN.search(" ".join([
-        props.get("SUMMARY", ""),
-        props.get("DESCRIPTION", ""),
-        props.get("CATEGORIES", ""),
-    ])))

@@ -822,6 +822,25 @@ _FREE_ADMISSION_COLLECTION_TITLE = re.compile(
 )
 
 
+_PROGRAMME_FORMAT_WORDS = {"ausstellung", "fuehrung", "kuratorenfuehrung", "museum"}
+
+
+def _titles_share_a_word(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    """Compare titles without format and venue words; "Karnevalseröffnung" contains "Eröffnung"."""
+    ignored = (
+        _PROGRAMME_FORMAT_WORDS
+        | set(_venue_comparison_text(left).split())
+        | set(_venue_comparison_text(right).split())
+    )
+    left_words = set(_significant_title_words(left.get("title", ""))) - ignored
+    right_words = set(_significant_title_words(right.get("title", ""))) - ignored
+    return any(
+        one == other or (min(len(one), len(other)) >= 6 and (one in other or other in one))
+        for one in left_words
+        for other in right_words
+    )
+
+
 def _same_registered_venue_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     """Match cross-source records by canonical venue, date, and category."""
     if not left.get("source") or left.get("source") == right.get("source"):
@@ -859,6 +878,11 @@ def _same_registered_venue_occurrence(left: Mapping[str, Any], right: Mapping[st
         return False
     if left_category != "market":
         if start_times_conflict:
+            return False
+        # A venue runs several programmes on one day, so venue and date do not
+        # prove that two different titles are one event. A workshop title names
+        # the venue's only offer in free words ("Repair Café").
+        if left_category != "workshop" and not _titles_share_a_word(left, right):
             return False
         if left_bounds == right_bounds:
             return True

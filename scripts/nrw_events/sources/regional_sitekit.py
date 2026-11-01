@@ -34,7 +34,7 @@ def _page_url(url: str, page: int) -> str:
 
 
 def _page_starts_after_window(html: str) -> bool:
-    dates = [
+    parsed = [
         rc.parse_dt(value)
         for value in re.findall(
             r'class="SP-Scheduling__date"[^>]*>([^<]+)',
@@ -42,7 +42,7 @@ def _page_starts_after_window(html: str) -> bool:
             re.I,
         )
     ]
-    dates = [value for value in dates if value]
+    dates = [value for value in parsed if value]
     return bool(dates) and min(dates) > common.runtime_window().end
 
 
@@ -104,7 +104,7 @@ def fetch() -> list:
         # Deduplication still precedes enrichment. Keep one shared phase budget
         # and restore the original event order after independent hosts finish.
         deadline = time.monotonic() + max(0.0, min(120.0, float(os.environ.get("NRW_EVENTS_DETAIL_BATCH_TIMEOUT_SECONDS", "120"))))
-        groups = {}
+        groups: dict[str, list[tuple[int, dict]]] = {}
         for index, event in enumerate(events):
             host = urllib.parse.urlsplit(event.get("link", "")).hostname or ""
             groups.setdefault(host, []).append((index, event))
@@ -328,11 +328,18 @@ def _events_from_teasers(html: str, base: str, city: str, trust: float,
         if time_text == "00:00":
             time_text = ""
         start = rc.with_time(rc.parse_dt(date.group(1)), time_text)
+        # A multi-day teaser names its last day in a separate end block.
+        last_day = re.search(
+            r'class="SP-Scheduling__end">\s*<span class="SP-Scheduling__date">([^<]+)</span>'
+            r'(?:\s*<span class="SP-Scheduling__time">([^<]+))?',
+            block, re.S | re.I,
+        )
+        end = rc.with_time(rc.parse_dt(last_day.group(1)), last_day.group(2) or "") if last_day else start
         description = rc.clean(desc.group(1) if desc else "")
         ev = common.make_event(
             rc.clean(title.group(1)),
             start,
-            start,
+            end,
             city,
             city,
             description,

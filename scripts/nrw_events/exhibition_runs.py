@@ -288,6 +288,13 @@ def merge_exhibition_opening_days(
         sessions = not opening_days and not daily_offer and _is_session_run(rows, runs, continues)
         if key[-1] == "daily":
             if not (sessions or daily_offer):
+                # Brühl lists its market twice: 06.-08.11. and the Friday alone. One offer, one page.
+                if len(runs) == 1 and all(runs[0].start_date <= row.start_date <= runs[0].end_date for row in rows):
+                    day_ids = [event_id(row) for row in rows]
+                    replaced[id(runs[0])] = validate_event({**runs[0].to_dict(), "previous_event_ids": list(
+                        dict.fromkeys([*runs[0].previous_event_ids, *day_ids]),
+                    )})
+                    replaced.update((id(row), None) for row in rows)
                 continue
         elif not sessions and (not opening_days or (len(rows) < 2 and not continues)):
             continue

@@ -63,6 +63,7 @@ PUBLIC_VENUE_IDS = frozenset({
     "interim-zentralbibliothek-koeln",
     "internationaler-club-bonn",
     "junges-theater-bonn",
+    "ruengsdorfer-kulturbad",
     "kleines-theater-bad-godesberg",
     "kult41",
     "kulturzentrum-brotfabrik",

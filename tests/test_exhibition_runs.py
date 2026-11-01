@@ -344,5 +344,53 @@ class ExhibitionRunTests(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(merge_exhibition_opening_days(shows, {}), shows)
 
+
+class ListedTwiceTests(unittest.TestCase):
+    """Brühl lists its market as 06.-08.11. and once more as the Friday alone."""
+
+    HOURS = "Geöffnet ist der Markt Fr 14-19 Uhr; Sa/So 11-19 Uhr. Dazu verkaufsoffener Sonntag von 13 bis 18 Uhr."
+
+    def _market(self, start, end, time, *, title="Martinsmarkt (06.-08.11.)", link="range"):
+        return validate_event({
+            "status": "scheduled", "title": title, "source": "SiteKit regional", "source_id": "sitekit-bruehl",
+            "start_date": start, "end_date": end, "time": time, "venue": "Brühler Innenstadt", "city": "Brühl",
+            "category_key": "market", "link": f"https://www.bruehl.de/{link}.php", "link_kind": "detail",
+            "score": 1.0, "description": self.HOURS, "description_source": "scraped",
+            "identity_venue": "", "identity_venue_locked": True,
+        })
+
+    def test_day_inside_the_range_becomes_a_redirect_with_the_run_hours(self):
+        run = self._market("2026-11-06", "2026-11-08", "")
+        day = self._market("2026-11-06", "2026-11-06", "14:00–19:00", link="friday")
+
+        merged = merge_exhibition_opening_days([run, day], {})
+
+        self.assertEqual([event.start_date for event in merged], ["2026-11-06"])
+        self.assertEqual(merged[0].end_date, "2026-11-08")
+        self.assertEqual(merged[0].previous_event_ids, [event_id(day)])
+        self.assertEqual(
+            [(slot["date"], slot["start_at"][11:16], slot["end_at"][11:16]) for slot in merged[0].daily_schedule],
+            [("2026-11-06", "14:00", "19:00"), ("2026-11-07", "11:00", "19:00"), ("2026-11-08", "11:00", "19:00")],
+        )
+
+    def test_other_offers_keep_their_pages(self):
+        run = self._market("2026-11-06", "2026-11-08", "")
+        for name, other in {
+            "outside the range": self._market("2026-11-09", "2026-11-09", "14:00–19:00", link="later"),
+            "other title": self._market("2026-11-06", "2026-11-06", "14:00–19:00", title="Laternenbasteln", link="basteln"),
+        }.items():
+            with self.subTest(name):
+                self.assertEqual(len(merge_exhibition_opening_days([run, other], {})), 2)
+
+    def test_prose_hours_ignore_a_hotline_in_brackets(self):
+        event = validate_event({
+            "status": "scheduled", "title": "Familienführung", "source": "Museum", "source_id": "museum",
+            "start_date": "2026-11-02", "end_date": "2026-11-20", "venue": "Museum", "city": "Bonn",
+            "category_key": "exhibition", "link": "https://example.test/f", "link_kind": "detail", "score": 1.0,
+            "description": "Anmeldung: 0228 123 (Di, Do, Fr 10–13 Uhr) oder per E-Mail.", "description_source": "scraped",
+        })
+        self.assertEqual(event.daily_schedule, [])
+
+
 if __name__ == "__main__":
     unittest.main()

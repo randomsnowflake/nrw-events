@@ -49,6 +49,12 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
     # The city's annual press overview, reviewed 2026-10-15 (live duplicate).
     ("bonn-district-festivals", "karnevalseroeffnung"):
         "bonn-karneval-sessionseroeffnung-marktplatz",
+    # Reviewed 2026-11-01: the museum's calendar text for its first-Sunday offer
+    # reads "Freier Eintritt an jedem 1. Sonntag"; Bonn.de titles it by the offer.
+    ("kunstmuseum-bonn", "museumssonntag"):
+        "bonn-kunstmuseum-museumssonntag",
+    ("bonn-de-events", "freiereintrittinskunstmuseumbonn"):
+        "bonn-kunstmuseum-museumssonntag",
     ("beuel-net", "festderbeuelervereinepromenadenfest"):
         "beuel-2026-beuelfest-promenadenfest",
     ("beuel-net", "promenadenfestundbeuelfest"):

@@ -285,23 +285,6 @@ Treffpunkt: Jahnschule, Herseler Str. 7, 53117 Bon</strong>n</strong></p>
         self.assertEqual(events[0]["venue_address"], "Herseler Str. 7, 53117 Bonn")
         self.assert_valid_cinema_events(events)
 
-    def test_kulturbad_feed_keeps_only_special_cinema_formats(self):
-        feed_events = [{
-            "title": "Open Air Kino: Kultfilm",
-            "description": "",
-            "category": "cinema-special kino film festival open air",
-            "date": "2026-07-20",
-            "source_id": "ruengsdorfer-kulturbad",
-        }]
-        with patch("nrw_events.common.fetch_ical", return_value=feed_events) as fetch_ical:
-            events = cinema_specials._fetch_kulturbad_cinema()
-
-        self.assertEqual(events, feed_events)
-        kwargs = fetch_ical.call_args.kwargs
-        self.assertEqual(kwargs["source_id"], "ruengsdorfer-kulturbad")
-        self.assertTrue(kwargs["event_filter"]({"SUMMARY": "Open Air Kino"}, None, None))
-        self.assertFalse(kwargs["event_filter"]({"SUMMARY": "Chansonabend"}, None, None))
-
     def test_partial_failure_warning_matches_child_source_id(self):
         result = SourceResult("Curated cinema specials")
         common.set_source_context(result)
