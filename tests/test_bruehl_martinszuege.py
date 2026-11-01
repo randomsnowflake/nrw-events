@@ -29,6 +29,7 @@ class BruehlMartinszuegeTests(unittest.TestCase):
             self.assertEqual(event["city"], "Brühl")
             self.assertTrue(event["venue"], event["title"])
             self.assertIn("Zugweg: ", event["description"])
+            self.assertEqual(event["description_source"], "scraped")
             self.assertTrue(event["start_at"] and event["end_at"], event["title"])
 
     def test_row_keeps_time_span_start_and_route(self):
@@ -76,6 +77,7 @@ class BruehlMartinszuegeTests(unittest.TestCase):
         event = next(e for e in bruehl_martinszuege.events_from_page(html) if e["title"] == "Martinszug Neuer Verein")
         self.assertEqual(event["venue"], "")
         self.assertEqual(event["description"], "Veranstalter: Neuer Verein.")
+        self.assertEqual(event["description_source"], "generated")
 
     def test_page_without_overview_is_a_healthy_off_season(self):
         self.assertTrue(bruehl_martinszuege._no_list_published("<h3>St. Martins-Umzüge</h3>"))

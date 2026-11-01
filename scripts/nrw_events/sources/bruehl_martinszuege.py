@@ -176,7 +176,8 @@ def events_from_page(html: str) -> list[dict]:
                 entry.title if entry else f"Martinszug {name}", start, end, entry.start if entry else "", "Brühl",
                 description, URL, SOURCE, "martinszug sankt martin laternen kinder familie", 0.9,
                 time_text=start.strftime("%H:%M"), source_id=SOURCE_ID,
-                description_source="generated", default_category_key="kids",
+                # Span and route are the city's and flyer's facts; a bare organizer line is not copy.
+                description_source="scraped" if entry else "generated", default_category_key="kids",
                 category_locked=True, link_kind="overview",
             )
             if event:
