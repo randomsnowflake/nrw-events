@@ -53,23 +53,6 @@
       "category_locked": false
     },
     {
-      "id": "waldbroel",
-      "display_name": "Waldbröl",
-      "region": "bonn-region",
-      "adapter": "ical",
-      "urls": [
-        "https://www.waldbroel.de/veranstaltungen/?ical=1"
-      ],
-      "city": "Waldbröl",
-      "category_hint": "oberberg lokal markt kultur konzert",
-      "trust": 0.92,
-      "timeout": 25,
-      "headers": [],
-      "admission": null,
-      "default_category_key": "",
-      "category_locked": false
-    },
-    {
       "id": "lupe-events",
       "display_name": "LuPe Events",
       "region": "bonn-region",

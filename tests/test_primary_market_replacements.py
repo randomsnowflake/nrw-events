@@ -381,7 +381,7 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
             "Schmitt Veranstaltungen": lambda: primary[1:],
         }
         context = RunContext(
-            config.RuntimeConfig(series_ledger_json=""),
+            config.RuntimeConfig(series_ledger_json="", radius_km=1000),
             EventWindow(datetime(2026, 8, 16), datetime(2026, 9, 13)),
             "market-fallbacks",
             configure_logging("market-fallbacks", "ERROR", "", ""),
@@ -407,7 +407,7 @@ class PrimaryMarketReplacementTests(unittest.TestCase):
         [windeck, *_rest] = [event.to_dict() for event in self._primary_cohort()]
         windeck["score"] = 0.1
         context = RunContext(
-            config.RuntimeConfig(series_ledger_json="", score_floor=0.8),
+            config.RuntimeConfig(series_ledger_json="", radius_km=1000, score_floor=0.8),
             EventWindow(datetime(2026, 8, 16), datetime(2026, 9, 13)),
             "market-filtered-primary",
             configure_logging("market-filtered-primary", "ERROR", "", ""),

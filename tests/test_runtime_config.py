@@ -79,7 +79,7 @@ class RuntimeConfigTests(unittest.TestCase):
         second.run(common.configure_runtime, config.RuntimeConfig(radius_km=120), "second", logger)
         self.assertEqual(first.run(common.runtime_radius_km), 10)
         self.assertEqual(second.run(common.runtime_radius_km), 120)
-        self.assertEqual(config.MAX_RADIUS_KM, 75)
+        self.assertEqual(config.MAX_RADIUS_KM, 35)
 
     def test_failed_fallback_cache_configuration_does_not_leak_runtime_state(self):
         logger = configure_logging("test", "ERROR", "", "")

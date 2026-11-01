@@ -464,7 +464,7 @@ END:VCALENDAR"""
 
     def test_scoring_and_location_helpers_have_direct_boundary_coverage(self):
         self.assertEqual(scoring.distance_score(0), 1.0)
-        self.assertEqual(scoring.distance_score(config.MAX_RADIUS_KM), 0.1)
+        self.assertEqual(scoring.distance_score(config.DISTANCE_SCORE_SCALE_KM), 0.1)
         coordinates, confidence, source = location.resolve_location("Bonn")
         self.assertEqual(coordinates, (config.BONN_LAT, config.BONN_LON))
         self.assertEqual((confidence, source), ("known_city", "configured_city"))
