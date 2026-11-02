@@ -155,7 +155,7 @@ Defaults favour **quantity over quality** (filter the full list yourself):
 - `NRW_EVENTS_REPORT_MAX_CHARS=N` — optionally cap the complete Markdown report (0/unset = full output).
 - `NRW_EVENTS_DAYS_AHEAD=3` — default time window when the CLI has no day argument (1–90).
 - `NRW_EVENTS_SCORE_FLOOR=0.4` — minimum score to keep. Lower = more/noisier.
-- `NRW_EVENTS_RADIUS_KM=35` — maximum distance from Bonn (`--umkreis 15km`).
+- `NRW_EVENTS_RADIUS_KM=42` — maximum distance from Bonn (`--umkreis 15km`).
 - `NRW_EVENTS_CATEGORIES=market,festival` — canonical category filter (`--kategorie`).
 - `NRW_EVENTS_FREE_ONLY=1` — keep only explicitly free events (`--kostenlos`).
 - `NRW_EVENTS_JSON_STDOUT=1` — emit only JSON to stdout and do not publish snapshots (`--json`).

@@ -121,7 +121,7 @@ class CliTests(unittest.TestCase):
 
     def test_filtered_cli_publishes_unfiltered_canonical_snapshot(self):
         def fake_import(context, sources):
-            self.assertEqual(context.settings.radius_km, 35)
+            self.assertEqual(context.settings.radius_km, 42)
             date = context.window.start.strftime("%Y-%m-%d")
             return runner.ImportResult((
                 event("Visible market", date, category="market"),

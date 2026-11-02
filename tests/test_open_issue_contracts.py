@@ -320,7 +320,8 @@ class OpenIssueContractTests(unittest.TestCase):
         settings = config.RuntimeConfig(
             score_floor=0,
             source_timeout_seconds=0.03,
-            source_processing_grace_seconds=0.1,
+            # Wide grace: the 0.08 s fetch must outlast the timeout, not race a 0.05 s margin under load.
+            source_processing_grace_seconds=1.0,
             series_ledger_json="",
         )
         context = RunContext(

@@ -24,7 +24,7 @@ def default_state_dir() -> Path:
 class RuntimeConfig:
     days_ahead: int = 3
     score_floor: float = 0.4
-    radius_km: float = 35.0
+    radius_km: float = 42.0
     description_max_chars: int = 700
     categories: tuple[str, ...] = ()
     free_only: bool = False
@@ -130,7 +130,7 @@ def runtime_config(days_ahead: int | None = None) -> RuntimeConfig:
     return RuntimeConfig(
         days_ahead=configured_days,
         score_floor=_float("NRW_EVENTS_SCORE_FLOOR", 0.4, 0.0, 10.0),
-        radius_km=_float("NRW_EVENTS_RADIUS_KM", 35.0, 0.1, 500.0),
+        radius_km=_float("NRW_EVENTS_RADIUS_KM", 42.0, 0.1, 500.0),
         description_max_chars=_int("NRW_EVENTS_DESCRIPTION_MAX_CHARS", 700, 0, 100_000),
         categories=_categories("NRW_EVENTS_CATEGORIES"),
         free_only=_bool("NRW_EVENTS_FREE_ONLY"),
@@ -192,8 +192,8 @@ def runtime_config(days_ahead: int | None = None) -> RuntimeConfig:
 # ── Geography ───────────────────────────────────────────────────────
 # Center point + search radius. Recenter the whole tool by editing these.
 BONN_LAT, BONN_LON = 50.7374, 7.0982
-MAX_RADIUS_KM = 35
-# Ranking scale, deliberately not the radius: tied to it, 35 km would push Windeck and
+MAX_RADIUS_KM = 42  # Andernach (Michelsmarkt) and all of Windeck lie at up to 39.5 km.
+# Ranking scale, deliberately not the radius: tied to a smaller radius it would push Windeck and
 # Bad Neuenahr under score_floor, so the cut would reach far inside the radius.
 DISTANCE_SCORE_SCALE_KM = 75
 

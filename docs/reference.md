@@ -4,7 +4,7 @@
 **Bonn und die Umgebung**. Der Schwerpunkt liegt bewusst auf Bonn: Innenstadt,
 Poppelsdorf, Endenich, Beuel, Bad Godesberg, Ippendorf, Dransdorf, Rheinaue,
 Kottenforst, Siebengebirge/Königswinter und praktikablen Tageszielen im Umkreis
-von ca. 35 km, inklusive Siegburg, Troisdorf und dem nahen Ahrtal.
+von ca. 42 km, inklusive Siegburg, Troisdorf und dem nahen Ahrtal.
 
 Das Projekt sammelt öffentlich verfügbare Eventdaten aus verschiedenen Quellen,
 entdoppelt die Treffer, bewertet sie nach **Nähe zu Bonn + Kategorie +
@@ -226,7 +226,7 @@ als Fehler, damit nicht geschlossene HTTP-Antworten reproduzierbar fehlschlagen.
 
 ## Fokusgebiet
 
-Der Mittelpunkt ist Bonn. Die Standard-Suche nutzt einen Radius von ca. 35 km um
+Der Mittelpunkt ist Bonn. Die Standard-Suche nutzt einen Radius von ca. 42 km um
 Bonn und bevorzugt Treffer, die für Menschen in Bonn praktisch interessant sind.
 Typische Zielgebiete:
 
@@ -319,7 +319,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_REPORT_MAX_CHARS` | `0`      | Optionale Gesamtlänge des Markdown-Reports. `0`/nicht gesetzt = vollständige Ausgabe. |
 | `NRW_EVENTS_DAYS_AHEAD`       | `3`      | Standard-Zeitfenster, wenn kein CLI-Argument gesetzt ist (1–90). |
 | `NRW_EVENTS_SCORE_FLOOR`      | `0.4`    | Mindestscore. Niedriger = mehr Treffer und mehr Rauschen. |
-| `NRW_EVENTS_RADIUS_KM`        | `35`     | Maximaler Umkreis ab Bonn; entspricht `--umkreis`. |
+| `NRW_EVENTS_RADIUS_KM`        | `42`     | Maximaler Umkreis ab Bonn; entspricht `--umkreis`. |
 | `NRW_EVENTS_DESCRIPTION_MAX_CHARS` | `700` | Maximale Länge der normalisierten öffentlichen Kurzbeschreibung; `0` deaktiviert die Kürzung. |
 | `NRW_EVENTS_CATEGORIES`       | nicht gesetzt | Kommagetrennte Kategorie-Keys; entspricht `--kategorie`. |
 | `NRW_EVENTS_FREE_ONLY`        | `0`      | Nur explizit kostenlose Events; entspricht `--kostenlos`. |
