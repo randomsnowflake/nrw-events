@@ -3,7 +3,6 @@ from datetime import datetime
 from unittest import mock
 
 from nrw_events import common, config
-from nrw_events.source_specs import AdapterType
 from nrw_events.sources import SOURCE_SPECS, regional_ionas4, regional_sitekit
 
 from tests.helpers import patch_window
@@ -170,12 +169,9 @@ class Tier1SourceRegistrationTests(unittest.TestCase):
             )
         )
 
-    def test_waldbroel_is_registered_as_an_ical_spec(self):
-        spec = next((s for s in SOURCE_SPECS if s.id == "waldbroel"), None)
-        self.assertIsNotNone(spec, "Waldbröl spec missing")
-        self.assertIs(spec.adapter, AdapterType.ICAL)
-        self.assertEqual(spec.city, "Waldbröl")
-        self.assertTrue(spec.urls[0].endswith("ical=1"))
+    def test_waldbroel_stays_retired(self):
+        # 39 km from Bonn: outside the radius and retired on the site (issue 646).
+        self.assertNotIn("waldbroel", {s.id for s in SOURCE_SPECS})
 
 
 class Tier1GeoCoverageTests(unittest.TestCase):
@@ -196,7 +192,7 @@ class Tier1GeoCoverageTests(unittest.TestCase):
 
     def test_new_source_cities_sit_inside_the_report_radius(self):
         for city in ["Rösrath", "Ruppichteroth", "Frechen", "Hürth",
-                     "Erftstadt", "Zülpich", "Waldbröl"]:
+                     "Erftstadt", "Zülpich"]:
             with self.subTest(city=city):
                 coords, _kind, _reason = common.resolve_location(city, None)
                 distance = common.haversine(common.BONN_LAT, common.BONN_LON, *coords)

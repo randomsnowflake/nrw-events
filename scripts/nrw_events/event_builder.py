@@ -894,7 +894,7 @@ def build_event(draft: EventDraft, *, _prepared: _QualityPreparation | None = No
         "distance_km": round(km, 1) if km is not None else None,
         "location_confidence": location_confidence,
         "location_source": location_source,
-        "score": round(distance_score(km, _impl_run_state.runtime_radius_km()) * category_score(full_text) * trust, 2) if km is not None
+        "score": round(distance_score(km) * category_score(full_text) * trust, 2) if km is not None
                  else round(0.3 * category_score(full_text) * trust, 2),
         "source": source,
         "source_id": source_id,

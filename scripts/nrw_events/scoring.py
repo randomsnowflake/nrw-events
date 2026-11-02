@@ -5,12 +5,11 @@ import re
 from . import config
 
 
-def distance_score(km: float, radius_km: float | None = None) -> float:
+def distance_score(km: float) -> float:
     """Score 0.1–1.0 by distance from Bonn."""
     if km <= 0:
         return 1.0
-    radius = radius_km or config.MAX_RADIUS_KM
-    return max(0.1, 1.0 - (km / radius) * 0.9)
+    return max(0.1, 1.0 - (km / config.DISTANCE_SCORE_SCALE_KM) * 0.9)
 
 
 _NEGATIVE_KEYWORDS = frozenset({

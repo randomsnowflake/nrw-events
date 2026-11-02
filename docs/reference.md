@@ -4,8 +4,7 @@
 **Bonn und die Umgebung**. Der Schwerpunkt liegt bewusst auf Bonn: Innenstadt,
 Poppelsdorf, Endenich, Beuel, Bad Godesberg, Ippendorf, Dransdorf, Rheinaue,
 Kottenforst, Siebengebirge/Königswinter und praktikablen Tageszielen im Umkreis
-von ca. 75 km, inklusive Köln, Siegburg, Troisdorf, Düsseldorf, Aachen und dem
-nahen Ahrtal.
+von ca. 35 km, inklusive Siegburg, Troisdorf und dem nahen Ahrtal.
 
 Das Projekt sammelt öffentlich verfügbare Eventdaten aus verschiedenen Quellen,
 entdoppelt die Treffer, bewertet sie nach **Nähe zu Bonn + Kategorie +
@@ -227,7 +226,7 @@ als Fehler, damit nicht geschlossene HTTP-Antworten reproduzierbar fehlschlagen.
 
 ## Fokusgebiet
 
-Der Mittelpunkt ist Bonn. Die Standard-Suche nutzt einen Radius von ca. 75 km um
+Der Mittelpunkt ist Bonn. Die Standard-Suche nutzt einen Radius von ca. 35 km um
 Bonn und bevorzugt Treffer, die für Menschen in Bonn praktisch interessant sind.
 Typische Zielgebiete:
 
@@ -236,7 +235,6 @@ Typische Zielgebiete:
 - Natur/Outdoor: Kottenforst, Siebengebirge, Königswinter, Drachenfels,
   Petersberg, Bad Honnef
 - Nahbereich: Siegburg, Troisdorf, Bornheim, Meckenheim, Rheinbach
-- Größere Städte: Köln, Düsseldorf, Aachen
 - Nahe Ausflugsregionen: Ahrweiler, Bad Neuenahr-Ahrweiler, Dernau, Mayschoss,
   Ahrtal
 
@@ -321,7 +319,7 @@ verändert die Snapshot-Dateien nicht. Logs bleiben auf stderr. CLI-Flags
 | `NRW_EVENTS_REPORT_MAX_CHARS` | `0`      | Optionale Gesamtlänge des Markdown-Reports. `0`/nicht gesetzt = vollständige Ausgabe. |
 | `NRW_EVENTS_DAYS_AHEAD`       | `3`      | Standard-Zeitfenster, wenn kein CLI-Argument gesetzt ist (1–90). |
 | `NRW_EVENTS_SCORE_FLOOR`      | `0.4`    | Mindestscore. Niedriger = mehr Treffer und mehr Rauschen. |
-| `NRW_EVENTS_RADIUS_KM`        | `75`     | Maximaler Umkreis ab Bonn; entspricht `--umkreis`. |
+| `NRW_EVENTS_RADIUS_KM`        | `35`     | Maximaler Umkreis ab Bonn; entspricht `--umkreis`. |
 | `NRW_EVENTS_DESCRIPTION_MAX_CHARS` | `700` | Maximale Länge der normalisierten öffentlichen Kurzbeschreibung; `0` deaktiviert die Kürzung. |
 | `NRW_EVENTS_CATEGORIES`       | nicht gesetzt | Kommagetrennte Kategorie-Keys; entspricht `--kategorie`. |
 | `NRW_EVENTS_FREE_ONLY`        | `0`      | Nur explizit kostenlose Events; entspricht `--kostenlos`. |
@@ -410,7 +408,7 @@ Jedes Event erhält grob:
 Distanzscore × Kategoriegewicht × Quellenvertrauen
 ```
 
-- **Distanz:** Bonn-Zentrum = 1.0, linear fallend bis zum Rand des 75-km-Radius.
+- **Distanz:** Bonn-Zentrum = 1.0, linear fallend auf einer festen 75-km-Skala (`DISTANCE_SCORE_SCALE_KM`, unabhängig vom Radius).
 - **Kategorie:** Gewichtungen in `config.CATEGORY_WEIGHT`, z.B. elektronische Musik,
   Architektur, Weinwanderungen, Konzerte, Ausstellungen, Märkte und Outdoor. Wenn
   mehrere Begriffe passen, werden die stärkste Aufwertung und die stärkste

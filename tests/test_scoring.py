@@ -1,10 +1,16 @@
 import unittest
 from datetime import datetime
 
-from nrw_events.scoring import category_score
+from nrw_events.scoring import category_score, distance_score
 from nrw_events.sources.requested_venues import _events_from_pantheon
 
 from tests.helpers import patch_window
+
+
+class DistanceScoreTests(unittest.TestCase):
+    def test_a_kept_place_at_the_radius_edge_clears_the_score_floor(self):
+        # Windeck (34 km), trust 0.9: tying the scale to the 35 km radius scored 0.11.
+        self.assertGreaterEqual(distance_score(34) * 0.9, 0.4)
 
 
 class CategoryScoreTests(unittest.TestCase):
