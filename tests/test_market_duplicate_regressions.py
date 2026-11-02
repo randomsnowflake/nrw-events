@@ -1,6 +1,8 @@
 import unittest
+from dataclasses import replace
 
 from nrw_events import report
+from nrw_events.identity import event_id
 from nrw_events.validation import canonicalize_event
 
 
@@ -43,6 +45,128 @@ def market(
         "end_at": end_at,
         "source_id": source_id,
     })
+
+
+def showing(source, start, *, venue="Kulturzentrum Brotfabrik", end="", title="Filmworkshop: Sichten, Skripten, Schneiden"):
+    return canonicalize_event({
+        "title": title,
+        "source": source,
+        "start_date": start[:10],
+        "end_date": start[:10],
+        "date": start[:10],
+        "time": start[11:16],
+        "start_at": start,
+        "end_at": end,
+        "venue": venue,
+        "city": "Bonn",
+        "link": f"https://example.test/{source}/{start}",
+        "category_key": "cinema",
+        "category": "kino",
+        "category_label": "Kino",
+        "score": 0.7,
+    })
+
+
+class CloseStartToleranceTests(unittest.TestCase):
+    def test_brotfabrik_workshop_listed_at_15_00_and_15_30_merges(self):
+        organiser = showing("Brotfabrik Bonn", "2026-10-27T15:00+01:00")
+        city = showing("Bonn.de Events", "2026-10-27T15:30+01:00", end="2026-10-27T18:00+01:00")
+
+        deduped = report.deduplicate([city, organiser])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["source"], "Brotfabrik Bonn")
+        self.assertEqual(deduped[0]["start_at"], "2026-10-27T15:00+01:00")
+        self.assertIn(event_id(city), deduped[0]["merged_event_ids"])
+
+    def test_candlelight_shows_two_hours_apart_stay_separate(self):
+        deduped = report.deduplicate([
+            showing("Candlelight", "2026-11-07T18:30+01:00", title="Candlelight: Queen"),
+            showing("Bonn.de Events", "2026-11-07T20:30+01:00", title="Candlelight: Queen"),
+        ])
+
+        self.assertEqual(len(deduped), 2)
+
+    def test_gap_just_over_the_tolerance_stays_separate(self):
+        deduped = report.deduplicate([
+            showing("Brotfabrik Bonn", "2026-10-27T15:00+01:00"),
+            showing("Bonn.de Events", "2026-10-27T16:01+01:00"),
+        ])
+
+        self.assertEqual(len(deduped), 2)
+
+    def test_hourly_tours_listed_by_two_sources_keep_every_slot(self):
+        deduped = report.deduplicate([
+            showing("Museum", "2026-11-07T14:00+01:00", title="Öffentliche Führung"),
+            showing("Museum", "2026-11-07T15:00+01:00", title="Öffentliche Führung"),
+            showing("Bonn.de Events", "2026-11-07T14:00+01:00", title="Öffentliche Führung"),
+            showing("Bonn.de Events", "2026-11-07T15:00+01:00", title="Öffentliche Führung"),
+        ])
+
+        self.assertEqual(sorted(row["start_at"][11:16] for row in deduped), ["14:00", "15:00"])
+
+    def test_exhibition_opening_hours_do_not_absorb_a_tour(self):
+        hours = replace(
+            showing("Bonn.de Events", "2026-10-10T11:00+02:00", title="Menschen und Geschichten"),
+            category_key="exhibition",
+        )
+        tour = showing("Kunstmuseum Bonn", "2026-10-10T11:15+02:00", title="Menschen und Geschichten")
+
+        self.assertEqual(len(report.deduplicate([hours, tour])), 2)
+
+    def test_same_source_slots_and_other_venues_stay_separate(self):
+        self.assertEqual(len(report.deduplicate([
+            showing("Brotfabrik Bonn", "2026-10-27T15:00+01:00"),
+            showing("Brotfabrik Bonn", "2026-10-27T15:30+01:00"),
+        ])), 2)
+        self.assertEqual(len(report.deduplicate([
+            showing("Brotfabrik Bonn", "2026-10-27T15:00+01:00"),
+            showing("Bonn.de Events", "2026-10-27T15:30+01:00", venue="Haus der Springmaus"),
+        ])), 2)
+
+
+class SingleDayInsideRunTests(unittest.TestCase):
+    RUN = ("2026-10-23", "2026-10-25")
+
+    def run_and_day(self, *, day_source, day_venue, title="Hubertusmarkt (23.-25.10.)", day_score=1.08, time=""):
+        run = market(
+            title, "SiteKit regional", self.RUN[0], "Brühler Innenstadt", "Brühl",
+            "https://www.bruehl.de/hubertusmarkt?day=23", end_date=self.RUN[1], score=1.08,
+        )
+        day = market(
+            title, day_source, self.RUN[1], day_venue, "Brühl",
+            "https://example.test/hubertusmarkt-sonntag", score=day_score,
+            time=time, start_at=f"{self.RUN[1]}T{time}+01:00" if time else "",
+        )
+        return run, day
+
+    def test_hubertusmarkt_day_row_from_same_source_folds_into_run(self):
+        run, day = self.run_and_day(day_source="SiteKit regional", day_venue="")
+
+        deduped = report.deduplicate([day, run])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual((deduped[0]["start_date"], deduped[0]["end_date"]), self.RUN)
+        self.assertIn(event_id(day), deduped[0]["merged_event_ids"])
+
+    def test_first_party_day_row_folds_into_the_run_despite_a_higher_score(self):
+        run, day = self.run_and_day(day_source="WEPAG", day_venue="Brühler Innenstadt", day_score=2.0)
+
+        deduped = report.deduplicate([day, run])
+
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual((deduped[0]["start_date"], deduped[0]["end_date"]), self.RUN)
+        self.assertIn(event_id(day), deduped[0]["merged_event_ids"])
+
+    def test_timed_first_party_day_stays_a_separate_occurrence(self):
+        run, day = self.run_and_day(day_source="Skulpturenpark", day_venue="Brühler Innenstadt", time="15:00")
+
+        self.assertEqual(len(report.deduplicate([run, day])), 2)
+
+    def test_same_title_at_another_venue_in_town_stays_separate(self):
+        run, day = self.run_and_day(day_source="Pfarrei St. Margareta", day_venue="Pfarrzentrum", title="Weihnachtsmarkt")
+
+        self.assertEqual(len(report.deduplicate([run, day])), 2)
 
 
 class MarketDuplicateRegressionTests(unittest.TestCase):
