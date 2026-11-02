@@ -393,7 +393,8 @@ class OpenIssueContractTests(unittest.TestCase):
     def test_publication_ai_runs_after_source_worker_deadline_is_finished(self):
         settings = config.RuntimeConfig(
             score_floor=0,
-            source_timeout_seconds=0.03,
+            # The AI pass must outlast the source budget; 0.03 s left the instant source no slack under load.
+            source_timeout_seconds=0.3,
             source_processing_grace_seconds=0,
             series_ledger_json="",
         )
@@ -409,12 +410,12 @@ class OpenIssueContractTests(unittest.TestCase):
                     runner.ai_enrichment,
                     "settings_from_env",
                     return_value=mock.Mock(
-                        enabled=True, api_key="test-key", batch_timeout_seconds=0.1, jev_enabled=False,
+                        enabled=True, api_key="test-key", batch_timeout_seconds=1.0, jev_enabled=False,
                     ),
                 ), \
                 mock.patch.object(
                     runner.ai_enrichment, "enrich_events",
-                    side_effect=lambda events, **_: (time.sleep(0.08), events)[1],
+                    side_effect=lambda events, **_: (time.sleep(0.4), events)[1],
                 ):
             result = runner.run_import(context, {
                 "Bonn.de Events": lambda: [raw_event()],
@@ -1193,7 +1194,7 @@ class OpenIssueContractTests(unittest.TestCase):
         fixture = json.loads(path.read_text(encoding="utf-8"))
         specs = load_source_specs(path)
         self.assertEqual(fixture["schema_version"], 1)
-        self.assertEqual(len(specs), 114)
+        self.assertEqual(len(specs), 115)
         self.assertGreaterEqual(len(specs), 40)
         self.assertTrue(all(spec.region for spec in specs))
         self.assertTrue(all(isinstance(spec.adapter, AdapterType) for spec in specs))

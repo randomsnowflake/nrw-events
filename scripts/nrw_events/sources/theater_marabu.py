@@ -9,7 +9,7 @@ from . import regional_common as rc
 
 _SOURCE = "Theater Marabu"
 _CALENDAR = "https://www.theater-marabu.de/kalender/"
-_CATEGORY = "theater bühne performance tanz"
+_CATEGORY = "theater bühne performance tanz kinder- und jugendtheater"
 _TRUST = 1.0
 _MONTHS = {
     "JAN": 1, "FEB": 2, "MÄR": 3, "MRZ": 3, "APR": 4, "MAI": 5, "JUN": 6,

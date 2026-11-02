@@ -11,7 +11,7 @@ from . import regional_common as rc
 _SOURCE = "Junges Theater Bonn"
 _ROOT = "https://www.jt-bonn.de/"
 _CALENDAR = f"{_ROOT}termine-tickets/"
-_CATEGORY = "theater bühne schauspiel musical"
+_CATEGORY = "theater bühne schauspiel musical kinder- und jugendtheater"
 _TRUST = 1.0
 _VENUES = ("Junges Theater Bonn", "Kuppelsaal Thalia", "Online-Stream")
 

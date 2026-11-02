@@ -319,6 +319,13 @@
       "callable": "nrw_events.sources.theater_marabu:fetch"
     },
     {
+      "id": "kruemelbuehne-bonn",
+      "display_name": "KrümelBühne Bonn",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.kruemelbuehne:fetch"
+    },
+    {
       "id": "theater-im-ballsaal",
       "display_name": "Theater im Ballsaal",
       "region": "bonn-region",

@@ -23,6 +23,9 @@ _ADULT_OUTDOOR_SIGNALS = frozenset({
     # A Martinszug is a public street procession even when a Kita organises it.
     "martinszug", "martinsumzug",
 })
+# A play for children is a public performance, not a kids' side programme; theatre
+# workshops ("Theater-Projekttag für Kinder", "Kindertheaterkurs") stay demoted.
+_CHILDREN_STAGE = re.compile(r"\b(?:kinder|jugend|puppen|figuren|marionetten)theaters?\b|\bpuppenbühnen?\b")
 _FAMILY_SIDE_OFFER_TERMS = frozenset({
     "kids", "kinder", "family", "familie", "vorlesen", "basteln",
 })
@@ -85,6 +88,7 @@ def category_score(text: str) -> float:
     kids_only = (
         any(_keyword_pattern(word).search(normalized) for word in _NEGATIVE_KEYWORDS)
         and not any(_keyword_pattern(word).search(normalized) for word in _ADULT_OUTDOOR_SIGNALS)
+        and not _CHILDREN_STAGE.search(normalized)
     )
     matched = [
         (keyword, weight)

@@ -46,13 +46,25 @@ class CategoryScoreTests(unittest.TestCase):
 
     def test_benefit_wording_does_not_hide_a_child_audience(self):
         for text in (
-            "Kindertheater zugunsten kranker Kinder",
+            "Vorlesen zugunsten kranker Kinder",
             "Benefiz-Comedy-Kabarett für schwerkranke Kinder + Jugendliche. "
             "Vorlesen für Kinder ab 6 Jahren",
             "Kabarett für Kinder",
             "Benefizkonzert für Kinder",
             "Theater für schwerkranke Kinder",
         ):
+            with self.subTest(text=text):
+                self.assertLessEqual(category_score(text), 0.25)
+
+    def test_childrens_plays_are_performances_not_side_offers(self):
+        for text in (
+            "Pippi Langstrumpf Ein Bühnenabenteuer für die ganze Familie theater bühne kinder- und jugendtheater",
+            "Tigerwild! Für Kinder ab 4 Jahren kindertheater figurentheater puppentheater kinder familie",
+            "Puppenbühne Rhein-Sieg: Dino und der Kasper für Kinder",
+        ):
+            with self.subTest(text=text):
+                self.assertGreaterEqual(category_score(text), 1.0)
+        for text in ("Theater-Projekttag für Kinder von 6-12 Jahre", "Kindertheaterkurs für Kinder ab 8"):
             with self.subTest(text=text):
                 self.assertLessEqual(category_score(text), 0.25)
 
@@ -92,7 +104,7 @@ class CategoryScoreTests(unittest.TestCase):
         # "wein" must not fire inside "Schweinfurt"
         self.assertEqual(category_score("Busfahrt nach Schweinfurt"), 1.0)
         self.assertEqual(category_score("Kunststoff-Recycling"), 1.0)
-        self.assertEqual(category_score("Weinen und Lachen: Kindertheater"), 0.2)
+        self.assertEqual(category_score("Weinen und Lachen: Vorlesen für Kinder"), 0.2)
         self.assertEqual(category_score("Viertelfinale für Kinder"), 0.2)
 
     def test_exact_words_still_score(self):
