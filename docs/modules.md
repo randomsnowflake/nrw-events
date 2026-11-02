@@ -92,6 +92,7 @@ scripts/nrw_events/
   source_specs.py
   source_types.py
   text.py
+  title_kind.py
   title_normalization.py
   validation.py
   venue_quality.py

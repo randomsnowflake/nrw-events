@@ -59,6 +59,7 @@ class RawEvent(TypedDict, total=False):
     description_html: str
     description_source: str
     ai_summary: str
+    title_kind: str
     price: str
     admission_basis: str
     admission: dict[str, Any]
@@ -197,6 +198,8 @@ class CanonicalEvent(Mapping[str, Any]):
     description_html: str = ""
     description_source: str = "scraped"
     ai_summary: str = ""
+    # What an opaque title is ("Gruppenausstellung" for "NAHT"); see ``title_kind``.
+    title_kind: str = ""
     price: str = ""
     admission_basis: str = ""
     admission: dict[str, Any] = field(default_factory=_empty_admission)

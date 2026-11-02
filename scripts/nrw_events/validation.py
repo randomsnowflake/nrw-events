@@ -955,7 +955,7 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     _discovery_provenance(event)
     inferred_description_source = common.description_source_for(event.get("description", ""))
     for field, limit in (("time", 500), ("time_note", 500), ("venue", 300), ("city", 160), ("organizer", 500), ("description", 8000), ("description_html", 100000), ("ai_summary", 4000),
-                         ("price", 160), ("category", 500), ("link", 2048)):
+                         ("title_kind", 80), ("price", 160), ("category", 500), ("link", 2048)):
         event[field] = _text(event, field, limit)
     sanitize_venue_fields(event)
     _canonical_exhibitor(event)

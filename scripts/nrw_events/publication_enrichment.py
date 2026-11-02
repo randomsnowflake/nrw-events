@@ -13,9 +13,11 @@ from dataclasses import replace
 from . import (
     ai_decisions,
     ai_enrichment,
+    ai_transport,
     event_types,
     geocoding,
     performance,
+    title_kind,
 )
 from . import retention_policy as _impl_retention_policy
 from . import series as series_entities
@@ -163,6 +165,60 @@ def _resolve_audience(events: list[CanonicalEvent], results: dict[str, SourceRes
             continue
         try:
             events[index] = validate_event({**event.to_dict(), "event_types": updated})
+        except EventValidationError:
+            outcomes["rejected"] += 1
+    return outcomes
+
+
+def _resolve_title_kinds(events: list[CanonicalEvent], results: dict[str, SourceResult]) -> Counter[str]:
+    """Name what an opaque title is ("NAHT" -> "Gruppenausstellung") from the event's own text."""
+    outcomes: Counter[str] = Counter()
+    settings = ai_enrichment.settings_from_env()
+    if not (settings.enabled and settings.api_key):
+        return outcomes
+    indexes = [index for index, event in enumerate(events) if title_kind.needs_kind(event.title)]
+    if not indexes:
+        return outcomes
+    client = (
+        ai_transport.OpenRouterClient(settings) if settings.provider == "openrouter"
+        else ai_transport.ResponsesClient(settings)
+    )
+    # Run budget: unanswered titles keep their kind until a later run; answers are cached.
+    deadline = time.monotonic() + 120
+    settings.cache_db.parent.mkdir(parents=True, exist_ok=True)
+
+    def ask(index: int) -> tuple[str, str]:
+        if time.monotonic() > deadline:
+            return "out_of_time", ""
+        event = events[index]
+        raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
+        # Prose only: the label-bound fallback would ground a kind in the category alone.
+        prose = ai_enrichment._source_material(
+            {"description": raw.get("description"), "description_html": raw.get("description_html")}
+        )
+        material = "\n\n".join(part for part in (prose, event.ai_summary.strip()) if part)
+        if not material:
+            return "no_text", ""
+        try:
+            with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
+                kind = title_kind.resolve(
+                    connection, client, model=settings.model, title=event.title,
+                    category=event.category_label or event.category, venue=event.venue,
+                    city=event.city, material=material,
+                )
+        except Exception:  # optional enrichment: a provider or cache error keeps the previous kind
+            return "failed", ""
+        return ("named" if kind else "none"), kind
+
+    with ThreadPoolExecutor(8) as pool:
+        answers = list(zip(indexes, pool.map(ask, indexes), strict=True))
+    for index, (outcome, kind) in answers:
+        outcomes[outcome] += 1
+        event = events[index]
+        if outcome in {"out_of_time", "failed"} or kind == event.title_kind:
+            continue
+        try:
+            events[index] = validate_event({**event.to_dict(), "title_kind": kind})
         except EventValidationError:
             outcomes["rejected"] += 1
     return outcomes
@@ -363,6 +419,16 @@ def enrich_publication(context: RunContext, batch: SourceBatch, selected: Public
     except (sqlite3.Error, OSError) as exc:
         # Optional enrichment: events without an answer simply carry no audience type.
         log(logger, 30, f"Jev audience skipped: {type(exc).__name__}",
+            run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
+    try:
+        with performance.span("title_kind.ai"):
+            title_kind_outcomes = _resolve_title_kinds(deduped, source_results)
+        if title_kind_outcomes:
+            log(logger, 20, f"Title kind: {dict(sorted(title_kind_outcomes.items()))}",
+                run_id=run_id, source="ai-enrichment")
+    except (sqlite3.Error, OSError) as exc:
+        # Optional enrichment: titles keep the kind they had.
+        log(logger, 30, f"Title kind skipped: {type(exc).__name__}",
             run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
     try:
         with performance.span("geocoding.nominatim"):
