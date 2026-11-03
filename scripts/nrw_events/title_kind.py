@@ -34,6 +34,8 @@ _TYPE_STEM = re.compile(
     re.IGNORECASE,
 )
 _WORD = re.compile(r"[^\W\d_]+")
+# A title word: "Elmar-Abenteuer", "Touch/ing" and "1984" are one word each.
+_TITLE_WORD = re.compile(r"[^\W_]+(?:[-/][^\W_]+)*")
 # Short words that occur in any German text; they never ground a kind.
 _STOPWORDS = frozenset({
     "eine", "einen", "einem", "einer", "eines", "dies", "diese", "oder", "sind", "wird", "auch", "nach", "über",
@@ -62,7 +64,9 @@ SCHEMA: dict[str, Any] = {
 def needs_kind(title: str) -> bool:
     """One or two words, short, and no event-type word."""
     clean = title.strip()
-    return 0 < len(_WORD.findall(clean)) <= 2 and len(clean) <= MAX_TITLE_LENGTH and not _TYPE_STEM.search(clean)
+    # Numbers ("Tumult 61") do not count as words, unless the title is only a number ("1984").
+    words = [word for word in _TITLE_WORD.findall(clean) if not word.isdigit()] or _TITLE_WORD.findall(clean)
+    return 0 < len(words) <= 2 and len(clean) <= MAX_TITLE_LENGTH and not _TYPE_STEM.search(clean)
 
 
 def clean_kind(value: object, *, title: str, venue: str, city: str, material: str) -> str:

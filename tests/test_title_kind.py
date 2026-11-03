@@ -24,7 +24,8 @@ class FakeClient:
 
 class TitleKindTests(unittest.TestCase):
     def test_only_short_titles_without_a_type_word_need_a_kind(self):
-        for title in ("NAHT", "Echos", "Die Zauberflöte", "Tumult 61", "Harris & Ford"):
+        for title in ("NAHT", "Echos", "Die Zauberflöte", "Tumult 61", "Harris & Ford", "1984",
+                      "Das Elmar-Abenteuer", "Touch/ing Transformation", "Telekom Starkick 2026"):
             self.assertTrue(title_kind.needs_kind(title), title)
         for title in ("Laternenbasteln", "Jamsession", "Klavierrecital", "Kunstspaziergang", "Open Mic",
                       "Flohmarkt", "Rheinaue parkrun", "Martinszug Beuel", "Spielenachmittag", "Kreativ-Tag",
