@@ -16,6 +16,7 @@ from nrw_events.event_vocabulary import (
     MARKET_TERM_POLICIES,
     ROUTINE_MARKET_DROP_TERMS,
 )
+from nrw_events.validation import validate_event
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
@@ -56,6 +57,14 @@ class CategoryTaxonomyTests(unittest.TestCase):
                 result = categorize_event("kommunal kultur markt ausstellung konzert führung", title, description)
                 self.assertEqual(result["key"], expected)
                 self.assertGreaterEqual(result["confidence"], taxonomy.HEURISTIC_CONFIDENCE_THRESHOLD)
+
+    def test_english_market_counts_only_in_the_title(self):
+        # Live 2026-11-05: a founders' sales workshop became a market via "the market".
+        self.assertNotEqual(categorize_event(
+            "", "Mastering the Art of Sales: Part 1",
+            "If you're not selling, you risk building something the market doesn't actually want.",
+        )["key"], "market")
+        self.assertEqual(categorize_event("", "Vintage Market Bonn", "")["key"], "market")
 
     def test_new_formats_do_not_classify_ambiguous_topics_or_venues(self):
         for title, description in [
@@ -179,6 +188,73 @@ class CategoryTaxonomyTests(unittest.TestCase):
                 self.assertEqual(categorize_event(
                     "", title, "Aktive geben Hilfestellung beim Reparieren.",
                 )["key"], expected)
+
+    def test_quartets_and_silent_reading_outrank_incidental_topics_and_venue_names(self):
+        cases = [
+            (
+                "kommunal kultur markt ausstellung konzert führung",
+                "Linos Saxophonquartett: Die Welt der Filmmusik",
+                "Von Charlie Chaplin über John Williams bis zu Disneys Dschungelbuch.",
+                "concert",
+            ),
+            ("", "Streichquartett: Filmmusik", "", "concert"),
+        ]
+        cases.extend(
+            (
+                "veranstaltung museum ausstellung führung kino vortrag",
+                f"Café l{apostrophe}Atelier: Silent Reading – Gemeinsam lesen. In aller Ruhe.",
+                "Alle bringen ihre eigene Lektüre mit ins Café l’Atelier.",
+                "activities",
+            )
+            for apostrophe in ("'", "’", "ʼ")
+        )
+        for hint, title, description, expected in cases:
+            with self.subTest(title=title):
+                result = categorize_event(hint, title, description)
+                self.assertEqual(result["key"], expected)
+                self.assertEqual(result["confidence"], 0.95)
+
+    def test_quartet_and_reading_topics_preserve_competing_event_formats(self):
+        for title, expected in (
+            ("Filmvorführung: Das Saxophonquartett", "cinema"),
+            ("Filmvorstellung: Das Streichquartett", "cinema"),
+            ("Dokumentarfilm über ein Saxophonquartett", "cinema"),
+            ("Workshop für Streichquartett", "workshop"),
+            ("Vortrag über Silent Reading", "talk"),
+            ("Atelier für Malerei", "exhibition"),
+            ("Silent Readingsammlung", "other"),
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event("", title)["key"], expected)
+        self.assertEqual(categorize_event(
+            "", "Silent Reading", default_category_key="workshop", category_locked=True,
+        )["key"], "workshop")
+
+    def test_format_corrections_reach_canonical_records_without_overriding_source_categories(self):
+        for title, previous, confidence, reason, expected in (
+            (
+                "Linos Saxophonquartett: Die Welt der Filmmusik", "cinema", 0.84,
+                "cinema:title=film;description=film", "concert",
+            ),
+            (
+                "Café l'Atelier: Silent Reading", "exhibition", 0.84,
+                "exhibition:title=atelier;description=atelier", "activities",
+            ),
+            ("Silent Reading", "workshop", 1.0, "bonn-source-category:Aktion/Workshop", "workshop"),
+            ("Streichquartett-Konzert", "concert", 1.0, "bonn-source-category:Musik/Konzert", "concert"),
+        ):
+            with self.subTest(title=title):
+                raw = {
+                    "title": title, "description": "Gemeinsamer Abend.",
+                    "source": "Test", "source_id": "test", "city": "Bonn",
+                    "start_date": "2026-11-06", "venue": "LVR-Landesmuseum Bonn",
+                    "link": "https://example.test/event", "score": 2.0,
+                    "category_key": previous, "category_label": taxonomy.CATEGORY_BY_KEY[previous]["label"],
+                    "category_confidence": confidence, "category_reason": reason,
+                }
+                event = validate_event(raw)
+                self.assertEqual(event.category_key, expected)
+                self.assertEqual(validate_event(event.to_dict()).category_key, expected)
 
     def test_compound_event_formats_classify_without_source_bags(self):
         cases = (

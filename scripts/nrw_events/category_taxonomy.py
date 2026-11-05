@@ -256,6 +256,9 @@ def _matches(text: str, keyword: str | Keyword, *, is_title: bool, literal_guard
     if keyword.word_prefix and keyword.normalized_value == "wander":
         # English "mind wandering" is a psychology lecture, not a hike.
         return any(match.group(0) != "wandering" for match in keyword.pattern.finditer(text))
+    if keyword.word and keyword.normalized_value == "market" and not is_title:
+        # English prose "the market doesn't want it" is startup copy, not a market event.
+        return re.search(r"(?<!the )(?<!\w)market(?!\w)", text) is not None
     if keyword.word and keyword.normalized_value == "marathon":
         # A "(Kurz-)Film Marathon" is a screening programme, not a race.
         return re.search(r"(?<!film )(?<!\w)marathon(?!\w)", text) is not None
@@ -332,6 +335,14 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
         return "cinema"
     if re.search(r"\b\w*(?:urauf|erstauf|wiederauf|auf)f(?:ü|ue)hrung(?:en)?\b", title_text):
         return "stage"
+    if not re.search(
+        r"\b(?:film|kinofilm|dokumentarfilm|screening|filmvorstellung|workshop|vortrag|lesung|ausstellung)\b",
+        title_comparison,
+    ):
+        if re.search(r"\b(?:saxophon|streich)[ -]?quartett\b", title_comparison):
+            return "concert"
+        if re.search(r"\bsilent[ -]reading\b", title_comparison):
+            return "activities"
     if (
         re.search(r"\b\w*museum\w*\b", title_text)
         and re.search(r"\b(?:geöffnet|geoeffnet|öffnung|oeffnung|open)\w*\b", title_text)
@@ -898,7 +909,8 @@ def categorize_event(
         return {
             "key": category["key"],
             "label": category["label"],
-            "confidence": 1.0,
+            # These title signals correct heuristics, but retain explicit source decisions at 1.0.
+            "confidence": 0.95 if title_format in {"concert", "activities"} else 1.0,
             "reason": f"forced:{title_format}-title-format",
         }
 

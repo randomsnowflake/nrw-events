@@ -310,9 +310,15 @@ def _street_key(address: str) -> str:
     return re.sub(r"str\b", "strasse", address)
 
 
+def _venue_echoes_title(event: Mapping[str, Any]) -> bool:
+    """A directory venue that repeats the title ("SCHALLPLATTENBÖRSE Bonn") names no place."""
+    venue = comparison_text(event.get("venue", ""))
+    return bool(venue) and venue == comparison_text(event.get("title", ""))
+
+
 def _locations_compatible(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
-    left_venue_text = _venue_comparison_text(left)
-    right_venue_text = _venue_comparison_text(right)
+    left_venue_text = "" if _venue_echoes_title(left) else _venue_comparison_text(left)
+    right_venue_text = "" if _venue_echoes_title(right) else _venue_comparison_text(right)
     left_venue = comparison_text(left_venue_text, separator="")
     right_venue = comparison_text(right_venue_text, separator="")
     left_venue_tokens = set(left_venue_text.split())

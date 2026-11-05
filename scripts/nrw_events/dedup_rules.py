@@ -152,6 +152,12 @@ _REVIEWED_VENUE_ALIAS_FAMILIES = (
     frozenset({
         "sieglarer marktplatz", "marktplatz sieglar", "troisdorf sieglar",
     }),
+    # Reviewed 2026-11-05: Stadtmarketing places the Stoffmarkt on the
+    # Theaterplatz, Bonn.de names only the Bad Godesberg town centre.
+    frozenset({
+        "theaterplatz", "bad godesberger innenstadt", "bad godesberg innenstadt",
+        "innenstadt bad godesberg",
+    }),
 )
 
 

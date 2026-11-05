@@ -78,6 +78,17 @@ class BonnCategoryMappingTests(unittest.TestCase):
             "bonn-source-category:Musik/Konzert",
         )
 
+    def test_trade_fair_in_markets_and_fairs_category_is_no_market(self):
+        # Live 2026-11-05: "JugendBildungsmesse Bonn" was listed under Märkte.
+        fair, market = (
+            bonn._calendar_listing_events_from_html(self._listing("Märkte/Messen", title), "Bonn.de Events")[0]
+            for title in ("JugendBildungsmesse Bonn", "Deutsch-Holländischer Stoffmarkt")
+        )
+
+        self.assertNotEqual(fair["category_key"], "market")
+        self.assertFalse(fair["category_reason"].startswith("bonn-source-category"))
+        self.assertEqual(market["category_key"], "market")
+
     def test_listing_tags_parse_when_class_and_href_attributes_are_reordered(self):
         html = self._listing("Musik/Konzert", "Reihenfolgefestes Konzert")
         html = html.replace('<article class="SP-Teaser">', '<article data-source="city" class="SP-Teaser">')

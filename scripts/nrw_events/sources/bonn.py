@@ -763,6 +763,10 @@ def _apply_source_category_mapping(ev: dict, tags: set[str]) -> dict:
         # Conflicting or absent source categories remain keyword-classifier input.
         return ev
     key = mapped_keys.pop()
+    # "Märkte/Messen" also files trade fairs: a "JugendBildungsmesse" is no market.
+    title = str(ev.get("title") or "")
+    if key == "market" and re.search(r"messe\b", title, re.I) and not re.search(r"markt|börse|boerse", title, re.I):
+        return ev
     category = category_taxonomy.CATEGORY_BY_KEY[key]
     return {
         **ev,
