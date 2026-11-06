@@ -52,22 +52,7 @@ def fetch() -> list:
                     source_id="brueckenforum-bonn",
                 ),
             ),
-            components.Job(
-                "http://www.rathausmusik.com",
-                lambda: rc.fetch_html_events(
-                    "Musik auf der Rathaustreppe",
-                    "http://www.rathausmusik.com/",
-                    _events_from_rathausmusik,
-                    source_id="rathausmusik",
-                    # Only the finished 2026 season is confirmed; review next year's schedule.
-                    empty_is_healthy=lambda _html: (
-                        common.runtime_window().start.year == 2026
-                        and not reviewed_corrections.active_entries(
-                            "rathausmusik_schedule", common.runtime_window().start,
-                        )
-                    ),
-                ),
-            ),
+            # Rathausmusik is paused; re-enable only after a new season is confirmed.
         ]
     )
     return rc.dedupe(events)
