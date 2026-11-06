@@ -74,7 +74,9 @@ validiert; abgeleitet wird nur aus Titel oder Serientitel, aus eng begrenzten
 Quellen (`karneval-in-bonn`, `bonn-martinszuege`, `bonnkirmes`) und für
 Halloween aus einer belegten Programmbeschreibung. Die Zielgruppen-Typen `adults`,
 `children` und `family` setzt allein die JEV-Entscheidung bei der
-Veröffentlichung (`docs/jev-decisions.md`), nie eine Textregel. „St. Martin“ allein zählt nur
+Veröffentlichung (`docs/jev-decisions.md`), nie eine Textregel. Ebenso nur aus
+dieser Entscheidung stammen `age_min` und `age_max` (Jahre, 0–17) bei
+Kinderprogrammen; ein leeres `age_max` heißt „ab `age_min` Jahren“. „St. Martin“ allein zählt nur
 in der Kategorie `kids`, weil der Name sonst meist eine Kirche meint. Die
 Website spiegelt diese Regeln für ältere Snapshots; die gemeinsamen Testvektoren
 stehen in `tests/data/halloween-topic-vectors.json` und

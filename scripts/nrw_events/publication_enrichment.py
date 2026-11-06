@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import time
 from collections import Counter
@@ -124,6 +125,13 @@ def _resolve_unknown_admission(events: list[CanonicalEvent], results: dict[str, 
 OCCURRENCE_FIELDS = ("start_date", "date", "end_date", "time", "time_note")
 
 
+def _date_free_input(event: CanonicalEvent, results: dict[str, SourceResult]) -> tuple[dict[str, object], str]:
+    raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
+    # Without prose the label-bound fallback would carry occurrence dates into
+    # the cache key; recurring dates must share one answer.
+    return raw, ai_enrichment._source_material({**raw, **dict.fromkeys(OCCURRENCE_FIELDS, "")})
+
+
 def _resolve_audience(events: list[CanonicalEvent], results: dict[str, SourceResult]) -> Counter[str]:
     """Add a confident Jev audience (children, family, adults) as an additive event type."""
     outcomes: Counter[str] = Counter()
@@ -138,11 +146,7 @@ def _resolve_audience(events: list[CanonicalEvent], results: dict[str, SourceRes
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return "out_of_time"
-        event = events[index]
-        raw = _publication_ai_input(event, results) if ai_enrichment.is_target_event(event) else event.to_dict()
-        # Without prose the label-bound fallback would carry occurrence dates into
-        # the cache key; recurring dates must share one answer.
-        material = ai_enrichment._source_material({**raw, **dict.fromkeys(OCCURRENCE_FIELDS, "")})
+        raw, material = _date_free_input(events[index], results)
         with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
             return ai_decisions.resolve_audience(
                 connection, raw, material,
@@ -169,6 +173,61 @@ def _resolve_audience(events: list[CanonicalEvent], results: dict[str, SourceRes
             outcomes["rejected"] += 1
     return outcomes
 
+
+_STATED_MIN_AGE = re.compile(r"\d{1,2}")
+
+
+def age_eligible(event: CanonicalEvent) -> bool:
+    """Children's programmes worth an age range; Martinszüge and adult events never are."""
+    types = set(event.event_types)
+    if types & {"adults", "st-martin"}:
+        return False
+    stated = _STATED_MIN_AGE.search(str(event.details.get("age") or ""))
+    return (event.category_key == "kids" or bool(types & {"children", "family"})
+            or (stated is not None and int(stated[0]) <= 12))
+
+
+def _resolve_age_ranges(events: list[CanonicalEvent], results: dict[str, SourceResult]) -> Counter[str]:
+    """Set age_min/age_max of children's events from a confident Jev answer."""
+    outcomes: Counter[str] = Counter()
+    settings = ai_enrichment.settings_from_env()
+    if not (settings.enabled and settings.jev_enabled and settings.jev_api_key):
+        return outcomes
+    deadline = time.monotonic() + 180
+    settings.cache_db.parent.mkdir(parents=True, exist_ok=True)
+    eligible = [index for index, event in enumerate(events) if age_eligible(event)]
+
+    def ask(index: int) -> tuple[int | None, int | None] | str | None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return "out_of_time"
+        raw, material = _date_free_input(events[index], results)
+        with closing(sqlite3.connect(settings.cache_db, timeout=30)) as connection:
+            return ai_decisions.resolve_age_range(
+                connection, raw, material,
+                model=settings.jev_model, api_key=settings.jev_api_key,
+                timeout_seconds=min(15.0, remaining),
+            )
+
+    with ThreadPoolExecutor(8) as pool:
+        answers = dict(zip(eligible, pool.map(ask, eligible), strict=True))
+    for index, event in enumerate(events):
+        if index not in answers:
+            ages: tuple[int | None, int | None] | str | None = (None, None)  # no longer a children's event
+        else:
+            ages = answers[index]
+            outcomes["failed" if ages is None else "out_of_time" if ages == "out_of_time"
+                     else "assigned" if ages[0] is not None else "uncertain"] += 1
+        if not isinstance(ages, tuple):
+            # A retained event keeps its previous ages until a later run answers.
+            continue
+        if ages == (event.age_min, event.age_max):
+            continue
+        try:
+            events[index] = validate_event({**event.to_dict(), "age_min": ages[0], "age_max": ages[1]})
+        except EventValidationError:
+            outcomes["rejected"] += 1
+    return outcomes
 
 def _resolve_title_kinds(events: list[CanonicalEvent], results: dict[str, SourceResult]) -> Counter[str]:
     """Name what an opaque title is ("NAHT" -> "Gruppenausstellung") from the event's own text."""
@@ -419,6 +478,17 @@ def enrich_publication(context: RunContext, batch: SourceBatch, selected: Public
     except (sqlite3.Error, OSError) as exc:
         # Optional enrichment: events without an answer simply carry no audience type.
         log(logger, 30, f"Jev audience skipped: {type(exc).__name__}",
+            run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
+    try:
+        # After audience: its children/family types feed the age prefilter.
+        with performance.span("age.jev"):
+            age_outcomes = _resolve_age_ranges(deduped, source_results)
+        if age_outcomes:
+            log(logger, 20, f"Jev age ranges: {dict(sorted(age_outcomes.items()))}",
+                run_id=run_id, source="ai-enrichment")
+    except (sqlite3.Error, OSError) as exc:
+        # Optional enrichment: events without an answer simply carry no ages.
+        log(logger, 30, f"Jev age ranges skipped: {type(exc).__name__}",
             run_id=run_id, source="ai-enrichment", error_type=type(exc).__name__)
     try:
         with performance.span("title_kind.ai"):

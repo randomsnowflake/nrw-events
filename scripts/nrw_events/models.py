@@ -64,6 +64,8 @@ class RawEvent(TypedDict, total=False):
     admission_basis: str
     admission: dict[str, Any]
     admission_checked: bool
+    age_min: int | None
+    age_max: int | None
     exhibitor: dict[str, Any]
     availability: str
     details: dict[str, Any]
@@ -204,6 +206,9 @@ class CanonicalEvent(Mapping[str, Any]):
     admission_basis: str = ""
     admission: dict[str, Any] = field(default_factory=_empty_admission)
     admission_checked: bool = False
+    # Children's ages from the publication Jev decision; age_max None means open-ended ("ab 4 Jahren").
+    age_min: int | None = None
+    age_max: int | None = None
     exhibitor: dict[str, Any] = field(default_factory=_empty_exhibitor)
     availability: str = ""
     """Visitor facts a source publishes as labelled data; see ``event_details``."""

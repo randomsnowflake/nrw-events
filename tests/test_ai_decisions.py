@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 from nrw_events import ai_decisions, ai_enrichment, ai_policy, publication_enrichment
 from nrw_events.decisions import DecisionError
-from nrw_events.validation import validate_event
+from nrw_events.validation import EventValidationError, validate_event
 
 from tests.helpers import make_event
 from tests.test_ai_enrichment import FACTS, FakeClient, event
@@ -309,6 +309,20 @@ class AudienceDecisionTests(unittest.TestCase):
             self.assertEqual(self.ask(connection, "Weinprobe ab 18.", "adults", title="Weinprobe"), ("adults", 1))
             self.assertEqual(self.ask(connection, "Rundgang.", "general", title="Stadtführung"), ("general", 1))
 
+    def test_a_confident_split_between_children_and_family_counts(self):
+        def ask(children, family):
+            probabilities = {"children": children, "family": family, "adults": 0.0, "general": 1 - children - family, "unknown": 0.0}
+            choice = max(probabilities, key=probabilities.__getitem__)
+            response = {"model": "m", "answers": {"audience": {
+                "type": "choice", "choice": choice, "confidence": 0.5, "probabilities": probabilities}}}
+            with closing(sqlite3.connect(":memory:")) as connection, \
+                    patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(response)):
+                return ai_decisions.resolve_audience(connection, {"title": "Laternenfest"}, "Kinder ab 4 basteln.",
+                                                     model="m", api_key="k", timeout_seconds=5)
+        self.assertEqual(ask(0.29, 0.71), "family")
+        self.assertEqual(ask(0.94, 0.04), "children")
+        self.assertEqual(ask(0.6, 0.3), "uncertain")
+
     def test_uncertain_and_failed_answers_are_distinguished(self):
         with closing(sqlite3.connect(":memory:")) as connection:
             self.assertEqual(self.ask(connection, "Mitmachaktion.", "family", 0.9), ("uncertain", 1))
@@ -362,3 +376,71 @@ class AudienceDecisionTests(unittest.TestCase):
                 jev_enabled=False, jev_api_key="k")):
             self.assertEqual(publication_enrichment._resolve_audience(events, {}), {})
         self.assertIs(events[0], event)
+
+
+class AgeDecisionTests(unittest.TestCase):
+    @staticmethod
+    def answer(question, choice, probability):
+        options = ai_decisions.AGE_QUESTIONS[question]["criteria"]
+        probabilities = {key: (1 - probability) / (len(options) - 1) for key in options}
+        probabilities[choice] = probability
+        return {"type": "choice", "choice": choice, "confidence": probability, "probabilities": probabilities}
+
+    def ask(self, low, high):
+        response = {"model": "m", "answers": {"min_age": self.answer("min_age", *low), "max_age": self.answer("max_age", *high)}}
+        with closing(sqlite3.connect(":memory:")) as connection, \
+                patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=respond(response)):
+            return ai_decisions.resolve_age_range(connection, {"title": "Laternenfest", "details": {"age": "ab 4 Jahren"}},
+                                                  "Kinder ab 4 Jahren basteln Laternen.", model="m", api_key="k", timeout_seconds=5)
+
+    def test_a_stated_minimum_stays_open_ended(self):
+        self.assertEqual(self.ask(("4", 0.99), ("none", 0.95)), (4, None))
+        # An uncertain or contradictory upper limit is dropped, never guessed.
+        self.assertEqual(self.ask(("4", 0.99), ("5", 0.6)), (4, None))
+        self.assertEqual(self.ask(("8", 0.99), ("6", 0.95)), (8, None))
+
+    def test_a_confident_range_keeps_both_ends(self):
+        self.assertEqual(self.ask(("8", 0.97), ("12", 0.96)), (8, 12))
+        self.assertEqual(self.ask(("0", 1.0), ("3", 0.92)), (0, 3))
+
+    def test_uncertain_or_uninformative_answers_publish_nothing(self):
+        self.assertEqual(self.ask(("4", 0.85), ("none", 0.99)), (None, None))
+        self.assertEqual(self.ask(("unknown", 0.99), ("unknown", 0.99)), (None, None))
+        self.assertEqual(self.ask(("none", 0.99), ("none", 0.99)), (None, None))
+        self.assertEqual(self.ask(("0", 0.95), ("none", 0.9)), (None, None))  # all ages
+        with closing(sqlite3.connect(":memory:")) as connection, \
+                patch.object(ai_decisions.OpenRouterDecisionClient, "evaluate", side_effect=DecisionError("http")):
+            self.assertIsNone(ai_decisions.resolve_age_range(connection, {"title": "Neu"}, "Text",
+                                                             model="m", api_key="k", timeout_seconds=5))
+
+    def test_validation_rejects_impossible_ranges(self):
+        for ages in ({"age_min": 18}, {"age_max": 6}, {"age_min": 8, "age_max": 6}, {"age_min": True}):
+            with self.assertRaises(EventValidationError):
+                validate_event({**make_event(), **ages})
+        self.assertEqual((validate_event({**make_event(), "age_min": 4}).age_min), 4)
+
+    def test_publication_sets_ages_of_eligible_events_only(self):
+        theatre = validate_event({**make_event(title="Grüffelo", description="Ab 3."), "details": {"age": "ab 3 Jahren"}})
+        failed = validate_event({**make_event(title="Kinderdisco"), "event_types": ["children"], "age_min": 6})
+        uncertain = validate_event({**make_event(title="Familienfest"), "event_types": ["family"], "age_min": 3})
+        martin = validate_event({**make_event(title="Martinszug Kita"), "event_types": ["children", "st-martin"]})
+        stale = validate_event({**make_event(title="Jazzkonzert"), "age_min": 10, "age_max": 12})
+        events = [theatre, failed, uncertain, martin, stale]
+        answers = {"Grüffelo": (3, None), "Familienfest": (None, None)}
+        asked = []
+        def resolve(_, raw, *args, **kwargs):
+            asked.append(raw["title"])
+            return answers.get(raw["title"])
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(ai_enrichment, "settings_from_env", return_value=ai_enrichment.AISettings(
+                    enabled=True, api_key="", model="m", cache_db=Path(tmp) / "c.sqlite3",
+                    jev_enabled=True, jev_api_key="k")), \
+                patch.object(ai_decisions, "resolve_age_range", side_effect=resolve):
+            outcomes = publication_enrichment._resolve_age_ranges(events, {})
+        self.assertEqual(sorted(asked), ["Familienfest", "Grüffelo", "Kinderdisco"])
+        self.assertEqual((events[0].age_min, events[0].age_max), (3, None))
+        self.assertIs(events[1], failed)  # a failed answer keeps the previous ages
+        self.assertIsNone(events[2].age_min)
+        self.assertIs(events[3], martin)
+        self.assertEqual((events[4].age_min, events[4].age_max), (None, None))  # no longer a children's event
+        self.assertEqual(outcomes, {"assigned": 1, "uncertain": 1, "failed": 1})

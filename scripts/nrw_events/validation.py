@@ -1097,6 +1097,12 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
         event.get("admission_checked") is True
         and event["admission"]["isFree"] is None and event["admission"]["amount"] is None
     )
+    age_min, age_max = event.get("age_min"), event.get("age_max")
+    if age_min is not None and (type(age_min) is not int or not 0 <= age_min <= 17):
+        raise EventValidationError("age_min_invalid")
+    if age_max is not None and (type(age_max) is not int or age_min is None or not age_min <= age_max <= 17):
+        raise EventValidationError("age_max_invalid")
+    event["age_min"], event["age_max"] = age_min, age_max
     # URLs contain venue slugs and navigation words such as ``museum`` or
     # ``events``; they are transport metadata, not editorial category evidence.
     try:

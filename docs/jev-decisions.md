@@ -237,3 +237,45 @@ the exclusion on `/kinder/` drops nothing yet; a sample of 25 accepted `adults`
 answers (tastings, nightlife, professional talks, grief groups) held. Recall is
 conservative: identical cinema days split between 1.0 and 0.62. Keep 0.95; do not
 lower it without a new hand-checked evaluation.
+
+Since 6 November 2026 a split between `children` and `family` whose sum is
+>= 0.95 adds the larger of the two: both list the event on `/kinder/`. On the
+5 November feed (about 700 distinct events with cached answers) this typed 78
+more events, 10 of them outside the kids category; all 10 were children's
+programmes by hand (Sitzkissenoper, Mitmachkonzert, Yakari, Der Zauberer von Oz,
+a lantern-crafting festival, a children's-author reading).
+
+## Children's ages (6 November 2026)
+
+After the audience step, publication asks Jev for the youngest and the oldest
+age in years each children's event is intended for (`AGE_QUESTIONS`,
+`event-age-v2`): a number 0-17, `none` or `unknown`. The answers become the
+additive feed fields `age_min` and `age_max`. Eligible are events in category
+`kids`, with type `children` or `family`, or with a source age (`details.age`)
+of at most 12; Martinszüge and `adults` events are not. The state is the
+audience state plus `details.age`, without occurrence dates. A label-bound
+fallback's `Kategorie:` line is removed first: calendar facets such as bonn.de's
+"Kinder (5 bis 12 Jahre)" are not an event's age, and Jev followed them despite
+instructions.
+
+`age_min` needs probability >= 0.9. `age_max` is set only at >= 0.9 and
+otherwise stays empty, which the website shows as "ab N Jahren": sources rarely
+state an upper limit, and an invented one excludes older children. `age_min` 0
+without an upper limit (family markets, fairs) publishes nothing. Each answered
+run replaces earlier ages; failures keep them; events that are no longer
+eligible lose them. Same budget as audience (180 seconds, eight parallel requests).
+
+Evaluation on the 6 November feed (`typesafe/jev-1.13`, label fallback for
+restricted sources locally): 148 eligible distinct events in 7 seconds for
+0.9 US cents with a cold cache. 63 received ages, 49 open ("ab 4 Jahren") and 14
+ranges ("8 bis 12 Jahre", "1. bis 4. Klasse" as 6-10, parent-child courses as
+0-1); all were consistent with the source by hand.
+
+The first version (`event-age-v1`) published fixed age groups (0-2, 3-5, 6-9,
+10-12, 13-17) as `age-*` event types. It turned "Kinder ab 4 Jahren" into 3-5
+because an open end can only be represented as the youngest group, so older
+children were wrongly excluded; groups also cannot say "ab 4". Five Nouls per
+group were worse still (7 of 26 stated ranges exact). Asking Jev for the age
+directly also showed that it reports minimum admission ages of ordinary events
+(candlelight concerts "ab 8", opera "ab 14"); the age question therefore never
+widens the children's selection by itself.
