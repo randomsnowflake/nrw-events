@@ -4,11 +4,14 @@ import json
 import re
 import urllib.parse
 from collections import defaultdict
-from datetime import timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from functools import partial
 
-from .. import common, components, http, reviewed_corrections
+from .. import common, components, config, http, reviewed_corrections
+from ..identity import event_id
 from ..models import normalize_source_id
+from ..normalization import _VERIFIED_LOCATION_BY_ALIAS, comparison_text
 from ..venue_quality import (
     invalid_venue_reason,
     retain_omitted_source_place,
@@ -88,7 +91,7 @@ def _fetch_calendar(city: str, url: str, calendar_url: str, trust: float) -> lis
     return []
 
 
-def _detail_fetcher_for_city(city: str):
+def _detail_fetcher_for_city(city: str) -> Callable[[str], str] | None:
     if city not in _DETAIL_CITIES:
         return None
     return lambda detail_url: common.fetch_detail_url(
@@ -141,7 +144,7 @@ def _detail_context(html: str) -> dict:
     }
 
 
-def _time_text(item: dict, start, end) -> str:
+def _time_text(item: dict, start: datetime | None, end: datetime | None) -> str:
     if item.get("allDay") or not start:
         return ""
     if end and end > start:
@@ -171,7 +174,7 @@ def _description_with_context(event: dict) -> str:
     return description
 
 
-def _all_day_series_key(item: dict):
+def _all_day_series_key(item: dict) -> tuple[str, datetime, datetime] | None:
     """Return a conservative key for FullCalendar-generated daily occurrences."""
     item_id = str(item.get("id") or "")
     match = re.fullmatch(r"(.+):\d+", item_id)
@@ -201,7 +204,7 @@ def _all_day_series_key(item: dict):
 
 def _collapse_consecutive_all_day_items(items: list) -> list:
     """Collapse three or more generated daily rows into one inclusive date run."""
-    grouped: dict[str, list[tuple[object, object, dict]]] = defaultdict(list)
+    grouped: dict[str, list[tuple[datetime, datetime, dict]]] = defaultdict(list)
     untouched: list[dict] = []
     for item in items:
         series = _all_day_series_key(item)
@@ -214,7 +217,7 @@ def _collapse_consecutive_all_day_items(items: list) -> list:
     collapsed = list(untouched)
     for occurrences in grouped.values():
         occurrences.sort(key=lambda value: value[0])
-        runs: list[list[tuple[object, object, dict]]] = []
+        runs: list[list[tuple[datetime, datetime, dict]]] = []
         for occurrence in occurrences:
             if runs and occurrence[0] == runs[-1][-1][1]:
                 runs[-1].append(occurrence)
@@ -231,7 +234,7 @@ def _collapse_consecutive_all_day_items(items: list) -> list:
 
 
 def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
-                       detail_fetcher=None, source_id: str = "") -> list:
+                       detail_fetcher: Callable[[str], str] | None = None, source_id: str = "") -> list:
     events = []
     overrides = {
         tuple(entry["match"]): entry["value"]
@@ -310,6 +313,17 @@ def _events_from_items(items: list, city: str, calendar_url: str, trust: float,
                 event["identity_time_locked"] = True
             if context.get("organizer"):
                 event["organizer"] = context["organizer"]
+            # Bad Honnef's calendar also lists the Königswinter museum; the venue's postcode names the town.
+            postcode = re.search(r"(?<!\d)(\d{5})(?!\d)", f"{event.get('venue', '')} {event.get('venue_address', '')}")
+            town, address = config.POSTCODE_MUNICIPALITIES.get(postcode.group(1), "") if postcode else "", ""
+            # Without a detail page only the venue name is left; a verified site in one other town names that town.
+            sites = {(site.city, site.address) for site in _VERIFIED_LOCATION_BY_ALIAS.get(comparison_text(event.get("venue", "")), [])}
+            if not town and len(sites) == 1:
+                [(town, address)] = sites
+            if town and not comparison_text(event["city"]).startswith(comparison_text(town)):
+                event["preserved_event_id"] = event.get("preserved_event_id") or event_id(event)
+                event["city"] = town
+                event["venue_address"] = event.get("venue_address") or address
             # Source/title/date interval, not a global place-name alias. The
             # reviewed public ID survives changed city or component venue.
             override = overrides.get((

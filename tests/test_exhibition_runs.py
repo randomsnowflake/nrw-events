@@ -1,6 +1,6 @@
 import unittest
 
-from nrw_events.exhibition_runs import merge_exhibition_opening_days
+from nrw_events.exhibition_runs import fold_secondary_copies_into_primary, merge_exhibition_opening_days
 from nrw_events.identity import assign_event_ids, event_id
 from nrw_events.validation import validate_event
 
@@ -394,3 +394,152 @@ class ListedTwiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _listing(source: str, source_id: str, start: str, end: str = "", *, time: str = "", title: str = "Radio 350 Hertz",
+             category_key: str = "stage", venue: str = "Theater Marabu"):
+    return validate_event({
+        "status": "scheduled",
+        "title": title,
+        "source": source,
+        "source_id": source_id,
+        "start_date": start,
+        "end_date": end or start,
+        "time": time,
+        "start_at": f"{start}T{time[:5]}+01:00" if time else "",
+        "venue": venue,
+        "city": "Bonn-Beuel",
+        "category_key": category_key,
+        "link": f"https://example.org/{source_id}/{start}",
+        "link_kind": "detail",
+        "score": 1.0,
+    })
+
+
+class FoldSecondaryCopiesTests(unittest.TestCase):
+    def test_aggregator_day_inside_organiser_run_redirects_to_it(self):
+        run = _listing("Theater Marabu", "theater-marabu", "2026-11-08", "2026-11-11")
+        copy = _listing("Bonn.de Events", "bonn-de-events", "2026-11-10", time="10:00–11:00")
+
+        [kept] = fold_secondary_copies_into_primary([copy, run])
+
+        self.assertEqual(kept.source_id, "theater-marabu")
+        self.assertIn(event_id(copy), kept.previous_event_ids)
+
+    def test_organiser_tours_stay_beside_aggregator_exhibition_run(self):
+        exhibition = _listing("Bonn.de Events", "bonn-de-events", "2026-10-15", "2028-06-11",
+                              title="Kraftfelder", category_key="exhibition")
+        tour = _listing("Kunstmuseum Bonn", "kunstmuseum-bonn", "2026-11-14", time="11:15",
+                        title="Kraftfelder", category_key="exhibition")
+
+        self.assertEqual(len(fold_secondary_copies_into_primary([exhibition, tour])), 2)
+        # Also when the museum's own tours are its venue's programme.
+        own_tour = validate_event({**tour.to_dict(), "venue_id": "kunstmuseum-bonn", "venue": "Kunstmuseum Bonn"})
+        own_exhibition = validate_event({**exhibition.to_dict(), "venue_id": "kunstmuseum-bonn", "venue": "Kunstmuseum Bonn"})
+        self.assertEqual(len(fold_secondary_copies_into_primary([own_exhibition, own_tour])), 2)
+
+    def test_same_day_with_other_clock_time_is_another_session(self):
+        primary = _listing("Theater Marabu", "theater-marabu", "2026-11-10", time="15:00")
+        copy = _listing("Bonn.de Events", "bonn-de-events", "2026-11-10", time="10:00")
+
+        self.assertEqual(len(fold_secondary_copies_into_primary([primary, copy])), 2)
+
+    def test_other_venue_or_dates_outside_the_run_stay(self):
+        run = _listing("Theater Marabu", "theater-marabu", "2026-11-08", "2026-11-11")
+        later = _listing("Bonn.de Events", "bonn-de-events", "2026-11-30")
+        elsewhere = _listing("Bonn.de Events", "bonn-de-events", "2026-11-10", venue="Junges Theater Bonn")
+
+        self.assertEqual(len(fold_secondary_copies_into_primary([run, later, elsewhere])), 3)
+
+    def test_unregistered_aggregator_venue_name_still_matches(self):
+        garden = validate_event({**_listing("Botanische Gärten Bonn", "botanische-gaerten-bonn", "2026-11-14",
+                                            time="15:00", title="Was Blätter alles können").to_dict(),
+                                 "venue": "Botanische Gärten Bonn", "venue_id": "botanische-gaerten-bonn", "city": "Bonn"})
+        copy = validate_event({**_listing("Bonn.de Events", "bonn-de-events", "2026-11-14",
+                                          title="Was Blätter alles können").to_dict(),
+                               "venue": "Botanische Gärten der Universität Bonn", "venue_id": "", "city": "Bonn"})
+
+        [kept] = fold_secondary_copies_into_primary([copy, garden])
+
+        self.assertEqual(kept.source_id, "botanische-gaerten-bonn")
+
+
+def _sessions(source: str, source_id: str, slots: list[tuple[str, str, str]], *, title: str, venue: str,
+              city: str, category_key: str = "concert"):
+    """A run whose dated sessions the source lists, each as (date, start, end)."""
+    schedule = [{"date": day, "start_at": f"{day}T{start}:00+01:00", "end_at": f"{day}T{end}:00+01:00"}
+                for day, start, end in slots]
+    return validate_event({
+        "status": "scheduled", "title": title, "source": source, "source_id": source_id,
+        "start_date": slots[0][0], "end_date": slots[-1][0], "time": "", "venue": venue, "city": city,
+        "category_key": category_key, "link": f"https://example.org/{source_id}", "link_kind": "detail",
+        "score": 1.0, "daily_schedule": schedule, "dated_sessions": True,
+    })
+
+
+class FoldSecondaryDatesTests(unittest.TestCase):
+    def test_date_in_a_gap_of_the_organisers_schedule_folds_without_adding_it(self):
+        marabu = [_listing("Theater Marabu", "theater-marabu", day, time="10:00")
+                  for day in ("2026-11-09", "2026-11-11", "2026-12-17")]
+        copy = _listing("Bonn.de Events", "bonn-de-events", "2026-11-10", time="10:00–11:00")
+
+        kept = fold_secondary_copies_into_primary([*marabu, copy])
+
+        self.assertEqual([event.start_date for event in kept], ["2026-11-09", "2026-11-11", "2026-12-17"])
+        self.assertIn(event_id(copy), kept[0].previous_event_ids)
+
+    def test_date_near_a_venues_own_programme_folds_without_adding_it(self):
+        marabu = _listing("Theater Marabu", "theater-marabu", "2026-11-21", time="15:00", title="Summ & Brumm")
+        copy = _listing("Bonn.de Events", "bonn-de-events", "2026-11-07", time="15:00", title="Summ & Brumm")
+
+        [kept] = fold_secondary_copies_into_primary([copy, marabu])
+
+        self.assertEqual((kept.start_date, kept.end_date), ("2026-11-21", "2026-11-21"))
+        self.assertIn(event_id(copy), kept.previous_event_ids)
+
+    def test_multi_stage_organiser_programme_is_complete_too(self):
+        werther = validate_event({**_listing("Theater Bonn", "theater-bonn", "2026-11-14", time="19:30",
+                                             title="Die Leiden des jungen Werther",
+                                             venue="Schauspielhaus Bad Godesberg").to_dict(), "venue_id": "schauspielhaus"})
+        copy = validate_event({**_listing("Bonn.de Events", "bonn-de-events", "2026-11-12", time="19:30",
+                                          title="Die Leiden des jungen Werther",
+                                          venue="Schauspielhaus Bad Godesberg").to_dict(), "venue_id": "schauspielhaus"})
+
+        [kept] = fold_secondary_copies_into_primary([copy, werther])
+
+        self.assertEqual((kept.start_date, kept.end_date), ("2026-11-14", "2026-11-14"))
+        self.assertIn(event_id(copy), kept.previous_event_ids)
+
+    def test_date_before_a_calendars_sessions_extends_them_under_the_same_url(self):
+        title, venue = "Ins Bewußtsein singen! Kennenlernabend", "Studio Schatzinsel"
+        calendar = _sessions("ionas4 regional", "ionas4-bad-honnef",
+                             [("2026-11-12", "19:00", "21:00"), ("2026-11-26", "19:00", "21:00")],
+                             title=title, venue=venue, city="Bad Honnef")
+        copy = _sessions("Bonn.de Events", "bonn-de-events", [("2026-11-10", "19:00", "21:00")],
+                         title=title, venue=venue, city="Bad Honnef")
+
+        [kept] = fold_secondary_copies_into_primary([copy, calendar])
+
+        self.assertEqual(event_id(kept), event_id(calendar))
+        self.assertEqual((kept.start_date, kept.end_date), ("2026-11-10", "2026-11-26"))
+        self.assertEqual([slot["date"] for slot in kept.daily_schedule], ["2026-11-10", "2026-11-12", "2026-11-26"])
+        self.assertIn(event_id(copy), kept.previous_event_ids)
+
+    def test_aggregator_run_around_the_listed_day_adds_its_other_days(self):
+        day = validate_event({
+            "status": "scheduled", "title": "Flatland", "source": "Siegburg", "source_id": "siegburg",
+            "start_date": "2026-11-07", "time": "14:00–22:00", "start_at": "2026-11-07T14:00+01:00",
+            "end_at": "2026-11-07T22:00+01:00", "venue": "Künstlerischer Projektraum", "city": "Siegburg",
+            "venue_address": "Kaiserstraße 130, 53721 Siegburg",
+            "category_key": "concert", "link": "https://events.siegburg.de/flatland", "link_kind": "detail",
+            "score": 1.0,
+        })
+        run = validate_event({**_sessions(
+            "Bonn.de Events", "bonn-de-events", [("2026-11-06", "19:00", "21:00"), ("2026-11-08", "14:00", "18:00")],
+            title="Flatland", venue="Projektraum für zeitgenössische Kunst", city="Siegburg",
+        ).to_dict(), "venue_address": "Kaiserstraße 130, 53721 Siegburg"})
+
+        [kept] = fold_secondary_copies_into_primary([run, day])
+
+        self.assertEqual(event_id(kept), event_id(day))
+        self.assertEqual([slot["date"] for slot in kept.daily_schedule], ["2026-11-06", "2026-11-07", "2026-11-08"])

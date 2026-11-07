@@ -216,6 +216,14 @@
       "longitude": 7.0469546,
       "osmUrl": "https://www.openstreetmap.org/way/1203760335",
       "note": "OSM building Oppelner Straße 126b, 53119 Bonn; the bonn.de calendar misspells it as Opplener Str., which no geocoder finds"
+    },
+    {
+      "city": "Königswinter",
+      "venue": "Siebengebirgsmuseum",
+      "latitude": 50.674547,
+      "longitude": 7.192262,
+      "osmUrl": "https://www.openstreetmap.org/node/7616417283",
+      "note": "ALKIS museum building Kellerstraße 16 (website venue koenigswinter-siebengebirgsmuseum); Bad Honnef's ionas4 calendar lists the museum's events without its town"
     }
   ]
 }

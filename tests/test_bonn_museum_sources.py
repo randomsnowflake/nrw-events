@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from nrw_events import common, report
+from nrw_events.identity import event_id
 from nrw_events.sources import (
     SOURCES,
     bonn,
@@ -235,6 +236,23 @@ class BonnMuseumSourceTests(unittest.TestCase):
         self.assertIn("Deutsches Museum Bonn", SOURCES)
         self.assertIn("Haus der Geschichte Begleitungen", SOURCES)
         self.assertIs(SOURCES["Kunstmuseum Bonn"], kunstmuseum_bonn.fetch)
+
+    def test_kunstmuseum_tour_names_itself_but_keeps_its_url(self):
+        listing = """
+        <a href="https://www.kunstmuseum-bonn.de/de/besuch/kalender/kraftfelder-14/">
+          <figure><figcaption class="teaser-caption">
+            <p class="teaser-date">So. 23.08.2026, 11:00 Uhr</p>
+            <h4 class="teaser-title">Kraftfelder</h4>
+            <p class="teaser-meta">Ehrenamtliche Arbeitskreisführung</p>
+          </figcaption></figure>
+        </a>
+        """
+        [tour] = kunstmuseum_bonn.events_from_html(listing)
+        [workshop] = kunstmuseum_bonn.events_from_html(listing.replace("Ehrenamtliche Arbeitskreisführung", "Workshop"))
+
+        self.assertEqual(tour["title"], "Führung: Kraftfelder")
+        self.assertEqual(event_id(tour), event_id(workshop))
+        self.assertEqual(workshop["title"], "Kraftfelder")
 
     def test_kunstmuseum_record_deduplicates_bonn_calendar_copy(self):
         listing = """

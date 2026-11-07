@@ -170,6 +170,9 @@ def _event_from_payload(listing: dict, detail: dict) -> dict | None:
     start = _local_datetime(item.get("beginning", listing.get("beginning")), all_day=all_day)
     end = _local_datetime(item.get("end", listing.get("end")), all_day=all_day)
     venue, address, city, coords = _location_parts(detail, listing)
+    # The 20 km radius reaches Köln-Porz; tours starting there serve Köln riders, not the Bonn region.
+    if city.casefold().startswith(("köln", "koeln")):
+        return None
     description, description_html = _description(detail, listing)
     description_source = (
         "scraped"

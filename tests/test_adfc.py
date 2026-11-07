@@ -86,6 +86,14 @@ class AdfcBonnSourceTests(unittest.TestCase):
             "https://touren-termine.adfc.de/radveranstaltung/204069-feierabendtour-bonn",
         )
 
+    def test_drops_tours_starting_in_koeln(self):
+        location = {**DETAIL_PAYLOAD["tourLocations"][0], "name": "Friedrich-Ebert-Ufer",
+                    "zipCode": "51143", "city": "Köln", "latitude": 50.887057, "longitude": 7.053518}
+        item = {**LISTING_ITEM, "title": "Martinsmarkt Brühl", "city": "Köln", "cUnitName": "ADFC Köln"}
+        detail = {**DETAIL_PAYLOAD, "tourLocations": [location], "eventItem": {**DETAIL_PAYLOAD["eventItem"], **item}}
+
+        self.assertEqual(adfc_bonn.events_from_payload([item], detail_fetcher=lambda _slug: detail), [])
+
     def test_all_day_date_is_not_shifted_by_utc_conversion(self):
         item = {
             **LISTING_ITEM,

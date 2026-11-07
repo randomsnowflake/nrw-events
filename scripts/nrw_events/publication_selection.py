@@ -160,6 +160,7 @@ def select_publication(context: RunContext, batch: SourceBatch, previous: dict) 
     )
     deduped = report.suppress_redundant_series_umbrellas(deduped)
     deduped = exhibition_runs.merge_exhibition_opening_days(deduped, previous)
+    deduped = exhibition_runs.fold_secondary_copies_into_primary(deduped)
     published_event_ids = {event_id(event) for event in deduped}
     generated_at = context.clock().isoformat(timespec="seconds")
     deduped = cast(list[CanonicalEvent], _impl_identity_reconciliation._reconcile_published_ids(deduped, previous))

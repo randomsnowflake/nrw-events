@@ -647,7 +647,8 @@ def _close_start_key(event: Mapping[str, Any]) -> tuple[str, str, str, str] | No
     bounds = _date_bounds(event)
     venue = comparison_text(str(event.get("venue") or "").split(",", 1)[0], separator="")
     title = normalize_title(event.get("title", ""))
-    if not bounds or bounds[0] != bounds[1] or not venue or not title or not _explicit_start(event):
+    # Two listings without any venue still match on title, day and town; the empty venue must then match too.
+    if not bounds or bounds[0] != bounds[1] or not title or not _explicit_start(event):
         return None
     return (title, bounds[0].isoformat(), _normalized_city(event.get("city", "")), venue)
 

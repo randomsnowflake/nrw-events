@@ -50,6 +50,8 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
+from .dedup_rules import ORGANISER_PROGRAMME_SOURCE_IDS, source_authority
+from .duplicate_identity import _locations_compatible
 from .identity import event_id
 from .models import CanonicalEvent
 from .normalization import comparison_text
@@ -312,4 +314,136 @@ def merge_exhibition_opening_days(
         replacement = replaced.get(id(event), event)
         if replacement is not None:
             result.append(replacement)
+    return result
+
+
+def _same_place(left: CanonicalEvent, right: CanonicalEvent) -> bool:
+    if comparison_text(left.city.split("-", 1)[0]) != comparison_text(right.city.split("-", 1)[0]):
+        return False
+    if left.venue_id and right.venue_id:
+        return left.venue_id == right.venue_id
+    # bonn.de often lacks the registry match ("Botanische Gärten der Universität Bonn"); dedup's venue rules decide.
+    return _locations_compatible(left, right)
+
+
+def _slots(event: CanonicalEvent) -> list[dict[str, str]] | None:
+    """Dated slots of a single day or a scheduled run; an unscheduled range has none."""
+    if event.daily_schedule:
+        return [dict(slot) for slot in event.daily_schedule]
+    if _is_run(event):
+        return None
+    return [{"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}]
+
+
+def _gap_days(left: CanonicalEvent, right: CanonicalEvent) -> int:
+    """Days between two date spans; 0 when they overlap."""
+    return max(
+        (date.fromisoformat(left.start_date) - date.fromisoformat(right.end_date)).days,
+        (date.fromisoformat(right.start_date) - date.fromisoformat(left.end_date)).days,
+        0,
+    )
+
+
+def _extended(primary: CanonicalEvent, copy: CanonicalEvent) -> CanonicalEvent | None:
+    """The primary with the copy's dates beyond its own span added as sessions."""
+    own, extra = _slots(primary), _slots(copy)
+    if own is None or extra is None or (primary.category_key == "exhibition" and not primary.dated_sessions):
+        return None
+    added = [slot for slot in extra if not primary.start_date <= slot["date"] <= primary.end_date]
+    days = sorted(date.fromisoformat(slot["date"]) for slot in [*own, *added])
+    if not added or len(days) > _MAX_SCHEDULE_SLOTS or any(
+        (later - earlier).days > MAX_CLOSED_DAYS for earlier, later in pairwise(days)
+    ):
+        return None
+    slots = sorted([*own, *added], key=lambda slot: (slot["date"], slot["start_at"]))
+    return validate_event({
+        **primary.to_dict(),
+        # The organiser's page keeps its URL while its dates grow.
+        "preserved_event_id": event_id(primary),
+        "start_date": slots[0]["date"], "date": slots[0]["date"], "end_date": slots[-1]["date"],
+        "time": "", "identity_time": "", "identity_time_locked": False, "start_at": "", "end_at": "",
+        "all_day": False, "daily_schedule": slots, "dated_sessions": True,
+    })
+
+
+def fold_secondary_copies_into_primary(events: Sequence[CanonicalEvent]) -> list[CanonicalEvent]:
+    """Give each offer one page when an aggregator lists dates its organiser's calendar does not.
+
+    Dedup pairs one day with one day; bonn.de's leftover dates then formed a
+    second page with the primary's title. A lower-ranked record of the same
+    title and place now joins the higher-ranked one and redirects there:
+
+    - A date inside the span the primary source lists for that offer is one it
+      left out on purpose (Marabu plays 8, 9 and 11 November, bonn.de adds the
+      10th): the copy folds into the nearest listed date without adding it.
+    - Dates up to ``MAX_CLOSED_DAYS`` beyond that span extend the primary's
+      sessions when it is a calendar showing only part of the series (Bad
+      Honnef lists 12 and 26 November, bonn.de also the 10th). An organiser's
+      own programme (venue ID = source ID, or ``ORGANISER_PROGRAMME_SOURCE_IDS``
+      such as Theater Bonn's several stages) is complete; such dates fold unlisted.
+
+    A higher-ranked record is never folded, so a museum's own dated tours stay
+    next to bonn.de's exhibition run of the same name. On one shared day two
+    clock times stay two sessions, and opening-day runs never grow.
+    """
+    candidates: dict[str, list[CanonicalEvent]] = defaultdict(list)
+    for event in events:
+        if isinstance(event, CanonicalEvent) and event.status == "scheduled":
+            candidates[comparison_text(event.title)].append(event)
+    current: dict[int, CanonicalEvent] = {}
+    folded: dict[int, list[CanonicalEvent]] = defaultdict(list)
+    dropped: set[int] = set()
+    for copy in events:
+        if not isinstance(copy, CanonicalEvent) or copy.status != "scheduled":
+            continue
+        rows = candidates.get(comparison_text(copy.title), [])
+        by_source: dict[str, list[CanonicalEvent]] = defaultdict(list)
+        for row in rows:
+            primary = current.get(id(row), row)
+            if (
+                row is copy or id(row) in dropped or row.source_id == copy.source_id
+                or source_authority(row.source) <= source_authority(copy.source)
+                or not _same_place(primary, copy)
+            ):
+                continue
+            by_source[row.source_id].append(row)
+        # The highest-ranked source decides.
+        for group in sorted(by_source.values(), key=lambda group: -source_authority(group[0].source)):
+            versions = [current.get(id(row), row) for row in group]
+            if any(
+                not _is_run(version) and version.start_date == copy.start_date
+                and version.start_at and copy.start_at and version.start_at != copy.start_at
+                for version in versions
+            ):
+                continue
+            first = min(version.start_date for version in versions)
+            last = max(version.end_date for version in versions)
+            gaps = [_gap_days(version, copy) for version in versions]
+            nearest = min(range(len(group)), key=lambda index: (gaps[index], versions[index].start_date))
+            target = group[nearest]
+            if not first <= copy.start_date <= copy.end_date <= last:
+                if versions[nearest].venue_id == target.source_id or target.source_id in ORGANISER_PROGRAMME_SOURCE_IDS:
+                    # A venue's own programme is complete: a nearby date it does not list is not played.
+                    # An overlapping range is another offer (bonn.de's exhibition run beside the museum's tours).
+                    if not (copy.end_date < first or copy.start_date > last) or gaps[nearest] > MAX_CLOSED_DAYS:
+                        continue
+                elif extended := _extended(versions[nearest], copy):
+                    current[id(target)] = extended
+                else:
+                    continue
+            folded[id(target)].append(copy)
+            dropped.add(id(copy))
+            break
+    if not dropped:
+        return list(events)
+    result: list[CanonicalEvent] = []
+    for event in events:
+        if id(event) in dropped:
+            continue
+        version = current.get(id(event), event)
+        copies = folded.get(id(event))
+        result.append(validate_event({**version.to_dict(), "previous_event_ids": list(dict.fromkeys([
+            *version.previous_event_ids,
+            *(identifier for copy in copies for identifier in (event_id(copy), *copy.previous_event_ids)),
+        ]))}) if copies else version)
     return result

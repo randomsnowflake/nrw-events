@@ -1,8 +1,11 @@
 """Kunstmuseum Bonn — official event calendar and event details."""
 
 import re
+from collections.abc import Callable
+from datetime import datetime
 
 from .. import common
+from ..identity import event_id
 from . import regional_common as rc
 
 _URL = "https://www.kunstmuseum-bonn.de/de/besuch/kalender/"
@@ -32,7 +35,7 @@ def _detail_price(html: str) -> str:
     return rc.clean(match.group(1))[:160] if match else ""
 
 
-def _fallback_description(title: str, format_text: str, start) -> str:
+def _fallback_description(title: str, format_text: str, start: datetime | None) -> str:
     schedule = f" am {start:%d.%m.%Y}" if start else ""
     if start and start.strftime("%H:%M") != "00:00":
         schedule += f" um {start:%H:%M} Uhr"
@@ -43,7 +46,7 @@ def _fallback_description(title: str, format_text: str, start) -> str:
     )
 
 
-def events_from_html(html: str, detail_fetcher=None) -> list:
+def events_from_html(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for href, body in re.findall(
         r'<a href="(?P<href>[^"]+/de/besuch/kalender/[^"]+/)">(.*?)</a>',
@@ -91,6 +94,10 @@ def events_from_html(html: str, detail_fetcher=None) -> list:
             description_source="scraped" if description else "generated",
         )
         if event:
+            # A tour titled only with its exhibition ("Kraftfelder") reads as the exhibition itself; the URL stays.
+            if "führung" in format_text.casefold() and not re.search(r"führung|rundgang", title, re.I):
+                event["preserved_event_id"] = event_id(event)
+                event["title"] = f"Führung: {title}"
             if price:
                 event["price"] = price
                 event["admission_basis"] = "explicit"

@@ -88,6 +88,34 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         )
         self.assertIn("eventId=9697%3A0", requested[0])
 
+    def test_ionas4_venue_postcode_overrules_the_calendar_town(self):
+        items = [{
+            "id": "34552:0", "start": "2026-11-13T14:00", "end": "2026-11-13T15:30",
+            "title": "Steinofenbrot aus dem Königswinterer Ofen", "website": "",
+            "category": {"name": "Führung"}, "tags": [], "location": {"name": None},
+        }]
+        detail_html = """
+<div class="integration-details__field tvm-event--description"><p>Brotbacken im Museum.</p></div>
+<p class="integration-details__field tvm-event--location"><a>Siebengebirgsmuseum, Kellerstr. 16, 53639 Königswinter</a></p>
+"""
+        patch_window(self, datetime(2026, 11, 7), datetime(2026, 12, 5))
+        [event] = regional_ionas4._events_from_items(
+            items, "Bad Honnef", "https://meinbadhonnef.de/kalender/", 0.82,
+            detail_fetcher=lambda _url: detail_html,
+        )
+        moved = {**event, "city": "Bad Honnef", "preserved_event_id": ""}
+
+        self.assertEqual(event["city"], "Königswinter")
+        self.assertEqual(event["preserved_event_id"], event_id(moved))
+
+        # A failed detail fetch leaves the listing's venue name; the verified site still names the town.
+        listed = {**items[0], "location": {"name": "Siebengebirgsmuseum"}}
+        [fallback] = regional_ionas4._events_from_items(
+            [listed], "Bad Honnef", "https://meinbadhonnef.de/kalender/", 0.82, detail_fetcher=None,
+        )
+        self.assertEqual(fallback["city"], "Königswinter")
+        self.assertEqual(fallback["venue_address"], "Kellerstraße 16, 53639 Königswinter")
+
     def test_ionas4_resolves_relative_detail_links_against_the_calendar_origin(self):
         events = regional_ionas4._events_from_items(
             [{

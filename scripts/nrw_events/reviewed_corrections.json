@@ -49,6 +49,17 @@
     ],
     "ionas4_occurrence_overrides": [
       {
+        "match": ["ionas4-bad-honnef", "Das Siebengebirgsmuseum: Landschaft – Geschichte – Rheinromantik", "2026-11-29", "2026-11-29"],
+        "value": {
+          "city": "Königswinter",
+          "venue": "Siebengebirgsmuseum",
+          "venue_address": "Kellerstr. 16, 53639 Königswinter",
+          "preserved_event_id": "das-siebengebirgsmuseum-landschaft-geschichte-rheinroman-f2121582ac"
+        },
+        "valid_until": "2026-11-29",
+        "evidence": "Verified 2026-11-07: the title names the venue; the museum is at Kellerstr. 16, 53639 Königswinter (bonn.de lists the same 11:00 tour there). The Bad Honnef calendar gives no location. Preserve the published URL."
+      },
+      {
         "match": ["ionas4-ruppichteroth", "Röttgen Rockt", "2026-09-04", "2026-09-05"],
         "value": {
           "city": "Much",

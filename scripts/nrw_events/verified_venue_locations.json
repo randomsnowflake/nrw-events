@@ -5865,6 +5865,19 @@
     },
     {
       "city": "Königswinter",
+      "venue": "Siebengebirgsmuseum",
+      "address": "Kellerstraße 16, 53639 Königswinter",
+      "latitude": 50.674547,
+      "longitude": 7.192262,
+      "checkedAt": "2026-11-07",
+      "evidence": {
+        "eventUrl": "https://www.koenigswinter.de/de/veranstaltungskalender/event/145618,1081/steinofenbrot-aus",
+        "osmUrl": "https://www.openstreetmap.org/node/7616417283",
+        "method": "ALKIS museum building Kellerstraße 16 (website venue koenigswinter-siebengebirgsmuseum); Bad Honnef's ionas4 calendar lists the museum's events without its town"
+      }
+    },
+    {
+      "city": "Königswinter",
       "venue": "Steigenberger Grandhotel Petersberg, Rotunde",
       "address": "Petersberg 53639 Königswinter",
       "latitude": 50.6859549,

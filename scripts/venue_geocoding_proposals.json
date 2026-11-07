@@ -38348,6 +38348,26 @@
         },
         "wikidata": null
       }
+    },
+    {
+      "city": "Königswinter",
+      "venue": "Siebengebirgsmuseum",
+      "count": 9,
+      "addresses": [
+        "Kellerstraße 16, 53639 Königswinter"
+      ],
+      "classification": "candidate",
+      "samples": [
+        {
+          "title": "Steinofenbrot aus dem Königswinterer Ofen",
+          "link": "https://www.koenigswinter.de/de/veranstaltungskalender/event/145618,1081/steinofenbrot-aus"
+        }
+      ],
+      "queries": [],
+      "status": "needs-review",
+      "score": 0,
+      "reasons": [],
+      "checkedAt": "2026-11-07"
     }
   ]
 }

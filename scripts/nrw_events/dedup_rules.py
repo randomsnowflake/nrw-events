@@ -127,6 +127,17 @@ _REVIEWED_SOURCE_CONFLICT_FAMILIES = {
 }
 
 
+#: Organisers publishing their own complete programme across several stages or
+#: rooms (single-venue organisers are recognised by venue ID = source ID).
+#: Reviewed 2026-11-07 from the feed's sources with two to eight venues.
+ORGANISER_PROGRAMME_SOURCE_IDS = frozenset({
+    "bonner-m-nster-musik", "brotfabrik-bonn", "haus-der-geschichte", "haus-der-springmaus",
+    "institut-francais-bonn", "junges-theater-bonn", "kruemelbuehne-bonn", "kunstrasen-bonn",
+    "literaturhaus-bonn", "museum-koenig-bonn", "pantheon-bonn", "theater-bonn", "vhs-bonn",
+    "volkssternwarte-bonn",
+})
+
+
 _REUSED_OVERVIEW_LINK_THRESHOLD = 5
 
 
@@ -158,6 +169,12 @@ _REVIEWED_VENUE_ALIAS_FAMILIES = (
         "theaterplatz", "bad godesberger innenstadt", "bad godesberg innenstadt",
         "innenstadt bad godesberg",
     }),
+    # Reviewed 2026-11-07: bonn.de names the museum library (with its typo) for the LVR's Objektbegutachtung.
+    frozenset({
+        "lvr landesmuseum bonn", "bibliothek des lvr landesmuseums bonn", "bibliothek des lvr landesmusuems bonn",
+    }),
+    # Reviewed 2026-11-07: Siegburg's calendar and bonn.de name the same room at Kaiserstraße 130 differently.
+    frozenset({"kuenstlerischer projektraum", "projektraum fuer zeitgenoessische kunst"}),
 )
 
 
