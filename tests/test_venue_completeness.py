@@ -367,6 +367,43 @@ class VenueCompletenessTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["venue"], "JUZ Live Club")
 
+    def test_clickaround_names_label_entries_by_subtitle_and_keeps_start_time(self):
+        def item(number, title, subtitle, time_label, time):
+            return f"""
+            <div class="item">
+              <a href="/events/{number}" aria-label="Mehr Infos - {title}" class="image"></a>
+              <div class="content"><div class="header"> {title} </div>
+              <div class="meta">{subtitle}</div>
+              <div class="description"><div><b>{time_label}:</b> {time} Uhr </div>
+              <div><b>Treffpunkt:</b> Andernach </div></div>
+            </div></div>"""
+
+        label = "Martinszüge Andernach 2026"
+        html = (
+            '<div class="ui dividing header">13. November 2026</div>'
+            + item(458, label, "Martinszug in Namedy", "Beginn", "17:30")
+            + item(459, label, "Martinszug in Eich", "Beginn", "18:00")
+            + item(460, "Kommunales Kino", "in der Christuskirche", "Uhrzeit", "19:00 - 22:00")
+            + '<div class="ui dividing header">14. November 2026</div>'
+            + item(461, label, "Martinszug Kernstadt", "Beginn", "18:00")
+            + item(462, "Figurentheater", "&quot;Balduin&quot;", "Uhrzeit", "15:00 - 15:45")
+            + item(463, "Figurentheater", "&quot;Otto&quot;", "Uhrzeit", "15:00 - 15:45")
+        )
+
+        events = regional_venues._events_from_clickaround(html, "https://events.example/core")
+
+        self.assertEqual(
+            [(event["title"], event["time"]) for event in events],
+            [
+                ("Martinszug in Namedy", "17:30"),
+                ("Martinszug in Eich", "18:00"),
+                ("Kommunales Kino", "19:00–22:00"),
+                ("Martinszug Kernstadt", "18:00"),
+                ("Figurentheater", "15:00–15:45"),
+                ("Figurentheater", "15:00–15:45"),
+            ],
+        )
+
     def test_arp_listing_keeps_the_visible_opening_time(self):
         html = """
         <a href="/veranstaltungen/detail/museumsdienstag-3334.html">

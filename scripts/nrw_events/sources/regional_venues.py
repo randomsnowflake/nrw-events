@@ -256,8 +256,15 @@ def _events_from_arp(html: str) -> list:
     return events
 
 
+_CLICKAROUND_ITEM = re.compile(r'<div class="item">(.*?)</div>\s*</div>', re.S | re.I)
+_CLICKAROUND_LINK = re.compile(r'href="([^"]+)"[^>]+aria-label="Mehr Infos - ([^"]+)"', re.S | re.I)
+_CLICKAROUND_SUBTITLE = re.compile(r'<div class="meta">(.*?)</div>', re.S | re.I)
+_CLICKAROUND_TIME = re.compile(r'<b>(?:Beginn|Uhrzeit):</b>\s*([^<]+)', re.I)
+
+
 def _events_from_clickaround(html: str, base: str) -> list:
     events, current_date = [], None
+    labels = _clickaround_labels(html)
     chunks = re.split(r'(<div class="ui dividing header">[^<]+</div>)', html)
     for chunk in chunks:
         header = re.search(r'ui dividing header">\s*([^<]+)', chunk)
@@ -266,14 +273,29 @@ def _events_from_clickaround(html: str, base: str) -> list:
             continue
         if not current_date:
             continue
-        events.extend(_clickaround_events_for_date(chunk, current_date, base))
+        events.extend(_clickaround_events_for_date(chunk, current_date, base, labels))
     return events
 
 
-def _clickaround_events_for_date(chunk: str, current_date: datetime, base: str) -> list:
+def _clickaround_parts(item: str) -> tuple[re.Match | None, str]:
+    subtitle = _CLICKAROUND_SUBTITLE.search(item)
+    return _CLICKAROUND_LINK.search(item), rc.clean(subtitle.group(1)) if subtitle else ""
+
+
+def _clickaround_labels(html: str) -> set[str]:
+    """Titles the site reuses as a label over distinct subtitles ("Martinszüge Andernach 2026")."""
+    subtitles: dict[str, set[str]] = {}
+    for item in _CLICKAROUND_ITEM.findall(html):
+        link, subtitle = _clickaround_parts(item)
+        if link and subtitle:
+            subtitles.setdefault(rc.clean(link.group(2)), set()).add(subtitle)
+    return {title for title, values in subtitles.items() if len(values) > 1}
+
+
+def _clickaround_events_for_date(chunk: str, current_date: datetime, base: str, labels: set[str]) -> list:
     events = []
-    for item in re.findall(r'<div class="item">(.*?)</div>\s*</div>', chunk, re.S | re.I):
-        link = re.search(r'href="([^"]+)"[^>]+aria-label="Mehr Infos - ([^"]+)"', item, re.S | re.I)
+    for item in _CLICKAROUND_ITEM.findall(chunk):
+        link, subtitle = _clickaround_parts(item)
         venue = re.search(
             r'<b>(?:Veranstaltungsort|Adresse):</b>\s*([^<]+)',
             item,
@@ -281,8 +303,14 @@ def _clickaround_events_for_date(chunk: str, current_date: datetime, base: str) 
         )
         if not link:
             continue
+        title = rc.clean(link.group(2))
+        # "Martinszug in Kell" under the label: the subtitle names the actual event.
+        # Lower-case or quoted subtitles ("in der Christuskirche", "„Balduin“") only qualify the title.
+        if title in labels and subtitle[:1].isupper():
+            title = subtitle
+        time = _CLICKAROUND_TIME.search(item)
         ev = common.make_event(
-            rc.clean(link.group(2)),
+            title,
             current_date,
             None,
             rc.clean(venue.group(1) if venue else ""),
@@ -292,6 +320,7 @@ def _clickaround_events_for_date(chunk: str, current_date: datetime, base: str) 
             "Andernach",
             "andernach kultur konzert theater open air fest",
             0.84,
+            time_text=rc.time_text(rc.clean(time.group(1))) if time else "",
         )
         if ev:
             events.append(ev)
