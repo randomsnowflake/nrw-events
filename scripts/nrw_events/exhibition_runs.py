@@ -393,7 +393,9 @@ def fold_secondary_copies_into_primary(events: Sequence[CanonicalEvent]) -> list
     current: dict[int, CanonicalEvent] = {}
     folded: dict[int, list[CanonicalEvent]] = defaultdict(list)
     dropped: set[int] = set()
-    for copy in events:
+    # Highest-ranked copies first: a record is dropped before a lower-ranked one could fold into it,
+    # so no fold ever lands in a record that later disappears (the result keeps the input order).
+    for copy in sorted(events, key=lambda event: -source_authority(getattr(event, "source", ""))):
         if not isinstance(copy, CanonicalEvent) or copy.status != "scheduled":
             continue
         rows = candidates.get(comparison_text(copy.title), [])

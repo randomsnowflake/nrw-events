@@ -451,6 +451,17 @@ class FoldSecondaryCopiesTests(unittest.TestCase):
 
         self.assertEqual(len(fold_secondary_copies_into_primary([run, later, elsewhere])), 3)
 
+    def test_three_ranks_fold_the_same_whatever_the_input_order(self):
+        organiser = _listing("Theater Marabu", "theater-marabu", "2026-11-10", time="15:00")
+        civic = _listing("Bonn.de Events", "bonn-de-events", "2026-11-10")
+        other_session = _listing("Bonn.jetzt", "bonn-jetzt", "2026-11-10", time="10:00")
+
+        for events in ([other_session, civic, organiser], [organiser, civic, other_session]):
+            kept = fold_secondary_copies_into_primary(events)
+            # The 10:00 session must not vanish by folding into the civic copy that then folds away.
+            self.assertEqual(sorted(event.source_id for event in kept), ["bonn-jetzt", "theater-marabu"])
+            self.assertIn(event_id(civic), next(e for e in kept if e.source_id == "theater-marabu").previous_event_ids)
+
     def test_unregistered_aggregator_venue_name_still_matches(self):
         garden = validate_event({**_listing("Botanische Gärten Bonn", "botanische-gaerten-bonn", "2026-11-14",
                                             time="15:00", title="Was Blätter alles können").to_dict(),
