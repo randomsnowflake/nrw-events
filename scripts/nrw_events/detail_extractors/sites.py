@@ -558,3 +558,30 @@ def _bildungswerk_brotfabrik_context(document: str, event: RawEvent) -> DetailCo
     _description, description_html = _exact_jsonld_description(document, event)
     return _context_from_fragment(description_html)
 
+
+
+def _clickaround_detail_context(document: str, event: RawEvent) -> DetailContext | None:
+    """Keep only the prose segment of a click-around event page.
+
+    The page also renders image credits, back/print links and the "Weitere
+    Termine" list as sibling segments; the prose segment is the only
+    ``ui attached segment`` without nested blocks.
+    """
+    for segment in re.findall(r'<div class="ui attached segment">(.*?)</div>', document or "", re.I | re.S):
+        if "<div" in segment.casefold():
+            continue
+        body = re.split(r'<b>\s*Quelle:\s*</b>', segment, maxsplit=1, flags=re.I)[0]
+        price = re.search(r'<b>\s*Preise:\s*</b>(.*)', body, re.I | re.S)
+        context = _context_from_fragment(body, price=price.group(1) if price else "")
+        return context if context["description"] else None
+    return None
+
+
+def _bonner_kinemathek_detail_context(document: str, event: RawEvent) -> DetailContext | None:
+    """Film copy only; the page also carries meta lines, tickets, a cookie-gated trailer and post navigation."""
+    notes = re.search(
+        r'<div\b[^>]*class="[^"]*\bem-event-notes\b[^"]*"[^>]*>(.*?)'
+        r'(?=<div\b[^>]*class="[^"]*(?:ticketurl|em-event-booking|em-event-location)|</section>|</main>)',
+        document or "", re.I | re.S,
+    )
+    return _context_from_fragment(notes.group(1)) if notes else None

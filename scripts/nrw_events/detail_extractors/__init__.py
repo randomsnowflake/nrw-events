@@ -36,6 +36,8 @@ SPECS = (
     DetailSpec("dein-phonzimmer.de", sites._dein_phonzimmer_detail_context, repeated=True),
     DetailSpec("theater-marabu.de", repeated=True),
     DetailSpec("arpmuseum.org", price=sites._arp_museum_subline_price),
+    DetailSpec("events.click-around.systems", sites._clickaround_detail_context, block_generic=True),
+    DetailSpec("bonnerkinemathek.de", sites._bonner_kinemathek_detail_context, block_generic=True),
 )
 
 def matching_specs(event: RawEvent) -> tuple[DetailSpec, ...]:

@@ -1165,6 +1165,81 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertEqual(context["price"], "freier Eintritt")
         self.assertEqual(context["venue"], "Parkplatz vor dem Sportplatz Eitorf")
 
+    def test_extracts_clickaround_prose_without_page_chrome(self):
+        document = """
+        <div class="ui attached segment"><div class="ui divided items"><div class="item">
+          <div class="header">Martinszüge Andernach 2026</div>
+          <div class="meta">Martinszug in Namedy</div></div></div></div>
+        <div class="ui attached compact segment filter_stats picture_copyright">
+          <div><b>Bilder:</b> &copy; Kulturamt Andernach</div></div>
+        <div class="ui attached segment">
+          Die Stadt Andernach lädt alle herzlich ein, St. Martin durch Andernach zu begleiten!
+          In der Kernstadt und in unseren Stadtteilen ziehen wieder zahlreiche Laternenumzüge.
+          <br><br><b>Preise:</b><br />Kostenfrei<br><br><b>Quelle:</b> Kulturamt
+        </div>
+        <div class="ui bottom attached compact segment filter_stats">
+          <div><a href="#">zurück zur Übersicht</a></div></div>
+        <div class="ui segment"><div class="ui top attached basic label">Weitere Termine</div>
+          <div class="item"><div class="content">13. November 2026 • 18:00 Uhr</div></div></div>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Martinszug in Namedy",
+                link="https://events.click-around.systems/core/abc/events/standard/de/458",
+                source_id="andernach-events",
+            ),
+        )
+
+        self.assertIn("Laternenumzüge", context["description"])
+        self.assertEqual(context["price"], "Kostenfrei")
+        for chrome in ("Bilder:", "Quelle:", "Weitere Termine", "zurück zur Übersicht", "Namedy"):
+            self.assertNotIn(chrome, context["description"])
+
+    def test_extracts_bonner_kinemathek_film_copy_without_page_chrome(self):
+        # Trimmed from https://www.bonnerkinemathek.de/programm/taatsschutz/ (2026-11-09).
+        document = """
+        <header><nav><a href="/programm/">Programm</a><a href="/kinos/">Kinos</a></nav></header>
+        <main><div class="em-event-content"><section class="em-item-meta">
+          <div class="em-item-meta-line em-event-date">02.11.2026</div>
+          <div class="em-item-meta-line em-event-time">Regie: Faraz Shariat</div>
+          <div class="em-item-meta-line em-event-location"><div>Kino in der Brotfabrik<br>
+            <i>Kreuzstraße. 16, Bonn, NRW, 53225</i></div></div>
+        </section>
+        <div class="em-event-notes">
+          <p data-renderer-start-pos="21">Als Seyo ihre neue Stelle als Staatsanwältin antritt, weiß sie
+          bereits, dass rechte Gewalt zu ihrem Arbeitsalltag gehören wird.</p>
+          <p>&nbsp;</p>
+        </div>
+        <div class="ticketurl mt-2"><a href="https://booking.cinetixx.de/" class="btn ticketbtn">Tickets kaufen</a></div>
+        <section class="trailer"><h3>Trailer:</h3><p class="brlbs-cmpnt-cb-description">Sie sehen gerade einen
+          Platzhalterinhalt von <strong>YouTube</strong>.</p><a>Inhalt entsperren</a></section>
+        <div class="nav-links">Teilen: <a>Hirten</a> Älterer Beitrag <a>Glaube</a> Neuerer Beitrag</div>
+        </div></main>
+        """
+
+        context = detail_enrichment.extract_detail_context(
+            document,
+            self.event(
+                title="Staatsschutz",
+                link="https://www.bonnerkinemathek.de/programm/taatsschutz/",
+                source_id="brotfabrik-bonn",
+            ),
+        )
+
+        self.assertIn("Als Seyo ihre neue Stelle als Staatsanwältin", context["description"])
+        for chrome in ("Programm", "Regie", "Kreuzstraße", "Tickets kaufen", "Platzhalterinhalt",
+                       "Inhalt entsperren", "Teilen", "Älterer Beitrag"):
+            self.assertNotIn(chrome, context["description"])
+            self.assertNotIn(chrome, context["description_html"])
+
+        without_notes = detail_enrichment.extract_detail_context(
+            "<main><nav>Programm</nav><p>Sie sehen gerade einen Platzhalterinhalt von YouTube.</p></main>",
+            self.event(title="Staatsschutz", link="https://www.bonnerkinemathek.de/programm/taatsschutz/"),
+        )
+        self.assertEqual(without_notes["description"], "")
+
     def test_extracts_froscon_visit_facts_without_page_scripts(self):
         document = """
         <main><article id="content" class="content">
