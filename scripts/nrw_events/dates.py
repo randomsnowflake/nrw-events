@@ -209,7 +209,10 @@ def parse_date(text: str, *, reference_date: datetime | None = None) -> datetime
         key = month_text.lower().rstrip(".")
         month_number = MONTH_ALL.get(key)
         if month_number:
-            return datetime(int(year_text), month_number, int(day_text))
+            try:
+                return datetime(int(year_text), month_number, int(day_text))
+            except ValueError:
+                return None
     match = re.search(r"(\d{1,2})\.?\s+([A-Za-zäöüÄÖÜ]+)\b\.?", text)
     if match:
         day_text, month_text = match.groups()
