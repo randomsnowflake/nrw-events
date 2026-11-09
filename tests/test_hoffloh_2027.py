@@ -35,3 +35,4 @@ class HofflohNumericDateTests(unittest.TestCase):
         html = '<p>Sa. 10.04.2027 · 10 - 16 Uhr · <strong>Longerich</strong></p>'
         self.assertEqual(hofflohmaerkte._events_from_page(html)[0]["start_date"], "2027-04-10")
         self.assertEqual(hofflohmaerkte._events_from_page(html.replace("10.04.2027", "31.02.2027")), [])
+        self.assertEqual(hofflohmaerkte._events_from_page(html.replace("10.04.2027", "31. April 2027")), [])
