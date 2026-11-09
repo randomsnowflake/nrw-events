@@ -7,12 +7,11 @@ from datetime import datetime
 from urllib.parse import urlsplit
 
 from .. import common, http
-from ..dates import MONTH_DE
 from . import regional_common as rc
 
 _URL = "https://www.hofflohmaerkte.de/pages/hofflohmarkte-koln"
 _DATE_PATTERN = re.compile(
-    r"(?:Sa|So)\.\s*(\d{1,2})\.\s*([A-Za-zäöüÄÖÜ]+)\s+(20\d{2})\s*"
+    r"(?:Sa|So)\.\s*(\d{1,2}\.\s*(?:[A-Za-zäöüÄÖÜ]+\s+20\d{2}|\d{1,2}\.(?:20)?\d{2}))\s*"
     r"·\s*(\d{1,2})\s*-\s*(\d{1,2})\s*Uhr\s*·\s*<strong>(.*?)(?:<br\s*/?>|</strong>)",
     re.S | re.I,
 )
@@ -55,11 +54,8 @@ def _events_from_page(html: str) -> list:
     events = []
     context = _visitor_context(html)
     for match in _DATE_PATTERN.finditer(html or ""):
-        day, month_name, year, start_hour, end_hour, neighborhood_html = match.groups()
-        month = MONTH_DE.get(month_name.casefold().rstrip("."))
-        if not month:
-            continue
-        start = common.parse_date(f"{int(day):02d}.{month:02d}.{year}")
+        date_text, start_hour, end_hour, neighborhood_html = match.groups()
+        start = common.parse_date(date_text)
         neighborhood = rc.clean(neighborhood_html)
         if not (start and neighborhood):
             continue
