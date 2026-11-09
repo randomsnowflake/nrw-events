@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from nrw_events import common
 from nrw_events.civic_list_fallbacks import partition_city_list_fallbacks
+from nrw_events.identity import assign_event_ids
 from nrw_events.sources import bonn_martinszuege
 from nrw_events.validation import canonicalize_event
 
@@ -48,6 +49,36 @@ class BonnMartinszuegeTests(unittest.TestCase):
 
     def test_explicit_start_wins_over_assembly_time(self):
         self.assertEqual(self.by_title["Martinszug Bonn-Castell"]["start_at"], "2026-11-03T17:30+01:00")
+
+    def test_school_date_correction_survives_the_city_dates_window(self):
+        with patch.object(common, "TODAY", datetime(2026, 11, 9)):
+            events = bonn_martinszuege.events_from_page(FIXTURE.read_text(encoding="utf-8"))
+            event = next(event for event in events if event["title"] == "Martinszug GGS Karlschule")
+            self.assertTrue(common.event_in_window(event))
+        self.assertEqual(event["start_date"], "2026-11-09")
+        self.assertEqual(event["date"], "2026-11-09")
+        self.assertEqual(event["end_date"], "2026-11-09")
+        self.assertEqual(event["start_at"], "2026-11-09T18:00+01:00")
+        self.assertEqual(event["end_at"], "2026-11-09T20:00+01:00")
+        self.assertEqual(event["time"], "18:00–20:00")
+        self.assertEqual(event["link"], "https://karlschule-bonn.de/veranstaltung/martinszug-4/")
+        self.assertEqual(assign_event_ids([event])[0]["event_id"], "martinszug-ggs-karlschule-6256608261")
+
+    def test_school_correction_is_limited_to_the_reviewed_occurrence(self):
+        row = """<h2>Stadtbezirk Bonn</h2><table><tr>
+        <td>4. November 2026, 18 Uhr</td><td>GGS Karlschule</td>
+        <td>Schulhof Karlschule</td><td>Schulhof Karlschule</td></tr></table>"""
+        for old, new in [("2026", "2027"), ("4. November", "5. November"),
+                         ("GGS Karlschule", "Andere Schule"),
+                         ("Schulhof Karlschule", "Anderer Schulhof")]:
+            with self.subTest(new=new):
+                event = bonn_martinszuege.events_from_page(row.replace(old, new))[0]
+                self.assertEqual(event["link"], bonn_martinszuege.URL)
+                self.assertNotIn("preserved_event_id", event)
+        with patch.object(common, "TODAY", datetime(2026, 11, 10)):
+            event = bonn_martinszuege.events_from_page(row)[0]
+        self.assertEqual(event["start_date"], "2026-11-04")
+        self.assertEqual(event["link"], bonn_martinszuege.URL)
 
     def test_district_comes_from_the_row_not_only_the_stadtbezirk(self):
         self.assertEqual(self.by_title["Martinszug Holzlar"]["city"], "Bonn-Holzlar")

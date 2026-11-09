@@ -1,6 +1,26 @@
 {
   "schema_version": 1,
   "groups": {
+    "bonn_martinszuege_occurrence_overrides": [
+      {
+        "match": ["Martinszug GGS Karlschule", "2026-11-04", "Bonn", "Schulhof Karlschule"],
+        "value": {
+          "date": "2026-11-09",
+          "start_date": "2026-11-09",
+          "end_date": "2026-11-09",
+          "time": "18:00–20:00",
+          "start_at": "2026-11-09T18:00+01:00",
+          "end_at": "2026-11-09T20:00+01:00",
+          "link": "https://karlschule-bonn.de/veranstaltung/martinszug-4/",
+          "link_kind": "detail",
+          "source": "GGS Karlschule Bonn",
+          "organizer": "GGS Karlschule Bonn",
+          "preserved_event_id": "martinszug-ggs-karlschule-6256608261"
+        },
+        "valid_until": "2026-11-09",
+        "evidence": "Verified 2026-11-09: https://karlschule-bonn.de/veranstaltung/martinszug-4/ explicitly confirms 9 November 2026, 18:00–20:00 (Event JSON-LD), Schulhof Karlschule, Bonn-Nordstadt. The city table still says 4 November. Apply before source window filtering; the website's existing later override cannot restore an already discarded row. Preserve the published occurrence URL."
+      }
+    ],
     "bonn_press_blocked_titles": [
       {
         "match": [

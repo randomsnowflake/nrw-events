@@ -11,9 +11,11 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
+from .. import reviewed_corrections
 from ..dates import parse_date
 from ..event_builder import make_event
 from ..location import refine_bonn_location, refine_city_from_text
+from ..run_state import runtime_window
 from ..text import clean_html, sanitize_time_text
 from . import regional_common as rc
 
@@ -67,6 +69,11 @@ def _start(date_text: str) -> tuple[datetime | None, str]:
 
 def events_from_page(html: str) -> list[dict]:
     events = []
+    corrections = {
+        tuple(entry["match"]): entry["value"]
+        for entry in reviewed_corrections.active_entries(
+            "bonn_martinszuege_occurrence_overrides", runtime_window().start)
+    }
     for heading, section in _SECTION_RE.findall(html or ""):
         district = re.sub(r"^Stadtbezirk\s+", "", clean_html(heading), flags=re.I)
         base_city = _DISTRICT_CITIES.get(district.casefold())
@@ -102,6 +109,9 @@ def events_from_page(html: str) -> list[dict]:
                 category_locked=True, link_kind="overview",
             )
             if event:
+                # Correct source dates before source_execution filters past occurrences.
+                key = (event["title"], event["start_date"], event["city"], event["venue"])
+                event.update(corrections.get(key, {}))
                 events.append(event)
     return rc.dedupe(events)
 
