@@ -3,6 +3,7 @@
 import html as html_lib
 import json
 import re
+from datetime import datetime
 
 from .. import common
 from . import regional_common as rc
@@ -12,7 +13,7 @@ _SOURCE_ID = "katharinenhof-flohmarkt"
 _URL = "https://beikircher.de/event-type/katharinenhof/"
 
 
-def _schema_datetime(value: str):
+def _schema_datetime(value: str) -> datetime | None:
     normalized = re.sub(
         r"^(20\d{2})-(\d{1,2})-(\d{1,2})(T.*)$",
         lambda match: (
@@ -27,6 +28,24 @@ def _schema_datetime(value: str):
         normalized,
     )
     return common.parse_iso_date(normalized)
+
+
+def _explicitly_empty(html: str) -> bool:
+    html = re.sub(r"<(script|style)\b[^>]*>.*?</\1\s*>|<!--.*?-->", "", html, flags=re.S | re.I)
+    for match in re.finditer(
+        r"(?P<listing><div\b[^>]*>)\s*(?P<row><div\b[^>]*>)\s*"
+        r"(?P<message><p\b[^>]*>)\s*Keine Termine\s*</p>\s*</div>\s*</div>",
+        html, re.S | re.I,
+    ):
+        if (
+            rc.html_attribute(match["listing"], "id") == "evcal_list"
+            and rc.tag_has_class(match["listing"], "eventon_events_list")
+            and rc.tag_has_class(match["row"], "eventon_list_event")
+            and rc.tag_has_class(match["row"], "no_events")
+            and rc.tag_has_class(match["message"], "no_events")
+        ):
+            return True
+    return False
 
 
 def _events_from_page(html: str, *, strict: bool = False) -> list:
@@ -82,9 +101,9 @@ def _events_from_page(html: str, *, strict: bool = False) -> list:
             if price:
                 event["price"] = f"{price.group(1).replace(',', '.')} €"
             events.append(event)
-    # A valid programme containing only other formats is not parser drift.
+    # A valid programme or explicit empty calendar is not parser drift.
     # An unparseable flea-market date must remain actionable even with siblings.
-    if strict and (valid_calendar_events == 0 or invalid_market):
+    if strict and (invalid_market or (valid_calendar_events == 0 and not _explicitly_empty(html))):
         raise rc.ParserEmptyError("Katharinenhof flea-market JSON-LD contract changed")
     return rc.dedupe(events)
 
@@ -96,7 +115,6 @@ def fetch() -> list:
         lambda html: _events_from_page(html, strict=True),
         timeout=20,
         source_id=_SOURCE_ID,
-        # Strict parsing already proved the JSON-LD contract; an empty result
-        # now means all valid occurrences are outside the import window.
+        # Strict parsing proved valid JSON-LD or the explicit empty calendar.
         empty_is_healthy=lambda _html: True,
     )

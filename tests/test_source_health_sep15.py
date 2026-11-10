@@ -2,6 +2,7 @@
 import json
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
@@ -45,6 +46,43 @@ class SourceHealthRegressionTests(unittest.TestCase):
              patch.object(common, "log_source_error") as warning:
             self.assertEqual(katharinenhof.fetch(), [])
             warning.assert_not_called()
+
+    def test_katharinenhof_explicit_empty_calendar_is_healthy(self):
+        html = (Path(__file__).parent / "fixtures" / "katharinenhof-empty.html").read_text()
+        for page in [html, html.replace("'", '"')]:
+            with self.subTest(page=page):
+                self.assertEqual(katharinenhof._events_from_page(page, strict=True), [])
+                with patch.object(common, "fetch_url", return_value=page), \
+                     patch.object(common, "_record_endpoint") as record, \
+                     patch.object(common, "log_source_error") as warning:
+                    self.assertEqual(katharinenhof.fetch(), [])
+                    self.assertFalse(record.call_args.kwargs["parser_empty"])
+                    warning.assert_not_called()
+
+    def test_katharinenhof_empty_marker_cannot_hide_parser_drift(self):
+        html = (Path(__file__).parent / "fixtures" / "katharinenhof-empty.html").read_text()
+        for page in [
+            "<p>Keine Termine</p>",
+            html.replace("evcal_list'", "sidebar'"),
+            html.replace("eventon_events_list ", ""),
+            html.replace("eventon_list_event no_events", "eventon_list_event"),
+            html.replace("<p class='no_events'", "<p class='other'"),
+            html.replace("Keine Termine", ""),
+            html.replace("<div class='eventon_list_event no_events'>",
+                         "<div class='eventon_list_event'>Flohmarkt</div>"
+                         "<div class='eventon_list_event no_events'>"),
+            "<script>" + html + "</script>",
+            "<style>" + html + "</style>",
+            "<!--" + html.replace("<!--", "").replace("-->", "") + "-->",
+            html + schema_event("Flohmarkt", "changed"),
+        ]:
+            with self.subTest(page=page), self.assertRaises(regional_common.ParserEmptyError):
+                katharinenhof._events_from_page(page, strict=True)
+
+    def test_katharinenhof_empty_marker_does_not_discard_valid_market(self):
+        html = (Path(__file__).parent / "fixtures" / "katharinenhof-empty.html").read_text()
+        rows = katharinenhof._events_from_page(html + schema_event("Flohmarkt"), strict=True)
+        self.assertEqual(len(rows), 1)
 
     def test_katharinenhof_broken_contract_remains_actionable(self):
         for html in ["<html></html>", schema_event("Himmel un Ääd", "changed"),
