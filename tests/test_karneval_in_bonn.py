@@ -263,6 +263,13 @@ class KarnevalInBonnSourceTests(unittest.TestCase):
         self.assertEqual(event_id(canonicalize_event(dict(opening))),
                          event_id(canonicalize_event(dict(legacy_opening))))
 
+    def test_migrated_calendar_keeps_public_invitations(self):
+        page = (Path(__file__).parent / "fixtures/karneval-migrated-20261111.html").read_text()
+        page = page.replace("nur auf Einladung", "Einladung zur öffentlichen Sessionseröffnung")
+        events = karneval_in_bonn.events_from_html(page)
+        self.assertEqual(len(events), 5)
+        self.assertIn("Sessionseröffnung", [event["title"] for event in events])
+
     def test_source_is_registered(self):
         self.assertIs(SOURCES["Festausschuss Bonner Karneval"], karneval_in_bonn.fetch)
 

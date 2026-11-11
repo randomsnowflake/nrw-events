@@ -28,7 +28,7 @@ _DATE = re.compile(
     re.S | re.I,
 )
 _TIME = re.compile(r"<div class='Time'>\s*(\d{1,2}:\d{2})", re.I)
-_INVITATION_ONLY = re.compile(r"\bnur auf (?:besondere )?einladung\b", re.I)
+_INVITATION_ONLY = re.compile(r"\bauf\s+(?:(?:besondere|persönliche)\s+)?einladung\b", re.I)
 _CARD = re.compile(r"<article\b[^>]*>(.*?)</article>", re.S | re.I)
 
 
