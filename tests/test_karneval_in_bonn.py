@@ -1,6 +1,7 @@
 import unittest
 from dataclasses import replace
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import event_builder, http
@@ -236,6 +237,38 @@ class KarnevalInBonnSourceTests(unittest.TestCase):
             http._throttle_bucket("https://www.karneval-in-bonn.de/start/Termine/index.html"),
             ("karneval-in-bonn.de", 10.0),
         )
+
+    def test_migrated_calendar_uses_public_listing_facts(self):
+        page = (Path(__file__).parent / "fixtures/karneval-migrated-20261111.html").read_text()
+        with patch.object(karneval_in_bonn.http, "fetch_url", return_value=page) as fetch, \
+                patch.object(karneval_in_bonn.detail_cache, "fetch_detail_url") as detail:
+            events = karneval_in_bonn.fetch()
+        self.assertEqual(fetch.call_args.args[0], "https://karneval-in-bonn.de/aktuell/termine")
+        detail.assert_not_called()
+        self.assertEqual(len(events), 4)
+        self.assertEqual(events[-1]["title"], "Kadettenappell")
+        self.assertEqual(events[-1]["price"], "kostenlos")
+        self.assertEqual(events[-1]["admission_basis"], "explicit")
+        opening = events[0]
+        self.assertEqual(opening["venue"], "Marktplatz Bonn")
+        self.assertEqual(opening["time"], "10:30")
+        self.assertEqual(opening["start_date"], "2026-11-11")
+        self.assertEqual(opening["organizer"], "Festausschuss BONNER KARNEVAL e.V.")
+        self.assertEqual(opening["link"], "https://karneval-in-bonn.de/aktuell/termine/"
+                         "39a56865-97cb-4fdb-8cfe-00ee5adb6349")
+        self.assertEqual(opening["source_id"], "karneval-in-bonn")
+        self.assertEqual(opening["category_key"], "festival")
+        self.assertEqual(opening["location_source"], "venue_registry")
+        legacy_opening = self._events()[0][0]
+        self.assertEqual(event_id(canonicalize_event(dict(opening))),
+                         event_id(canonicalize_event(dict(legacy_opening))))
+
+    def test_migrated_calendar_keeps_public_invitations(self):
+        page = (Path(__file__).parent / "fixtures/karneval-migrated-20261111.html").read_text()
+        page = page.replace("nur auf Einladung", "Einladung zur öffentlichen Sessionseröffnung")
+        events = karneval_in_bonn.events_from_html(page)
+        self.assertEqual(len(events), 5)
+        self.assertIn("Sessionseröffnung", [event["title"] for event in events])
 
     def test_source_is_registered(self):
         self.assertIs(SOURCES["Festausschuss Bonner Karneval"], karneval_in_bonn.fetch)

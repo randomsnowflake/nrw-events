@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import html as html_lib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from urllib.parse import urljoin
 
 from .. import detail_cache, event_builder, http, location, run_state, text
 from ..dates import parse_date
 from . import regional_common as rc
 
-URL = "https://www.karneval-in-bonn.de/start/Termine/index.html"
+URL = "https://karneval-in-bonn.de/aktuell/termine"
 SOURCE = "Festausschuss Bonner Karneval"
 SOURCE_ID = "karneval-in-bonn"
 
@@ -27,7 +28,34 @@ _DATE = re.compile(
     re.S | re.I,
 )
 _TIME = re.compile(r"<div class='Time'>\s*(\d{1,2}:\d{2})", re.I)
-_INVITATION_ONLY = re.compile(r"\bnur auf (?:besondere )?einladung\b", re.I)
+_INVITATION_ONLY = re.compile(r"\bauf\s+(?:(?:besondere|persönliche)\s+)?einladung\b", re.I)
+_CARD = re.compile(r"<article\b[^>]*>(.*?)</article>", re.S | re.I)
+
+
+def _listing_rows(page: str) -> Iterator[tuple[str, str, str, str, dict[str, str] | None]]:
+    for card in _CARD.findall(page):
+        heading = re.search(r'<h3\b[^>]*>\s*<a href="(/aktuell/termine/[^"/]+)"[^>]*>(.*?)</a>',
+                            card, re.S | re.I)
+        when = re.search(r'(\d{2}\.\d{2}\.\d{4})(?:, (\d{2}:\d{2}) Uhr)?', card)
+        if not heading or not when:
+            continue
+        venue = re.search(r'<span>\s*·\s*(.*?)</span>', card, re.S)
+        content = re.search(r'<div class="md mt-3[^"]*">(.*?)</div>', card, re.S)
+        description = rc.clean_blocks(content.group(1)) if content else ""
+        organizer = re.search(r'^Veranstalter:\s*(.+)', description, re.M)
+        yield when.group(1), when.group(2) or "", urljoin(URL, heading.group(1)), heading.group(2), {
+            "venue": rc.clean(venue.group(1)) if venue else "",
+            "organizer": organizer.group(1).strip() if organizer else "",
+            "address": "",
+            "content": description,
+        }
+    # Retain the old layout for saved source replays, not as a network fallback.
+    for date_block, href, title in _ITEM.findall(page):
+        date_match = _DATE.search(date_block)
+        if date_match:
+            time_match = _TIME.search(date_block)
+            yield (" ".join(date_match.groups()), time_match.group(1) if time_match else "",
+                   html_lib.unescape(href), title, None)
 
 
 def _field(page: str, class_name: str) -> str:
@@ -58,25 +86,23 @@ def _title(listing_title: str, organizer: str) -> str:
 
 def events_from_html(page: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
-    for date_block, href, listing_title in _ITEM.findall(page or ""):
-        date_match = _DATE.search(date_block)
-        if not date_match:
-            continue
-        start = parse_date(" ".join(date_match.groups()))
-        time_match = _TIME.search(date_block)
-        time_text = time_match.group(1) if time_match else ""
+    for date_text, time_text, link, listing_title, listing_detail in _listing_rows(page or ""):
+        detail = listing_detail
+        start = parse_date(date_text)
         start = rc.with_time(start, time_text)
         if start is None:
             continue
-        link = html_lib.unescape(href)
         # Each detail page costs one crawl-delayed request: fetch in-window rows only.
-        if not event_builder.window_contains(start) or detail_fetcher is None:
+        if not event_builder.window_contains(start):
             continue
-        try:
-            detail = _detail_facts(detail_fetcher(link))
-        except Exception as exc:
-            run_state.log_source_error(f"{SOURCE} detail", exc, source_id=SOURCE_ID)
-            continue
+        if detail is None:
+            if detail_fetcher is None:
+                continue
+            try:
+                detail = _detail_facts(detail_fetcher(link))
+            except Exception as exc:
+                run_state.log_source_error(f"{SOURCE} detail", exc, source_id=SOURCE_ID)
+                continue
         # Invitation-only receptions and rows without a hall are not public events.
         if not detail["venue"] or _INVITATION_ONLY.search(detail["content"]):
             continue
@@ -134,5 +160,5 @@ def fetch() -> list:
         fetcher=http.fetch_url,
         # A recognizable calendar whose rows are all outside the window or
         # invitation-only is a healthy empty result, not parser drift.
-        empty_is_healthy=lambda page: bool(_ITEM.search(page or "")),
+        empty_is_healthy=lambda page: any(_listing_rows(page or "")),
     )
