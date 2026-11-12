@@ -22,7 +22,13 @@ from typing import Literal
 from urllib.parse import urldefrag, urlsplit
 
 from . import common, components, http, richtext
-from .detail_extractors import extract_source_context, source_price, supports_repeated_detail, template_price
+from .detail_extractors import (
+    extract_source_context,
+    source_price,
+    source_supplement,
+    supports_repeated_detail,
+    template_price,
+)
 from .detail_parsing import (
     _best_description,
     _exact_jsonld_description,
@@ -214,6 +220,7 @@ def extract_detail_context(document: str, event: RawEvent) -> DetailContext:
             context["end_at"], end_date, end_clock,
             timezone_name,
         )
+    context.update(source_supplement(document, event))
     if _master_data_only(event):
         context["description"] = ""
         context["description_html"] = ""
@@ -315,9 +322,22 @@ def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
     if organizer and not str(enriched.get("organizer") or "").strip():
         enriched["organizer"] = organizer
     time_value = str(context.get("time") or "").strip()
+    current_start = str(enriched.get("start_at") or "")
+    detail_start = str(context.get("start_at") or "")
+    current_time = str(enriched.get("time") or "").strip()
+    # Complete a start-only listing without changing its clock or a known end.
+    completes_end = bool(
+        re.fullmatch(r"\d{2}:\d{2}", current_time)
+        and detail_start[:10] == str(enriched.get("start_date") or enriched.get("date") or "")[:10]
+        and detail_start[11:16] == current_time
+        and (not current_start or current_start[:16] == detail_start[:16])
+        and context.get("end_at")
+        and (not enriched.get("end_at") or enriched.get("end_at") == current_start)
+        and not enriched.get("daily_schedule")
+    )
     if (
         time_value
-        and not str(enriched.get("time") or enriched.get("start_at") or "").strip()
+        and (not str(enriched.get("time") or enriched.get("start_at") or "").strip() or completes_end)
         and not enriched.get("identity_time_locked")
     ):
         enriched["time"] = time_value

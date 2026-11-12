@@ -9,7 +9,13 @@ from html import escape, unescape
 from urllib.parse import urlsplit
 
 from .. import common, richtext
-from ..detail_parsing import _exact_jsonld_description, _tribe_price, _visible_labeled_value
+from ..detail_parsing import (
+    _exact_jsonld_description,
+    _single_prose_time_range,
+    _timestamp_with_clock,
+    _tribe_price,
+    _visible_labeled_value,
+)
 from ..detail_types import DetailContext
 from ..models import RawEvent
 
@@ -24,6 +30,34 @@ def _template_price(document: str) -> str:
             if re.search(r"(?:€|\bEUR\b|\bEuro\b)", cleaned, re.I):
                 return cleaned[:240]
     return ""
+
+
+def _springmaus_visitor_facts(document: str, event: RawEvent) -> DetailContext | None:
+    own = re.search(
+        r'<!--\s*Event Detail\s*-->(.*?)(?=<!--\s*(?:Search|Listing)\s*-->|</main>|$)',
+        document, re.I | re.S,
+    )
+    title = re.search(r"<h1\b[^>]*>(.*?)</h1>", own.group(1), re.I | re.S) if own else None
+    if not title or common.clean_html(title.group(1)).casefold() != str(event.get("title") or "").casefold():
+        return None
+    body = own.group(1) if own else ""
+    price = re.search(r'<div\b[^>]*class=["\']mb-4["\'][^>]*>([^<]*)</div>', body, re.I)
+    # The event header is admission; table fees and related-show prices are not.
+    context: DetailContext = {"price": common.clean_html(price.group(1)) if price else ""}
+    text = common.clean_html(body)
+    hours = re.search(
+        r"\bZeitraum allgemeiner Verkauf\s*:\s*(\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}\s*Uhr)",
+        text, re.I,
+    )
+    clocks = _single_prose_time_range(hours.group(1)) if hours else None
+    date = str(event.get("start_date") or event.get("date") or "")[:10]
+    end_date = str(event.get("end_date") or date)[:10]
+    if clocks and date and date == end_date and clocks[0] < clocks[1]:
+        zone = str(event.get("timezone") or "Europe/Berlin")
+        context["time"] = "–".join(clocks)
+        context["start_at"] = _timestamp_with_clock("", date, clocks[0], zone)
+        context["end_at"] = _timestamp_with_clock("", date, clocks[1], zone)
+    return context
 
 
 def _arp_museum_subline_price(document: str, event: RawEvent) -> str:

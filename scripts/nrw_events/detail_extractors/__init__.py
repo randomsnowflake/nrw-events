@@ -18,6 +18,7 @@ class DetailSpec:
     block_generic: bool = False
     blocked_path: str | None = None
     price: Callable[[str, RawEvent], str] | None = None
+    supplement: Extractor | None = None
 
 # Order matches the original dispatch. Extractors retain their precise path,
 # source-id and occurrence checks; host matching only narrows dispatch.
@@ -36,6 +37,7 @@ SPECS = (
     DetailSpec("dein-phonzimmer.de", sites._dein_phonzimmer_detail_context, repeated=True),
     DetailSpec("theater-marabu.de", repeated=True),
     DetailSpec("arpmuseum.org", price=sites._arp_museum_subline_price),
+    DetailSpec("springmaus-theater.de", supplement=sites._springmaus_visitor_facts),
     DetailSpec("events.click-around.systems", sites._clickaround_detail_context, block_generic=True),
     DetailSpec("bonnerkinemathek.de", sites._bonner_kinemathek_detail_context, block_generic=True),
 )
@@ -59,6 +61,13 @@ def supports_repeated_detail(event: RawEvent) -> bool:
 
 def source_price(document: str, event: RawEvent) -> str:
     return next((value for spec in matching_specs(event) if spec.price and (value := spec.price(document, event))), "")
+
+
+def source_supplement(document: str, event: RawEvent) -> DetailContext:
+    for spec in matching_specs(event):
+        if spec.supplement and (value := spec.supplement(document, event)) is not None:
+            return value
+    return {}
 
 # This template is identified by its HTML marker, including proxy documents.
 template_price = sites._template_price

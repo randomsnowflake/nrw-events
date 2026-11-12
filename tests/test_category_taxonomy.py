@@ -20,6 +20,59 @@ from nrw_events.validation import validate_event
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
+    def test_live_ballet_and_demonstrations_outrank_incidental_art_and_music(self):
+        for hint, title, description, expected in (
+            ("Musik/Konzert, Tanz, Theater", "Grand Classic Ballet - der Nussknacker",
+             "Ein Ballettklassiker zur Musik von Tschaikowsky.", "stage"),
+            ("Musik/Konzert, Tanz, Theater", "Grand Classic Ballet - Schwanensee",
+             "Das Ensemble tanzt zur Musik von Tschaikowsky.", "stage"),
+            ("", "Ballett: Schwanensee", "", "stage"),
+            ("Demo, Demonstration, Kultur", "Demo: Die Kultur in Bonn steht auf der Kippe",
+             "Kunst, Museen und Ausstellungsräume. Demonstrieren Sie mit uns!", "activities"),
+            ("", "Demonstration für den Erhalt der Kultur", "Kunst und Ausstellungen.", "activities"),
+            ("", "Kundgebung für Kultur", "Kunst und Ausstellungen.", "activities"),
+        ):
+            with self.subTest(title=title):
+                result = categorize_event(hint, title, description)
+                self.assertEqual(result["key"], expected)
+                self.assertEqual(result["confidence"], 0.95)
+                previous = "concert" if expected == "stage" else "exhibition"
+                event = validate_event({
+                    "title": title, "description": description, "category": hint,
+                    "source": "Test", "city": "Bonn", "start_date": "2026-11-14",
+                    "venue": "Beethovenhalle", "link": "https://example.test/event", "score": 2,
+                    "category_key": previous, "category_label": taxonomy.CATEGORY_BY_KEY[previous]["label"],
+                    "category_confidence": 0.65, "category_reason": f"{previous}:description=kunst,musik",
+                })
+                self.assertEqual(event.category_key, expected)
+                self.assertEqual(validate_event(event.to_dict()).category_key, expected)
+                explicit = event.to_dict()
+                explicit.update(category_key=previous, category_label=taxonomy.CATEGORY_BY_KEY[previous]["label"],
+                                category_confidence=1.0, category_reason="source:locked-default:" + previous)
+                self.assertEqual(validate_event(explicit).category_key, previous)
+
+    def test_ballet_and_demo_rules_preserve_other_formats_and_source_decisions(self):
+        for hint, title, description, venue, expected in (
+            ("cinema-special", "Royal Ballet & Opera London Saison 2026/27 - Carmen", "", "Rex", "cinema"),
+            ("Kino", "Royal Ballet: Schwanensee", "", "Kino", "cinema"),
+            ("", "Filmvorführung: Ballett", "", "", "cinema"),
+            ("", "Ballett-Workshop", "", "", "workshop"),
+            ("", "Vortrag über Ballett", "", "", "talk"),
+            ("", "Konzert: Musik aus dem Ballett", "", "", "concert"),
+        ):
+            with self.subTest(title=title):
+                self.assertEqual(categorize_event(hint, title, description, venue=venue)["key"], expected)
+        self.assertNotEqual(categorize_event("", "Demo: Technik", "Kunst und Ausstellungen.")["key"], "activities")
+        self.assertNotEqual(categorize_event(
+            "Workshop", "Demo: Software für Kunst und Ausstellungen", "Produktvorführung.",
+        )["key"], "activities")
+        self.assertNotEqual(categorize_event(
+            "Workshop", "Demonstration: Neue Software", "Produktvorführung.",
+        )["key"], "activities")
+        self.assertEqual(categorize_event(
+            "", "Ballett: Schwanensee", default_category_key="cinema", category_locked=True,
+        )["key"], "cinema")
+
     def test_recognizes_source_backed_formats_missing_from_other(self):
         cases = [
             ("BV Holzlar: Vortragsreihe Thema Fusion", "", "talk"),

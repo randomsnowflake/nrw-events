@@ -950,6 +950,29 @@ def categorize_event(
                 "reason": f"forced:{forced_key}",
             }
 
+    format_key = ""
+    if (
+        re.search(r"\b(?:ballet|ballett)\b", title_comparison)
+        and "cinema" not in hint_category_keys
+        and not re.search(r"\b(?:kino|cinema|rex|lichtspiel\w*)\b", venue_text)
+        and not re.search(
+            r"\b(?:\w*film\w*|screening|uebertragung|liveuebertragung|workshop|\w*kurs|vortrag|lesung|ausstellung|konzert\w*|concert)\b",
+            title_comparison,
+        )
+    ):
+        format_key = "stage"
+    if re.search(r"^(?:demonstration\s+(?:fuer|gegen)\b|kundgebung\b)", title_comparison) or (
+        re.search(r"^(?:demo\s*:|demonstration\b)", title_comparison)
+        and re.search(r"\b(?:demonstration|kundgebung|demonstrier\w*)\b", f"{hint_comparison} {description_comparison}")
+    ):
+        format_key = "activities"
+    if format_key:
+        category = CATEGORY_BY_KEY[format_key]
+        return {
+            "key": category["key"], "label": category["label"], "confidence": 0.95,
+            "reason": f"format:{'live-ballet' if format_key == 'stage' else 'demonstration'}",
+        }
+
     # Score without the Tournee marker so "Tour 2026" cannot rank as a guided
     # walk, while "Stadtführung … Tour 2026" keeps its real outdoor evidence.
     # Without a year, a "Tour" is still a Tournee when the source files the

@@ -83,6 +83,14 @@ def events_from_html(html: str, detail_fetcher: Callable[[str], str] | None = No
             )
         if submeta and submeta.casefold() not in description.casefold():
             description = common.concise_description(f"{description} {submeta}")
+        meta = re.search(r'class=["\']spieltermin-meta["\'][^>]*>(.*?)</div>', block, re.I | re.S)
+        cancellation = re.search(
+            r'<span\b[^>]*\bclass=["\']canceled["\'][^>]*>(.*?)</span>',
+            meta.group(1) if meta else "", re.I | re.S,
+        )
+        if cancellation:
+            # make_event also records the cancellation for previously retained occurrences.
+            description = f"Veranstaltung: {rc.clean(cancellation.group(1))} {description}"
         event = common.make_event(
             title, start_dt, None, venue, "Bonn", description, link, _SOURCE,
             _CATEGORY, _TRUST, time_text,

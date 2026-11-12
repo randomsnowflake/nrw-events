@@ -2,8 +2,10 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import common, config
+from nrw_events import common, config, report
+from nrw_events.health import SourceResult
 from nrw_events.retention_policy import _publication_filter_reason
+from nrw_events.run_state import set_source_context
 from nrw_events.sources import (
     junges_theater_bonn,
     kleines_theater,
@@ -309,6 +311,51 @@ class BonnTheaterSourceTests(unittest.TestCase):
         self.assertIn("ab 14 Jahre", events[0]["description"])
         self.assertEqual(events[0]["details"], {"age": "ab 14 Jahren"})
         self.assert_canonical(events[0], "theater-marabu")
+
+    def test_marabu_cancellation_reaches_retained_occurrence_without_cancelling_december(self):
+        title = "Der Bär, der nicht da war"
+        link = "https://www.theater-marabu.de/stueck/der-baer-der-nicht-da-war/"
+        html = """
+        <li class="spieltermin-item" data-month="NOV" data-weekday="SA">
+          <div class="spieltermin-datum">SA<span>14</span>NOV</div>
+          <div class="spieltermin-content">
+            <div class="spieltermin-meta"><span class="strike">15:00 Uhr</span>
+              <span class="canceled">Fällt leider aus!</span></div>
+            <div class="spieltermin-title"><a href="LINK">TITLE</a><br></div>
+            <div class="spieltermin-submeta">Altersempfehlung ab 4 Jahre | Bonn, Theater Marabu</div>
+          </div>
+          <div class="spieltermin-options"></div>
+        </li>
+        """.replace("LINK", link).replace("TITLE", title)
+        for day, time in ((6, "15:00"), (7, "10:00"), (8, "10:00")):
+            html += f"""
+            <li class="spieltermin-item">
+              <div class="spieltermin-meta"><span>{time} Uhr</span>
+                <span class="sold-out">Ausverkauft!</span></div>
+              <div class="spieltermin-title"><a href="{link}">{title}</a></div>
+              <div class="spieltermin-submeta">Altersempfehlung ab 4 Jahre | Bonn, Theater Marabu</div>
+              <a data-vorstellung="{title} | {day:02d}.12.2026 | {time} Uhr"></a>
+            </li>
+            """
+        html += '<aside><span class="canceled">Fällt leider aus!</span></aside>'
+        result = SourceResult("Theater Marabu")
+        set_source_context(result)
+        self.addCleanup(set_source_context, None)
+
+        events = theater_marabu.events_from_html(html, lambda _url: "Musiktheater für Kinder ab vier Jahren.")
+
+        self.assertEqual(len(result.cancelled_events), 1)
+        [cancelled] = result.cancelled_events
+        self.assertEqual((cancelled["date"], cancelled["time"], cancelled["status"]),
+                         ("2026-11-14", "15:00", "cancelled"))
+        self.assertEqual((cancelled["title"], cancelled["link"]), (title, link))
+        december = [event for event in events if event["date"].startswith("2026-12")]
+        self.assertEqual([event["date"] for event in december], ["2026-12-06", "2026-12-07", "2026-12-08"])
+        self.assertTrue(all(event["status"] == "scheduled" for event in december))
+        retained = {**cancelled, "status": "scheduled", "description": "Musiktheater für Kinder."}
+        [reconciled] = report.deduplicate([retained], cancellations=result.cancelled_events)
+        self.assertEqual(reconciled["status"], "cancelled")
+        self.assertEqual(reconciled["cancellation_source"], "Theater Marabu")
 
     def test_ballsaal_parses_table_row_and_preserves_primary_link(self):
         html = """

@@ -861,6 +861,60 @@ class DetailEnrichmentTests(unittest.TestCase):
         self.assertIn("Sommerspecial", context["description"])
         self.assertEqual(context["price"], "30,00 € / 24,20 € (ermäßigt)")
 
+    def test_springmaus_visitor_admission_and_hours_exclude_vendor_and_related_facts(self):
+        document = '''
+        <main><!-- Event Detail -->
+        <h1>Indoor-Flohmarkt</h1>
+        <div class="text-xl leading-tight mb-4"><div>So 15. Nov. 2026</div><div>10:00 Uhr</div></div>
+        <div class="mb-4">Eintritt frei</div>
+        <div class="text-sm leading-tight"><b>Zeitraum allgemeiner Verkauf: 10:00 - 14:00 Uhr</b>
+        <p>Preise für die Tische: 15 € zzgl. Kuchenspende und 10 € Kaution.</p>
+        <p>Aufbau von 09:00 - 10:00 Uhr. Abbau von 14:00 - 14:30 Uhr.</p></div>
+        <div class="rich-text"><p>Bei Musik, Kaffee und Kuchen können Besucher bummeln und feilschen.</p></div>
+        <!-- Search --><div class="mb-4">30,00 €</div><div class="MyEventButton"></div>
+        <b>Zeitraum allgemeiner Verkauf: 18:00 - 22:00 Uhr</b></main>
+        '''
+        source = self.event(
+            title="Indoor-Flohmarkt", source="Haus der Springmaus", source_id="haus-der-springmaus",
+            link="https://www.springmaus-theater.de/events/indoor-flohmarkt.html",
+            date="2026-11-15", start_date="2026-11-15", end_date="2026-11-15", time="10:00",
+            start_at="2026-11-15T10:00:00+01:00", end_at="2026-11-15T10:00:00+01:00",
+            city="Bonn", venue="Haus der Springmaus", score=2,
+        )
+        context = detail_enrichment.extract_detail_context(document, source)
+        self.assertEqual(context["price"], "Eintritt frei")
+        self.assertEqual(context["time"], "10:00–14:00")
+        self.assertIn("Kaffee", context["description"])
+        canonical = canonicalize_event(detail_enrichment.apply_detail_context(source, context))
+        self.assertTrue(canonical.admission["isFree"])
+        self.assertEqual(canonical.time, "10:00–14:00")
+        self.assertEqual(canonical.start_at, "2026-11-15T10:00:00+01:00")
+        self.assertEqual(canonical.end_at, "2026-11-15T14:00:00+01:00")
+        for changes in (
+            {"time": "11:00", "start_at": "2026-11-15T11:00:00+01:00", "end_at": ""},
+            {"time": "10:00–13:00", "end_at": "2026-11-15T13:00:00+01:00"},
+            {"identity_time_locked": True},
+        ):
+            with self.subTest(changes=changes):
+                original = {**source, **changes}
+                enriched = detail_enrichment.apply_detail_context(original, context)
+                self.assertEqual(enriched["time"], original["time"])
+                self.assertEqual(enriched["end_at"], original["end_at"])
+
+    def test_springmaus_own_header_price_preserves_paid_and_unknown_admission(self):
+        for price, expected in (("25 €", "25 €"), ("Eintritt frei", "Eintritt frei"), ("", "")):
+            with self.subTest(price=price):
+                document = f'''<main><!-- Event Detail --><h1>Flohmarkt</h1>
+                <div class="mb-4">{price}</div><p>Aufbau 09:00 - 10:00 Uhr; Tische 15 €.</p>
+                <div class="rich-text"><p>Ein Flohmarkt zum Stöbern und Feilschen.</p></div>
+                <!-- Listing --><div class="mb-4">30 €</div><div class="MyEventButton"></div></main>'''
+                source = self.event(title="Flohmarkt", link="https://www.springmaus-theater.de/events/flohmarkt.html")
+                context = detail_enrichment.extract_detail_context(document, source)
+                self.assertEqual(context["price"], expected)
+                self.assertFalse(context["time"])
+                wrong_event = detail_enrichment.extract_detail_context(document, {**source, "title": "Andere Show"})
+                self.assertNotEqual(wrong_event.get("price"), "Eintritt frei")
+
     def test_extracts_adfc_fastboot_copy_tour_facts_price_and_address(self):
         payload = {
             "tourLocations": [{
