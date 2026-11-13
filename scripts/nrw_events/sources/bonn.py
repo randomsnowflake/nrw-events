@@ -544,6 +544,8 @@ def _parse_detail_context(html: str) -> dict:
     hours_text = "; ".join(filter(None, (rc.clean(part) for part in re.split(r"</p>", hours.group(1))))) if hours else ""
     if 0 < len(hours_text) <= 200:
         context["opening_hours"] = hours_text
+    if exceptions := _schedule_exceptions("\n".join(description_parts)):
+        context["schedule_exceptions"] = exceptions
     context["description"] = _paragraph_aware_detail_description(description_parts)
     context["description_html"] = _detail_rich_text(html)
     if price := _detail_admission(html):
@@ -1052,6 +1054,58 @@ def _is_sparse_listing_description(description: str, title: str) -> bool:
     ))
 
 
+def _schedule_exceptions(description: str) -> dict[str, list[str]]:
+    """Only dated show notices under the source's explicit exception label."""
+    label = re.search(r"\bAbweichende Termine\s*:\s*(.*)", description, re.I | re.S)
+    if not label:
+        return {}
+    result: dict[str, list[str]] = {}
+    for match in re.finditer(
+        r"\b(\d{2}\.\d{2}\.\d{4})[^:\n]*:\s*(.*?)(?=\b\d{2}\.\d{2}\.\d{4}\b|$)",
+        label.group(1), re.S,
+    ):
+        try:
+            day = datetime.strptime(match.group(1), "%d.%m.%Y").date().isoformat()
+        except ValueError:
+            continue
+        note = re.sub(r"\s+", " ", match.group(2)).strip(" :;•")
+        if re.fullmatch(r"Keine Shows?", note, re.I):
+            result[day] = []
+        elif clocks := re.fullmatch(
+            r"(?:Nur eine Show um|Showbeginn)\s+((?:[01]?\d|2[0-3]):[0-5]\d"
+            r"(?:\s+und\s+(?:[01]?\d|2[0-3]):[0-5]\d)*)\s+Uhr", note, re.I,
+        ):
+            result[day] = [datetime.strptime(value, "%H:%M").strftime("%H:%M")
+                           for value in re.split(r"\s+und\s+", clocks.group(1), flags=re.I)]
+    return result
+
+
+def _apply_schedule_exceptions(events: list[dict], contexts: dict[str, dict]) -> list[dict]:
+    adjusted = []
+    rewritten: set[tuple] = set()
+    for event in events:
+        context = contexts.get(str(event.get("link") or ""), {})
+        exceptions = context.get("schedule_exceptions") or _schedule_exceptions(str(event.get("description") or ""))
+        day = str(event.get("start_date") or event.get("date") or "")
+        if day not in exceptions or event.get("status", "scheduled") != "scheduled":
+            adjusted.append(event)
+        elif not exceptions[day]:
+            adjusted.append({**event, "status": "cancelled"})
+        else:
+            # The notice supplies starts, not the old performance's duration.
+            for clock in exceptions[day]:
+                key = (event.get("link"), event.get("title"), day, clock)
+                if key in rewritten:
+                    continue
+                rewritten.add(key)
+                start = datetime.fromisoformat(f"{day}T{clock}").replace(tzinfo=common.LOCAL_TIMEZONE)
+                adjusted.append({
+                    **event, "time": clock, "start_at": start.isoformat(timespec="minutes"),
+                    "end_at": "", "end_date": day, "all_day": False, "ongoing": False,
+                })
+    return adjusted
+
+
 def _enrich_listing_details(events: list[dict]) -> list[dict]:
     """Read each needed detail URL, bounded by request and source deadlines."""
     # Venue facts live on detail pages. A fixed 45s batch cap made coverage
@@ -1088,6 +1142,8 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
             or not event.get("venue")
             or not event.get("venue_address")
             or event.get("category_key") == "other"
+            # Complete listing rows can still contradict dated show exceptions.
+            or event.get("category_key") == "stage"
         )
         link = str(event.get("link") or "").strip()
         if not needs_detail or not link or not common.event_in_window(event):
@@ -1132,7 +1188,7 @@ def _enrich_listing_details(events: list[dict]) -> list[dict]:
             if admission_basis:
                 event["admission_basis"] = admission_basis
         enriched[index] = event
-    return enriched
+    return _apply_schedule_exceptions(enriched, contexts)
 
 
 def _listing_events_from_html(
@@ -1204,7 +1260,7 @@ def _listing_events_from_html(
             else:
                 time_text = ""
 
-            key = (title.lower(), start.strftime("%Y-%m-%d"), link)
+            key = (title.lower(), start.strftime("%Y-%m-%d"), link, time_text)
             if key in seen:
                 continue
             seen.add(key)
@@ -1639,19 +1695,30 @@ def _merge_event_facts(primary: dict, fallback: dict) -> dict:
 
 
 def _merge_fallback_events(primary: list, fallback: list) -> list:
-    positions = {
-        (event.get("link") or "", event.get("title") or "", event.get("date") or ""): index
-        for index, event in enumerate(primary)
-    }
+    def clock(event: dict) -> str:
+        return _clock(str(event.get("time") or "").split("–", 1)[0]) or _clock(
+            str(event.get("start_at") or "").partition("T")[2][:5],
+        )
+
+    positions: dict[tuple, list[int]] = {}
     merged = list(primary)
+    for index, event in enumerate(primary):
+        key = (event.get("link") or "", event.get("title") or "", event.get("date") or "")
+        positions.setdefault(key, []).append(index)
     for event in fallback:
         key = (event.get("link") or "", event.get("title") or "", event.get("date") or "")
-        if key in positions:
-            index = positions[key]
+        candidates = positions.get(key, [])
+        start = clock(event)
+        matches = [index for index in candidates if clock(merged[index]) == start]
+        if not matches:
+            # A missing clock may enrich one occurrence, never choose between two.
+            matches = [index for index in candidates if not clock(merged[index])] if start else candidates
+        if len(matches) == 1:
+            index = matches[0]
             merged[index] = _merge_event_facts(merged[index], event)
-            continue
-        merged.append(event)
-        positions[key] = len(merged) - 1
+        else:
+            positions.setdefault(key, []).append(len(merged))
+            merged.append(event)
     return merged
 
 

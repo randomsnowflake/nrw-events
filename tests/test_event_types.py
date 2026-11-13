@@ -133,6 +133,21 @@ class EventTypeTests(unittest.TestCase):
             event(title="Weihnachtskonzert der Chöre", category_key="concert").event_types,
             [],
         )
+        for title, category in (
+            ("Pennenfelder Adventsmärktchen", "market"),
+            ("Adventsmärktchen in Lantershofen", "other"),
+            ("Advent am Pleeser Wald", "market"),
+            ("Advent erleben auf Schloss Eulenbroich", "market"),
+        ):
+            self.assertEqual(event(title=title, category_key=category).event_types, ["christmas-market"], title)
+        for title, category in (
+            ("Advent am Pleeser Wald", "other"),
+            ("Adventsbasar", "market"),
+            ("Adventskranzbinden", "market"),
+            ("Wintermarkt im Hürther Gewandhaus", "other"),
+            ("Weihnachtsmarkt-Konzert", "concert"),
+        ):
+            self.assertEqual(event(title=title, category_key=category).event_types, [], title)
 
     def test_classifies_halloween_only_where_it_names_itself(self):
         self.assertEqual(

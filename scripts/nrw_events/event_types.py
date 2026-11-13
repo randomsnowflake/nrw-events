@@ -32,11 +32,14 @@ _FUNFAIR_TITLE = re.compile(
 # Only the market nouns themselves. A Weihnachtskonzert is not a market, and
 # "Weihnachtsmarkt-Konzert" in a concert category stays a concert.
 _CHRISTMAS_MARKET_TITLE = re.compile(
-    r"(?<!\w)(?:\w*weihnachtsmarkt|\w*weihnachtsmaerkte|\w*adventsmarkt"
+    r"(?<!\w)(?:\w*(?:weihnachts|advents)(?:markt|maerkte|maerktchen)"
     r"|christkindl(?:es)?markt|nikolausmarkt)(?!\w)",
     re.IGNORECASE,
 )
-_CHRISTMAS_MARKET_CATEGORIES = frozenset({"market", "festival"})
+# The market noun is unambiguous, so uncategorised ("other") records count too.
+_CHRISTMAS_MARKET_CATEGORIES = frozenset({"market", "festival", "other"})
+# "Advent am Pleeser Wald": a market-category title led by "Advent" names the market.
+_ADVENT_MARKET_TITLE = re.compile(r"^advent(?!\w)")
 
 # A title is explicit evidence. A seasonal source description can also establish
 # the programme; spooky words alone or an artist's past gigs cannot.
@@ -132,9 +135,10 @@ def classify_event_types(event: Mapping[str, Any]) -> list[str]:
         event.get("category_key") == "festival" and _FUNFAIR_TITLE.search(title)
     ):
         event_types.add("funfair")
-    if event.get(
-        "category_key"
-    ) in _CHRISTMAS_MARKET_CATEGORIES and _CHRISTMAS_MARKET_TITLE.search(title):
+    category_key = event.get("category_key")
+    if (
+        category_key in _CHRISTMAS_MARKET_CATEGORIES and _CHRISTMAS_MARKET_TITLE.search(title)
+    ) or (category_key == "market" and _ADVENT_MARKET_TITLE.search(title)):
         event_types.add("christmas-market")
     if _HALLOWEEN_TITLE.search(title) or _description_is_halloween_programme(event):
         event_types.add("halloween")
