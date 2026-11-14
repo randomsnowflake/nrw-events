@@ -9,6 +9,7 @@ from typing import Any
 from . import common
 from . import dedup_rules as _impl_dedup_rules
 from . import duplicate_identity as _impl_duplicate_identity
+from .event_types import AUDIENCE_EVENT_TYPES
 from .identity import event_id
 from .models import MAX_DISCOVERY_PROVENANCE_SOURCES, CanonicalEvent
 from .validation import EventValidationError
@@ -84,6 +85,15 @@ def _merge_duplicate_metadata(
     ]))[:20]
     if source_links:
         updates["source_links"] = source_links
+    # A topic one source states (the carnival committee) stays with the occurrence;
+    # audience types are left to the later audience decision.
+    winner_types = list(winner.get("event_types") or [])
+    event_types = sorted({
+        *winner_types,
+        *(value for value in duplicate.get("event_types") or [] if value not in AUDIENCE_EVENT_TYPES),
+    })
+    if event_types != sorted(winner_types):
+        updates["event_types"] = event_types
     exhibitor = _merged_exhibitor_information(winner, duplicate)
     if exhibitor and exhibitor != (winner.get("exhibitor") or {}):
         updates["exhibitor"] = exhibitor

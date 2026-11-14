@@ -869,9 +869,10 @@ def _series_tokens(title: str) -> tuple[str, ...]:
     # A bare day-month stamp ("11.11. Sessions-Start") dates the listing; it
     # is not an episode, and the venue's own calendar usually leaves it out.
     words = comparison_text(_DAY_MONTH_STAMP.sub(" ", _AGE_MARKER.sub(" ", title or "")))
+    # A year is never an episode, including a club's founding year ("Stadtsoldaten-Corps von 1872").
     numbers = [
         token for token in re.findall(r"\b\d+\b", words)
-        if not re.fullmatch(r"(?:19|20)\d{2}", token)
+        if not re.fullmatch(r"(?:1[5-9]|20)\d{2}", token)
     ]
     roman_episodes = re.findall(
         r"\b(?:teil|folge|part|episode|band|kapitel)\s+([ivxlcdm]+)\b",

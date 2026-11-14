@@ -8,6 +8,7 @@ import unittest
 from datetime import datetime
 
 from nrw_events.civic_list_fallbacks import partition_city_list_fallbacks
+from nrw_events.deduplication import deduplicate
 from nrw_events.duplicate_identity import _series_tokens, events_are_duplicates
 from nrw_events.validation import canonicalize_event
 
@@ -47,6 +48,44 @@ class CrossSourcePairTests(unittest.TestCase):
         self.assertEqual(_series_tokens("20.08.2026 - 23.08.2026 Weinfest"), ("20", "08", "23", "08"))
         self.assertEqual(_series_tokens("Zum 100. Todestag"), ("100",))
         self.assertEqual(_series_tokens("Teil 2"), ("2",))
+
+    def test_founding_year_is_not_an_episode_number(self):
+        # Production 2026-11-14: one parade appeal listed twice at the Brückenforum.
+        self.assertEqual(_series_tokens("Generalappell Bonner Stadtsoldaten-Corps von 1872"), ())
+        place = {
+            "venue": "Brückenforum Bonn", "venue_id": "brueckenforum-bonn",
+            "venue_address": "Friedrich-Breuer-Straße 17, 53225 Bonn", "city": "Bonn",
+            "category_key": "festival", "start_date": "2026-11-14",
+        }
+        self.assertDuplicate(
+            _event(title="Generalappell Bonner Stadtsoldaten-Corps von 1872", source="Brückenforum Bonn",
+                   source_id="brueckenforum-bonn", start_at="", all_day=True,
+                   link="https://www.brueckenforum.de/events/generalappell-bonner-stadtsoldaten-corps-von-1872/", **place),
+            _event(title="Generalappell", source="Festausschuss Bonner Karneval", source_id="karneval-in-bonn",
+                   start_at="2026-11-14T19:11+01:00",
+                   link="https://karneval-in-bonn.de/aktuell/termine/86425bbb-fee1-457b-aed4-15d98c47dcaf", **place),
+        )
+        merged = deduplicate([
+            _event(title="Generalappell Bonner Stadtsoldaten-Corps von 1872", source="Brückenforum Bonn",
+                   source_id="brueckenforum-bonn", start_at="", all_day=True, event_types=[],
+                   link="https://www.brueckenforum.de/events/generalappell-bonner-stadtsoldaten-corps-von-1872/", **place),
+            _event(title="Generalappell", source="Festausschuss Bonner Karneval", source_id="karneval-in-bonn",
+                   start_at="2026-11-14T19:11+01:00", time="19:11", event_types=["adults", "carnival"],
+                   link="https://karneval-in-bonn.de/aktuell/termine/86425bbb-fee1-457b-aed4-15d98c47dcaf", **place),
+        ])
+        self.assertEqual(len(merged), 1)
+        # The committee's topic survives the merge; its audience guess does not.
+        self.assertEqual(merged[0]["event_types"], ["carnival"])
+        self.assertEqual(merged[0]["start_at"], "2026-11-14T19:11+01:00")
+        # The earlier appeal of the same corps that afternoon stays its own event.
+        self.assertSeparate(
+            _event(title="Generalappell Bonner Stadtsoldaten-Corps von 1872", source="Brückenforum Bonn",
+                   source_id="brueckenforum-bonn", start_at="", all_day=True,
+                   link="https://www.brueckenforum.de/events/generalappell-bonner-stadtsoldaten-corps-von-1872/", **place),
+            _event(title="Kadettenappell", source="Festausschuss Bonner Karneval", source_id="karneval-in-bonn",
+                   start_at="2026-11-14T14:11+01:00",
+                   link="https://karneval-in-bonn.de/aktuell/termine/5c79e5e0-ee52-4054-87be-81dae5ae3401", **place),
+        )
 
     def test_dated_ticket_title_folds_into_the_venue_listing(self):
         brueckenforum = {
