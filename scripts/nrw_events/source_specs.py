@@ -46,6 +46,7 @@ class SourceSpec:
     selectors: tuple[tuple[str, str], ...] = ()
     component_ids: tuple[str, ...] = ()
     fallbacks: tuple[dict, ...] = ()
+    disabled_reason: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,7 +190,9 @@ def adapter_for(spec: SourceSpec) -> Callable[[], list[RawEvent]]:
 
 def typed_adapter_for(spec: SourceSpec) -> Callable[[], SourceFetchResult]:
     """Lift every legacy/declarative adapter into the typed source contract."""
-    fetcher = adapter_for(spec)
+    if spec.disabled_reason:
+        return lambda: SourceFetchResult.disabled(spec.disabled_reason)
+    fetcher: Callable[..., list[RawEvent] | SourceFetchResult] = adapter_for(spec)
     accepts_spec = (
         spec.adapter is AdapterType.PYTHON
         and len(inspect.signature(fetcher).parameters) == 1
@@ -243,6 +246,9 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
             raise ValueError(f"Python source {source_id} requires callable")
         if adapter is not AdapterType.PYTHON and not urls:
             raise ValueError(f"declarative source {source_id} requires urls")
+        disabled_reason = raw.get("disabled_reason", "")
+        if not isinstance(disabled_reason, str) or (disabled_reason and not disabled_reason.strip()):
+            raise ValueError(f"source registry row {index} has an invalid disabled_reason")
         admission = raw.get("admission")
         components = tuple(str(value) for value in raw.get("component_ids") or [])
         if any(
@@ -275,7 +281,7 @@ def load_source_specs(path: Path) -> tuple[SourceSpec, ...]:
             callable=callable_reference, page_urls=page_urls, detail_urls=detail_urls,
             selectors=tuple(tuple(value) for value in raw.get("selectors") or []),
             component_ids=components,
-            fallbacks=tuple(fallbacks),
+            fallbacks=tuple(fallbacks), disabled_reason=disabled_reason,
         )
         ids.add(source_id)
         names.add(display_name)

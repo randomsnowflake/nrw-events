@@ -23,6 +23,10 @@ def source_inventory() -> str:
         f"| {row['region']} | {row['display_name']} | `{row['id']}` | `{row['adapter']}` |"
         for row in rows
     )
+    disabled = [row for row in rows if row.get("disabled_reason")]
+    if disabled:
+        lines.extend(("", "## Disabled sources", ""))
+        lines.extend(f"- `{row['id']}`: {row['disabled_reason']}" for row in disabled)
     return "\n".join(lines)
 
 

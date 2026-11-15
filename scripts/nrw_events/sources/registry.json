@@ -57,7 +57,8 @@
       "display_name": "LuPe Events",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.lupe_events:fetch"
+      "callable": "nrw_events.sources.lupe_events:fetch",
+      "disabled_reason": "2026-11-15: Advertised iCal feeds return zero-byte HTTP 200 responses; suspended pending a valid feed. See docs/failed-market-sources.md."
     },
     {
       "id": "bonnlive",
@@ -465,7 +466,8 @@
       "display_name": "Rhein Antik",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.rhein_antik:fetch"
+      "callable": "nrw_events.sources.rhein_antik:fetch",
+      "disabled_reason": "2026-11-15: Schedule and homepage return HTTP 503 Maintenance; suspended pending recovery. See docs/failed-market-sources.md."
     },
     {
       "id": "c-lln-antik-design",
