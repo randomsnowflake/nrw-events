@@ -1,14 +1,70 @@
 import json
 import unittest
+from itertools import permutations
 from pathlib import Path
 from unittest import mock
 from unittest.mock import patch
 
 from nrw_events import common, report
 from nrw_events.identity import event_id
+from nrw_events.identity_reconciliation import _reconcile_published_ids
+from nrw_events.validation import canonicalize_event
 
 
 class ReportTests(unittest.TestCase):
+    def test_reviewed_seo_pairs_preserve_occurrences_and_merge_stoffmarkt(self):
+        rows = json.loads(
+            (Path(__file__).parent / "data/seo-entity-occurrences.json").read_text()
+        )
+        friday, saturday, civic, primary = rows
+        expected_ids = {row["event_id"] for row in (friday, saturday, primary)}
+        # Rebuild without historical merge evidence: matching must stand on the
+        # title, date and place, not the archive's already-recorded lineage.
+        fresh = [canonicalize_event({
+            **row, "previous_event_ids": [], "merged_event_ids": [],
+            "source_links": [],
+        }) for row in rows]
+        for order in permutations(fresh):
+            with self.subTest(sources=[event.source_id for event in order]):
+                self.assertEqual(len(report.deduplicate(list(order))), 3)
+                reconciled = _reconcile_published_ids(list(order), {"events": rows})
+                merged = report.deduplicate(reconciled)
+                self.assertEqual({event_id(event) for event in merged}, expected_ids)
+                winner = next(event for event in merged
+                              if event.source_id == "bad-godesberg-stadtmarketing")
+                self.assertIn(civic["event_id"], winner.previous_event_ids)
+                self.assertIn(civic["event_id"], winner.merged_event_ids)
+                self.assertEqual(set(winner.source_links), {civic["link"], primary["link"]})
+                self.assertEqual(winner.start_at, primary["start_at"])
+                self.assertEqual(winner.end_at, primary["end_at"])
+                self.assertEqual(winner.venue, primary["venue"])
+                for event in merged:
+                    canonicalize_event(event.to_dict())
+                    if event.source_id == "ahrtal-tourismus":
+                        self.assertEqual(event.previous_event_ids, [])
+                        self.assertEqual(event.merged_event_ids, [])
+
+    def test_reviewed_stoffmarkt_nearby_occurrences_remain_separate(self):
+        _, _, civic, primary = json.loads(
+            (Path(__file__).parent / "data/seo-entity-occurrences.json").read_text()
+        )
+        for changes in (
+            {"venue": "Rheinaue", "venue_address": ""},
+            {"city": "Köln"},
+            {"venue_address": "Theaterplatz 100", "venue": "Theaterplatz 100"},
+            {"date": "2026-11-09", "start_date": "2026-11-09", "end_date": "2026-11-09",
+             "start_at": "2026-11-09T11:00+01:00", "end_at": "2026-11-09T17:00+01:00"},
+            {"time": "14:00–17:00", "start_at": "2026-11-08T14:00+01:00"},
+        ):
+            with self.subTest(changes=changes):
+                other = canonicalize_event({**civic, **changes})
+                own = canonicalize_event({
+                    **primary, "previous_event_ids": [], "merged_event_ids": [],
+                    "source_links": [], "venue_address": "Theaterplatz 1",
+                })
+                for order in ([other, own], [own, other]):
+                    self.assertEqual(len(report.deduplicate(order)), 2)
+
     def test_telekom_market_primary_owns_both_early_bird_calendar_duplicates(self):
         rows = json.loads(
             (Path(__file__).parent / "data/telekom-dome-maedelsflohmarkt.json").read_text()
