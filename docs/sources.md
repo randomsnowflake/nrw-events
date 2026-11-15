@@ -119,3 +119,8 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | VVS Siebengebirge | `vvs-siebengebirge` | `python` |
 | bonn-region | Wachtberg | `wachtberg` | `ical` |
 | bonn-region | Wave of Joy | `wave-of-joy` | `python` |
+
+## Disabled sources
+
+- `lupe-events`: 2026-11-15: Advertised iCal feeds return zero-byte HTTP 200 responses; suspended pending a valid feed. See docs/failed-market-sources.md.
+- `rhein-antik`: 2026-11-15: Schedule and homepage return HTTP 503 Maintenance; suspended pending recovery. See docs/failed-market-sources.md.
