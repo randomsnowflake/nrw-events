@@ -936,6 +936,9 @@ def events_from_holzlar_html(html: str) -> list:
         month = list_texts[0] if list_texts else ""
         year = list_texts[1] if len(list_texts) > 1 else ""
         venue = list_texts[2] if len(list_texts) > 2 else ""
+        time_text = next((text for text in list_texts[3:] if re.fullmatch(
+            r"\d{1,2}:\d{2}(?:\s*[-–]\s*\d{1,2}:\d{2})?(?:\s*Uhr)?", text,
+        )), "")
         start, end = _holzlar_dates(day_text, month, year)
         if not title or start is None:
             continue
@@ -953,11 +956,11 @@ def events_from_holzlar_html(html: str) -> list:
         event = common.make_event(
             title, start, end, venue, city,
             common.factual_event_description(
-                title, date_value=start, end_date_value=end, venue=venue, city=city,
+                title, date_value=start, end_date_value=end, time_text=time_text, venue=venue, city=city,
             ),
             link, "BV Holzlar",
             "stadtteil verein gemeinschaft", 1.0,
-            all_day=True,
+            time_text=time_text, all_day=not bool(time_text),
         )
         if event:
             events.append(event)

@@ -623,6 +623,29 @@ class BonnDistrictSourceTests(unittest.TestCase):
                          "https://bv-holzlar.de/veranstaltung/martinszug-holzlar/")
         self.assertTrue(all(event["description"] for event in events))
 
+    def test_holzlar_times_stay_with_their_own_card(self):
+        for clock, expected, end_clock in [
+            ("11:30 - 19:30 Uhr", "11:30–19:30", "19:30"),
+            ("15:00 Uhr", "15:00", ""),
+            ("Zeit folgt", "", ""),
+        ]:
+            with self.subTest(clock=clock):
+                html = HOLZLAR_HTML.replace(
+                    "Holzlar / Kirchwiese</span>",
+                    "Holzlar / Kirchwiese</span></li><li>"
+                    f'<span class="elementor-icon-list-text">{clock}</span>',
+                )
+                untimed, timed = bonn_districts.events_from_holzlar_html(html)
+                self.assertEqual(untimed["time"], "")
+                self.assertTrue(untimed["all_day"])
+                self.assertEqual(timed["time"], expected)
+                self.assertEqual(timed["all_day"], not bool(expected))
+                self.assertEqual(timed["venue"], "Holzlar / Kirchwiese")
+                if expected:
+                    self.assertIn("T" + expected[:5], timed["start_at"])
+                if end_clock:
+                    self.assertIn("T" + end_clock, timed["end_at"])
+
     def test_holzlar_fallback_represents_range_and_external_destination(self):
         html = HOLZLAR_HTML + """
         <div class="elementor e-loop-item post-1902 veranstaltung type-veranstaltung status-publish">
