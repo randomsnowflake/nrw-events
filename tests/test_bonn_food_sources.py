@@ -54,6 +54,36 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["venue_address"], "Hermannstraße 104, 53225 Bonn")
         self.assertTrue(events[0]["link"].endswith("wild-beers-tasting-07-08-26/"))
 
+    def test_bff_distinguishes_explicit_empty_widget_from_broken_markup(self):
+        # Trimmed booking widget; the unrelated dialog translations are omitted.
+        widget = """<div class="elementor-shortcode"><div class='tm_plugin tm-style-v2' lang='de'>
+        <p class='filter_capacity'><input type='checkbox' id='cb_ausgebucht'> Nur verfügbare Touren anzeigen</p>
+        <p class='no_results'>Es wurde kein Ergebnis gefunden</p><script type="application/ld+json">[]</script>
+        <input type='hidden' id='tm_dialoge' value='%7B%7D'/></div></div>"""
+        seo = '<script type="application/ld+json" class="yoast-schema-graph">{"@graph":[]}</script>'
+        for label, html, parser_empty in (
+            ("empty", widget, False),
+            ("SEO graph", seo + widget, False),
+            ("broken SEO graph", seo.replace("[]", "[") + widget, True),
+            ("commented widget", f"<!--{widget}-->", True),
+            ("outside widget", widget.replace("tm_plugin", "other"), True),
+            ("truncated", widget.rsplit("</div>", 2)[0], True),
+            ("invalid schema", widget.replace("[]", "[null]"), True),
+            ("mixed widget", widget.replace("<script", "<div class='block-timetable'></div><script"), True),
+            ("second widget", widget * 2, True),
+            ("broken card outside widget", widget + "<div class='block-timetable'>", True),
+            ("extra event schema", widget + '<script type="application/ld+json">{"@type":"Event"}</script>', True),
+        ):
+            with (
+                self.subTest(label=label),
+                patch.object(common, "fetch_url", return_value=html),
+                patch.object(common, "_record_endpoint") as endpoint,
+                patch.object(common, "log_source_error") as error,
+            ):
+                self.assertEqual(bonn_food.fetch_bff(), [])
+                self.assertIs(endpoint.call_args.kwargs["parser_empty"], parser_empty)
+                self.assertEqual(error.called, parser_empty)
+
     def test_bff_finds_events_nested_inside_jsonld(self):
         item = {
             "@context": "https://schema.org",

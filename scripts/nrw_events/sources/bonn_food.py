@@ -1,5 +1,6 @@
 """Primary food and drink event calendars in and around Bonn."""
 
+import json
 import re
 import urllib.parse
 from collections.abc import Callable
@@ -9,6 +10,7 @@ from typing import Any
 from .. import common
 from ..dates import MONTH_ALL
 from ..health import SourceFetchResult
+from ..jsonld import jsonld_event_items
 from . import regional_common as rc
 
 _CRAFTQUELLE_URL = "https://craft-quelle.de/neue-tasting-termine/"
@@ -39,7 +41,40 @@ def fetch_craftquelle() -> list:
 
 
 def fetch_bff() -> list:
-    return rc.fetch_html_events("BFF Bonner Schifffahrt", _BFF_URL, events_from_bff, source_id="bff-bonner-schifffahrt")
+    return rc.fetch_html_events(
+        "BFF Bonner Schifffahrt", _BFF_URL, events_from_bff,
+        source_id="bff-bonner-schifffahrt", empty_is_healthy=_bff_expected_empty,
+    )
+
+
+def _bff_expected_empty(html: str) -> bool:
+    html = re.sub(r"<!--.*?(?:-->|\Z)", "", html, flags=re.S)
+    if html.count("tm_plugin") != 1 or "block-timetable" in html.lower():
+        return False
+    # shortcut: recognize only the observed complete empty widget; recheck the source if it changes.
+    widget = re.search(
+        r'''<div class="elementor-shortcode"><div class='tm_plugin tm-style-v2' lang='de'>\s*'''
+        r"<p class='filter_capacity'><input type='checkbox' [^<>]*id='cb_ausgebucht'>"
+        r" Nur verfügbare Touren anzeigen</p>\s*"
+        r"<p class='no_results'>Es wurde kein Ergebnis gefunden</p>\s*"
+        r'<script type="application/ld\+json">\s*\[\s*\]\s*</script>\s*'
+        r"<input type='hidden' id='tm_dialoge' value='[^'<>]+'/></div>\s*</div>",
+        html,
+    )
+    if not widget:
+        return False
+    # Only the page's SEO graph may accompany the empty booking schema.
+    rest = html[:widget.start()] + html[widget.end():]
+    seo = re.findall(r'<script type="application/ld\+json" class="yoast-schema-graph">(.*?)</script>', rest, re.S)
+    if rest.lower().count("application/ld+json") != len(seo) or len(seo) > 1:
+        return False
+    if not seo:
+        return True
+    try:
+        graph = json.loads(seo[0])
+    except ValueError:
+        return False
+    return isinstance(graph, dict) and isinstance(graph.get("@graph"), list) and not jsonld_event_items(rest)
 
 
 def fetch_vomfass() -> list | SourceFetchResult:
