@@ -248,10 +248,11 @@ def _public_events(events: list) -> list:
 def _correct_categories(events: list) -> list:
     for event in events:
         event_format = event.pop("event_format", "").strip().casefold()
-        if event_format == "workshop":
-            # The explicit format outranks incidental words such as "market" in a sales course.
+        explicit_key = {"workshop": "workshop", "ausstellung": "exhibition", "vortrag": "talk"}.get(event_format)
+        if explicit_key:
+            # The event's format outranks descriptions of its associated programme.
             result = category_taxonomy.categorize_event(
-                event_format, event.get("title", ""), default_category_key="workshop", category_locked=True,
+                event_format, event.get("title", ""), default_category_key=explicit_key, category_locked=True,
             )
             event["category_key"] = result["key"]
             event["category_label"] = result["label"]

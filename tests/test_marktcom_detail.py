@@ -71,6 +71,26 @@ class MarktcomDetailTests(unittest.TestCase):
                         'end_at', 'description', 'price', 'identity_venue'):
                 self.assertEqual(after.get(key), before.get(key), key)
 
+    def test_only_unambiguous_dated_programme_rows_set_hours(self):
+        october, november = self.events()
+        rows = """
+<table>
+<tr><td><a href="/veranstaltung/troedelmarkt-in-51149-koeln-porz?term_id=1">So. 18.10.2026</a></td>
+<td>09:00 – 15:00 Uhr</td></tr>
+<tr><td><a href="/veranstaltung/troedelmarkt-in-51149-koeln-porz?term_id=2">So. 15.11.2026</a></td>
+<td>13:00 - 17:00 Uhr</td></tr>
+</table>
+"""
+        page = document() + rows
+        for event, expected in ((october, '09:00–15:00'), (november, '13:00–17:00')):
+            context = detail_enrichment.extract_detail_context(page, event)
+            actual = detail_enrichment.apply_detail_context(event, context)
+            self.assertEqual(actual['time'], expected)
+            self.assertTrue(actual['start_at'].startswith(event['date'] + 'T' + expected[:5]))
+            self.assertTrue(actual['end_at'].startswith(event['date'] + 'T' + expected[-5:]))
+        conflict = rows.replace('13:00 - 17:00', '14:00 - 18:00')
+        self.assertFalse(detail_enrichment.extract_detail_context(page + conflict, november).get('time'))
+
     def test_explicit_place_name_is_used(self):
         page = document(location={'name': 'Bürgerzentrum Engelshof', 'address': {
             'streetAddress': 'Oberstraße 96', 'postalCode': '51149',

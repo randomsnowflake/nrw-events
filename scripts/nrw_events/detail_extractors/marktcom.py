@@ -1,6 +1,8 @@
-"""Share only unambiguous place facts across a Marktcom recurring detail URL."""
+"""Extract place facts and occurrence-specific hours from a Marktcom detail URL."""
 import re
-from urllib.parse import urlsplit
+from datetime import date, datetime
+from urllib.parse import parse_qs, urljoin, urlsplit
+from zoneinfo import ZoneInfo
 
 from ..detail_types import DetailContext
 from ..jsonld import jsonld_event_items
@@ -27,7 +29,7 @@ def _url_key(value: str) -> tuple[str, str]:
 
 
 def location_context(document: str, event: RawEvent) -> DetailContext:
-    """Do not export rolling-page dates, hours, prices or occurrence-specific prose."""
+    """Use programme rows for hours because the page header follows the selected occurrence."""
     link = str(event.get('link') or '')
     host, path = _url_key(link)
     if event.get('source_id') != 'marktcom' or host != 'marktcom.de' or not path.startswith('/veranstaltung/'):
@@ -64,4 +66,43 @@ def location_context(document: str, event: RawEvent) -> DetailContext:
     if len(locations) != 1:
         return {}
     venue, address = locations.pop()
-    return {'venue': venue, 'venue_address': address}
+    context: DetailContext = {'venue': venue, 'venue_address': address}
+    context.update(_dated_hours(document, link, event))
+    return context
+
+
+def _dated_hours(document: str, link: str, event: RawEvent) -> DetailContext:
+    event_date = event.get('start_date') or event.get('date', '')
+    try:
+        day = date.fromisoformat(event_date)
+    except ValueError:
+        return {}
+    date_label = day.strftime('%d.%m.%Y')
+    term = parse_qs(urlsplit(link).query).get('term_id')
+    times = set()
+    for row in re.findall(r'<tr\b[^>]*>(.*?)</tr>', document, re.I | re.S):
+        cells = re.findall(r'<td\b[^>]*>(.*?)</td>', row, re.I | re.S)
+        if len(cells) != 2 or not clean_html(cells[0]).strip().endswith(date_label):
+            continue
+        href = re.search(r'<a\b[^>]*\bhref=["\']([^"\']+)["\']', cells[0], re.I)
+        if not href:
+            continue
+        row_url = urljoin(link, href.group(1))
+        row_term = parse_qs(urlsplit(row_url).query).get('term_id')
+        if _url_key(row_url) != _url_key(link) or not row_term or (term and row_term != term):
+            continue
+        time_range = re.fullmatch(
+            r'((?:[01]\d|2[0-3]):[0-5]\d)\s*[-–—]\s*((?:[01]\d|2[0-3]):[0-5]\d)\s*Uhr',
+            clean_html(cells[1]).strip(), re.I,
+        )
+        if time_range and time_range[1] < time_range[2]:
+            times.add((time_range[1], time_range[2]))
+    if len(times) != 1:
+        return {}
+    start, end = times.pop()
+    zone = ZoneInfo('Europe/Berlin')
+    return {
+        'time': f'{start}–{end}',
+        'start_at': datetime.fromisoformat(f'{day}T{start}').replace(tzinfo=zone).isoformat(timespec='minutes'),
+        'end_at': datetime.fromisoformat(f'{day}T{end}').replace(tzinfo=zone).isoformat(timespec='minutes'),
+    }

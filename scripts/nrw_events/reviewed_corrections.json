@@ -1,6 +1,43 @@
 {
   "schema_version": 1,
   "groups": {
+    "rex_screening_ids": [
+      {
+        "match": ["from inside out die architektur von peter zumthor", "2026-11-22", "13:15", "Rex-Lichtspieltheater"],
+        "value": {
+          "event_id": "from-inside-out-die-architektur-von-peter-zumthor-0baa134f41",
+          "aliases": ["european-arthouse-cinema-day-2026-7eeabc8ec5"]
+        },
+        "valid_until": "2026-11-22",
+        "evidence": "Verified 2026-11-19: https://www.rex-filmbuehne.de/inhalt/vorschau names this film as the sole preview in the European Arthouse Cinema Day block. Both published URLs describe the same screening at 13:15 in the Rex."
+      }
+    ],
+    "brueckenforum_market_occurrences": [
+      {
+        "match": ["https://www.brueckenforum.de/events/maedelsflohmarkt-81/", "2026-11-22", "Mädelsflohmarkt"],
+        "value": {
+          "venue_admission_hours": "15:00–18:45",
+          "market_hours": "15:00–19:00",
+          "time_note": "Einlass laut Brückenforum bis 18:45 Uhr, Marktende laut Veranstalter um 19 Uhr.",
+          "venue_price": "4 €",
+          "admission_note": "Kostenpflichtig. Die Preisangaben von Veranstalter und Brückenforum weichen ab."
+        },
+        "valid_until": "2026-11-22",
+        "evidence": "Verified 2026-11-19: https://shop.snapticket.de/event/ticket-dein-madelsflohmarkt-bonn-22-november-202-pqh8ca gives 15:00–19:00 and online visitor tickets. https://maedelsflohmarkt.de/standort/bonn/ gives 5 EUR, the venue gives 4 EUR and admission until 18:45."
+      },
+      {
+        "match": ["https://www.brueckenforum.de/events/maedelsflohmarkt-82/", "2026-12-06", "Mädelsflohmarkt"],
+        "value": {
+          "venue_admission_hours": "15:00–18:45",
+          "market_hours": "15:00–19:00",
+          "time_note": "Einlass laut Brückenforum bis 18:45 Uhr, Marktende laut Veranstalter um 19 Uhr.",
+          "venue_price": "4 €",
+          "admission_note": "Kostenpflichtig. Die Preisangaben von Veranstalter und Brückenforum weichen ab."
+        },
+        "valid_until": "2026-12-06",
+        "evidence": "Verified 2026-11-19: https://shop.snapticket.de/event/ticket-dein-madelsflohmarkt-bonn-06-dezember-202-n2na6c gives 15:00–19:00 and online visitor tickets. https://maedelsflohmarkt.de/standort/bonn/ gives 5 EUR, the venue gives 4 EUR and admission until 18:45."
+      }
+    ],
     "bonn_martinszuege_occurrence_overrides": [
       {
         "match": ["Martinszug GGS Karlschule", "2026-11-04", "Bonn", "Schulhof Karlschule"],

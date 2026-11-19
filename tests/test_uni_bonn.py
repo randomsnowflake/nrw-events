@@ -39,6 +39,21 @@ class UniBonnSourceTests(unittest.TestCase):
         self.assertEqual(validated.category_reason, "source:locked-default:workshop")
         self.assertNotIn("event_format", corrected)
 
+    def test_explicit_exhibition_and_talk_outrank_programme_prose(self):
+        for event_format, description, expected in (
+            ("Ausstellung", "Digitale Erschließung des Nachlasses.", "exhibition"),
+            ("Vortrag", "Dieser Vortrag begleitet eine Ausstellung.", "talk"),
+        ):
+            with self.subTest(event_format=event_format):
+                [event] = uni_bonn._correct_categories([{
+                    "title": "Karl Simrock und die Grimms", "description": description,
+                    "event_format": event_format, "start_date": "2026-11-22", "end_date": "2026-11-22",
+                    "venue": "Universitätsmuseum Bonn", "city": "Bonn", "source": "Universität Bonn",
+                    "source_id": "uni-bonn", "link": "https://www.uni-bonn.de/de/veranstaltungen/simrock",
+                    "score": 1.0, "distance_km": 0,
+                }])
+                self.assertEqual(validate_event(event).category_key, expected)
+
     def test_missing_or_other_formats_do_not_force_workshop(self):
         for format_, key in (("", "market"), ("Markt", "market"), ("Vortrag", "talk"), ("Ausstellung", "exhibition")):
             with self.subTest(format=format_):

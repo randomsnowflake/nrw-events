@@ -101,6 +101,27 @@ class CinemaSpecialSourceTests(unittest.TestCase):
         self.assertTrue(all(event["source_id"] == "rex-filmbuehne-specials" for event in events))
         self.assert_valid_cinema_events(events)
 
+    def test_rex_uses_the_single_arthouse_preview_title_and_preserves_both_urls(self):
+        html = """
+<div class="vorschau">
+  <h2>European Arthouse Cinema Day 2026</h2>
+  <h4 class="termin">Ab Sonntag, 22.11.2026 um 13:15 Uhr im Rex</h4>
+  <strong>Sonntag, 22. November 2026, 13:15 Uhr im Rex-Kino.</strong>
+  <strong>Preview: From Inside Out – Die Architektur von Peter Zumthor (OmU)</strong>
+  <strong>Einheitspreis: 8 Euro</strong>
+</div>
+"""
+        [event] = cinema_specials._events_from_rex_filmbuehne(html)
+        self.assertEqual(event["title"], "From Inside Out – Die Architektur von Peter Zumthor")
+        self.assertEqual(event["time"], "13:15")
+        self.assertEqual(validate_event(event).admission["amount"], 8)
+        self.assertEqual(event["preserved_event_id"], "from-inside-out-die-architektur-von-peter-zumthor-0baa134f41")
+        self.assertEqual(event["previous_event_ids"], ["european-arthouse-cinema-day-2026-7eeabc8ec5"])
+        [multiple] = cinema_specials._events_from_rex_filmbuehne(
+            html.replace("<strong>Einheitspreis", "<strong>Preview: Another Film</strong><strong>Einheitspreis")
+        )
+        self.assertEqual(multiple["title"], "European Arthouse Cinema Day 2026")
+
     def test_rex_filmbuehne_detects_guest_screening_without_importing_release_date(self):
         html = """
 <div class="vorschau">

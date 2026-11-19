@@ -540,6 +540,36 @@ class RegionalDescriptionQualityTests(unittest.TestCase):
         self.assertEqual(context["time"], "11:00–17:00")
         self.assertNotIn("10€", context["description"])
 
+    def test_brueckenforum_reviewed_market_end_and_disputed_price(self):
+        listing = """
+<div class="event-single"><div><h3 class="event-headline">Markt/Messe</h3>
+<h4>Mädelsflohmarkt</h4><span class="date">22/11/2026</span>
+<a href="https://www.brueckenforum.de/events/maedelsflohmarkt-81/">Details</a>
+</div></div></div>
+"""
+        detail = """
+<section id="single-event-header"><div class="module">
+<p>Eintritt 4 €<br>Einlass von 15:00 - 18:45 Uhr</p>
+</div></section>
+"""
+        with patch.object(requested_venues.common, "window_contains", return_value=True):
+            [event] = requested_venues._events_from_brueckenforum(listing, lambda _: detail)
+            [revised] = requested_venues._events_from_brueckenforum(
+                listing, lambda _: detail.replace("4 €", "6 €").replace("18:45", "17:30"),
+            )
+            [other] = requested_venues._events_from_brueckenforum(
+                listing.replace("22/11/2026", "29/11/2026"), lambda _: detail,
+            )
+        self.assertEqual(event["time"], "15:00–19:00")
+        self.assertIs(event["admission"]["isFree"], False)
+        self.assertIsNone(event["admission"]["amount"])
+        self.assertIn("18:45", event["time_note"])
+        self.assertEqual(
+            detail_enrichment.apply_detail_context(event, {"price": "4 €"})["price"], event["price"],
+        )
+        self.assertEqual((revised["time"], revised["price"]), ("15:00–17:30", "6 €"))
+        self.assertEqual(other["time"], "15:00–18:45")
+
     def test_rathausmusik_creates_direct_rich_primary_occurrences(self):
         html = """
         <div class="xr_txt xr_s6" style="position:absolute;top:1383px">

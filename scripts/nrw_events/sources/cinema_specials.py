@@ -12,9 +12,10 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 
-from .. import common
+from .. import common, reviewed_corrections
 from ..dates import resolve_yearless_date
 from ..models import AdmissionDefault
+from ..normalization import comparison_text
 from ..source_types import TextParser
 from . import regional_common as rc
 
@@ -224,6 +225,10 @@ def _events_from_rex_filmbuehne(html: str) -> list:
     """Parse curated special screenings while excluding ordinary cinema releases."""
     events = []
     seen = set()
+    reviews = {
+        tuple(entry["match"]): entry["value"]
+        for entry in reviewed_corrections.active_entries("rex_screening_ids", common.runtime_window().start)
+    }
     blocks = re.findall(
         r'(<div class="vorschau">.*?)(?=<div class="vorschau">|</main>|<footer|$)',
         html or "",
@@ -238,6 +243,7 @@ def _events_from_rex_filmbuehne(html: str) -> list:
             continue
 
         display_title = _rex_enriched_title(title, block)
+        block_events = []
         description = common.concise_description(rc.clean(block), max_chars=420)
         lines = [line for fragment in [term_html, *highlighted] for line in _html_lines(fragment)]
         shared_time = _REX_SHARED_TIME_PATTERN.search(rc.clean(block))
@@ -279,7 +285,29 @@ def _events_from_rex_filmbuehne(html: str) -> list:
                     source_id=_REX_FILMBUEHNE_SOURCE_ID,
                 )
                 if event:
-                    events.append(event)
+                    block_events.append(event)
+        if len(block_events) == 1 and re.fullmatch(r"(?:European )?Arthouse Cinema Day(?: 20\d{2})?", title, re.I):
+            previews = {
+                re.sub(r"\s*\(OmU\)\s*$", "", preview.group(1), flags=re.I)
+                for value in highlighted
+                if (preview := re.fullmatch(r"(?:Preview|Vorpremiere)\s*:\s*(.+)", rc.clean(value), re.I))
+            }
+            if len(previews) == 1:
+                screening = block_events[0]
+                screening["title"] = previews.pop()
+                prices = {
+                    text for value in highlighted
+                    if re.fullmatch(r"Einheitspreis:\s*\d+(?:[,.]\d{2})?\s*(?:€|Euro)\.?", text := rc.clean(value), re.I)
+                }
+                if len(prices) == 1:
+                    screening["price"] = prices.pop()
+                    screening["admission_basis"] = "explicit"
+        for event in block_events:
+            review = reviews.get((comparison_text(event["title"]), event["date"], event["time"], event["venue"]))
+            if review:
+                event["preserved_event_id"] = review["event_id"]
+                event["previous_event_ids"] = review["aliases"]
+            events.append(event)
     return events
 
 

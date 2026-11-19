@@ -352,6 +352,10 @@ def _brueckenforum_detail_context(html: str) -> dict:
 
 def _events_from_brueckenforum(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
+    reviews = {
+        tuple(entry["match"]): entry["value"]
+        for entry in reviewed_corrections.active_entries("brueckenforum_market_occurrences", common.runtime_window().start)
+    }
     for block in re.findall(r'<div class="event-single">(.*?)</div>\s*</div>\s*</div>',
                             html, re.S | re.I):
         category_m = re.search(r'class="event-headline[^"]*"[^>]*>(.*?)</h3>', block, re.S | re.I)
@@ -381,10 +385,14 @@ def _events_from_brueckenforum(html: str, detail_fetcher: Callable[[str], str] |
         if detail.get("is_rathaus_market"):
             title = "Floh- und Trödelmarkt Beueler Rathausplatz"
             venue = "Beueler Rathausplatz (Möhneplatz)"
-        start_with_time = _with_hhmm(start, detail.get("time", ""))
-        end_with_time = start_with_time
-        if "–" in detail.get("time", ""):
-            end_with_time = _with_hhmm(start, detail["time"].split("–", 1)[1])
+        review = reviews.get((link, start.date().isoformat(), title)) if start else None
+        time = detail.get("time", "")
+        time_note = ""
+        if review and time in ("", "15:00", review["venue_admission_hours"]):
+            time = review["market_hours"]
+            time_note = review["time_note"]
+        start_with_time = _with_hhmm(start, time)
+        end_with_time = _with_hhmm(start, time.split("–", 1)[1]) if "–" in time else start_with_time
         ev = common.make_event(
             title,
             start_with_time,
@@ -396,13 +404,22 @@ def _events_from_brueckenforum(html: str, detail_fetcher: Callable[[str], str] |
             "Brückenforum Bonn",
             f"brückenforum {category} konzert comedy theater show markt party",
             0.98 if detail else 0.9,
-            detail.get("time", ""),
+            time,
             source_id="brueckenforum-bonn",
+            time_note=time_note,
         )
         if ev:
             if detail.get("price"):
                 ev["price"] = detail["price"]
                 ev["admission_basis"] = detail.get("admission_basis", "")
+            if review and detail.get("price", "") in ("", review["venue_price"]):
+                note = review["admission_note"]
+                ev["price"] = note
+                ev["admission_basis"] = "editorial"
+                ev["admission"] = {
+                    "isFree": False, "amount": None, "currency": "EUR", "basis": "editorial",
+                    "note": note, "donationSuggested": False,
+                }
             if detail.get("exhibitor"):
                 ev["exhibitor"] = detail["exhibitor"]
             events.append(ev)

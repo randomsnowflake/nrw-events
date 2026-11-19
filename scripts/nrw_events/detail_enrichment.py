@@ -274,7 +274,7 @@ def apply_detail_context(event: RawEvent, context: DetailContext) -> RawEvent:
     price = context.get("price", "")
     if price and (
         not str(enriched.get("price") or "").strip()
-        or enriched.get("admission_basis") not in {"explicit", "structured"}
+        or enriched.get("admission_basis") not in {"explicit", "structured", "editorial"}
     ):
         enriched["price"] = common.clean_html(price)[:160]
         enriched["admission_basis"] = "explicit"
