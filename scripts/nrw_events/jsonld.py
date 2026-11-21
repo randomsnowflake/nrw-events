@@ -230,7 +230,7 @@ def _jsonld_accessible_for_free(value: Any) -> bool | None:
     return None
 
 
-def _jsonld_offer_price(offers: Any) -> str | None:
+def _jsonld_offer_price(offers: Any, *, trust_numeric_zero: bool = True) -> str | None:
     """Return a conservative schema.org Offer price as the legacy display string."""
     if isinstance(offers, dict):
         candidates = [offers]
@@ -257,7 +257,7 @@ def _jsonld_offer_price(offers: Any) -> str | None:
             # A bare zero without a currency is what many calendar plugins emit for
             # "no price maintained". Only trust it as free when the source states a
             # currency, otherwise leave it to the remaining offers or text inference.
-            if currency_text:
+            if currency_text and trust_numeric_zero:
                 has_explicitly_free_offer = True
             continue
         return " ".join(part for part in (amount_text, currency_text) if part)
@@ -298,14 +298,23 @@ def jsonld_event_status(value: object) -> str:
     return ""
 
 
-def _jsonld_admission_price(item: dict) -> str | None:
+def _jsonld_admission_price(item: dict, *, source_id: str = "") -> str | None:
     """Resolve structured admission, with the direct free-access flag authoritative."""
     accessible_for_free = _jsonld_accessible_for_free(item.get("isAccessibleForFree"))
-    offer_price = _jsonld_offer_price(item.get("offers"))
+    # Hennef's MEC calendar emits 0 EUR even when the organizer sells tickets.
+    offer_price = _jsonld_offer_price(item.get("offers"), trust_numeric_zero=source_id != "hennef")
     if accessible_for_free is True:
         return "kostenlos"
     if accessible_for_free is False:
         return offer_price if offer_price and offer_price != "kostenlos" else "kostenpflichtig"
+    if source_id == "hennef" and offer_price is None:
+        description = _jsonld_text(item.get("description"))
+        if paid_price := _visible_paid_admission_price(description):
+            return paid_price
+        if _impl_event_builder.has_explicit_free_admission_wording(_jsonld_text(item.get("name")), description):
+            return "kostenlos"
+        if _HENNEF_TICKET_SALES_RE.search(description):
+            return "kostenpflichtig"
     return offer_price
 
 
@@ -313,6 +322,11 @@ _VISIBLE_PAID_ADMISSION_RE = re.compile(
     r"\b(?:eintritt|teilnahme|ticket(?:s)?|kostenbeitrag|teilnahmebeitrag|teilnahmegeb(?:u|ü)hr)"
     r"\s+(?:kostet|kosten|betr(?:a|ä)gt|betragen)\s+"
     r"(?P<amount>\d+(?:[.,]\d{1,2})?)\s*(?P<currency>€|eur\b|euro\b)",
+    re.IGNORECASE,
+)
+
+_HENNEF_TICKET_SALES_RE = re.compile(
+    r"\b(?:karten|tickets)\s+(?:gibt es|sind erhältlich)\s+bei\s+(?:bonn\s*ticket|eventim|köln\s*ticket)\b",
     re.IGNORECASE,
 )
 
@@ -344,13 +358,11 @@ def events_from_jsonld(html: str, source: str, default_city: str, category: str,
             city = city or default_city
             desc = _jsonld_text(item.get("description"))
             link = _jsonld_text(item.get("url")) or default_link
-            admission_price = _jsonld_admission_price(item)
+            admission_price = _jsonld_admission_price(item, source_id=source_id)
         except (TypeError, AttributeError, ValueError) as exc:
             _impl_run_state.log_source_error("JSON-LD event", exc)
             continue
-        # Calendar plugins often publish a default ``price: 0`` even when the
-        # visible event copy names a visitor fee. A narrowly phrased amount in
-        # that copy is stronger evidence than this structured placeholder.
+        # Visible visitor prices can contradict a calendar's zero-price default.
         if (
             admission_price == "kostenlos"
             and _jsonld_accessible_for_free(item.get("isAccessibleForFree")) is not True

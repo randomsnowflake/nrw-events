@@ -442,7 +442,8 @@ _ACTIVITY_EXPLICIT_FREE = re.compile(
     r"\b(?P<activity>workshop|führung|fuehrung|tour|training|konzert|programm)\b"
     r"[^.!?]{0,60}\b(?:ist|sind)\s+(?:frei|kostenlos|kostenfrei)\b"
     r"|\b(?:kostenlose|kostenloser|kostenlosen|kostenfreie|kostenfreier|kostenfreien)"
-    r"(?:[,\s–-]+[a-zäöüß-]+){0,2}[,\s–-]+(?P<prefixed>workshop|führung|fuehrung|[a-zäöüß-]*tour|training|konzert|programm)\b",
+    r"(?:[,\s–-]+[a-zäöüß-]+){0,2}[,\s–-]+"
+    r"(?P<prefixed>workshop|führung|fuehrung|[a-zäöüß-]*(?:tour|kurs)|training|konzert|programm)\b",
     re.IGNORECASE,
 )
 

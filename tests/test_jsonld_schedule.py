@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime
 
 from nrw_events import common, report
+from nrw_events.detail_enrichment import extract_detail_context
 from nrw_events.validation import canonicalize_event
 
 from tests.helpers import patch_window
@@ -341,6 +342,38 @@ class JsonLdScheduleTests(unittest.TestCase):
 
         self.assertEqual(event["price"], "kostenlos")
         self.assertEqual(event["admission_basis"], "explicit")
+
+    def test_hennef_zero_price_needs_independent_admission_evidence(self):
+        cases = (
+            ("Karten gibt es bei Bonnticket oder bei der Buchhandlung am Markt.", {}, False, None),
+            ("Die Teilnahme kostet 5 Euro pro Person.", {}, False, 5.0),
+            ("Eintritt frei.", {}, True, None),
+            ("Eintritt frei. Karten gibt es bei BonnTicket.", {}, True, None),
+            ("Die Teilnahme ist kostenfrei. Eine Anmeldung ist nötig.", {}, True, None),
+            ("Der kostenfreie Elternkurs umfasst drei Einheiten.", {"name": "Elternkurs"}, True, None),
+            ("Eine Anmeldung beim Veranstalter ist nötig.", {}, None, None),
+            ("Karten gibt es bei Bonnticket.", {"isAccessibleForFree": True}, True, None),
+            ("Es gibt mehrere Kartenkategorien.", {"offers": {"price": 25, "priceCurrency": "EUR"}}, False, 25.0),
+        )
+        link = "https://www.hennef.de/veranstaltungen/blaeck-foeoes-live/"
+        for description, fields, is_free, amount in cases:
+            with self.subTest(description=description):
+                payload = {
+                    "@type": "Event",
+                    "name": "Bläck Fööss live",
+                    "startDate": "2026-06-12",
+                    "url": link,
+                    "description": description,
+                    "offers": {"price": "0", "priceCurrency": "EUR"},
+                    **fields,
+                }
+                html = f'<script type="application/ld+json">{json.dumps(payload)}</script>'
+                [event] = common.events_from_jsonld(html, "Hennef", "Hennef", "konzert", 0.95, link, "hennef")
+                canonical = canonicalize_event(event)
+                self.assertEqual(canonical.admission["isFree"], is_free)
+                self.assertEqual(canonical.admission["amount"], amount)
+                context = extract_detail_context(html, event)
+                self.assertEqual(context["price"], event["price"])
 
     def test_duplicate_enrichment_carries_explicit_provenance_fields(self):
         base = {

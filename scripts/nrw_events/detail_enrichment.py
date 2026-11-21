@@ -149,7 +149,7 @@ def extract_detail_context(document: str, event: RawEvent) -> DetailContext:
         "end_at": "",
     }
     for item in _jsonld_candidates(document or "", str(event.get("title") or ""))[:1]:
-        structured_price = common._jsonld_admission_price(item)
+        structured_price = common._jsonld_admission_price(item, source_id=str(event.get("source_id") or ""))
         # A calendar's visitor-facing event cost is stronger evidence than its
         # generated JSON-LD. Plugins can retain a default currency there even
         # while rendering the organizer's complete price correctly.
