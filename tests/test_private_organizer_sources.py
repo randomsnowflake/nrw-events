@@ -170,6 +170,28 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         fetch_detail.assert_called_once()
         self.assertEqual(fetch_detail.call_args.kwargs["retry_attempts"], 1)
 
+    def test_kunstrasen_reads_public_react_router_listing(self):
+        from pathlib import Path
+
+        html = (Path(__file__).parent / "fixtures/kunstrasen-public-listing.html").read_text()
+        rows = {event["title"]: event for event in kunstrasen_bonn._events_from_listing(html)}
+        self.assertEqual(set(rows), {"Bryan Adams", "Simply Red", "James Blunt", "Die Fantastischen Vier"})
+        self.assertEqual(kunstrasen_bonn._events_from_listing(html[html.index("<script>"):]), [])
+        for title, day, slug in [
+            ("Bryan Adams", "06", "bryan-adams-rftlbt"),
+            ("Simply Red", "07", "simply-red-dv6l8e"),
+            ("James Blunt", "09", "james-blunt-t6cjhr"),
+        ]:
+            event = rows[title]
+            self.assertEqual(event["start_date"], f"2027-07-{day}")
+            self.assertEqual(event["time"], "19:00–22:00")
+            self.assertEqual((event["venue"], event["city"]), ("KUNST!RASEN Bonn", "Bonn"))
+            self.assertEqual(event["link"], f"https://tickets.kunstrasen-bonn.de/events/{slug}")
+        self.assertEqual(rows["Bryan Adams"]["price"], "ab 104 €")
+        self.assertEqual(rows["Simply Red"]["price"], "ab 99 €")
+        self.assertFalse(rows["James Blunt"].get("price"))
+        self.assertEqual(rows["Die Fantastischen Vier"]["availability"], "SoldOut")
+
     def test_kunstrasen_excludes_voucher_products_but_keeps_concerts(self):
         base = {"start": "2026-09-10T00:00:00.000Z", "end": "2027-12-31T23:00:00.000Z",
                 "locationName": "KUNST!RASEN GmbH", "locationCity": "Bonn"}
