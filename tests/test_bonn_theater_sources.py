@@ -1,5 +1,7 @@
+import json
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common, config, report
@@ -20,6 +22,38 @@ from tests.helpers import patch_window
 
 
 class BonnTheaterSourceTests(unittest.TestCase):
+    def test_theater_bonn_fetches_calendar_through_window_end(self):
+        patch_window(self, datetime(2026, 11, 23), datetime(2026, 12, 2))
+        pages = json.loads((Path(__file__).parent / "fixtures/theater-bonn-calendar-20261123.json").read_text())
+        with patch.object(common, "fetch_json", side_effect=pages) as fetch, patch.object(
+            common, "fetch_detail_url", return_value="",
+        ) as detail:
+            events = theater_bonn.fetch()
+        detail_urls = [call.args[0] for call in detail.call_args_list]
+        # Three Zauberer von Oz occurrences share one production page.
+        self.assertEqual(detail_urls.count("https://www.theater-bonn.de/de_DE/programm/der-zauberer-von-oz.1400002"), 1)
+        self.assertFalse([url for url in detail_urls if "?" in url])
+        self.assertEqual(fetch.call_count, 2)
+        self.assertIn("date_from=2026-11-23", fetch.call_args_list[0].args[0])
+        self.assertIn("&p=2", fetch.call_args_list[1].args[0])
+        by_title = {event["title"]: event for event in events}
+        self.assertEqual(by_title["Vierteltöne - Musik für alle"]["date"], "2026-11-24")
+        self.assertEqual(by_title["Vierteltöne - Musik für alle"]["time"], "16:30")
+        self.assertEqual(by_title["1984"]["availability"], "SoldOut")
+        self.assertEqual(by_title["Nabucco"]["details"]["performance"], "final")
+        self.assertIn("?event_date=", by_title["Der Zauberer von Oz"]["link"])  # event links stay per occurrence
+        self.assertEqual(by_title["Die Leiden des jungen Werther"]["date"], "2026-12-02")
+        self.assertNotIn("Istanbul", by_title)
+        self.assertNotIn("Dear Evan Hansen", by_title)
+
+        pages[1]["Pager"]["NbResults"] -= 1
+        with patch.object(common, "fetch_json", side_effect=pages), patch.object(
+            common, "log_source_error",
+        ) as log, patch.object(common, "fetch_detail_url") as detail:
+            self.assertEqual(theater_bonn.fetch(), [])
+        detail.assert_not_called()
+        log.assert_called_once()
+
     def setUp(self):
         patch_window(self, datetime(2026, 7, 19), datetime(2026, 12, 31))
 

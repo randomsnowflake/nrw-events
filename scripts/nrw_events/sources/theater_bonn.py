@@ -5,13 +5,14 @@ import re
 import time
 from collections.abc import Callable
 from datetime import datetime
+from urllib.parse import urlencode, urlsplit
 
 from .. import category_taxonomy, common
 from . import regional_common as rc
 
 _SOURCE = "Theater Bonn"
-_API = "https://www.theater-bonn.de/de/api/events/"
-_CALENDAR = "https://www.theater-bonn.de/de/?mode=kalender#programm"
+_API = "https://www.theater-bonn.de/de_DE/event.json"
+_CALENDAR = "https://www.theater-bonn.de/de_DE/kalender"
 _TRUST = 1.0
 
 
@@ -61,6 +62,12 @@ def _programme_link(item: dict) -> str:
     return rc.abs_url("https://www.theater-bonn.de/", href) if href else ""
 
 
+def _detail_link(item: dict) -> str:
+    # One production page serves every occurrence; ?event_date only selects the date.
+    link = _programme_link(item)
+    return urlsplit(link)._replace(query="").geturl() if link else ""
+
+
 def _link(item: dict) -> str:
     ticket = item.get("ticket") or {}
     link = (
@@ -100,7 +107,7 @@ def _detail_pages(items: list[dict], detail_fetcher: Callable[[str], str] | None
         if any(word in status.casefold() for word in ("abgesagt", "entfällt", "cancelled")):
             continue
         start, _ = _start(item)
-        link = _programme_link(item)
+        link = _detail_link(item)
         remaining = deadline - time.monotonic()
         if not start or not common.window_contains(start) or not link:
             continue
@@ -186,8 +193,8 @@ def events_from_payload(items: list[dict], detail_fetcher: Callable[[str], str] 
         title = rc.clean(item.get("title", ""))
         venue = _venue(item)
         description = common.concise_description(item.get("description", ""))
-        programme_link = _programme_link(item)
-        page = detail_pages.get(programme_link, "") if programme_link else ""
+        detail_link = _detail_link(item)
+        page = detail_pages.get(detail_link, "") if detail_link else ""
         if not description and page:
             description = _detail_description(page)
         description_generated = not description
@@ -230,11 +237,74 @@ def events_from_payload(items: list[dict], detail_fetcher: Callable[[str], str] 
     return rc.dedupe_occurrences(events)
 
 
+def _calendar_item(row: dict, start: datetime) -> dict | None:
+    if row["IsPublished"] != 1 or row["IsArchived"] or row["IsCancled"]:
+        return None
+    venue = rc.clean(row.get("Location") or "")
+    if venue == "Junges Theater Bonn":  # Partner listings have their own adapter.
+        return None
+    slug = row["Slug"]
+    if not re.fullmatch(r"/de_DE/programm/[\w-]+\.\d+\?event_date=\d+", slug):
+        raise ValueError("Unexpected Theater Bonn programme path")
+    status = rc.clean(row.get("Status") or "").casefold()
+    if status == "wieder im spielplan":
+        status = "wiederaufnahme"
+    elif status.startswith("zum letzten mal"):  # also "… in dieser Spielzeit"
+        status = "zum-letzten-mal"
+    availability = rc.clean(row.get("PriceAvailability") or "").casefold().split("|")
+    return {
+        "title": row["Title"], "url": slug, "tags": [venue],
+        "date_full": start.strftime("%d.%m.%Y"), "date_time": start.strftime("%H:%M"),
+        "description": row.get("Description") or row.get("ShortDescription") or "",
+        "categories": [row.get("ContentCategory") or row.get("FormalCategory") or ""],
+        "status": status,
+        "ticket": {
+            "status": ("sold-out" if row.get("IsSoldOut") else
+                       "restkarten" if "restkarten" in map(str.strip, availability) else ""),
+            "ticket_info": (row.get("FreeEntryText") or "") if row.get("IsFreeEntry") else "",
+        },
+    }
+
+
+def _calendar_items() -> list[dict]:
+    window = common.runtime_window()
+    # The unversioned first page can be cached independently of later pages.
+    query = urlencode({"current_page": "kalender", "date_from": window.start.date().isoformat(),
+                       "location": "alle", "category": "alle", "status": "", "search": "",
+                       "_": time.time_ns()})
+    items: list[dict] = []
+    seen: set[int] = set()
+    total = None
+    last_start = window.start.date()
+    # shortcut: at most 1,000 listings, raise the cap if the published season grows beyond it.
+    for page in range(1, 51):
+        payload = common.fetch_json(f"{_API}?{query}&p={page}", timeout=15)
+        pager, rows = payload["Pager"], payload["EventOverview"]
+        offset = (page - 1) * 20
+        count = pager["NbResults"]
+        if (type(count) is not int or count < offset or (total is not None and count != total)
+                or pager["FirstIndex"] != offset + 1 or not isinstance(rows, list)
+                or len(rows) != min(20, count - offset)):
+            raise ValueError("Inconsistent Theater Bonn calendar pagination")
+        total = count
+        for row in rows:
+            occurrence = row["IdEventDate"]
+            # DateFrom can refer to the entire run, not this performance.
+            start = datetime.strptime(row["EventOrderValue"], "%Y%m%d%H%M")
+            if occurrence in seen or start.date() < last_start:
+                raise ValueError("Repeated or unordered Theater Bonn calendar occurrence")
+            seen.add(occurrence)
+            last_start = start.date()
+            if common.window_contains(start) and (item := _calendar_item(row, start)) is not None:
+                items.append(item)
+        if offset + len(rows) == total or last_start > window.end.date():
+            return items
+    raise ValueError("Theater Bonn calendar page limit exceeded")
+
+
 def fetch() -> list[dict]:
     try:
-        payload = common.fetch_json(_API, timeout=30)
-        items = payload if isinstance(payload, list) else payload.get("events", [])
-        return events_from_payload(items)
+        return events_from_payload(_calendar_items())
     except Exception as exc:
         common.log_source_error(_SOURCE, exc)
         return []
