@@ -589,7 +589,12 @@ def _same_occurrence(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
                         or (right_single_day and left_bounds[0] <= right_bounds[0] <= left_bounds[1])
                     )
                 )
-                dates_match = syndicated_daily_occurrence
+                # A reviewed alias family is one event; publishers may disagree
+                # about how long it runs, so any overlap folds it.
+                reviewed_run = _reviewed_occurrence_alias_matches(left, right) and (
+                    left_bounds[0] <= right_bounds[1] and right_bounds[0] <= left_bounds[1]
+                )
+                dates_match = syndicated_daily_occurrence or reviewed_run
         else:
             dates_match = (left_bounds[0] <= right_bounds[1]
                            and right_bounds[0] <= left_bounds[1])

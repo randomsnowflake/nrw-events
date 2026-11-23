@@ -114,6 +114,12 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
         "beuel-rathausplatz-flohmarkt",
     ("beuel-net", "flohmarktambeuelerrathaus"):
         "beuel-rathausplatz-flohmarkt",
+    # Reviewed 2026-11-23 (kirchenpavillon.ekir.de): one Lichtermarkt of the
+    # Kirchenpavillon on the Xtra-Platz at Kaiserplatz; Bonn.de titles it by year.
+    ("bonn-de-events", "lichtermarkt2026"):
+        "bonn-kaiserplatz-lichtermarkt",
+    ("veranstaltungen-bonn-submission", "lichtermarktamkaiserplatz"):
+        "bonn-kaiserplatz-lichtermarkt",
 }
 
 

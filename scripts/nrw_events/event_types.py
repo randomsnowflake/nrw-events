@@ -33,7 +33,7 @@ _FUNFAIR_TITLE = re.compile(
 # "Weihnachtsmarkt-Konzert" in a concert category stays a concert.
 _CHRISTMAS_MARKET_TITLE = re.compile(
     r"(?<!\w)(?:\w*(?:weihnachts|advents)(?:markt|maerkte|maerktchen)"
-    r"|christkindl(?:es)?markt|nikolausmarkt)(?!\w)",
+    r"|christkindl(?:es)?markt|nikolausmarkt|\w*lichtermarkt)(?!\w)",
     re.IGNORECASE,
 )
 # The market noun is unambiguous, so uncategorised ("other") records count too.
