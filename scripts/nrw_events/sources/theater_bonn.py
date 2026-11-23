@@ -5,7 +5,7 @@ import re
 import time
 from collections.abc import Callable
 from datetime import datetime
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from .. import category_taxonomy, common
 from . import regional_common as rc
@@ -62,6 +62,12 @@ def _programme_link(item: dict) -> str:
     return rc.abs_url("https://www.theater-bonn.de/", href) if href else ""
 
 
+def _detail_link(item: dict) -> str:
+    # One production page serves every occurrence; ?event_date only selects the date.
+    link = _programme_link(item)
+    return urlsplit(link)._replace(query="").geturl() if link else ""
+
+
 def _link(item: dict) -> str:
     ticket = item.get("ticket") or {}
     link = (
@@ -101,7 +107,7 @@ def _detail_pages(items: list[dict], detail_fetcher: Callable[[str], str] | None
         if any(word in status.casefold() for word in ("abgesagt", "entfällt", "cancelled")):
             continue
         start, _ = _start(item)
-        link = _programme_link(item)
+        link = _detail_link(item)
         remaining = deadline - time.monotonic()
         if not start or not common.window_contains(start) or not link:
             continue
@@ -187,8 +193,8 @@ def events_from_payload(items: list[dict], detail_fetcher: Callable[[str], str] 
         title = rc.clean(item.get("title", ""))
         venue = _venue(item)
         description = common.concise_description(item.get("description", ""))
-        programme_link = _programme_link(item)
-        page = detail_pages.get(programme_link, "") if programme_link else ""
+        detail_link = _detail_link(item)
+        page = detail_pages.get(detail_link, "") if detail_link else ""
         if not description and page:
             description = _detail_description(page)
         description_generated = not description
@@ -241,7 +247,10 @@ def _calendar_item(row: dict, start: datetime) -> dict | None:
     if not re.fullmatch(r"/de_DE/programm/[\w-]+\.\d+\?event_date=\d+", slug):
         raise ValueError("Unexpected Theater Bonn programme path")
     status = rc.clean(row.get("Status") or "").casefold()
-    status = {"wieder im spielplan": "wiederaufnahme", "zum letzten mal": "zum-letzten-mal"}.get(status, status)
+    if status == "wieder im spielplan":
+        status = "wiederaufnahme"
+    elif status.startswith("zum letzten mal"):  # also "… in dieser Spielzeit"
+        status = "zum-letzten-mal"
     availability = rc.clean(row.get("PriceAvailability") or "").casefold().split("|")
     return {
         "title": row["Title"], "url": slug, "tags": [venue],
