@@ -20,7 +20,7 @@
           "market_hours": "15:00–19:00",
           "time_note": "Einlass laut Brückenforum bis 18:45 Uhr, Marktende laut Veranstalter um 19 Uhr.",
           "venue_price": "4 €",
-          "admission_note": "Kostenpflichtig. Die Preisangaben von Veranstalter und Brückenforum weichen ab."
+          "admission_note": "Kostenpflichtig"
         },
         "valid_until": "2026-11-22",
         "evidence": "Verified 2026-11-19: https://shop.snapticket.de/event/ticket-dein-madelsflohmarkt-bonn-22-november-202-pqh8ca gives 15:00–19:00 and online visitor tickets. https://maedelsflohmarkt.de/standort/bonn/ gives 5 EUR, the venue gives 4 EUR and admission until 18:45."
@@ -32,7 +32,7 @@
           "market_hours": "15:00–19:00",
           "time_note": "Einlass laut Brückenforum bis 18:45 Uhr, Marktende laut Veranstalter um 19 Uhr.",
           "venue_price": "4 €",
-          "admission_note": "Kostenpflichtig. Die Preisangaben von Veranstalter und Brückenforum weichen ab."
+          "admission_note": "Kostenpflichtig"
         },
         "valid_until": "2026-12-06",
         "evidence": "Verified 2026-11-19: https://shop.snapticket.de/event/ticket-dein-madelsflohmarkt-bonn-06-dezember-202-n2na6c gives 15:00–19:00 and online visitor tickets. https://maedelsflohmarkt.de/standort/bonn/ gives 5 EUR, the venue gives 4 EUR and admission until 18:45."
@@ -105,6 +105,14 @@
       }
     ],
     "ionas4_occurrence_overrides": [
+      {
+        "match": ["ionas4-bad-honnef", "Das Weihnachtsplätzchen", "2026-12-04", "2026-12-06"],
+        "value": {
+          "status": "cancelled"
+        },
+        "valid_until": "2026-12-06",
+        "evidence": "Verified 2026-11-23: https://www.frauenstammtisch-badhonnef.de/weihnachtsplaetzchen/ confirms the 2026 pause. The city calendar still lists 4–6 December under event 30133:0."
+      },
       {
         "match": ["ionas4-bad-honnef", "Das Siebengebirgsmuseum: Landschaft – Geschichte – Rheinromantik", "2026-11-29", "2026-11-29"],
         "value": {

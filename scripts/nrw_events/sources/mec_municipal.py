@@ -1,17 +1,19 @@
-"""Market long tail from municipal Modern Events Calendar (MEC) sites.
+"""Municipal Modern Events Calendar (MEC) sites: Hennef and Sankt Augustin.
 
-Hennef and Sankt Augustin both run WordPress with Modern Events Calendar, which
-exposes two useful endpoints:
+Hennef publishes its whole calendar as one feed (``/?mec-ical-feed=1``), so
+``fetch_hennef`` reads every event from there; the public calendar page only
+renders the next twelve.
+
+Sankt Augustin is read through the market long tail. MEC exposes two useful
+endpoints:
 
 * ``/wp-json/wp/v2/mec-events?mec_category=<id>`` lists a whole topical category,
   reaching far beyond the handful of entries the public calendar page renders.
 * ``/?method=ical&id=<post id>`` returns a valid single-event VCALENDAR with an
   authoritative ``DTSTART``.
 
-That combination is what makes this source worth having. The Hennef JSON-LD page
-already registered as a ``SourceSpec`` yields only the current page window — twelve
-events, whose sole market entry is a Wochenmarkt — while the category listing holds
-the Hof-, Garagen-, Dorf- and Gassenflohmärkte that sit months out.
+That combination reaches the markets that sit months out, beyond the handful of
+entries the public calendar page renders.
 
 Two deliberate constraints:
 
@@ -27,9 +29,13 @@ Two deliberate constraints:
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, time, timedelta
+from typing import Any
 
 from .. import common
+from ..ical import _ical_parse_dt
 from . import regional_common as rc
 
 
@@ -43,15 +49,10 @@ class MecSite:
     trust: float = 0.95
 
 
+HENNEF_FEED_URL = "https://www.hennef.de/?mec-ical-feed=1"
+
 # Category ids verified against each site's own taxonomy.
 SITES = (
-    MecSite(
-        "Hennef Märkte",
-        "hennef-maerkte",
-        "https://www.hennef.de",
-        "Hennef",
-        (74, 240),
-    ),
     MecSite(
         "Sankt Augustin Märkte",
         "sankt-augustin-maerkte",
@@ -66,11 +67,16 @@ _PER_PAGE = 100
 # Blind pagination guard; reaching it is logged rather than silently truncated.
 _MAX_PAGES = 3
 
-# Only second-hand market formats. Produce and Christmas markets share the same
-# municipal categories and are excluded here as well as by the junk filter.
+# MEC fills these with placeholder hours (08–18) that contradict the opening
+# times in their own description, so only their days are used.
+_CHRISTMAS_MARKET_TITLE = re.compile(
+    r"weihnachtsmarkt|adventsmarkt|nikolausmarkt|hüttenzauber|huettenzauber", re.I
+)
+# Second-hand and Christmas market formats. Produce markets share the same
+# municipal categories and are excluded.
 _MARKET_TITLE = re.compile(
     r"floh|trödel|troedel|garagen|hofmarkt|hof-|antik|basar|börse|boerse|"
-    r"kram|second.?hand",
+    r"kram|second.?hand|" + _CHRISTMAS_MARKET_TITLE.pattern,
     re.I,
 )
 # Checked before the include pattern. "Börse" alone is too broad: a
@@ -115,15 +121,46 @@ def market_candidates(items: list) -> list:
     return candidates
 
 
-def _cached_calendar_fetcher(url: str, **kwargs) -> str:
+_VEVENT = re.compile(r"BEGIN:VEVENT.*?END:VEVENT", re.S)
+
+
+def _whole_days(match: re.Match[str]) -> str:
+    block = match.group(0)
+    summary = re.search(r"^SUMMARY:(.*)$", block, re.M)
+    start = re.search(r"^(DTSTART[^:\r\n]*):(\S+)", block, re.M)
+    end = re.search(r"^(DTEND[^:\r\n]*):(\S+)", block, re.M)
+    if not (summary and start and end) or not _CHRISTMAS_MARKET_TITLE.search(summary.group(1)):
+        return block
+    first = _ical_parse_dt(start.group(2), start.group(1))
+    last = _ical_parse_dt(end.group(2), end.group(1))
+    if first is None or last is None or last <= first:
+        return block
+    # DATE values take an exclusive DTEND; a midnight end already is one.
+    after = last.date() if last.time() == time.min else last.date() + timedelta(days=1)
+    block = block.replace(start.group(0), f"DTSTART;VALUE=DATE:{first:%Y%m%d}", 1)
+    return block.replace(end.group(0), f"DTEND;VALUE=DATE:{after:%Y%m%d}", 1)
+
+
+def christmas_markets_as_whole_days(calendar: str) -> str:
+    """Rewrite Christmas-market VEVENTs to date-only values; others stay as they are."""
+    return _VEVENT.sub(_whole_days, calendar)
+
+
+def _cached_calendar_fetcher(url: str, **kwargs: Any) -> str:
     kwargs.pop("timeout", None)
-    return common.fetch_detail_url(url, cache_namespace=_CACHE_NAMESPACE,
-                                   timeout=20, **kwargs)
+    return christmas_markets_as_whole_days(
+        common.fetch_detail_url(url, cache_namespace=_CACHE_NAMESPACE, timeout=20, **kwargs)
+    )
 
 
-def _city_resolver(site: MecSite):
+def _hennef_feed_fetcher(url: str, **kwargs: Any) -> str:
+    kwargs.pop("timeout", None)
+    return christmas_markets_as_whole_days(common.fetch_url(url, timeout=40, **kwargs))
+
+
+def _city_resolver(city: str) -> Callable[[str], str]:
     def resolve(location: str) -> str:
-        return rc.city_from_text(location or "", site.city) or site.city
+        return rc.city_from_text(location or "", city) or city
     return resolve
 
 
@@ -170,7 +207,7 @@ def events_for_site(site: MecSite) -> list:
                     site.city,
                     trust=site.trust,
                     source_id=site.source_id,
-                    city_resolver=_city_resolver(site),
+                    city_resolver=_city_resolver(site.city),
                     fetcher=_cached_calendar_fetcher,
                 )
             except Exception as exc:
@@ -182,6 +219,30 @@ def events_for_site(site: MecSite) -> list:
                 continue
             events.extend(parsed)
     return rc.dedupe(events)
+
+
+# A one-off entry running for months is a data-entry slip (an ADFC tour dated
+# 27.02.2026–27.02.2027); Hennef's longest real run is its six-week Hüttenzauber.
+_MAX_ONE_OFF_DAYS = 90
+
+
+def _plausible_span(props: dict[str, str], start: datetime, end: datetime) -> bool:
+    return bool(props.get("RRULE")) or (end - start).days <= _MAX_ONE_OFF_DAYS
+
+
+def fetch_hennef() -> list:
+    """Every event of Hennef's municipal calendar from its full MEC feed."""
+    return common.fetch_ical(
+        HENNEF_FEED_URL,
+        "Hennef",
+        "Hennef",
+        "lokal veranstaltung markt kultur outdoor",
+        trust=0.95,
+        source_id="hennef",
+        event_filter=_plausible_span,
+        city_resolver=_city_resolver("Hennef"),
+        fetcher=_hennef_feed_fetcher,
+    )
 
 
 def fetch() -> list:

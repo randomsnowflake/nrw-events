@@ -468,6 +468,14 @@ class JunkFilterTests(unittest.TestCase):
     def test_conditional_cancellation_does_not_cancel_the_occurrence(self):
         self.assertFalse(common.is_junk_event(event("Open-Air-Konzert", description="Das Konzert entfällt bei Regen.")))
 
+    def test_cancellation_disclaimer_is_not_a_status(self):
+        # Hennef's calendar appends this sentence to every Interkult entry.
+        disclaimer = "Die Veranstaltung kann unter Umständen abgesagt oder geändert werden."
+        self.assertFalse(common.is_junk_event(event("Stricken, Nähen, Häkeln im Interkult", description=disclaimer)))
+        self.assertFalse(common.has_cancelled_status("Stricken, Nähen, Häkeln im Interkult", disclaimer))
+        self.assertTrue(common.has_cancelled_status("Lesung", "Die Lesung muss leider abgesagt werden."))
+        self.assertTrue(common.has_cancelled_status("Lesung", "Die Lesung kann leider nicht stattfinden und wird verschoben."))
+
     def test_destination_club_and_annual_markets_are_not_routine_services(self):
         for title in ("Clubabend mit DJ Hell", "Abendmarkt Altstadt", "Zwiebelmarkt Festival"):
             with self.subTest(title=title):

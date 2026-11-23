@@ -385,6 +385,20 @@ END:VCALENDAR"""
         self.assertEqual(events[0]["end_date"], "2026-06-14")
         self.assertTrue(events[0]["all_day"])
 
+    def test_midnight_to_midnight_ical_end_is_exclusive(self):
+        # Hennef's MEC feed writes whole days as UTC timestamps of local midnight.
+        ical = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Weihnachtsmarkt im Hennefer Zentrum
+DTSTART:20261126T230000Z
+DTEND:20261129T230000Z
+END:VEVENT
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical):
+            [event] = common.fetch_ical("https://example.test/events.ics", "Test", "Hennef")
+        self.assertEqual((event["start_date"], event["end_date"]), ("2026-11-27", "2026-11-29"))
+        self.assertEqual(event["time"], "")
+
     def test_ical_duration_expands_an_all_day_event(self):
         ical = """BEGIN:VCALENDAR
 BEGIN:VEVENT
@@ -408,6 +422,30 @@ END:VCALENDAR"""
         with mock.patch("nrw_events.common.fetch_url", return_value=ical):
             [event] = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
         self.assertEqual(event["status"], "cancelled")
+
+    def test_ical_monthly_ordinal_weekday_with_default_week_start(self):
+        patch_window(self, datetime(2026, 6, 1), datetime(2026, 9, 30))
+        ical = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+SUMMARY:Orgelkonzert
+DTSTART:20260601T190000
+RRULE:FREQ=MONTHLY;WKST=MO;BYDAY=1MO
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Feierabendmarkt
+DTSTART:20260626T170000
+RRULE:FREQ=MONTHLY;BYDAY=-1FR
+END:VEVENT
+END:VCALENDAR"""
+        with mock.patch("nrw_events.common.fetch_url", return_value=ical), \
+                mock.patch.object(common, "log_source_error") as warned:
+            events = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
+        warned.assert_not_called()
+        self.assertEqual(
+            sorted((event["title"], event["start_date"]) for event in events),
+            [("Feierabendmarkt", day) for day in ("2026-06-26", "2026-07-31", "2026-08-28", "2026-09-25")]
+            + [("Orgelkonzert", day) for day in ("2026-06-01", "2026-07-06", "2026-08-03", "2026-09-07")],
+        )
 
     def test_ical_recurrence_override_replaces_the_master_occurrence(self):
         ical = """BEGIN:VCALENDAR

@@ -15,6 +15,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | bitcircus101 | `bitcircus101` | `python` |
 | bonn-region | Bonn district festivals | `bonn-district-festivals` | `python` |
 | bonn-region | Bonn venue calendars | `bonn-venue-calendars` | `python` |
+| bonn-region | Bonn-Information: Plittersdorfer Winterzauber | `bonn-information-plittersdorfer-winterzauber` | `json_ld` |
 | bonn-region | Bonn.de Events | `bonn-de-events` | `python` |
 | bonn-region | Bonn.de Martinszüge | `bonn-martinszuege` | `python` |
 | bonn-region | Bonn.de Sports | `bonn-de-sports` | `python` |
@@ -46,7 +47,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Haus der Geschichte | `haus-der-geschichte` | `python` |
 | bonn-region | Haus der Geschichte Begleitungen | `haus-der-geschichte-begleitungen` | `python` |
 | bonn-region | Heimatmuseum Beuel | `hgv-beuel` | `python` |
-| bonn-region | Hennef | `hennef` | `json_ld` |
+| bonn-region | Hennef | `hennef` | `python` |
 | bonn-region | HofFloh Bonn | `hoffloh-bonn` | `python` |
 | bonn-region | Hofflohmärkte Köln | `hofflohm-rkte-k-ln` | `python` |
 | bonn-region | In guten Kreisen | `in-guten-kreisen` | `python` |

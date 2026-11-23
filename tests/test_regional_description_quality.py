@@ -4,9 +4,11 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from unittest.mock import patch
 
-from nrw_events import detail_enrichment, http, report, runner
+from nrw_events import common, detail_enrichment, http, report, runner
 from nrw_events.identity import event_id
+from nrw_events.source_specs import adapter_for
 from nrw_events.sources import (
+    SOURCE_SPECS,
     bonn_venues,
     kunstmuseum_bonn,
     regional_feeds,
@@ -22,6 +24,73 @@ from tests.helpers import patch_window
 class RegionalDescriptionQualityTests(unittest.TestCase):
     def setUp(self):
         patch_window(self, datetime(2026, 7, 13), datetime(2026, 7, 26))
+
+    def test_ionas4_marks_only_the_paused_bad_honnef_christmas_market(self):
+        patch_window(self, datetime(2026, 11, 23), datetime(2026, 12, 20))
+        item = {
+            "id": "30133:0",
+            "title": "Das Weihnachtsplätzchen",
+            "start": "2026-12-04T12:00",
+            "end": "2026-12-06T20:00",
+            "location": {"name": "Kirchstraße, neben der Kirche St. Johann Babtist"},
+        }
+        other_date = {**item, "start": "2026-12-11T12:00", "end": "2026-12-13T20:00"}
+        cancelled, scheduled = regional_ionas4._events_from_items(
+            [item, other_date], "Bad Honnef", "https://meinbadhonnef.de/kalender/veranstaltungen/",
+            0.82, source_id="ionas4-bad-honnef",
+        )
+        self.assertEqual(cancelled["status"], "cancelled")
+        self.assertEqual(scheduled["status"], "scheduled")
+        self.assertEqual(event_id(cancelled), event_id({**cancelled, "status": "scheduled"}))
+
+    def test_plittersdorfer_winterzauber_uses_the_registered_jsonld_adapter(self):
+        patch_window(self, datetime(2026, 11, 23), datetime(2026, 12, 20))
+        html = """
+<script type="application/ld+json">[{
+  "@type": ["Event", "WebPage"],
+  "name": "Weihnachtsmarkt: Plittersdorfer Winterzauber",
+  "url": "https://www.meet-bonn-region.de/event/weihnachtsmarkt-plittersdorfer-winterzauber",
+  "startDate": "2026-11-28T13:00:00+01:00",
+  "endDate": "2026-11-28T18:00:00+01:00",
+  "isAccessibleForFree": true,
+  "location": [{"@type": "Place", "name": " Dorfplatz Plittersdorf", "address": {
+    "addressLocality": "Bonn", "streetAddress": "Plittersdorfer Straße / Ecke Steinstraße"
+  }}]
+}]</script>
+"""
+        spec = next(spec for spec in SOURCE_SPECS if spec.id == "bonn-information-plittersdorfer-winterzauber")
+        with patch.object(common, "fetch_url", return_value=html):
+            [event] = adapter_for(spec)()
+        self.assertEqual(event["source_id"], spec.id)
+        self.assertEqual(event["venue"], "Dorfplatz Plittersdorf")
+        self.assertEqual(event["city"], "Bonn-Plittersdorf")
+        self.assertEqual(event["start_at"], "2026-11-28T13:00+01:00")
+        self.assertEqual(event["end_at"], "2026-11-28T18:00+01:00")
+        self.assertEqual(event["price"], "kostenlos")
+
+    def test_rheinbach_market_excludes_the_midnight_after_its_last_day(self):
+        patch_window(self, datetime(2026, 11, 23), datetime(2026, 12, 20))
+        html = """
+<script type="application/ld+json">[{
+  "@type": ["Event", "WebPage"],
+  "name": "Rheinbacher Weihnachtsmarkt",
+  "startDate": "2026-12-11T00:00:00+01:00",
+  "endDate": "2026-12-14T00:00:00+01:00",
+  "description": "Weihnachtsmarkt vom 11. bis 13. Dezember 2026.",
+  "location": [{"@type": "Place", "name": "Prümer Wall"}]
+}]</script>
+"""
+        [event] = regional_tourism._events_from_rheinbach_market(html)
+        self.assertEqual(event["start_date"], "2026-12-11")
+        self.assertEqual(event["end_date"], "2026-12-13")
+        self.assertTrue(event["all_day"])
+        self.assertEqual(event["price"], "")
+
+        [timed] = regional_tourism._events_from_rheinbach_market(
+            html.replace("T00:00:00+01:00", "T12:00:00+01:00"),
+        )
+        self.assertEqual(timed["end_date"], "2026-12-14")
+        self.assertFalse(timed["all_day"])
 
     def test_ionas4_listing_calendars_use_bounded_web_unlocker_fallbacks(self):
         with patch.object(

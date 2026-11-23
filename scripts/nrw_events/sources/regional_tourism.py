@@ -1,10 +1,15 @@
 """Nearby tourism and destination calendars around Bonn."""
 
 import re
+from collections.abc import Callable
+from datetime import datetime
 
-from .. import common
+from .. import common, jsonld
+from ..models import RawEvent
 from . import regional_common as rc
 
+_RHEINBACH_MARKET_URL = "https://www.rhein-voreifel-touristik.de/event/rheinbacher-weihnachtsmarkt"
+_RHEINBACH_MARKET_SOURCE = "rhein-voreifel-touristik-weihnachtsmarkt"
 _LINZ_URL = "https://www.linz.de/startseite/tourismus-freizeit/veranstaltungen"
 
 
@@ -42,7 +47,31 @@ def fetch() -> list:
         "https://www.kultur-euskirchen.de/stadttheater/veranstaltungen",
         _events_from_euskirchen,
      source_id="kultur-euskirchen"))
+    events.extend(rc.fetch_html_events(
+        "Rhein-Voreifel Touristik",
+        _RHEINBACH_MARKET_URL,
+        _events_from_rheinbach_market,
+        source_id=_RHEINBACH_MARKET_SOURCE,
+    ))
     return rc.dedupe(events)
+
+
+def _events_from_rheinbach_market(html: str) -> list[RawEvent]:
+    events = jsonld.events_from_jsonld(
+        html, "Rhein-Voreifel Touristik", "Rheinbach", "weihnachtsmarkt", 0.95,
+        _RHEINBACH_MARKET_URL, _RHEINBACH_MARKET_SOURCE,
+    )
+    for event in events:
+        # The 2026 visitor text gives 11–13 December. The structured all-day
+        # end is exclusive midnight on 14 December.
+        if (
+            event.get("title") == "Rheinbacher Weihnachtsmarkt"
+            and event.get("all_day")
+            and event.get("start_date") == "2026-12-11"
+            and event.get("end_date") == "2026-12-14"
+        ):
+            event["end_date"] = "2026-12-13"
+    return events
 
 
 def _shapehub_detail_context(html: str, city: str) -> dict[str, str]:
@@ -95,7 +124,7 @@ def _shapehub_detail_context(html: str, city: str) -> dict[str, str]:
 
 def _events_from_shapehub(html: str, source: str, base: str, listing_url: str,
                           default_city: str, category: str, trust: float,
-                          detail_fetcher=None) -> list:
+                          detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     card_re = re.compile(r'<a href="(?P<href>[^"]+)" class="shapehub-card-link">(?P<body>.*?)</a>',
                          re.S | re.I)
@@ -207,7 +236,7 @@ def _linz_fallback_description(title: str, date: str, time_text: str,
     return f"„{title}“ ist im Linzer Veranstaltungskalender{schedule} angekündigt.{extra}".strip()
 
 
-def _events_from_linz(html: str, detail_fetcher=None) -> list:
+def _events_from_linz(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for block in re.split(r'(?=<div class="standardteaser">)', html or "", flags=re.I):
         if not block.lstrip().startswith('<div class="standardteaser">'):
@@ -284,7 +313,7 @@ def _events_from_bad_muenstereifel(html: str) -> list:
     return events
 
 
-def _is_broad_bad_muenstereifel_listing_range(start, end) -> bool:
+def _is_broad_bad_muenstereifel_listing_range(start: datetime | None, end: datetime | None) -> bool:
     """Suppress Deskline availability ranges that are recurring listings, not events.
 
     The Bad Münstereifel calendar includes rows such as ``01.01.2026 -
@@ -324,7 +353,7 @@ def _events_from_euskirchen(html: str) -> list:
     return events
 
 
-def _euskirchen_title(block: str, title) -> str:
+def _euskirchen_title(block: str, title: re.Match[str]) -> str:
     title_text = rc.clean(title.group(1))
     subtitle = re.search(r'<h4>(.*?)</h4>', block, re.S | re.I)
     if subtitle:

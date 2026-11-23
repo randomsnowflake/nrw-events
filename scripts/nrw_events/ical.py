@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import calendar
 import os
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import event_builder as _impl_event_builder
@@ -130,7 +131,15 @@ _ICAL_WEEKDAYS = {name: index for index, name in enumerate(
 )}
 
 
-_SUPPORTED_RRULE_PARTS = {"FREQ", "INTERVAL", "BYDAY", "UNTIL", "COUNT"}
+_SUPPORTED_RRULE_PARTS = {"FREQ", "INTERVAL", "BYDAY", "UNTIL", "COUNT", "WKST"}
+_ICAL_BYDAY = re.compile(r"([+-]?[1-5])?(MO|TU|WE|TH|FR|SA|SU)")
+
+
+def _month_ordinal(day: datetime, ordinal: int) -> bool:
+    """Whether ``day`` is the ``ordinal``-th of its weekday in its month (-1 = last)."""
+    if ordinal > 0:
+        return (day.day - 1) // 7 + 1 == ordinal
+    return (calendar.monthrange(day.year, day.month)[1] - day.day) // 7 + 1 == -ordinal
 
 
 def _ical_date_list(values: list[tuple[str, str]]) -> list[datetime]:
@@ -205,6 +214,9 @@ def _ical_recurrence_starts(
     freq = parts.get("FREQ", "")
     if freq not in {"DAILY", "WEEKLY", "MONTHLY"}:
         return [start], f"unsupported RRULE frequency: {freq or 'missing'}"
+    # Weeks are counted from Monday below, which is what WKST=MO (the default) means.
+    if parts.get("WKST", "MO") != "MO":
+        return [start], "unsupported RRULE WKST"
     try:
         interval = max(int(parts.get("INTERVAL", "1")), 1)
         count = int(parts["COUNT"]) if "COUNT" in parts else None
@@ -214,10 +226,14 @@ def _ical_recurrence_starts(
     until = _ical_parse_dt(until_value) if until_value else None
     if until is not None and re.fullmatch(r"\d{8}", until_value):
         until = until.replace(hour=23, minute=59, second=59)
-    byday_tokens = [token for token in parts.get("BYDAY", "").split(",") if token]
-    if any(token not in _ICAL_WEEKDAYS for token in byday_tokens):
-        return [start], "unsupported ordinal or invalid RRULE BYDAY"
-    weekdays = {_ICAL_WEEKDAYS[token] for token in byday_tokens}
+    byday = []
+    for token in (token for token in parts.get("BYDAY", "").split(",") if token):
+        match = _ICAL_BYDAY.fullmatch(token)
+        # An ordinal ("1MO" = first Monday) only has a meaning within a month.
+        if not match or (match.group(1) and freq != "MONTHLY"):
+            return [start], "unsupported ordinal or invalid RRULE BYDAY"
+        byday.append((int(match.group(1) or 0), _ICAL_WEEKDAYS[match.group(2)]))
+    weekdays = {day for _, day in byday}
 
     window_end = _impl_run_state.runtime_window().end.replace(hour=23, minute=59, second=59, microsecond=999999)
     hard_end = min(window_end, until) if until else window_end
@@ -239,7 +255,10 @@ def _ical_recurrence_starts(
         else:
             months_since = (cursor.year - start.year) * 12 + cursor.month - start.month
             if months_since % interval == 0:
-                include = cursor.weekday() in weekdays if weekdays else cursor.day == start.day
+                include = any(
+                    cursor.weekday() == day and (not ordinal or _month_ordinal(cursor, ordinal))
+                    for ordinal, day in byday
+                ) if byday else cursor.day == start.day
         if include:
             generated += 1
             if cursor >= start and (count is None or generated <= count):
@@ -354,6 +373,9 @@ def parse_ical(
             raw_end_dt = start_dt + parsed_duration if parsed_duration else start_dt
         all_day = bool(re.match(r"^\d{8}$", props.get("DTSTART", "").strip()))
         duration = (raw_end_dt - start_dt) if raw_end_dt else timedelta(0)
+        # Midnight-to-midnight timestamps (MEC calendars) name whole days just like
+        # date-only values, so their DTEND is exclusive as well.
+        exclusive_end = all_day or start_dt.time() == raw_end_dt.time() == time.min
         starts, recurrence_warning = _ical_recurrence_starts(
             start_dt,
             props.get("RRULE", ""),
@@ -379,7 +401,7 @@ def parse_ical(
                 continue
             occurrence_end = occurrence_start + duration
             # RFC 5545 all-day DTEND is exclusive. Present the inclusive last day.
-            if all_day and duration > timedelta(0):
+            if exclusive_end and duration > timedelta(0):
                 occurrence_end -= timedelta(days=1)
             if event_filter and not event_filter(props, occurrence_start, occurrence_end):
                 continue

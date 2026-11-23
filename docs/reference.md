@@ -448,9 +448,10 @@ See the generated [sources inventory](sources.md).
 - **Bonn.de-Ergänzungen:** Sportveranstaltungen sowie das jährliche
   „Veranstaltungsjahr“ mit Stadtteilfesten, Kirmes, Märkten und lokalen Terminen
   (`bonn.py`).
-- **iCal / RFC 5545:** Harmonie Bonn, Siegburg, Troisdorf und Wachtberg.
+- **iCal / RFC 5545:** Harmonie Bonn, Hennef (kompletter MEC-Feed), Siegburg,
+  Troisdorf und Wachtberg.
 - **JSON-LD / schema.org:** Rheinauen-Flohmarkt, Kinderflohmarkt.com,
-  VVS Siebengebirge, Hennef und
+  VVS Siebengebirge und
   weitere seitennahe Eventdaten, wenn Quellen strukturierte Eventobjekte anbieten.
 - **Direkte Marktveranstalter:** Grote & Hiller, Hofflohmärkte Köln und Cölln
   Konzept liefern Termine, Uhrzeiten, Orte und direkte Veranstaltungsseiten.
@@ -526,15 +527,18 @@ See the generated [sources inventory](sources.md).
   nennen, bleiben erhalten.
 - **Theater und Bühne:** Theater Bonn, Junges Theater Bonn, Kleines Theater Bad
   Godesberg, Theater Marabu, Theater im Ballsaal und TiK Theater im Keller.
-- **Kommunale MEC-Kalender (Marktausläufer):** Hennef und Sankt Augustin fahren
-  WordPress mit Modern Events Calendar (`mec_municipal.py`). Die
-  `mec-events`-REST-Kategorie erreicht den kompletten Marktausläufer, den die
-  öffentliche Kalenderseite nicht rendert — bei Hennef die Hof-, Garagen-, Dorf-
-  und Gassenflohmärkte, die Monate voraus liegen. Der REST-Payload enthält **kein**
-  Eventdatum, deshalb kommt das Datum aus dem autoritativen Ein-Event-iCal
-  (`?method=ical&id=`). Weil das einen Abruf pro Event bedeutet, werden Kandidaten
-  zuerst per Titel auf Second-Hand-Formate eingegrenzt und jeder Kalenderabruf
-  läuft durch den persistenten TTL-Cache.
+- **Kommunale MEC-Kalender:** Hennef und Sankt Augustin fahren WordPress mit
+  Modern Events Calendar (`mec_municipal.py`). Hennef liefert unter
+  `?mec-ical-feed=1` den kompletten Kalender in einer Datei; die öffentliche
+  Kalenderseite rendert nur die nächsten zwölf Termine. Sankt Augustin wird über
+  die `mec-events`-REST-Kategorie gelesen, die den Marktausläufer Monate voraus
+  erreicht. Der REST-Payload enthält **kein** Eventdatum, deshalb kommt das Datum
+  aus dem autoritativen Ein-Event-iCal (`?method=ical&id=`). Weil das einen Abruf
+  pro Event bedeutet, werden Kandidaten zuerst per Titel auf Second-Hand- und
+  Weihnachtsmarkt-Formate eingegrenzt und jeder Kalenderabruf läuft durch den
+  persistenten TTL-Cache. MEC trägt bei Weihnachtsmärkten Platzhalterzeiten
+  (08–18 Uhr) ein, die der eigenen Beschreibung widersprechen; diese Termine
+  werden nur mit ihren Tagen übernommen.
 - **Marktverzeichnis nach Format:** marktcom (`marktcom.py`) ist das einzige
   Verzeichnis, dessen Suche gleichzeitig über einen Radius um Koordinaten *und*
   über das Marktformat adressierbar ist. Angefragt werden nur Second-Hand-Formate

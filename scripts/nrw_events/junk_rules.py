@@ -99,6 +99,20 @@ _CONDITIONAL_CANCELLATION_PATTERN = re.compile(
     rf"\b(?:{_CANCELLED_STATUS_WORDS})\b\s+(?:bei|falls|wenn|im\s+falle)\b",
     re.IGNORECASE,
 )
+# "Die Veranstaltung kann unter Umständen abgesagt oder geändert werden" is a
+# standing disclaimer, not a status; "muss abgesagt werden" stays one.
+_HYPOTHETICAL_STATUS_PATTERN = re.compile(
+    r"\b(?:kann|können|koennen|könnte|koennte|könnten|koennten)\b[^\n.!?]{0,60}?"
+    r"\b(?:abgesagt|verschoben|geändert|geaendert)\b(?:\s+oder\s+\w+)?\s+werden\b",
+    re.IGNORECASE,
+)
+
+
+def without_hypothetical_status(text: str) -> str:
+    """Drop disclaimers that only say an event *could* be cancelled or moved."""
+    return _HYPOTHETICAL_STATUS_PATTERN.sub(" ", text)
+
+
 _LANGUAGE_NAME = re.compile(r"\b(?:italienisch|französisch)\b")
 _LANGUAGE_COURSE_CONTEXT = re.compile(
     r"\b(?:anfänger|anfaenger|fortgeschrittene|kurs|lernen|sprachunterricht|unterricht|[abc][12])\b"
@@ -193,7 +207,7 @@ def _institution_visit(context: EventText) -> tuple[str, ...] | None:
 
 
 def _cancelled(context: EventText) -> tuple[str, ...] | None:
-    combined = f"{context.title} {context.description}"
+    combined = without_hypothetical_status(f"{context.title} {context.description}")
     if _POSTPONED_PATTERN.search(combined) or _CONDITIONAL_CANCELLATION_PATTERN.search(combined):
         return None
     is_cancelled = bool(

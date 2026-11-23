@@ -39,18 +39,20 @@
       "id": "hennef",
       "display_name": "Hennef",
       "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.mec_municipal:fetch_hennef"
+    },
+    {
+      "id": "bonn-information-plittersdorfer-winterzauber",
+      "display_name": "Bonn-Information: Plittersdorfer Winterzauber",
+      "region": "bonn-region",
       "adapter": "json_ld",
       "urls": [
-        "https://www.hennef.de/veranstaltungen/"
+        "https://www.visit-bonn-region.de/event/weihnachtsmarkt-plittersdorfer-winterzauber"
       ],
-      "city": "Hennef",
-      "category_hint": "lokal veranstaltung markt kultur outdoor",
-      "trust": 0.95,
-      "timeout": 20,
-      "headers": [],
-      "admission": null,
-      "default_category_key": "",
-      "category_locked": false
+      "city": "Bonn-Plittersdorf",
+      "category_hint": "weihnachtsmarkt",
+      "trust": 0.95
     },
     {
       "id": "lupe-events",
@@ -676,7 +678,8 @@
       "adapter": "python",
       "callable": "nrw_events.sources.regional_tourism:fetch",
       "component_ids": [
-        "ahrtal-tourismus", "bad-muenstereifel-tourismus", "kultur-euskirchen"
+        "ahrtal-tourismus", "bad-muenstereifel-tourismus", "kultur-euskirchen",
+        "rhein-voreifel-touristik-weihnachtsmarkt"
       ]
     },
     {

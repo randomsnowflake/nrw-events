@@ -12,7 +12,7 @@ from . import category_taxonomy, performance, richtext
 from . import run_state as _impl_run_state
 from . import text as _impl_text
 from .dates import parse_date, parse_iso_date
-from .junk_rules import legacy_junk_decision
+from .junk_rules import legacy_junk_decision, without_hypothetical_status
 from .location import (
     canonicalize_city,
     haversine,
@@ -117,7 +117,7 @@ def _postponed_onto_date(text: str) -> bool:
 
 def has_cancelled_status(title: str, description: str) -> bool:
     """True when text marks this event as cancelled/postponed."""
-    combined = " ".join([title or "", description or ""])
+    combined = without_hypothetical_status(" ".join([title or "", description or ""]))
     return bool(
         _CANCELLED_TITLE_PATTERN.search(title or "")
         or _CANCELLED_CONTEXT_PATTERN.search(combined)

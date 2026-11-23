@@ -59,6 +59,16 @@ class MecCandidateFilterTests(unittest.TestCase):
 
         self.assertEqual(len(mec_municipal.market_candidates(items)), 6)
 
+    def test_christmas_markets_are_candidates(self):
+        items = [
+            _rest_item(15054, "Weihnachtsmarkt im Hennefer Zentrum"),
+            _rest_item(20938, "Geistinger Weihnachtsmarkt"),
+            _rest_item(20653, "Hüttenzauber"),
+            _rest_item(30, "Adventsmarkt in der Meys Fabrik"),
+        ]
+
+        self.assertEqual(len(mec_municipal.market_candidates(items)), 4)
+
     def test_produce_and_non_market_boersen_are_excluded(self):
         """"Börse" alone is too broad — these are not second-hand markets."""
         items = [
@@ -205,7 +215,8 @@ class MecSiteIntegrationTests(unittest.TestCase):
         )
 
     def test_listing_url_and_ical_url_shapes(self):
-        site = mec_municipal.SITES[0]
+        site = mec_municipal.MecSite("Hennef Märkte", "hennef-maerkte",
+                                     "https://www.hennef.de", "Hennef", (74,))
 
         self.assertEqual(
             mec_municipal.ical_url(site, 19512),
@@ -213,6 +224,41 @@ class MecSiteIntegrationTests(unittest.TestCase):
         )
         self.assertIn("mec_category=74", mec_municipal._listing_url(site, 74, 1))
         self.assertIn("per_page=100", mec_municipal._listing_url(site, 74, 1))
+
+
+class MecChristmasMarketTests(unittest.TestCase):
+    def test_placeholder_hours_become_whole_days(self):
+        calendar = _calendar("Geistinger Weihnachtsmarkt",
+                             start="20261205T070000Z", end="20261206T170000Z")
+
+        with mock.patch.object(common, "TODAY", datetime(2026, 11, 23)), \
+                mock.patch.object(common, "END_DATE", datetime(2026, 12, 31)), \
+                mock.patch.object(common, "fetch_url", return_value=calendar):
+            [event] = mec_municipal.fetch_hennef()
+
+        self.assertEqual((event["start_date"], event["end_date"]), ("2026-12-05", "2026-12-06"))
+        self.assertEqual(event["time"], "")
+        self.assertEqual((event["source"], event["source_id"]), ("Hennef", "hennef"))
+
+    def test_months_long_one_off_entry_is_dropped(self):
+        calendar = _calendar("ADFC-Radtour „Flüsse, Heide und Geschichte(n)“",
+                             start="20260227T100000Z", end="20270227T100000Z")
+
+        with mock.patch.object(common, "TODAY", datetime(2026, 11, 23)), \
+                mock.patch.object(common, "END_DATE", datetime(2026, 12, 31)), \
+                mock.patch.object(common, "fetch_url", return_value=calendar):
+            self.assertEqual(mec_municipal.fetch_hennef(), [])
+
+    def test_other_events_keep_their_hours(self):
+        calendar = _calendar("Garagenflohmarkt in Hennef-Lichtenberg")
+
+        self.assertEqual(mec_municipal.christmas_markets_as_whole_days(calendar), calendar)
+
+    def test_hennef_reads_the_full_calendar_feed(self):
+        with mock.patch.object(common, "fetch_url", return_value="") as plain:
+            mec_municipal.fetch_hennef()
+
+        self.assertEqual(plain.call_args.args[0], "https://www.hennef.de/?mec-ical-feed=1")
 
 
 if __name__ == "__main__":
