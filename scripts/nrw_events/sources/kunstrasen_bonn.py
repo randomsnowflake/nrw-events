@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import urllib.parse
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -15,7 +17,7 @@ VENUE = "KUNST!RASEN Bonn"
 _BERLIN = ZoneInfo("Europe/Berlin")
 
 
-def _local(value: str):
+def _local(value: object) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
     except ValueError:
@@ -23,9 +25,60 @@ def _local(value: str):
     return parsed.astimezone(_BERLIN).replace(tzinfo=None) if parsed.tzinfo else parsed
 
 
+def _public_events(html: str) -> list[dict]:
+    match = re.search(r'<script\b[^>]*>\s*window\.__reactRouterContext\.streamController\.enqueue\(', html)
+    if not match:
+        return []
+    try:
+        encoded, _ = json.JSONDecoder().raw_decode(html, match.end())
+        table = json.loads(encoded)
+    except (ValueError, TypeError, RecursionError):
+        return []
+    if not isinstance(table, list) or not table:
+        return []
+
+    def deref(index: object) -> object:
+        return table[index] if type(index) is int and 0 <= index < len(table) else None
+
+    # Decode only the index-route fields we use, never the rest of hydration state.
+    def fields(node: object) -> dict[str, object]:
+        result: dict[str, object] = {}
+        if isinstance(node, dict):
+            for key, ref in node.items():
+                if re.fullmatch(r"_[0-9]{1,9}", key):
+                    name = deref(int(key[1:]))
+                    if isinstance(name, str):
+                        result[name] = deref(ref)
+        return result
+
+    loaders = fields(fields(table[0]).get("loaderData"))
+    listing = fields(loaders.get("routes/pages/index"))
+    refs = listing.get("events")
+    if listing.get("isPreview") is not False or not isinstance(refs, list):
+        return []
+    slugs = set(re.findall(r'<a\b[^>]*?\shref="/events/([a-z0-9-]+)"', html))
+    items = []
+    for ref in refs:
+        item = fields(deref(ref))
+        slug = item.get("url")
+        if (not isinstance(slug, str) or slug not in slugs or item.get("eventType") != "SINGLE"
+                or str(item.get("locationName") or "").strip().casefold() != VENUE.casefold()):
+            continue
+        item["locationCity"] = "Bonn"
+        if item.get("currency") != "EUR" or fields(item.get("styleOptions")).get("hideStartingPrice") is not False:
+            item.pop("startingPrice", None)
+        items.append(item)
+    return items
+
+
 def _events_from_listing(html: str) -> list:
     events = []
-    for item in rc.vivenu_seller_events(html):
+    items = rc.vivenu_seller_events(html)
+    path = "event"
+    if not items:
+        items = _public_events(html)
+        path = "events"
+    for item in items:
         if common.clean_html(str(item.get("locationCity") or "")).casefold() != "bonn":
             continue
         title = common.clean_html(str(item.get("name") or ""))
@@ -37,7 +90,7 @@ def _events_from_listing(html: str) -> list:
         description = common.concise_description(slogan) or common.factual_event_description(title, date_value=start, venue=venue, city="Bonn")
         slug = str(item.get("url") or "").strip("/")
         default_category = "festival" if "festival" in title.casefold() else "concert"
-        event = common.make_event(title, start, end or start, venue, "Bonn", description, urllib.parse.urljoin(URL, f"event/{slug}") if slug else URL, SOURCE, "open air concert festival live music", 1.0, source_id="kunstrasen-bonn", description_source="scraped" if slogan else "generated", default_category_key=default_category, category_locked=True)
+        event = common.make_event(title, start, end or start, venue, "Bonn", description, urllib.parse.urljoin(URL, f"{path}/{slug}") if slug else URL, SOURCE, "open air concert festival live music", 1.0, source_id="kunstrasen-bonn", description_source="scraped" if slogan else "generated", default_category_key=default_category, category_locked=True)
         if not event:
             continue
         price = item.get("startingPrice")
@@ -60,7 +113,7 @@ def fetch() -> list:
         with common.capture_parser_metrics() as metrics:
             events = _events_from_listing(html)
         parser_empty = not events and metrics["out_of_window_count"] == 0
-        common._record_endpoint(URL, parser_type="next-data-json", candidate_count=metrics["candidate_count"], out_of_window_count=metrics["out_of_window_count"], parsed_event_count=len(events), parser_empty=parser_empty)
+        common._record_endpoint(URL, parser_type="vivenu-listing", candidate_count=metrics["candidate_count"], out_of_window_count=metrics["out_of_window_count"], parsed_event_count=len(events), parser_empty=parser_empty)
         if parser_empty:
             common.log_source_error(SOURCE, rc.ParserEmptyError("parser returned no event records"))
         return events
