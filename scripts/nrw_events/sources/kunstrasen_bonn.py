@@ -56,7 +56,7 @@ def _public_events(html: str) -> list[dict]:
     refs = listing.get("events")
     if listing.get("isPreview") is not False or not isinstance(refs, list):
         return []
-    slugs = set(re.findall(r'<a\s+[^>]*?\shref="/events/([a-z0-9-]+)"', html))
+    slugs = set(re.findall(r'<a\b[^>]*?\shref="/events/([a-z0-9-]+)"', html))
     items = []
     for ref in refs:
         item = fields(deref(ref))

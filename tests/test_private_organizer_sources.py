@@ -177,6 +177,8 @@ class PrivateOrganizerSourceTests(unittest.TestCase):
         rows = {event["title"]: event for event in kunstrasen_bonn._events_from_listing(html)}
         self.assertEqual(set(rows), {"Bryan Adams", "Simply Red", "James Blunt", "Die Fantastischen Vier"})
         self.assertEqual(kunstrasen_bonn._events_from_listing(html[html.index("<script>"):]), [])
+        href_first = html.replace('<a class="flex flex-col w-full rounded-lg outline-offset-8" href=', '<a href=')
+        self.assertEqual({event["title"] for event in kunstrasen_bonn._events_from_listing(href_first)}, set(rows))
         for title, day, slug in [
             ("Bryan Adams", "06", "bryan-adams-rftlbt"),
             ("Simply Red", "07", "simply-red-dv6l8e"),
