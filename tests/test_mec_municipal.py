@@ -249,10 +249,22 @@ class MecChristmasMarketTests(unittest.TestCase):
                 mock.patch.object(common, "fetch_url", return_value=calendar):
             self.assertEqual(mec_municipal.fetch_hennef(), [])
 
+    def test_local_midnight_span_becomes_all_day(self):
+        calendar = _calendar("Ausstellung in Hennef",
+                             start="20261126T230000Z", end="20261129T230000Z")
+        with mock.patch.object(common, "TODAY", datetime(2026, 11, 23)), \
+                mock.patch.object(common, "END_DATE", datetime(2026, 12, 31)), \
+                mock.patch.object(common, "fetch_url", return_value=calendar):
+            [event] = mec_municipal.fetch_hennef()
+
+        self.assertEqual((event["start_date"], event["end_date"]), ("2026-11-27", "2026-11-29"))
+        self.assertTrue(event["all_day"])
+        self.assertEqual(event["time"], "")
+
     def test_other_events_keep_their_hours(self):
         calendar = _calendar("Garagenflohmarkt in Hennef-Lichtenberg")
 
-        self.assertEqual(mec_municipal.christmas_markets_as_whole_days(calendar), calendar)
+        self.assertEqual(mec_municipal._normalize_calendar(calendar), calendar)
 
     def test_hennef_reads_the_full_calendar_feed(self):
         with mock.patch.object(common, "fetch_url", return_value="") as plain:
