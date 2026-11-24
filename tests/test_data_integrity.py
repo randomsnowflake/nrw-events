@@ -385,19 +385,18 @@ END:VCALENDAR"""
         self.assertEqual(events[0]["end_date"], "2026-06-14")
         self.assertTrue(events[0]["all_day"])
 
-    def test_midnight_to_midnight_ical_end_is_exclusive(self):
-        # Hennef's MEC feed writes whole days as UTC timestamps of local midnight.
+    def test_timed_ical_midnight_does_not_shorten_the_date_range(self):
         ical = """BEGIN:VCALENDAR
 BEGIN:VEVENT
-SUMMARY:Weihnachtsmarkt im Hennefer Zentrum
+SUMMARY:24-Stunden-Konzert
 DTSTART:20261126T230000Z
-DTEND:20261129T230000Z
+DTEND:20261127T230000Z
 END:VEVENT
 END:VCALENDAR"""
         with mock.patch("nrw_events.common.fetch_url", return_value=ical):
-            [event] = common.fetch_ical("https://example.test/events.ics", "Test", "Hennef")
-        self.assertEqual((event["start_date"], event["end_date"]), ("2026-11-27", "2026-11-29"))
-        self.assertEqual(event["time"], "")
+            [event] = common.fetch_ical("https://example.test/events.ics", "Test", "Bonn")
+        self.assertEqual((event["start_date"], event["end_date"]), ("2026-11-27", "2026-11-28"))
+        self.assertFalse(event["all_day"])
 
     def test_ical_duration_expands_an_all_day_event(self):
         ical = """BEGIN:VCALENDAR

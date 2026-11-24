@@ -129,11 +129,14 @@ def _whole_days(match: re.Match[str]) -> str:
     summary = re.search(r"^SUMMARY:(.*)$", block, re.M)
     start = re.search(r"^(DTSTART[^:\r\n]*):(\S+)", block, re.M)
     end = re.search(r"^(DTEND[^:\r\n]*):(\S+)", block, re.M)
-    if not (summary and start and end) or not _CHRISTMAS_MARKET_TITLE.search(summary.group(1)):
+    if not (summary and start and end):
         return block
     first = _ical_parse_dt(start.group(2), start.group(1))
     last = _ical_parse_dt(end.group(2), end.group(1))
     if first is None or last is None or last <= first:
+        return block
+    # MEC also encodes whole days as local midnight timestamps.
+    if not (first.time() == last.time() == time.min or _CHRISTMAS_MARKET_TITLE.search(summary.group(1))):
         return block
     # DATE values take an exclusive DTEND; a midnight end already is one.
     after = last.date() if last.time() == time.min else last.date() + timedelta(days=1)
@@ -141,21 +144,20 @@ def _whole_days(match: re.Match[str]) -> str:
     return block.replace(end.group(0), f"DTEND;VALUE=DATE:{after:%Y%m%d}", 1)
 
 
-def christmas_markets_as_whole_days(calendar: str) -> str:
-    """Rewrite Christmas-market VEVENTs to date-only values; others stay as they are."""
+def _normalize_calendar(calendar: str) -> str:
     return _VEVENT.sub(_whole_days, calendar)
 
 
 def _cached_calendar_fetcher(url: str, **kwargs: Any) -> str:
     kwargs.pop("timeout", None)
-    return christmas_markets_as_whole_days(
+    return _normalize_calendar(
         common.fetch_detail_url(url, cache_namespace=_CACHE_NAMESPACE, timeout=20, **kwargs)
     )
 
 
 def _hennef_feed_fetcher(url: str, **kwargs: Any) -> str:
     kwargs.pop("timeout", None)
-    return christmas_markets_as_whole_days(common.fetch_url(url, timeout=40, **kwargs))
+    return _normalize_calendar(common.fetch_url(url, timeout=40, **kwargs))
 
 
 def _city_resolver(city: str) -> Callable[[str], str]:

@@ -9,7 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import event_builder as _impl_event_builder
@@ -373,9 +373,6 @@ def parse_ical(
             raw_end_dt = start_dt + parsed_duration if parsed_duration else start_dt
         all_day = bool(re.match(r"^\d{8}$", props.get("DTSTART", "").strip()))
         duration = (raw_end_dt - start_dt) if raw_end_dt else timedelta(0)
-        # Midnight-to-midnight timestamps (MEC calendars) name whole days just like
-        # date-only values, so their DTEND is exclusive as well.
-        exclusive_end = all_day or start_dt.time() == raw_end_dt.time() == time.min
         starts, recurrence_warning = _ical_recurrence_starts(
             start_dt,
             props.get("RRULE", ""),
@@ -401,7 +398,7 @@ def parse_ical(
                 continue
             occurrence_end = occurrence_start + duration
             # RFC 5545 all-day DTEND is exclusive. Present the inclusive last day.
-            if exclusive_end and duration > timedelta(0):
+            if all_day and duration > timedelta(0):
                 occurrence_end -= timedelta(days=1)
             if event_filter and not event_filter(props, occurrence_start, occurrence_end):
                 continue
