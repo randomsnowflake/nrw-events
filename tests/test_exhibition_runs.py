@@ -536,6 +536,23 @@ class FoldSecondaryDatesTests(unittest.TestCase):
         self.assertEqual([slot["date"] for slot in kept.daily_schedule], ["2026-11-10", "2026-11-12", "2026-11-26"])
         self.assertIn(event_id(copy), kept.previous_event_ids)
 
+    def test_aggregator_run_with_identical_sessions_at_a_misfiled_venue_redirects(self):
+        slots = [("2026-11-27", "10:00", "12:30"), ("2026-11-27", "19:30", "22:30"), ("2026-12-12", "19:30", "22:30")]
+        jtb = _sessions("Junges Theater Bonn", "junges-theater-bonn", slots,
+                        title="Dear Evan Hansen", venue="Junges Theater Bonn", city="Bonn-Beuel", category_key="stage")
+        copy = _sessions("Bonn.de Events", "bonn-de-events", slots,
+                         title="Dear Evan Hansen", venue="Oper Bonn", city="Bonn", category_key="stage")
+
+        [kept] = fold_secondary_copies_into_primary([copy, jtb])
+
+        self.assertEqual(event_id(kept), event_id(jtb))
+        self.assertEqual(kept.venue, "Junges Theater Bonn")
+        self.assertIn(event_id(copy), kept.previous_event_ids)
+        # One differing clock time is another production, not a misfiled venue.
+        other = _sessions("Bonn.de Events", "bonn-de-events", [*slots[:2], ("2026-12-12", "18:00", "21:00")],
+                          title="Dear Evan Hansen", venue="Oper Bonn", city="Bonn", category_key="stage")
+        self.assertEqual(len(fold_secondary_copies_into_primary([other, jtb])), 2)
+
     def test_aggregator_run_around_the_listed_day_adds_its_other_days(self):
         day = validate_event({
             "status": "scheduled", "title": "Flatland", "source": "Siegburg", "source_id": "siegburg",

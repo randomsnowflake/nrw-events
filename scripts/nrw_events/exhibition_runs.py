@@ -317,8 +317,12 @@ def merge_exhibition_opening_days(
     return result
 
 
+def _same_city(left: CanonicalEvent, right: CanonicalEvent) -> bool:
+    return comparison_text(left.city.split("-", 1)[0]) == comparison_text(right.city.split("-", 1)[0])
+
+
 def _same_place(left: CanonicalEvent, right: CanonicalEvent) -> bool:
-    if comparison_text(left.city.split("-", 1)[0]) != comparison_text(right.city.split("-", 1)[0]):
+    if not _same_city(left, right):
         return False
     if left.venue_id and right.venue_id:
         return left.venue_id == right.venue_id
@@ -333,6 +337,21 @@ def _slots(event: CanonicalEvent) -> list[dict[str, str]] | None:
     if _is_run(event):
         return None
     return [{"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}]
+
+
+def _shares_sessions(primary: CanonicalEvent, copy: CanonicalEvent) -> bool:
+    """Every timed performance of the copy is one of the primary's, at least ``MIN_SESSIONS`` of them.
+
+    bonn.de files Junges Theater Bonn's "Dear Evan Hansen" under Theater Bonn and so the Oper;
+    identical clock times on several dates in one city identify the offer whatever venue it guessed.
+    """
+    own, extra = _slots(primary), _slots(copy)
+    if own is None or extra is None or len(extra) < MIN_SESSIONS or not _same_city(primary, copy):
+        return False
+    if not all(slot.get("start_at") for slot in (*own, *extra)):
+        return False
+    starts = {datetime.fromisoformat(slot["start_at"]) for slot in own}
+    return all(datetime.fromisoformat(slot["start_at"]) in starts for slot in extra)
 
 
 def _gap_days(left: CanonicalEvent, right: CanonicalEvent) -> int:
@@ -382,6 +401,9 @@ def fold_secondary_copies_into_primary(events: Sequence[CanonicalEvent]) -> list
       own programme (venue ID = source ID, or ``ORGANISER_PROGRAMME_SOURCE_IDS``
       such as Theater Bonn's several stages) is complete; such dates fold unlisted.
 
+    A copy whose timed performances all appear in the primary's schedule folds
+    even at another venue: aggregators misfile stages, clock times rarely coincide.
+
     A higher-ranked record is never folded, so a museum's own dated tours stay
     next to bonn.de's exhibition run of the same name. On one shared day two
     clock times stay two sessions, and opening-day runs never grow.
@@ -405,7 +427,7 @@ def fold_secondary_copies_into_primary(events: Sequence[CanonicalEvent]) -> list
             if (
                 row is copy or id(row) in dropped or row.source_id == copy.source_id
                 or source_authority(row.source) <= source_authority(copy.source)
-                or not _same_place(primary, copy)
+                or not (_same_place(primary, copy) or _shares_sessions(primary, copy))
             ):
                 continue
             by_source[row.source_id].append(row)
