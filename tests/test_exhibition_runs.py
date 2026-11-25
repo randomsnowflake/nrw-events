@@ -553,6 +553,17 @@ class FoldSecondaryDatesTests(unittest.TestCase):
                           title="Dear Evan Hansen", venue="Oper Bonn", city="Bonn", category_key="stage")
         self.assertEqual(len(fold_secondary_copies_into_primary([other, jtb])), 2)
 
+    def test_matching_opening_hours_do_not_fold_exhibitions_at_different_venues(self):
+        slots = [("2026-11-27", "10:00", "17:00"), ("2026-11-28", "10:00", "17:00")]
+        primary = _sessions("LVR-LandesMuseum Bonn", "lvr-landesmuseum-bonn", slots,
+                            title="Jahresausstellung", venue="LVR-LandesMuseum Bonn", city="Bonn",
+                            category_key="exhibition")
+        copy = _sessions("Bonn.de Events", "bonn-de-events", slots,
+                         title="Jahresausstellung", venue="Stadtmuseum Bonn", city="Bonn",
+                         category_key="exhibition")
+        exhibitions = [validate_event({**event.to_dict(), "dated_sessions": False}) for event in (primary, copy)]
+        self.assertEqual(fold_secondary_copies_into_primary(exhibitions), exhibitions)
+
     def test_aggregator_run_around_the_listed_day_adds_its_other_days(self):
         day = validate_event({
             "status": "scheduled", "title": "Flatland", "source": "Siegburg", "source_id": "siegburg",

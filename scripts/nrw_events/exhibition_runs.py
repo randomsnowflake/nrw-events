@@ -345,6 +345,8 @@ def _shares_sessions(primary: CanonicalEvent, copy: CanonicalEvent) -> bool:
     bonn.de files Junges Theater Bonn's "Dear Evan Hansen" under Theater Bonn and so the Oper;
     identical clock times on several dates in one city identify the offer whatever venue it guessed.
     """
+    if not (primary.dated_sessions and copy.dated_sessions):
+        return False
     own, extra = _slots(primary), _slots(copy)
     if own is None or extra is None or len(extra) < MIN_SESSIONS or not _same_city(primary, copy):
         return False
