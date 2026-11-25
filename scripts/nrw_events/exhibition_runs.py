@@ -145,15 +145,20 @@ def _session_slot(event: CanonicalEvent) -> dict[str, str]:
     return {"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}
 
 
-def _is_session_run(rows: Sequence[CanonicalEvent], runs: Sequence[CanonicalEvent], continues: bool) -> bool:
-    """Dated sessions of one offer at one venue: performances, course dates, tours."""
+def _has_sessions(run: CanonicalEvent) -> bool:
+    """A run of dated performances rather than opening hours."""
     # shortcut: stage runs published before ``dated_sessions`` existed lack the
     # flag; drop the category fallback once no snapshot predates it.
+    return run.dated_sessions or (run.category_key == "stage" and bool(run.daily_schedule))
+
+
+def _is_session_run(rows: Sequence[CanonicalEvent], runs: Sequence[CanonicalEvent], continues: bool) -> bool:
+    """Dated sessions of one offer at one venue: performances, course dates, tours."""
     # Untimed sessions (a market on some days) are dates too; mixed with timed rows they are separate offers.
     if any(
         row.daily_schedule or (row.source_id, comparison_text(row.title)) in _DATED_PAGE_SERIES
         for row in rows
-    ) or len({bool(row.start_at) for row in rows}) > 1 or any(not (run.dated_sessions or (run.category_key == "stage" and run.daily_schedule)) for run in runs):
+    ) or len({bool(row.start_at) for row in rows}) > 1 or any(not _has_sessions(run) for run in runs):
         return False
     days = sorted(date.fromisoformat(row.start_date) for row in rows)
     if len(days) > _MAX_SCHEDULE_SLOTS or any((later - earlier).days > MAX_CLOSED_DAYS for earlier, later in pairwise(days)):
@@ -345,6 +350,8 @@ def _shares_sessions(primary: CanonicalEvent, copy: CanonicalEvent) -> bool:
     bonn.de files Junges Theater Bonn's "Dear Evan Hansen" under Theater Bonn and so the Oper;
     identical clock times on several dates in one city identify the offer whatever venue it guessed.
     """
+    if not (_has_sessions(primary) and _has_sessions(copy)):
+        return False
     own, extra = _slots(primary), _slots(copy)
     if own is None or extra is None or len(extra) < MIN_SESSIONS or not _same_city(primary, copy):
         return False

@@ -552,6 +552,26 @@ class FoldSecondaryDatesTests(unittest.TestCase):
         other = _sessions("Bonn.de Events", "bonn-de-events", [*slots[:2], ("2026-12-12", "18:00", "21:00")],
                           title="Dear Evan Hansen", venue="Oper Bonn", city="Bonn", category_key="stage")
         self.assertEqual(len(fold_secondary_copies_into_primary([other, jtb])), 2)
+        # Stage runs retained from before ``dated_sessions`` existed still fold.
+        nightly = [("2026-11-27", "19:30", "22:30"), ("2026-11-28", "19:30", "22:30"), ("2026-12-12", "19:30", "22:30")]
+        legacy = [validate_event({**event.to_dict(), "category_key": "stage", "category_label": "Theater & Bühne",
+                                  "dated_sessions": False})
+                  for event in (_sessions("Bonn.de Events", "bonn-de-events", nightly, title="Dear Evan Hansen",
+                                          venue="Oper Bonn", city="Bonn"),
+                                _sessions("Junges Theater Bonn", "junges-theater-bonn", nightly, title="Dear Evan Hansen",
+                                          venue="Junges Theater Bonn", city="Bonn-Beuel"))]
+        self.assertEqual(len(fold_secondary_copies_into_primary(legacy)), 1)
+
+    def test_matching_opening_hours_do_not_fold_exhibitions_at_different_venues(self):
+        slots = [("2026-11-27", "10:00", "17:00"), ("2026-11-28", "10:00", "17:00")]
+        primary = _sessions("LVR-LandesMuseum Bonn", "lvr-landesmuseum-bonn", slots,
+                            title="Jahresausstellung", venue="LVR-LandesMuseum Bonn", city="Bonn",
+                            category_key="exhibition")
+        copy = _sessions("Bonn.de Events", "bonn-de-events", slots,
+                         title="Jahresausstellung", venue="Stadtmuseum Bonn", city="Bonn",
+                         category_key="exhibition")
+        exhibitions = [validate_event({**event.to_dict(), "dated_sessions": False}) for event in (primary, copy)]
+        self.assertEqual(fold_secondary_copies_into_primary(exhibitions), exhibitions)
 
     def test_aggregator_run_around_the_listed_day_adds_its_other_days(self):
         day = validate_event({
