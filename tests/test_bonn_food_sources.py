@@ -1,6 +1,7 @@
 import json
 import unittest
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from nrw_events import common
@@ -53,6 +54,36 @@ class BonnFoodSourceTests(unittest.TestCase):
         self.assertEqual(events[0]["venue"], "Brauwerkstatt Bonn")
         self.assertEqual(events[0]["venue_address"], "Hermannstraße 104, 53225 Bonn")
         self.assertTrue(events[0]["link"].endswith("wild-beers-tasting-07-08-26/"))
+
+    def test_craftquelle_reads_complete_public_dataview(self):
+        fixtures = Path(__file__).with_name("data")
+        listing = (fixtures / "craftquelle-dataview.html").read_text()
+        detail = (fixtures / "craftquelle-product.html").read_text()
+        with patch.object(common, "fetch_url", return_value=listing), patch.object(
+            common, "fetch_detail_url", side_effect=lambda url, **_: detail if "beer-chocolate" in url else ""
+        ) as fetch:
+            events = bonn_food.fetch_craftquelle()
+        self.assertEqual(fetch.call_count, 4)
+        events = sorted((e for e in events if e["start_date"] <= "2026-12-31"), key=lambda e: e["start_date"])
+        self.assert_food_events(events, 3)
+        self.assertEqual(
+            [(e["start_date"], e["link"].split("/")[-2], e["price"]) for e in events],
+            [
+                ("2026-11-28", "beer-chocolate-28-11-26", "49,90 EUR"),
+                ("2026-12-04", "einsteiger-tasting-04-12-26", "29,90 EUR"),
+                ("2026-12-09", "belgische-biere-09-12-26", "39,90 EUR"),
+            ],
+        )
+        self.assertEqual(events[0]["time"], "20:00–23:00")
+        self.assertEqual(events[0]["venue"], "Brauwerkstatt Bonn")
+        self.assertEqual(fetch.call_args.args[0], "https://craft-quelle.de/produkt/winterbiere-bier-stacheln-16-12-26/")
+        for broken in (
+            listing.replace("totalPages&quot;: 1", "totalPages&quot;: 2"),
+            listing.replace("totalRows&quot;: 13", "totalRows&quot;: 14"),
+            listing.replace("https://craft-quelle.de/produkt/", "https://example.org/produkt/", 1),
+        ):
+            with self.subTest(broken=broken[:100]):
+                self.assertEqual(bonn_food.events_from_craftquelle(broken), [])
 
     def test_bff_distinguishes_explicit_empty_widget_from_broken_markup(self):
         # Trimmed booking widget; the unrelated dialog translations are omitted.

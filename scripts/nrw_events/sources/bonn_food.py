@@ -5,10 +5,11 @@ import re
 import urllib.parse
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from html import unescape
 from typing import Any
 
 from .. import common
-from ..dates import MONTH_ALL
+from ..dates import MONTH_ALL, parse_date
 from ..health import SourceFetchResult
 from ..jsonld import jsonld_event_items
 from . import regional_common as rc
@@ -185,8 +186,8 @@ def fetch_choco_dealer() -> list:
     return rc.fetch_html_events("Choco Dealer", _CHOCO_DEALER_URL, events_from_choco_dealer, source_id="choco-dealer")
 
 
-def events_from_craftquelle(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
-    events = []
+def _craftquelle_rows(html: str) -> list[tuple[datetime, str, str, str, str, str]]:
+    rows = []
     for row in re.findall(r"<tr\b.*?</tr>", html or "", re.S | re.I):
         cells = [rc.clean(cell) for cell in re.findall(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", row, re.S | re.I)]
         if len(cells) < 4 or cells[0].casefold() == "datum":
@@ -195,28 +196,68 @@ def events_from_craftquelle(html: str, detail_fetcher: Callable[[str], str] | No
         start = _parse_german_date(cells[0]) or _date_from_href(href)
         if not start:
             continue
+        description = f"{cells[1]}. Leitung: {cells[2]}." if cells[2] else cells[1]
+        rows.append((start, href, cells[1], description, cells[3], cells[0]))
+    return rows
+
+
+def _craftquelle_dataview(html: str) -> list[tuple[datetime, str, str, str, str, str]]:
+    payload = _match(r'<div\b[^>]*class="wpt-dataview\b[^>]*data-initial-response="([^"]+)"', html)
+    if not payload:
+        return []
+    try:
+        response = _mapping(_mapping(json.loads(unescape(payload))).get("response"))
+    except ValueError:
+        return []
+    data = response.get("data")
+    # shortcut: only a complete embedded page, add pagination if the organizer exceeds it.
+    if (not isinstance(data, list) or response.get("totalPages") != 1
+            or response.get("currentPage") != 0 or response.get("totalRows") != len(data)):
+        return []
+    rows = []
+    links = set()
+    for item in data:
+        date, name, stock, price = (_mapping(item).get(key) for key in ("cf:datum", "name", "stock", "price"))
+        if not (isinstance(date, str) and isinstance(name, str)
+                and isinstance(stock, str) and isinstance(price, str)):
+            return []
+        start = parse_date(date) if re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", date) else None
+        href = _match(r'^<a href="(https://craft-quelle\.de/produkt/[\w-]+/)"', name)
+        title = rc.clean(name)
+        if not start or not href or not title or href in links:
+            return []
+        links.add(href)
+        rows.append((start, href, title, "", _match(r"<ins\b[^>]*>(.*?)</ins>", price) or price, stock))
+    return rows
+
+
+def events_from_craftquelle(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
+    events = []
+    legacy = _craftquelle_rows(html)
+    for listing_start, href, title, listing_description, price, stock in legacy or _craftquelle_dataview(html):
+        start = listing_start
         link = rc.abs_url(_CRAFTQUELLE_URL, href) if href else _CRAFTQUELLE_URL
-        title = cells[1]
-        listing_description = f"{title}. Leitung: {cells[2]}." if cells[2] else title
         description = listing_description
-        venue = "Brauwerkstatt Bonn, Hermannstraße 104, 53225 Bonn"
+        venue = "Brauwerkstatt Bonn, Hermannstraße 104, 53225 Bonn" if legacy else ""
         end = start
         if href and detail_fetcher and _in_window(start):
             detail = _safe_detail(detail_fetcher, link, "Craftquelle Bonn")
             if detail:
                 parsed = _craftquelle_detail(detail)
-                start = parsed.get("start") or start
-                end = parsed.get("end") or start
-                venue = parsed.get("venue") or venue
-                description = _food_description(parsed.get("description") or "") or listing_description
-        if re.search(r"ausverkauft|0\s+plätze", cells[0], re.I):
-            description = _append_sentence(description, "Ausverkauft.")
+                detail_start = parsed.get("start")
+                if legacy or not detail_start or detail_start.date() == start.date():
+                    start = detail_start or start
+                    end = parsed.get("end") or start
+                    venue = parsed.get("venue") or venue
+                    description = _food_description(parsed.get("description") or "") or listing_description
+        if re.search(r"ausverkauft|0\s+plätze", stock, re.I):
+            description = _append_sentence(description, "Ausverkauft.") if description else "Ausverkauft."
         ev = common.make_event(
             title, start, end, venue, "Bonn", description, link,
             "Craftquelle Bonn", "bier tasting braukurs genuss", 0.98,
         )
         if ev:
-            ev["price"] = _price(cells[3])
+            ev["price"] = _price(price)
             events.append(_force_food(ev))
     return rc.dedupe(events)
 
@@ -663,7 +704,7 @@ def _deep_jsonld_events(html: str) -> list[dict[str, Any]]:
 def _craftquelle_detail(html: str) -> dict:
     text = rc.clean(html)
     start_match = re.search(
-        r"Beginn:\s*(\d{1,2}\.(?:\d{1,2}\.|\s*[A-Za-zäöüÄÖÜ]+\s+)\d{2,4}),?\s*"
+        r"(?:Beginn|Zeit):\s*(\d{1,2}\.(?:\d{1,2}\.|\s*[A-Za-zäöüÄÖÜ]+\s+)\d{2,4}),?\s*"
         r"(\d{1,2}:\d{2})",
         text,
         re.I,
@@ -676,7 +717,7 @@ def _craftquelle_detail(html: str) -> dict:
     end_match = re.search(r"Ende\s*(?:ca\.)?\s*(\d{1,2}:\d{2})", text, re.I)
     if start and end_match:
         end = rc.with_time(start, end_match.group(1))
-    venue = _match(r"Ort:\s*(.*?)(?=\s+(?:Biersommelier\b|Beginn:))", text)
+    venue = _match(r"Ort:\s*(.*?)(?=\s+(?:Biersommelier\b|Beginn:|Zeit:))", text)
     description = _between(text, "Beschreibung Beschreibung", "Leitung:")
     return {"start": start, "end": end, "venue": venue, "description": description}
 
