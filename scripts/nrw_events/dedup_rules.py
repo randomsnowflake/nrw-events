@@ -129,6 +129,7 @@ _REVIEWED_OCCURRENCE_SOURCE_TITLE_ALIASES = {
 # on the same day, and the confirmed source's record wins.
 _REVIEWED_SOURCE_CONFLICT_FAMILIES = {
     "theater-bonn-werther": "theater-bonn",
+    "bonn-operngala-aids-stiftung-2026": "bonn-de-events",
     "lannesdorf-fahrrad-selbsthilfe-werkstatt": "repair-cafes-bonn",
 }
 

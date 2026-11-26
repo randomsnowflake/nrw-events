@@ -20,6 +20,17 @@ from nrw_events.validation import validate_event
 
 
 class CategoryTaxonomyTests(unittest.TestCase):
+    def test_explicit_roleplaying_round_beats_cinema_metaphor(self):
+        description = "Pen & Paper ist Kino im Kopf. Wir spielen ein gemeinsames Abenteuer."
+        self.assertEqual(categorize_event("", "Pen & Paper-Rollenspielrunde: Mausritter", description)["key"], "activities")
+        self.assertEqual(categorize_event("Kino", "Filmvorführung: Eine Rollenspielrunde", description)["key"], "cinema")
+
+    def test_cabaret_hint_and_copy_beat_incidental_christmas_festival(self):
+        copy = "Mitten in die schönste Zeit des Jahres schiebt sich das Weihnachtsfest. Die Kabarettisten packen aus."
+        self.assertEqual(categorize_event("kabarett kleinkunst", "Fritz und Hermann – Weihnachtsspezial", copy)["key"], "stage")
+        self.assertEqual(categorize_event("kabarett kleinkunst", "Weihnachtskonzert", copy)["key"], "concert")
+        self.assertEqual(categorize_event("kabarett kleinkunst", "Weihnachtsspezial", "Wir feiern das Weihnachtsfest.")["key"], "festival")
+
     def test_live_ballet_and_demonstrations_outrank_incidental_art_and_music(self):
         for hint, title, description, expected in (
             ("Musik/Konzert, Tanz, Theater", "Grand Classic Ballet - der Nussknacker",

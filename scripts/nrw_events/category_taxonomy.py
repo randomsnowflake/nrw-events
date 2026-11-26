@@ -341,7 +341,7 @@ def _forced_title_format(title_text: str, title_comparison: str) -> str:
     ):
         if re.search(r"\b(?:saxophon|streich)[ -]?quartett\b", title_comparison):
             return "concert"
-        if re.search(r"\bsilent[ -]reading\b", title_comparison):
+        if re.search(r"\b(?:silent[ -]reading|rollenspielrunden?)\b", title_comparison):
             return "activities"
     if (
         re.search(r"\b\w*museum\w*\b", title_text)
@@ -1004,6 +1004,20 @@ def categorize_event(
     best_title_matches = evidence.title_matches
     best_description_matches = evidence.description_matches
     best_hint_matches = evidence.hint_matches
+
+    if (
+        best_key == "festival"
+        and not best_title_matches
+        and set(best_description_matches) == {"fest"}
+        and hint_category_keys == {"stage"}
+        and re.search(r"\bkabarett(?:ist(?:en|in|innen)?)?\b", description_comparison)
+    ):
+        return {
+            "key": "stage",
+            "label": CATEGORY_BY_KEY["stage"]["label"],
+            "confidence": 0.95,
+            "reason": "format:source-backed-cabaret",
+        }
 
     if best_key == "other":
         contextual_format = _contextual_event_format(title_text, description_text)

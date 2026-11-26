@@ -138,6 +138,7 @@ class EventTypeTests(unittest.TestCase):
             ("Adventsmärktchen in Lantershofen", "other"),
             ("Advent am Pleeser Wald", "market"),
             ("Lichtermarkt am Kaiserplatz", "market"),
+            ("Zintemaat 2026", "market"),
             ("Advent erleben auf Schloss Eulenbroich", "market"),
         ):
             self.assertEqual(event(title=title, category_key=category).event_types, ["christmas-market"], title)

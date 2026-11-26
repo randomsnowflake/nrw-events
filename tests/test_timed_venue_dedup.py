@@ -34,6 +34,34 @@ class TimedVenueDedupTests(unittest.TestCase):
         self.assertTrue(events_are_duplicates(left, right))
         self.assertTrue(events_are_duplicates(right, left))
 
+    def test_13th_operngala_keeps_the_civic_timing_and_price_and_the_theatre_alias(self):
+        from nrw_events.deduplication import deduplicate
+        from nrw_events.identity import event_id
+        from nrw_events.validation import validate_event
+
+        start = "2026-11-28T19:00+01:00"
+        theatre = _event(
+            "Operngala Bonn für die Deutsche AIDS-Stiftung", "Opernhaus", "Bonn",
+            "Theater Bonn", start, source_id="theater-bonn", category_key="stage",
+            link="https://theater-bonn.de/de_DE/programm/gala?event_date=18022148",
+        )
+        civic = _event(
+            "13. Festliche Operngala für die Deutsche AIDS-Stiftung", "Oper Bonn", "Bonn",
+            "Bonn.de Events", start, source_id="bonn-de-events", category_key="stage",
+            link="https://www.bonn.de/veranstaltungen/gala.php", time="19:00–21:30",
+            end_at="2026-11-28T21:30+01:00", price="49–159 €",
+        )
+        self.assertDuplicate(theatre, civic)
+        for change in ({"venue": "Schauspielhaus"}, {"start_at": "2026-11-28T20:00+01:00"}, {"title": "Galadinner"}):
+            self.assertFalse(events_are_duplicates(theatre, {**civic, **change}))
+
+        first, second = validate_event(theatre), validate_event(civic)
+        [merged] = deduplicate([first, second])
+        self.assertEqual(event_id(merged), event_id(second))
+        self.assertIn(event_id(first), merged.previous_event_ids)
+        self.assertEqual(set(merged.source_links), {theatre["link"], civic["link"]})
+        self.assertEqual((merged.time, merged.price), ("19:00–21:30", "49–159 €"))
+
     def test_ampersand_and_und_name_one_performance_when_only_one_listing_has_a_clock(self):
         self.assertDuplicate(
             _event(

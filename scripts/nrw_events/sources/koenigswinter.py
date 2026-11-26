@@ -8,6 +8,7 @@ Yields: Siebengebirgsmuseum dates, guided tours, markets, hikes, small culture.
 
 import re
 import urllib.parse
+from collections.abc import Callable
 from datetime import timedelta
 
 from .. import common
@@ -16,6 +17,9 @@ from . import regional_common as rc
 _BASE_URL = "https://www.koenigswinter.de/"
 _CALENDAR_URL = f"{_BASE_URL}de/veranstaltungskalender.html"
 _CARD_START_RE = re.compile(r'(?=<li[^>]*class="[^"]*\bmedia\b[^"]*"[^>]*>)', re.I)
+_VHS_WORKSHOP_URL = re.compile(
+    r'href="(https://vhs-siebengebirge\.de/programm/[^"<>?#]+/kursdetails/kurs/F10206)/?"'
+)
 
 
 def fetch() -> list:
@@ -32,7 +36,7 @@ def fetch() -> list:
         return []
 
 
-def _events_from_listing(html: str, detail_fetcher=None) -> list:
+def _events_from_listing(html: str, detail_fetcher: Callable[[str], str] | None = None) -> list:
     events = []
     for block in _listing_blocks(html):
         title_link = re.search(
@@ -58,18 +62,29 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
         source_category = _card_text(block, "text-muted")
         link = urllib.parse.urljoin(_BASE_URL, title_link.group("link"))
         listing_copy = _card_element_text(block, "h6")
-        detail_copy = (
-            _detail_copy(link, detail_fetcher)
+        detail = (
+            _read_detail(link, detail_fetcher)
             if common.window_contains(common.parse_date(start_date), common.parse_date(end_date))
             else ""
         )
-        description = detail_copy or listing_copy or _fallback_description(
+        workshop = (
+            _vhs_workshop(detail, detail_fetcher, start_date, times)
+            if title == "Das Geheimnis der Raunächte" and start_date == end_date and detail_fetcher
+            else None
+        )
+        description = _detail_copy(detail) or listing_copy or _fallback_description(
             title,
             start_date,
             end_date,
             time_text,
             venue,
         )
+        if workshop:
+            _, fee = workshop
+            description = (
+                f"Im VHS-Workshop stellst du Räucherwerk her. Die Teilnahme kostet {fee}. "
+                "Den Buchungsstatus findest du bei der VHS Siebengebirge unter F10206."
+            )
         category = f"{source_category} königswinter siebengebirge"
         parsed_start = common.parse_date(start_date)
         parsed_end = common.parse_date(end_date)
@@ -94,8 +109,13 @@ def _events_from_listing(html: str, detail_fetcher=None) -> list:
             category,
             0.95,
             time_text,
+            default_category_key="workshop" if workshop else "",
+            category_locked=bool(workshop),
         )
         if event:
+            if workshop:
+                course_url, fee = workshop
+                event.update(price=fee, admission_basis="explicit", source_links=[course_url])
             events.append(event)
     return events
 
@@ -116,14 +136,33 @@ def _card_element_text(block: str, tag: str) -> str:
     return rc.first_group_clean(rf"<{tag}[^>]*>(.*?)</{tag}>", block)
 
 
-def _detail_copy(link: str, detail_fetcher) -> str:
-    if not (link and detail_fetcher):
-        return ""
-    try:
-        html = detail_fetcher(link)
-    except Exception as exc:
-        common.log_source_error("Königswinter detail", exc)
-        return ""
+def _read_detail(link: str, fetcher: Callable[[str], str] | None) -> str:
+    if fetcher:
+        try:
+            return fetcher(link)
+        except Exception as exc:
+            common.log_source_error("Königswinter detail", exc)
+    return ""
+
+
+def _vhs_workshop(
+    detail: str, fetcher: Callable[[str], str], start_date: str, times: list[str],
+) -> tuple[str, str] | None:
+    match = _VHS_WORKSHOP_URL.search(detail)
+    if not match or len(times) != 2:
+        return None
+    course_url = match.group(1)
+    course = common.clean_html(_read_detail(course_url, fetcher))
+    if not re.search(r"\bKursnr\.:\s*F10206\b", course):
+        return None
+    clock = rf"{re.escape(times[0])}\s*[-–]\s*{re.escape(times[1])}"
+    if not re.search(rf"\bBeginn:\s*[^,]*,\s*{re.escape(start_date)},\s*{clock}\s+Uhr", course):
+        return None
+    fee = re.search(r"\bGebühr:\s*(\d+,\d{2})\s*€", course)
+    return (course_url, f"{fee.group(1)} €") if fee else None
+
+
+def _detail_copy(html: str) -> str:
     content = re.search(
         r'<div[^>]*class="[^"]*\bevent-content\b[^"]*"[^>]*>(.*?)</div>',
         html,

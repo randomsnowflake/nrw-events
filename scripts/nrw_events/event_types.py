@@ -29,11 +29,12 @@ _FUNFAIR_TITLE = re.compile(
     re.IGNORECASE,
 )
 
-# Only the market nouns themselves. A Weihnachtskonzert is not a market, and
+# Only the market nouns themselves (Zintemaat is Meckenheim's name for its
+# Weihnachtsmarkt). A Weihnachtskonzert is not a market, and
 # "Weihnachtsmarkt-Konzert" in a concert category stays a concert.
 _CHRISTMAS_MARKET_TITLE = re.compile(
     r"(?<!\w)(?:\w*(?:weihnachts|advents)(?:markt|maerkte|maerktchen)"
-    r"|christkindl(?:es)?markt|nikolausmarkt|\w*lichtermarkt)(?!\w)",
+    r"|christkindl(?:es)?markt|nikolausmarkt|\w*lichtermarkt|zintemaat)(?!\w)",
     re.IGNORECASE,
 )
 # The market noun is unambiguous, so uncategorised ("other") records count too.

@@ -299,6 +299,9 @@ def _clock_range_datetimes(
     return start, end
 
 
+_TICKET_AVAILABILITIES = frozenset({"InStock", "SoldOut", "LimitedAvailability", "PreOrder"})
+
+
 def _canonical_daily_schedule(event: dict[str, Any]) -> None:
     value = event.get("daily_schedule") or _daily_schedule_from_prose(event)
     if not isinstance(value, list):
@@ -327,8 +330,16 @@ def _canonical_daily_schedule(event: dict[str, Any]) -> None:
             continue
         slot = {"date": date_value, "start_at": start.isoformat() if start else "", "end_at": end.isoformat() if end else ""}
         if sessions:
-            if slot not in slots:
-                slots.append(slot)
+            existing = next((item for item in slots if item["date"] == date_value
+                             and item["start_at"] == slot["start_at"]), None)
+            availability = candidate.get("availability")
+            if existing:
+                if availability != existing.get("availability"):
+                    existing.pop("availability", None)
+                continue
+            if isinstance(availability, str) and availability in _TICKET_AVAILABILITIES:
+                slot["availability"] = availability
+            slots.append(slot)
             continue
         if date_value in conflicted_dates:
             continue
@@ -678,7 +689,7 @@ def canonical_visitor_fields(raw: dict[str, Any], inferred_description_source: s
         editorial_admission = dict(admission)
     editorial_price = event["price"]
     availability = _text(event, "availability", 32)
-    if availability not in {"", "InStock", "SoldOut", "LimitedAvailability", "PreOrder"}:
+    if availability and availability not in _TICKET_AVAILABILITIES:
         raise EventValidationError("availability_invalid")
     event["availability"] = availability
     event["description_source"] = (
@@ -1092,6 +1103,9 @@ def canonicalize_event(raw_event: RawEvent | object) -> CanonicalEvent:
     event["title"] = strip_status_markers(event["title"], status)
     event["early_publication"] = bool(event.get("early_publication", False))
     event["dated_sessions"] = event.get("dated_sessions") is True and bool(event["daily_schedule"])
+    if event["dated_sessions"]:
+        statuses = {slot.get("availability", "") for slot in event["daily_schedule"]}
+        event["availability"] = statuses.pop() if len(statuses) == 1 else ""
     # Jev read the source and found no single visitor price; meaningless once admission is known.
     event["admission_checked"] = (
         event.get("admission_checked") is True

@@ -59,6 +59,32 @@ class KoenigswinterParserTests(unittest.TestCase):
         self.assertIn("Fahrradfernfahrt von Königswinter nach Cognac", event["description"])
         self.assertIn("mehreren touristischen Etappen", event["description"])
 
+    def test_linked_vhs_workshop_fee_requires_matching_course_and_occurrence(self):
+        listing = """
+<h4><a href="/de/veranstaltungskalender/event/raunaechte.html">Das Geheimnis der Raunächte</a></h4>
+<div class="mb-2"><i></i> 25.07.2026 von 10:00 Uhr bis 12:30 Uhr</div>
+<span class="gcevent-list-location-span">Mosaik</span>
+"""
+        course_url = "https://vhs-siebengebirge.de/programm/politik/kw/bereich/kursdetails/kurs/F10206"
+        detail = f'<div class="event-content">Wir erstellen Räucherwerk.</div><a href="{course_url}">Ticket-Link</a>'
+        course = """
+<p><strong>Kursnr.:</strong> F10206</p>
+<p><strong>Beginn:</strong> <abbr>Sa.</abbr>, 25.07.2026, 10:00 - 12:30 Uhr</p>
+<p><strong>Gebühr:</strong> 18,70 &euro; (inkl. MwSt.)</p>
+"""
+        def fetched(url):
+            return course if url == course_url else detail
+
+        [event] = koenigswinter._events_from_listing(listing, detail_fetcher=fetched)
+        self.assertEqual((event["category_key"], event["price"]), ("workshop", "18,70 €"))
+        self.assertEqual(event["source_links"], [course_url])
+        self.assertIn("Räucherwerk", event["description"])
+
+        course = course.replace("12:30", "11:30")
+        [unverified] = koenigswinter._events_from_listing(listing, detail_fetcher=fetched)
+        self.assertNotEqual(unverified["category_key"], "workshop")
+        self.assertEqual(unverified["price"], "")
+
     def test_listing_parser_builds_sentence_when_detail_copy_is_missing(self):
         listing_html = """
 <span class="text-muted">Musik</span>

@@ -183,6 +183,17 @@ def _reviewed_occurrence_alias_family(event: Mapping[str, Any]) -> str:
         and str(event.get("start_date") or event.get("date")) in {"2026-10-03", "2026-10-04"}
     ):
         return "bonn-telekom-dome-maedelsflohmarkt-2026"
+    # The city and the theatre use different names for the 13th AIDS gala.
+    if (
+        (source_id, title) in {
+            ("theater-bonn", "operngalabonnfuerdiedeutscheaidsstiftung"),
+            ("bonn-de-events", "13festlicheoperngalafuerdiedeutscheaidsstiftung"),
+        }
+        and venue in {"oper bonn", "opernhaus", "opernhaus bonn"}
+        and _date_bounds(event) == (date(2026, 11, 28), date(2026, 11, 28))
+        and _same_explicit_start(str(event.get("start_at") or ""), "2026-11-28T19:00+01:00")
+    ):
+        return "bonn-operngala-aids-stiftung-2026"
     # The official site locates the square at Uhlgasse 2; the city's
     # district-festival overview names only the street. Keep this equivalence
     # bound to the reviewed festival and its two publishers.

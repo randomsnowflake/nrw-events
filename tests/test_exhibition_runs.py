@@ -113,6 +113,21 @@ class ExhibitionRunTests(unittest.TestCase):
         self.assertEqual((merged.start_date, merged.end_date, merged.city), ("2026-10-01", "2026-10-03", "Bonn-Bad Godesberg"))
         self.assertEqual(event_id(merged), event_id(run))
 
+    def test_performance_availability_follows_each_start_time(self):
+        sold = _show("2026-11-26", time="20:00", start_at="2026-11-26T20:00+01:00", availability="SoldOut")
+        limited = _show("2026-11-28", time="11:00", start_at="2026-11-28T11:00+01:00", availability="LimitedAvailability")
+        later = _show("2026-11-28", time="15:00", start_at="2026-11-28T15:00+01:00")
+        [run] = merge_exhibition_opening_days([sold, limited, later], {})
+        self.assertEqual(run.availability, "")
+        self.assertEqual(
+            [(slot["start_at"][11:16], slot.get("availability")) for slot in run.daily_schedule],
+            [("20:00", "SoldOut"), ("11:00", "LimitedAvailability"), ("15:00", None)],
+        )
+        [sold_out_run] = merge_exhibition_opening_days(
+            [sold, _show("2026-11-28", time="20:00", start_at="2026-11-28T20:00+01:00", availability="SoldOut")], {},
+        )
+        self.assertEqual(sold_out_run.availability, "SoldOut")
+
     def test_tours_and_same_day_sessions_become_dated_sessions(self):
         tours = [_day("2026-10-01", time="15:00–16:00"), _day("2026-10-02", time="15:00–16:00")]
         [tour_run] = merge_exhibition_opening_days(tours, {})

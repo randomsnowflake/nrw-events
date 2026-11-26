@@ -142,7 +142,10 @@ def _is_daily_offer(rows: Sequence[CanonicalEvent], continues: bool) -> bool:
 
 
 def _session_slot(event: CanonicalEvent) -> dict[str, str]:
-    return {"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}
+    slot = {"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}
+    if event.availability:
+        slot["availability"] = event.availability
+    return slot
 
 
 def _has_sessions(run: CanonicalEvent) -> bool:
@@ -341,7 +344,7 @@ def _slots(event: CanonicalEvent) -> list[dict[str, str]] | None:
         return [dict(slot) for slot in event.daily_schedule]
     if _is_run(event):
         return None
-    return [{"date": event.start_date, "start_at": event.start_at, "end_at": event.end_at}]
+    return [_session_slot(event)]
 
 
 def _shares_sessions(primary: CanonicalEvent, copy: CanonicalEvent) -> bool:
