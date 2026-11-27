@@ -43,6 +43,18 @@ class Kult41CalendarTests(unittest.TestCase):
         self.assertEqual(old["start_date"], "2026-10-31")
         self.assertEqual(old["price"], "Eintritt: 10€")
 
+    def test_program_grid_reads_local_dates_times_and_concert_tag(self):
+        # Two exact programme cards from ?mo=12&yr=2026, fetched 2026-11-27.
+        grid = (Path(__file__).parent / "fixtures/kult41/november-grid.html").read_text()
+        [concert, open_mic] = bonn_venues.events_from_kult41(grid)
+        self.assertEqual(concert["start_date"], "2026-11-27")
+        self.assertEqual(concert["time"], "20:00")
+        self.assertEqual(concert["category_key"], "concert")
+        self.assertEqual(open_mic["start_date"], "2026-11-28")
+        self.assertEqual(open_mic["time"], "19:00")
+        self.assertEqual(concert["price"], "")
+        self.assertEqual(bonn_venues.events_from_kult41(grid.replace('class="k41-grid-datum"', 'class="unknown"')), [])
+
     def test_group_fetch_deduplicates_lists_previews_and_repeated_months(self):
         def kult41_jobs(jobs):
             return [event for job in jobs if job.url == bonn_venues._KULT41_URL for event in job.fetch()]

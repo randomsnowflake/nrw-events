@@ -94,9 +94,15 @@ def events_from_kult41(html: str) -> list:
         )
         date = re.search(r'class="[^"]*em-event-date[^"]*".*?</span>\s*([^<]+)</div>', block, re.S | re.I)
         time = re.search(r'class="[^"]*em-event-time[^"]*".*?em-icon-clock.*?</span>\s*([^<]+)</div>', block, re.S | re.I)
+        # The programme grid puts the date, start time and tags above the title.
+        grid_date = re.search(r'<span class="k41-grid-datum">\s*([^<]+)</span>', metadata, re.I)
+        if grid_date:
+            date = grid_date
+            time = re.search(r'<span class="k41-grid-zeit">\s*([^<]+)</span>', metadata, re.I)
         desc = re.search(r'<div class="em-item-desc">\s*(.*?)\s*</div>', block, re.S | re.I)
+        taxonomy = r"(?:categories|tags)" if grid_date else "categories"
         cats = " ".join(rc.clean(cat) for cat in re.findall(
-            r'events/categories/[^"]+">(.*?)</a>', metadata, re.S | re.I,
+            rf'events/{taxonomy}/[^"]+">(.*?)</a>', metadata, re.S | re.I,
         ))
         price = _match_clean(r'em-icon-ticket.*?</span>\s*([^<]+)</div>', block)
         if not (title and date):
