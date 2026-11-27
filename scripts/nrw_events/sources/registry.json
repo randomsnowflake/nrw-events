@@ -59,8 +59,7 @@
       "display_name": "LuPe Events",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.lupe_events:fetch",
-      "disabled_reason": "2026-11-15: Advertised iCal feeds return zero-byte HTTP 200 responses; suspended pending a valid feed. See docs/failed-market-sources.md."
+      "callable": "nrw_events.sources.lupe_events:fetch"
     },
     {
       "id": "bonnlive",
@@ -557,7 +556,50 @@
       "display_name": "Bonn district festivals",
       "region": "bonn-region",
       "adapter": "python",
-      "callable": "nrw_events.sources.bonn:fetch_press_festivals"
+      "callable": "nrw_events.sources.bonn:fetch_press_festivals",
+      "disabled_reason": "2026-11-27: Annual administrative planning list retired as a publication source. Use dated organizer programmes."
+    },
+    {
+      "id": "ortsausschuss-lannesdorf",
+      "display_name": "Ortsausschuss Lannesdorf",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.lupe_events:fetch_lannesdorf"
+    },
+    {
+      "id": "dein-stoffmarkt-bonn",
+      "display_name": "Dein Stoffmarkt",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.lupe_events:fetch_stoffmarkt"
+    },
+    {
+      "id": "gewerbegemeinschaft-beuel",
+      "display_name": "Gewerbe-Gemeinschaft Beuel",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_festival_programmes:fetch_beuel"
+    },
+    {
+      "id": "ortsausschuss-mehlem",
+      "display_name": "Ortsausschuss Mehlem",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_festival_programmes:fetch_mehlem"
+    },
+    {
+      "id": "ortsausschuss-friesdorf",
+      "display_name": "Ortsausschuss Friesdorf 1929",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_festival_programmes:fetch_friesdorf"
+    },
+    {
+      "id": "bonn-festival-programmes",
+      "display_name": "Bonn festival programmes",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bonn_festival_programmes:fetch_reviewed"
     },
     {
       "id": "tourismus-nrw-puetzchens-markt",

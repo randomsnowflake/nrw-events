@@ -296,9 +296,9 @@
     "beuel_primary_url_replacements": [
       {
         "match": ["https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/Nikolausmarkt-in-Beuel.php", "2026-11-27", "2026-11-29"],
-        "value": "https://www.bonn.de/pressemitteilungen/dezember/abwechslungsreiches-veranstaltungsjahr-2026-in-bonn.php",
+        "value": "https://www.bonn.de/veranstaltungskalender/veranstaltungen/hauptkalender/maerkte/nikolausmarkt-in-beuel.php",
         "valid_until": "2026-11-29",
-        "evidence": "Reviewed Bonn annual events release"
+        "evidence": "Verified 2026-11-27: use the organizer's programme and schema.org daily schedule via Bonn.de Events."
       }
     ],
     "beuel_mirecourtplatz_programme": [

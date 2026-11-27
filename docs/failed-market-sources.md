@@ -1,5 +1,11 @@
 # Market source suspensions — 2026-11-15
 
+Update 2026-11-27: LuPe now uses the public Tribe REST calendar. Both iCal
+URLs still return zero bytes. REST returned the 2026 Ippendorf and Endenich
+records and a valid empty response for 2027. The adapter preserves LuPe's
+identity and interprets its 05:00 all-day boundary as a calendar cutoff.
+Rhein Antik remains suspended.
+
 Weekly report action 3 reported 162 failures for `rhein-antik` (HTTP 503)
 and 28 for `lupe-events` (empty parser). Both identities and their existing
 parsers remain registered. A nonempty `disabled_reason` now makes the production

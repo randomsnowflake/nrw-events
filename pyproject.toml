@@ -35,6 +35,7 @@ nrw_events = [
     "junk_rules_data.json",
     "reviewed_corrections.json",
     "verified_venue_locations.json",
+    "sources/bonn_festival_programmes.json",
     "sources/radio_primary_sources.json",
     "sources/registry.json",
 ]

@@ -259,3 +259,22 @@ falls back to `OPENROUTER_API_KEY`). `JEV_OPENROUTER_MODEL` defaults to
 `NRW_EVENTS_AI_JEV_ENABLED` defaults to true; set false for legacy extraction.
 On cache misses the importer uses Jev for fact coverage and category decisions,
 with generative extraction as fallback. Existing successful caches remain valid.
+
+## Bonn district festivals
+
+The annual administrative planning list is disabled for publication. The
+official Bonn calendar supplies the Nikolausmarkt Beuel, including the
+organizer's individual opening hours and the published event ID. The Bad
+Godesberg Stadtmarketing homepage supplies the separately dated Weihnachtliche
+Nachlese. LuPe, the Ortsausschuss Lannesdorf and Dein Stoffmarkt use their
+organizers' Tribe REST calendars. The Beuel trade association and the
+Christmas markets in Friesdorf and Mehlem have their own organizer adapters.
+
+The reviewed Bonn festival programme source contains separately sourced
+dates from programmes, announcements or PDFs. Its dates apply only to the
+specified editions and are filtered by the ordinary publication window.
+Update them from the organizer's latest dated programme when a date or venue
+changes. An announcement from a participating group may document its
+participation. It does not establish additional festival days. Buschdorf, the
+full Rheindorfer Bachfest and the unconfirmed Beuel event proposals await
+dated organizer evidence.

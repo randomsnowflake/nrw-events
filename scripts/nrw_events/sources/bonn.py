@@ -7,10 +7,7 @@ Fetchers, all reading bonn.de:
                              records the JSON drops; their dates come from each
                              detail page's schema.org eventSchedule.
   fetch_events_json()      — legacy JSON-only fallback for tests/manual probes.
-  fetch_press_festivals()  — the annual "Veranstaltungsjahr" press release, which
-                             lists district festivals / markets / Kirmes as <li>
-                             items. This is the *live* replacement for the old
-                             hardcoded district-festival table — no baked dates.
+  fetch_press_festivals()  — retired annual-planning parser for offline replay.
   fetch_sports()           — the public Sportveranstaltungen teaser page. This
                              exposes sport/active events that the primary JSON
                              source intentionally filters out.
@@ -815,6 +812,7 @@ def fetch_events() -> list:
     detail cache.
     """
     source = "Bonn.de Events"
+    market = _fetch_beuel_nikolausmarkt(source)
     events: list = []
     if _calendar_listings_enabled():
         free_events = _fetch_free_calendar_events(source, enrich_details=False)
@@ -836,8 +834,15 @@ def fetch_events() -> list:
     # long-running offers (IBS Hausaufgabenhilfe: 248 of 635 records on
     # 2026-10-14) only reach us through the paginated RSS search.
     json_links = {_canonical_link(str(item.get("link") or "")) for item in items if isinstance(item, dict)}
+    if market:
+        json_links.add(BEUEL_NIKOLAUSMARKT_URL)
     events = _merge_fallback_events(events, _fetch_rss_window_events(source, json_links))
-    return _drop_redundant_dated_title_variants(_enrich_listing_details(events))
+    if market:
+        events = [event for event in events if _canonical_link(event.get("link") or "") != BEUEL_NIKOLAUSMARKT_URL]
+        events.append(market)
+    return _drop_redundant_dated_title_variants(
+        _enrich_listing_details([event for event in events if not _replaced_calendar_occurrence(event)]),
+    )
 
 
 def _fetch_json_items() -> list:
@@ -997,6 +1002,18 @@ def _finish_structured_event(
 _HTML_URL = "https://www.bonn.de/bonn-erleben/ausgehen-und-erleben/veranstaltungskalender.php"
 _SPORTS_URL = "https://www.bonn.de/bonn-erleben/aktiv-und-unterwegs/sportveranstaltungen.php"
 _RSS_URL = (_HTML_URL + "?sp%3Aout=rss&sp%3Acmp=search-1-0-searchResult&action=submit")
+BEUEL_NIKOLAUSMARKT_URL = (
+    "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+    "hauptkalender/maerkte/nikolausmarkt-in-beuel.php"
+)
+_BAD_GODESBERG_NIKOLAUSMARKT_URL = (
+    "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+    "hauptkalender/extern/Nikolausmarkt-Bad-Godesberg.php"
+)
+_BALLONFESTIVAL_2027_URL = (
+    "https://www.bonn.de/veranstaltungskalender/veranstaltungen/"
+    "hauptkalender/extern/18.Ballonfestival-Bonn-2027-.php"
+)
 # Annual press release. The slug embeds the year; we build it dynamically so the
 # source keeps working in future years with no code change (no dates hardcoded).
 _PRESS_MONTH_PATHS = (
@@ -1460,6 +1477,17 @@ def _canonical_link(link: str) -> str:
     return link.split("#", 1)[0].split("?", 1)[0].strip().replace("http://", "https://", 1)
 
 
+def _replaced_calendar_occurrence(event: dict) -> bool:
+    link = _canonical_link(event.get("link") or "")
+    day = event.get("start_date") or event.get("date") or ""
+    # City's 2026 market listing repeats through December 30. The organizer
+    # supplies distinct Nikolausmarkt and Nachlese dates.
+    if link == _BAD_GODESBERG_NIKOLAUSMARKT_URL:
+        return day.startswith("2026-")
+    # The balloon organizer publishes one edition; Citykey emits three days.
+    return link == _BALLONFESTIVAL_2027_URL and day.startswith("2027-")
+
+
 def _rss_window_url(page: int) -> str:
     window = common.runtime_window()
     params = [
@@ -1576,6 +1604,58 @@ def _schedule_occurrences(schedules: list, first_day: date, last_day: date) -> l
                 occurrences.add((day, *clocks))
             day += timedelta(days=1)
     return sorted(occurrences)
+
+
+def _fetch_beuel_nikolausmarkt(source: str) -> dict | None:
+    window = common.runtime_window()
+    if window.start.month not in (11, 12) and window.end.month not in (11, 12):
+        return None
+    context = _fetch_detail_context(BEUEL_NIKOLAUSMARKT_URL)
+    schedules = context.get("schedules") or []
+    if not schedules:
+        return None
+    # Parse the whole edition even when the snapshot starts partway through it.
+    occurrences = _schedule_occurrences(
+        schedules, window.start.date() - timedelta(days=7), window.end.date() + timedelta(days=7),
+    )
+    if not occurrences or not common.window_contains(
+        datetime.combine(occurrences[0][0], datetime.min.time()),
+        datetime.combine(occurrences[-1][0], datetime.min.time()),
+    ):
+        return None
+    if len({day for day, _, _ in occurrences}) != len(occurrences) or any(
+        not start or not end or start >= end for _, start, end in occurrences
+    ):
+        return None
+    slots = [
+        {
+            "date": day.isoformat(),
+            "start_at": datetime.fromisoformat(f"{day}T{start}").replace(tzinfo=common.LOCAL_TIMEZONE).isoformat(),
+            "end_at": datetime.fromisoformat(f"{day}T{end}").replace(tzinfo=common.LOCAL_TIMEZONE).isoformat(),
+        }
+        for day, start, end in occurrences
+    ]
+    first = common.parse_iso_date(slots[0]["start_at"])
+    last = common.parse_iso_date(slots[-1]["end_at"])
+    event = common.make_event(
+        "Nikolausmarkt Beuel", first, last, "Josefplatz", "Bonn-Beuel",
+        context.get("description") or "", BEUEL_NIKOLAUSMARKT_URL, source,
+        "Weihnachtsmarkt", source_id="bonn-de-events", link_kind="detail",
+        default_category_key="market", category_locked=True,
+    )
+    if event:
+        event.update(
+            daily_schedule=slots,
+            venue_address=context.get("venue_address") or "",
+            organizer="Bezirksverwaltungsstelle Beuel",
+        )
+        if slots[0]["date"] == "2026-11-27":
+            event["preserved_event_id"] = "nikolausmarkt-beuel-cd57aa7bea"
+            event["previous_event_ids"] = [
+                "nikolausmarkt-in-beuel-799c60fc7c",
+                "beueler-nikolausmarkt-2026-5cacb3af0b",
+            ]
+    return event
 
 
 def _fetch_rss_window_events(source: str, known_links: set[str]) -> list:

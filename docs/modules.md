@@ -107,6 +107,7 @@ scripts/nrw_events/
     bonn.py
     bonn_community.py
     bonn_districts.py
+    bonn_festival_programmes.py
     bonn_food.py
     bonn_literature.py
     bonn_martinszuege.py

@@ -15,11 +15,10 @@ from nrw_events.sources import SOURCE_FETCHERS, SOURCE_SPECS
 
 class FailedMarketSourceTests(unittest.TestCase):
     def test_suspended_sources_keep_identity_and_report_disabled_without_fetching(self):
-        for source_id in ("rhein-antik", "lupe-events"):
+        for source_id in ("rhein-antik", "bonn-district-festivals"):
             with self.subTest(source_id=source_id):
                 spec = next(spec for spec in SOURCE_SPECS if spec.id == source_id)
-                self.assertIn("2026-11-15", spec.disabled_reason)
-                self.assertIn("docs/failed-market-sources.md", spec.disabled_reason)
+                self.assertTrue(spec.disabled_reason)
                 with patch("nrw_events.source_specs.adapter_for") as adapter:
                     fetch = typed_adapter_for(spec)
                     result, events = _run_source(spec.display_name, fetch)
@@ -31,7 +30,7 @@ class FailedMarketSourceTests(unittest.TestCase):
                 self.assertEqual(SOURCE_FETCHERS[spec.display_name]().status, SourceStatus.DISABLED)
 
     def test_reactivation_uses_existing_adapter_and_preserves_errors(self):
-        for source_id in ("rhein-antik", "lupe-events"):
+        for source_id in ("rhein-antik", "bonn-district-festivals"):
             with self.subTest(source_id=source_id):
                 spec = next(spec for spec in SOURCE_SPECS if spec.id == source_id)
                 active = replace(spec, disabled_reason="")

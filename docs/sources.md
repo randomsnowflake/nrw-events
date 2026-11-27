@@ -14,6 +14,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Biertasting Bonn | `biertasting-bonn` | `python` |
 | bonn-region | bitcircus101 | `bitcircus101` | `python` |
 | bonn-region | Bonn district festivals | `bonn-district-festivals` | `python` |
+| bonn-region | Bonn festival programmes | `bonn-festival-programmes` | `python` |
 | bonn-region | Bonn venue calendars | `bonn-venue-calendars` | `python` |
 | bonn-region | Bonn-Information: Plittersdorfer Winterzauber | `bonn-information-plittersdorfer-winterzauber` | `json_ld` |
 | bonn-region | Bonn.de Events | `bonn-de-events` | `python` |
@@ -35,12 +36,14 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Cölln Antik&Design | `c-lln-antik-design` | `python` |
 | bonn-region | Cölln Konzept | `c-lln-konzept` | `python` |
 | bonn-region | Datenburg | `datenburg` | `python` |
+| bonn-region | Dein Stoffmarkt | `dein-stoffmarkt-bonn` | `python` |
 | bonn-region | Deskline regional | `deskline-regional` | `python` |
 | bonn-region | Deutsches Museum Bonn | `deutsches-museum-bonn` | `python` |
 | bonn-region | FedCon Events | `fedcon-events` | `python` |
 | bonn-region | Festausschuss Bonner Karneval | `karneval-in-bonn` | `python` |
 | bonn-region | Frauenmuseum Bonn | `frauenmuseum-bonn` | `python` |
 | bonn-region | Geide Märkte | `geide-m-rkte` | `python` |
+| bonn-region | Gewerbe-Gemeinschaft Beuel | `gewerbegemeinschaft-beuel` | `python` |
 | bonn-region | Grote & Hiller | `grote-hiller` | `python` |
 | bonn-region | Hardtberg Kultur | `hardtberg-kultur` | `python` |
 | bonn-region | Harmonie Bonn | `harmonie-bonn` | `python` |
@@ -81,6 +84,9 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | Naturregion Sieg | `naturregion-sieg` | `python` |
 | bonn-region | OFA Duisdorf | `ofa-duisdorf` | `python` |
 | bonn-region | Okken Märkte | `okken-m-rkte` | `python` |
+| bonn-region | Ortsausschuss Friesdorf 1929 | `ortsausschuss-friesdorf` | `python` |
+| bonn-region | Ortsausschuss Lannesdorf | `ortsausschuss-lannesdorf` | `python` |
+| bonn-region | Ortsausschuss Mehlem | `ortsausschuss-mehlem` | `python` |
 | bonn-region | Parkbuchhandlung | `parkbuchhandlung` | `python` |
 | bonn-region | Radio Bonn/Rhein-Sieg | `radio-bonn-rhein-sieg` | `python` |
 | bonn-region | Redüttchen | `red-ttchen` | `python` |
@@ -123,5 +129,5 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 
 ## Disabled sources
 
-- `lupe-events`: 2026-11-15: Advertised iCal feeds return zero-byte HTTP 200 responses; suspended pending a valid feed. See docs/failed-market-sources.md.
+- `bonn-district-festivals`: 2026-11-27: Annual administrative planning list retired as a publication source. Use dated organizer programmes.
 - `rhein-antik`: 2026-11-15: Schedule and homepage return HTTP 503 Maintenance; suspended pending recovery. See docs/failed-market-sources.md.

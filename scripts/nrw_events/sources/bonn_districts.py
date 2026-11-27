@@ -12,10 +12,12 @@ from zoneinfo import ZoneInfo
 from .. import common, normalization, reviewed_corrections, richtext
 from ..dates import yearless_start_before
 from . import regional_common
+from .bonn import BEUEL_NIKOLAUSMARKT_URL
 
 VILICH_MUELDORF_ICAL = "https://www.bv-vilich-mueldorf.de/events/?ical=1"
 BEUEL_URL = "https://beuel.net/events/"
 BAD_GODESBERG_URL = "https://bad-godesberg.info/veranstaltungen"
+BAD_GODESBERG_HOME = "https://bad-godesberg.info/"
 BAD_GODESBERG_DETAILS_API = (
     "https://bad-godesberg.info/wp-json/wp/v2/veranstaltungen_st"
     "?per_page=100&_fields=link,title,content"
@@ -563,7 +565,6 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher: Callable[[str]
     primary_pages: dict[str, str] = {}
     failed_primary_pages: set[str] = set()
     replacements = _active_reviewed_map("beuel_primary_url_replacements")
-    civic_aggregator_urls = frozenset(str(value) for value in replacements.values())
     for event in events:
         link = str(event.get("link") or "")
         replacement_key = (
@@ -574,6 +575,11 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher: Callable[[str]
         link = str(replacements.get(replacement_key, link))
         link = _reviewed_beuel_primary_link(event, link)
         event["link"] = link
+        if (
+            link.split("?", 1)[0] == BEUEL_NIKOLAUSMARKT_URL
+            or "/abwechslungsreiches-veranstaltungsjahr-" in link
+        ):
+            continue
         hostname = (urllib.parse.urlsplit(link).hostname or "").casefold()
         source = hostname.removeprefix("www.")
         if not source or source in {"beuel.net", "www.beuel.net"}:
@@ -595,11 +601,7 @@ def _confirm_beuel_primary_sources(events: list, primary_fetcher: Callable[[str]
                 )
                 continue
             primary_pages[link] = primary_html
-        event["source"] = (
-            "Bonn district festivals (Beuel.net discovery)"
-            if link in civic_aggregator_urls
-            else source
-        )
+        event["source"] = source
         event["source_id"] = "beuel-net"
         event["source_role"] = "primary"
         event["discovered_via"] = ["beuel-net"]
@@ -753,6 +755,33 @@ def events_from_bad_godesberg_html(html: str, descriptions: dict[str, str]) -> l
     return regional_common.dedupe(events)
 
 
+def _bad_godesberg_nachlese(html: str) -> list:
+    match = re.search(
+        r"\bWeihnachtliche Nachlese\s+vom\s+(\d{1,2})\s*\.\s*"
+        r"(?:bis|[-–])\s*(\d{1,2})\s*\.\s*12\s*\.\s*(20\d{2}|\d{2})\b",
+        regional_common.clean(html), re.I,
+    )
+    if not match:
+        return []
+    first, last, year = map(int, match.groups())
+    full_year = year if year >= 2000 else year + 2000
+    try:
+        start = datetime(full_year, 12, first)
+        end = datetime(full_year, 12, last)
+    except ValueError:
+        return []
+    if end < start:
+        return []
+    event = common.make_event(
+        "Weihnachtliche Nachlese", start, end, "Theaterplatz und Am Fronhof", "Bonn-Bad Godesberg",
+        "Bad Godesberg Stadtmarketing kündigt nach dem Nikolausmarkt die Weihnachtliche Nachlese an.",
+        BAD_GODESBERG_HOME, "Bad Godesberg Stadtmarketing", "Weihnachtsmarkt",
+        source_id="bad-godesberg-stadtmarketing", all_day=True, description_source="generated",
+        default_category_key="market", category_locked=True,
+    )
+    return [event] if event else []
+
+
 def fetch_bad_godesberg() -> list:
     source = "Bad Godesberg Stadtmarketing"
     try:
@@ -763,10 +792,17 @@ def fetch_bad_godesberg() -> list:
             BAD_GODESBERG_URL, parser_type="html+wordpress-rest",
             parsed_event_count=len(events), parser_empty=not bool(events),
         )
-        return events
     except Exception as exc:
         common.log_source_error(source, exc)
-        return []
+        events = []
+    window = common.runtime_window()
+    if window.start.month == 12 or window.end.month == 12:
+        events.extend(regional_common.fetch_html_events(
+            source, BAD_GODESBERG_HOME, _bad_godesberg_nachlese,
+            source_id="bad-godesberg-stadtmarketing",
+            empty_is_healthy=lambda html: "Bad Godesberg Stadtmarketing" in html,
+        ))
+    return regional_common.dedupe(events)
 
 
 def events_from_hardtberg_json(raw: str) -> list:

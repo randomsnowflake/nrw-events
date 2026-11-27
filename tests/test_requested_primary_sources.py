@@ -8,23 +8,21 @@ from nrw_events.validation import canonicalize_event
 
 
 class RequestedPrimarySourceTests(unittest.TestCase):
-    def test_lupe_uses_canonical_feed_endpoint_without_redirect(self):
-        with patch.object(lupe_events.common, "fetch_ical", return_value=[]) as fetch:
-            self.assertEqual(lupe_events.fetch(), [])
-        self.assertEqual(fetch.call_args.args[0], "https://lupe-events.de/events?ical=1")
+    def test_lupe_accepts_a_valid_empty_rest_response(self):
+        with patch.object(lupe_events.http, "fetch_json", return_value={"events": [], "total_pages": 0}) as fetch:
+            self.assertEqual(lupe_events.fetch().status.value, "healthy_empty")
+        self.assertTrue(fetch.call_args.args[0].startswith(lupe_events._LUPE_URL + "?"))
 
     def test_lupe_lessenich_is_reconciled_to_reviewed_calendar_occurrence(self):
-        raw = [{
+        raw = {
             "title": "Kirmes in Lessenich 2026",
-            "start_date": "2026-08-14",
-            "end_date": "2026-08-17",
-            "end_at": "2026-08-18T00:00:00+02:00",
-            "link": lupe_events._LESSENICH_URL,
-            "source": "LuPe Events",
-            "source_id": "lupe-events",
-        }]
-        with patch.object(lupe_events.common, "fetch_ical", return_value=raw):
-            [event] = lupe_events.fetch()
+            "start_date": "2026-08-14 05:00:00",
+            "end_date": "2026-08-17 04:59:59",
+            "url": lupe_events._LESSENICH_URL,
+            "all_day": True,
+        }
+        with patch.object(lupe_events.http, "fetch_json", return_value={"events": [raw], "total_pages": 1}):
+            [event] = lupe_events.fetch().events
         self.assertEqual(event["title"], "Laurentius-Kirmes")
         self.assertEqual(event["end_date"], "2026-08-16")
         self.assertEqual(event["venue"], "Dorfplatz Lessenich")

@@ -183,9 +183,6 @@
   "sources/lengsdorfer_weinfest.py": [
     "nrw_events.common"
   ],
-  "sources/lupe_events.py": [
-    "nrw_events.common"
-  ],
   "sources/marktcom.py": [
     "nrw_events.common"
   ],
