@@ -332,6 +332,12 @@ def events_from_brotfabrik_items(items: list, detail_fetcher: Callable[[str], st
             if ort == "g"
             else (ort or "Brotfabrik Bonn")
         )
+        verified_repair_cafe = (
+            ort == "g" and not venue and title.casefold() == "repair café in der brotfabrik"
+            and re.split(r"[?#]", item.get("Url") or "", maxsplit=1)[0] == "https://klimaviertel-beuel.de/termine/"
+        )
+        if verified_repair_cafe:
+            venue = "Brotfabrik Bonn, Studio 6"
         ev = common.make_event(
             title,
             start,
@@ -349,6 +355,8 @@ def events_from_brotfabrik_items(items: list, detail_fetcher: Callable[[str], st
         if ev:
             if ort == "g":
                 retain_omitted_source_place(ev, ort)
+            if verified_repair_cafe:
+                ev["venue_address"] = "Kreuzstraße 16, 53225 Bonn"
             events.append(ev)
     return events
 

@@ -124,9 +124,13 @@ class BonnJetztPrimarySourceTests(unittest.TestCase):
         self.assertEqual(event["venue"], "Haus der Bildung")
 
     def test_bitcircus_keeps_only_own_space(self):
-        props = {"LOCATION": "Dorotheenstraße 101, 53111 Bonn"}
-        self.assertTrue(bonn_community._at_bitcircus(props, datetime.now(), datetime.now()))
-        self.assertFalse(bonn_community._at_bitcircus({"LOCATION": "Bornheimer Straße 25"}, datetime.now(), datetime.now()))
+        now = datetime.now()
+        props = {"LOCATION": "Dorotheenstr. 101, 53111 Bonn"}
+        self.assertTrue(bonn_community._at_bitcircus(props, now, now))
+        for private in ({"CLASS": "PRIVATE"}, {"DESCRIPTION": "Geschlossene Gesellschaft - Teilnahme nur für geladene Gäste"}):
+            self.assertFalse(bonn_community._at_bitcircus({**props, **private}, now, now))
+        for location in ("Bornheimer Straße 25", "Dorotheenstraße 101a", "Dorotheenstraße 103"):
+            self.assertFalse(bonn_community._at_bitcircus({"LOCATION": location}, now, now))
 
     def test_primary_replaces_bonn_jetzt_and_inherits_its_id(self):
         [primary] = bonn_community.events_from_studierendenwerk(_STW_LISTING, lambda _url: _STW_DETAIL)

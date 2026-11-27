@@ -200,7 +200,12 @@ BITCIRCUS_SOURCE_ID = "bitcircus101"
 def _at_bitcircus(props: dict[str, str], _start: datetime, _end: datetime) -> bool:
     # The hackspace calendar also lists partner events elsewhere (Uni Bonn,
     # Datenburg); those have their own organisers. Keep only the own space.
-    return "dorotheenstra" in props.get("LOCATION", "").casefold()
+    if props.get("CLASS", "").strip().upper() in {"PRIVATE", "CONFIDENTIAL"}:
+        return False
+    copy = f'{props.get("SUMMARY", "")} {props.get("DESCRIPTION", "")}'
+    if re.search(r"geschlossene\s+gesellschaft|nur\s+für\s+geladene\s+gäste", copy, re.I):
+        return False
+    return bool(re.search(r"\bdorotheenstr(?:aße|asse|\.)\s*101\b", props.get("LOCATION", ""), re.I))
 
 
 def fetch_bitcircus() -> list:

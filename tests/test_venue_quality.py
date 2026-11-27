@@ -116,6 +116,19 @@ class SourceVenueRecoveryTests(unittest.TestCase):
         self.assertIn(url, published.description)
         self.assertEqual(published.identity_venue, url)
 
+    def test_brotfabrik_repair_cafe_recovers_its_room_and_original_identity(self):
+        from nrw_events.sources.bonn_venues import events_from_brotfabrik_items
+
+        item = {
+            'Titel': 'Repair Café in der Brotfabrik', 'Datum': '2026-12-03', 'Uhrzeit': '16:00',
+            'Gewerk': 'Klima', 'Ort': 'g', 'Url': 'https://klimaviertel-beuel.de/termine/',
+        }
+        event, different = events_from_brotfabrik_items([item, {**item, 'Titel': 'Externes Treffen'}])
+        self.assertEqual(event['venue'], 'Kulturzentrum Brotfabrik')
+        self.assertEqual(event['venue_address'], 'Kreuzstraße 16, 53225 Bonn')
+        self.assertEqual(event['identity_venue'], 'g')
+        self.assertFalse(different['venue'])
+
     def test_brotfabrik_exact_api_fixture_recovers_only_explicit_places(self):
         import json
         from datetime import datetime
