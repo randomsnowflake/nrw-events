@@ -665,6 +665,20 @@
       "callable": "nrw_events.sources.regional_ionas4:fetch"
     },
     {
+      "id": "stadtjournal-bad-honnef",
+      "display_name": "Stadtjournal Bad Honnef",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bad_honnef:fetch_stadtjournal"
+    },
+    {
+      "id": "centrum-bad-honnef",
+      "display_name": "Centrum Bad Honnef",
+      "region": "bonn-region",
+      "adapter": "python",
+      "callable": "nrw_events.sources.bad_honnef:fetch_centrum"
+    },
+    {
       "id": "sitekit-regional",
       "display_name": "SiteKit regional",
       "region": "bonn-region",

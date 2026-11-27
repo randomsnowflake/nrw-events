@@ -29,6 +29,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | b° future festival | `b-future-festival` | `python` |
 | bonn-region | Bürgerverein Rossel-Wilberhofen | `rossel-wilberhofen-dorfflohmarkt` | `python` |
 | bonn-region | Bürgerverein Vilich-Müldorf | `b-rgerverein-vilich-m-ldorf` | `python` |
+| bonn-region | Centrum Bad Honnef | `centrum-bad-honnef` | `python` |
 | bonn-region | Choco Dealer | `choco-dealer` | `python` |
 | bonn-region | Contra-Kreis-Theater | `contra-kreis-theater` | `python` |
 | bonn-region | Craftquelle Bonn | `craftquelle-bonn` | `python` |
@@ -106,6 +107,7 @@ Generated from `scripts/nrw_events/sources/registry.json`; do not edit by hand.
 | bonn-region | SiteKit regional | `sitekit-regional` | `python` |
 | bonn-region | SSF Bonn | `ssf-bonn` | `python` |
 | bonn-region | Stadt Brühl Martinszüge | `bruehl-martinszuege` | `python` |
+| bonn-region | Stadtjournal Bad Honnef | `stadtjournal-bad-honnef` | `python` |
 | bonn-region | Standard regional feeds | `standard-regional-feeds` | `python` |
 | bonn-region | Street Food Bonn | `street-food-bonn` | `python` |
 | bonn-region | Street Food Festival Original | `street-food-festival-original` | `python` |

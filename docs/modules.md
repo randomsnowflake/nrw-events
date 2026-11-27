@@ -102,6 +102,7 @@ scripts/nrw_events/
     adfc_bonn.py
     afterjobparty.py
     b_future_festival.py
+    bad_honnef.py
     beethoven_haus.py
     beethovenfest_bonn.py
     bonn.py

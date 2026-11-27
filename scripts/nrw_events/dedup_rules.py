@@ -6,7 +6,7 @@ from .ai_contracts import TARGET_SOURCE_IDS
 
 _AGGREGATOR_SOURCE_MARKERS = (
     "bonn.jetzt", "eventbrite", "meetup", "radio bonn", "ruhr-guide",
-    "kinderflohmarkt.com",
+    "kinderflohmarkt.com", "stadtjournal bad honnef",
 )
 
 
