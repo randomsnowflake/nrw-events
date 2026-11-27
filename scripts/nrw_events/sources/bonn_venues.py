@@ -84,9 +84,17 @@ def events_from_kult41(html: str) -> list:
     events = []
     # mo/yr selects the sidebar calendar; the main lists can skip that month.
     block_start = r'<div class="(?:em-event em-item\b|em-cal-event-content em em-event em-item\b)[^"]*"'
-    for block in re.findall(rf'{block_start}.*?(?={block_start}|\Z)', html, re.S | re.I):
-        # The final card otherwise extends to the end of the page and picks up
-        # unrelated category links from the sidebar/footer.
+    for segment in re.findall(rf'{block_start}.*?(?={block_start}|\Z)', html, re.S | re.I):
+        block = segment
+        grid_card = '<div class="k41-grid-kopf">' in block
+        if grid_card:
+            # Grid cards lack the description delimiter and the last block includes the sidebar.
+            depth = 0
+            for tag in re.finditer(r'</?div\b[^>]*>', block, re.I):
+                depth += -1 if tag.group().startswith("</") else 1
+                if depth == 0:
+                    block = block[:tag.end()]
+                    break
         metadata = block.split('<div class="em-item-desc">', 1)[0]
         title = re.search(
             r'<(?:h3|div) class="em-item-title(?: em-event-title)?">\s*<a href="([^"]+)">(.*?)</a>\s*</(?:h3|div)>',
@@ -94,9 +102,14 @@ def events_from_kult41(html: str) -> list:
         )
         date = re.search(r'class="[^"]*em-event-date[^"]*".*?</span>\s*([^<]+)</div>', block, re.S | re.I)
         time = re.search(r'class="[^"]*em-event-time[^"]*".*?em-icon-clock.*?</span>\s*([^<]+)</div>', block, re.S | re.I)
+        # The programme grid puts the date, start time and tags above the title.
+        if grid_card:
+            date = re.search(r'<span class="k41-grid-datum">\s*([^<]+)</span>', metadata, re.I)
+            time = re.search(r'<span class="k41-grid-zeit">\s*([^<]+)</span>', metadata, re.I)
         desc = re.search(r'<div class="em-item-desc">\s*(.*?)\s*</div>', block, re.S | re.I)
+        taxonomy = r"(?:categories|tags)" if grid_card else "categories"
         cats = " ".join(rc.clean(cat) for cat in re.findall(
-            r'events/categories/[^"]+">(.*?)</a>', metadata, re.S | re.I,
+            rf'events/{taxonomy}/[^"]+">(.*?)</a>', metadata, re.S | re.I,
         ))
         price = _match_clean(r'em-icon-ticket.*?</span>\s*([^<]+)</div>', block)
         if not (title and date):
