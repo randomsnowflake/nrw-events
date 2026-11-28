@@ -40,6 +40,24 @@ class BonnFestivalProgrammeTests(unittest.TestCase):
             ["2026-11-27T14:00:00+01:00", "2026-11-28T11:00:00+01:00", "2026-11-29T11:00:00+01:00"],
         )
 
+    def test_cross_year_window_fetches_markets_in_its_interior_months(self):
+        patch_window(self, datetime(2026, 10, 31), datetime(2027, 1, 28))
+        with (
+            patch.object(bonn, "_fetch_detail_context", return_value={}) as detail,
+            patch.object(bonn_festival_programmes.rc, "fetch_html_events", return_value=[]) as html,
+            patch.object(bonn_districts.common, "fetch_url", return_value="[]"),
+        ):
+            bonn_festival_programmes.fetch_mehlem()
+            bonn_festival_programmes.fetch_friesdorf()
+            bonn._fetch_beuel_nikolausmarkt("Bonn.de Events")
+            bonn_districts.fetch_bad_godesberg()
+        detail.assert_called_once_with(bonn.BEUEL_NIKOLAUSMARKT_URL)
+        self.assertEqual(
+            [call.args[1] for call in html.call_args_list],
+            [bonn_festival_programmes._MEHLEM_URL, bonn_festival_programmes._FRIESDORF_URL,
+             bonn_districts.BAD_GODESBERG_HOME],
+        )
+
     def test_nachlese_uses_the_organizers_start_day(self):
         html = "<p>anschl. Weihnachtliche Nachlese vom 28. - 30.12.26</p>"
         [event] = bonn_districts._bad_godesberg_nachlese(html)

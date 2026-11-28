@@ -102,7 +102,7 @@ def fetch_beuel() -> SourceFetchResult:
 
 def fetch_mehlem() -> SourceFetchResult:
     window = run_state.runtime_window()
-    if window.start.month not in (11, 12) and window.end.month not in (11, 12):
+    if not window.includes_any_month(11, 12):
         return SourceFetchResult.scheduled_skip("The Mehlemer Christmas market falls outside the current window")
     return SourceFetchResult.success(rc.fetch_html_events(
         "Ortsausschuss Mehlem", _MEHLEM_URL, _mehlemer_markt, source_id="ortsausschuss-mehlem",
@@ -111,7 +111,7 @@ def fetch_mehlem() -> SourceFetchResult:
 
 def fetch_friesdorf() -> SourceFetchResult:
     window = run_state.runtime_window()
-    if window.start.month not in (11, 12) and window.end.month not in (11, 12):
+    if not window.includes_any_month(11, 12):
         return SourceFetchResult.scheduled_skip("The Friesdorf Christmas market falls outside the current window")
     return SourceFetchResult.success(rc.fetch_html_events(
         "Ortsausschuss Friesdorf 1929", _FRIESDORF_URL, _friesdorfer_markt, source_id="ortsausschuss-friesdorf",
