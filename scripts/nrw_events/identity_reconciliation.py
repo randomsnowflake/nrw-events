@@ -400,6 +400,7 @@ def _adopt_orphaned_ids(
         venue = resolve_venue(
             ", ".join(str(prior.get(field) or "") for field in ("venue", "venue_address") if prior.get(field)),
             str(prior.get("city") or ""), explicit_id=str(prior.get("venue_id") or ""),
+            title=str(prior.get("title") or ""),
         )
         normalized_prior = {**prior, "venue": venue.venue, "venue_id": venue.venue_id}
         successors = [

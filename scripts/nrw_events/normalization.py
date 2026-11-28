@@ -127,6 +127,9 @@ VENUE_REGISTRY: tuple[VenueRecord, ...] = (
     _venue("kleines-theater-bad-godesberg", "Kleines Theater Bad Godesberg", "Kleines Theater", city="Bonn", district="Bonn-Bad Godesberg", venue_type="theater", address="Koblenzer Straße 78, 53177 Bonn", coordinates=(50.6808563311, 7.1554770039)),
     _venue("junges-theater-bonn", "Junges Theater Bonn", city="Bonn", district="Bonn-Beuel", venue_type="theater", address="Hermannstraße 50, 53225 Bonn", coordinates=(50.7364969604, 7.116846546)),
     _venue("st-josef-beuel", "St. Josef Beuel", "St Josef", "St. Josef", "Sankt Josef", "Pfarrkirche St. Josef", "Pfarrkirche St. Joseph", city="Bonn", district="Bonn-Beuel", venue_type="church", address="Hermannstraße 35, 53225 Bonn", coordinates=(50.7369187, 7.1177258)),
+    # The mapped Roman inscription is a landmark on the forecourt, west of the church.
+    _venue("josefplatz-beuel", "Josefplatz", "Josefplatz Beuel", "Tisch der Vielfalt", city="Bonn", district="Bonn-Beuel", venue_type="square", address="Hermannstraße 35, 53225 Bonn", coordinates=(50.7370408, 7.1172979)),
+    _venue("pfarrheim-st-josef-beuel", "Pfarrheim St. Josef", "Pfarrheim St. Josef Beuel", "Pfarrheim Sankt Josef", "Katholisches Pfarrheim St. Josef", city="Bonn", district="Bonn-Beuel", venue_type="community_centre", address="An St. Josef 19a, 53225 Bonn", coordinates=(50.7367871, 7.119094)),
     _venue("theater-im-ballsaal", "Theater im Ballsaal", city="Bonn", district="Bonn", venue_type="theater", address="Frongasse 9, 53121 Bonn", coordinates=(50.7274839852, 7.0746502028)),
     _venue("theater-im-keller-bonn", "Theater im Keller (tik)", "Theater im Keller", "tik Bonn", city="Bonn", district="Bonn-Hardtberg", venue_type="theater", address="Rochusstraße 30, 53123 Bonn", coordinates=(50.7203595265, 7.0587439738)),
     _venue("kulturzentrum-brotfabrik", "Kulturzentrum Brotfabrik", "Brotfabrik Bonn", "Brotfabrik Bühne Bonn", city="Bonn", district="Bonn-Beuel", venue_type="cultural_center", address="Kreuzstraße 16, 53225 Bonn", coordinates=(50.7409106202, 7.1236954826)),
@@ -259,7 +262,31 @@ def _compatible_city(left: str, right: str) -> bool:
     ))
 
 
-def _record_for(value: str, city: str, explicit_id: str = "") -> VenueRecord | None:
+_BEUEL_SQUARE = re.compile(
+    r"^(?:(?:bonn )?beuel(?:er)? )?(?:(?:(?:st|sankt) )?jose(?:f|ph)s?\s*platz\b"
+    r"|(?:(?:kirch|vor)platz|platz) (?:an |vor |der )*(?:pfarrkirche |kirche )?(?:st|sankt) jose(?:f|ph)\b"
+    r"|tisch der vielfalt\b)"
+)
+_BEUEL_MARKET = re.compile(r"(?:beueler nikolausmarkt|(?:nikolaus|weihnachts)markt (?:in )?(?:bonn )?beuel)(?: 20\d{2})?")
+_BEUEL_TABLE_AND_CHURCH = re.compile(r"(?:st|sankt) jose(?:f|ph) (?:beuel )?tisch der vielfalt$")
+
+
+def _record_for(value: str, city: str, explicit_id: str = "", title: str = "") -> VenueRecord | None:
+    if _compatible_city(city, "Bonn") and explicit_id in {"", "st-josef-beuel", "josefplatz-beuel"}:
+        # City calendars sometimes put the church in the name and the square in the address.
+        names = [comparison_text(part) for part in value.split(",")]
+        church_or_blank = not names[0] or _VENUE_BY_ALIAS.get(names[0]) is _VENUE_BY_ID["st-josef-beuel"]
+        title_key = comparison_text(title)
+        local = comparison_text(city) in {"bonn", "bonn beuel"}
+        if (
+            (church_or_blank and _BEUEL_MARKET.fullmatch(title_key))
+            or (local and (
+                _BEUEL_SQUARE.match(names[0])
+                or (church_or_blank and any(_BEUEL_SQUARE.match(name) for name in names[1:]))
+                or (title_key and "carillon" not in title_key and _BEUEL_TABLE_AND_CHURCH.fullmatch(names[0]))
+            ))
+        ):
+            return _VENUE_BY_ID["josefplatz-beuel"]
     if explicit_id and explicit_id in _VENUE_BY_ID:
         return _VENUE_BY_ID[explicit_id]
     candidates = [value]
@@ -464,6 +491,7 @@ def resolve_venue(
     city: str = "",
     *,
     explicit_id: str = "",
+    title: str = "",
 ) -> VenueResolution:
     """Resolve source venue text without inventing facts for unknown places."""
     cleaned = _clean_venue_text(value)
@@ -474,7 +502,7 @@ def resolve_venue(
     # Municipal event FID=3947.731.1 confirms the same Burgstraße 5 site.
     if comparison_text(city) == "meckenheim":
         cleaned = re.sub(r"^Herrenhaus Burg Altendorf(?=,|$)", "Herrenhaus der Burg Altendorf", cleaned, flags=re.I)
-    record = _record_for(cleaned, city, explicit_id)
+    record = _record_for(cleaned, city, explicit_id, title)
     parsed_name, parsed_address = _split_venue(cleaned, city)
     location = _verified_location_for(cleaned, city)
     if record and addresses_conflict(parsed_address, record.address):

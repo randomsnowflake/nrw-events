@@ -34,6 +34,8 @@ _FUNFAIR_TITLE = re.compile(
 # "Weihnachtsmarkt-Konzert" in a concert category stays a concert.
 _CHRISTMAS_MARKET_TITLE = re.compile(
     r"(?<!\w)(?:\w*(?:weihnachts|advents)(?:markt|maerkte|maerktchen)"
+    r"|(?:weihnachts\s*|advents?\s*|christmas\s+|xmas\s+)basa[rz]e?"
+    r"|(?:advent|christmas|xmas)\s+bazaars?|basa[rz] zum advent"
     r"|christkindl(?:es)?markt|nikolausmarkt|\w*lichtermarkt|zintemaat)(?!\w)",
     re.IGNORECASE,
 )

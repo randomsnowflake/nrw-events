@@ -131,6 +131,23 @@ class VenueRegistryTests(unittest.TestCase):
         self.assertAlmostEqual(venue.venue_latitude or 0, 50.7369187)
         self.assertAlmostEqual(venue.venue_longitude or 0, 7.1177258)
 
+    def test_distinguishes_the_beuel_square_church_and_parish_hall(self):
+        for title, venue, address, venue_id, expected in (
+            ("Beueler Nikolausmarkt 2026", "St. Josef Beuel", "Hermannstraße 35", "st-josef-beuel", "josefplatz-beuel"),
+            ("Flohmarkt", "Pfarrkirche St. Josef", "Joseph-Platz, 53225 Bonn", "st-josef-beuel", "josefplatz-beuel"),
+            ("Martinslieder", "Tisch der Vielfalt", "", "", "josefplatz-beuel"),
+            ("Flohmarkt", "Beueler Josef Platz", "", "", "josefplatz-beuel"),
+            ("Flohmarkt", "St.-Josephs-Platz", "", "", "josefplatz-beuel"),
+            ("Weihnachtsbasar / Christmas Bazaar", "Pfarrheim St. Josef", "An St. Josef 19a, 53225 Bonn", "", "pfarrheim-st-josef-beuel"),
+            ("Familiengottesdienst zum Nikolausmarkt", "St. Josef Beuel", "", "", "st-josef-beuel"),
+        ):
+            with self.subTest(title=title, venue=venue):
+                result = validate_event(event(title=title, venue=venue, venue_address=address, venue_id=venue_id))
+                self.assertEqual(result.venue_id, expected)
+        self.assertFalse(resolve_venue("Joseph-Platz", "Köln").venue_id)
+        self.assertFalse(resolve_venue("Vorplatz St. Joseph", "Bonn-Geislar").venue_id)
+        self.assertFalse(resolve_venue("Pfarrheim St. Joseph", "Bonn-Geislar").venue_id)
+
     def test_verified_asbach_trailhead_parking_resolves_outside_known_city_table(self):
         venue = resolve_venue("Parkplatz Bennau an der L 272", "Asbach")
 

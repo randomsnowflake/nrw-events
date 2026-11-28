@@ -140,11 +140,16 @@ class EventTypeTests(unittest.TestCase):
             ("Lichtermarkt am Kaiserplatz", "market"),
             ("Zintemaat 2026", "market"),
             ("Advent erleben auf Schloss Eulenbroich", "market"),
+            ("Weihnachtsbasar / Christmas Bazaar", "market"),
+            ("Adventsbasar", "market"),
+            ("Basar zum Advent", "market"),
+            ("Christmas Bazaar", "other"),
         ):
             self.assertEqual(event(title=title, category_key=category).event_types, ["christmas-market"], title)
         for title, category in (
             ("Advent am Pleeser Wald", "other"),
-            ("Adventsbasar", "market"),
+            ("Kinderbasar", "market"),
+            ("Konzert beim Weihnachtsbasar", "concert"),
             ("Adventskranzbinden", "market"),
             ("Wintermarkt im Hürther Gewandhaus", "other"),
             ("Weihnachtsmarkt-Konzert", "concert"),

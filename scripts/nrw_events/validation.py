@@ -818,7 +818,7 @@ def canonical_venue_fields(raw: dict[str, Any]) -> VenueFields:
             and not event["identity_venue_locked"]):
         event["identity_venue"] = "Herrenhaus Burg Altendorf"
         event["identity_venue_locked"] = True
-    venue = resolve_venue(venue_input, event["city"], explicit_id=explicit_venue_id)
+    venue = resolve_venue(venue_input, event["city"], explicit_id=explicit_venue_id, title=event["title"])
     if explicit_venue_latitude is not None and explicit_venue_address:
         named = resolve_venue(event["venue"], event["city"], explicit_id=explicit_venue_id)
         # A venue-name registry pin of another building than the source address names is no point for it.
