@@ -273,18 +273,27 @@ def _events_from_bornheim(html: str) -> list:
     parser = _BornheimEventCards()
     parser.feed(html)
     for part in parser.cards:
-        dates = re.findall(r'date-card-btn-date">([^<]+)', part, re.S | re.I)
+        dates = re.findall(r'class="(?:[^"\s]+\s+)*date-card-btn-date(?:\s+[^"\s]+)*\s*">([^<]+)', part, re.I)
         title = re.search(
             r'<(?:h[1-6]|p)\b[^>]*class="[^"]*(?:title|headline)[^"]*"[^>]*>'
             r"\s*(.*?)\s*</(?:h[1-6]|p)>",
             part,
             re.S | re.I,
         )
-        href = re.search(r'<a[^>]+href="([^"]*/veranstaltung/veranstaltung/[^"]+)"', part, re.S | re.I)
+        href = re.search(
+            r'<a\b[^>]*\shref="([^"<>]*/veranstaltung/veranstaltung/[^"<>]+'
+            r'|/freizeit-tourismus/veranstaltungen/veranstaltungskalender/veranstaltung\?'
+            r'tx_ppwevents_eventsshow%5Baction%5D=show(?:&amp;|&)[^"<>]+)"',
+            part,
+            re.I,
+        )
         cat = " ".join(rc.clean(x) for x in re.findall(r'<span class="eventcategory">(.*?)</span>', part, re.S | re.I))
-        if not dates:
+        if not dates or not href:
             continue
-        title_text = rc.clean(title.group(1)) if title else rc.title_from_href(href.group(1) if href else "")
+        link = rc.abs_url("https://www.bornheim.de", href.group(1))
+        if not link.startswith("https://www.bornheim.de/"):
+            continue
+        title_text = rc.clean(title.group(1)) if title else rc.title_from_href(link)
         if not title_text:
             continue
         source_description = " ".join(
@@ -308,7 +317,7 @@ def _events_from_bornheim(html: str) -> list:
                 "",
                 "Bornheim",
                 description,
-                rc.abs_url("https://www.bornheim.de", href.group(1) if href else ""),
+                link,
                 "Bornheim",
                 f"bornheim {cat} lokal markt kultur natur",
                 0.86,
