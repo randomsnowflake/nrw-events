@@ -796,7 +796,7 @@ def fetch_bad_godesberg() -> list:
         common.log_source_error(source, exc)
         events = []
     window = common.runtime_window()
-    if window.start.month == 12 or window.end.month == 12:
+    if window.includes_any_month(12):
         events.extend(regional_common.fetch_html_events(
             source, BAD_GODESBERG_HOME, _bad_godesberg_nachlese,
             source_id="bad-godesberg-stadtmarketing",

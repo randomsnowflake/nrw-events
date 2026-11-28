@@ -35,6 +35,11 @@ class EventWindow:
         start = current.replace(hour=0, minute=0, second=0, microsecond=0)
         return cls(start=start, end=start + timedelta(days=max(days_ahead - 1, 0)))
 
+    def includes_any_month(self, *months: int) -> bool:
+        first = self.start.year, self.start.month
+        last = self.end.year, self.end.month
+        return any(first <= (year, month) <= last for year in range(first[0], last[0] + 1) for month in months)
+
 
 @dataclass(frozen=True, slots=True)
 class RunContext:

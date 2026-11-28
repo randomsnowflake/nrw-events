@@ -1608,7 +1608,7 @@ def _schedule_occurrences(schedules: list, first_day: date, last_day: date) -> l
 
 def _fetch_beuel_nikolausmarkt(source: str) -> dict | None:
     window = common.runtime_window()
-    if window.start.month not in (11, 12) and window.end.month not in (11, 12):
+    if not window.includes_any_month(11, 12):
         return None
     context = _fetch_detail_context(BEUEL_NIKOLAUSMARKT_URL)
     schedules = context.get("schedules") or []
