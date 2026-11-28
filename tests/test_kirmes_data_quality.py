@@ -1,3 +1,4 @@
+import re
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -92,6 +93,12 @@ class KirmesDataQualityTests(unittest.TestCase):
             regional_html._events_from_bornheim(html.replace('href="/', 'href="//example.org/')),
             [],
         )
+
+    def test_bornheim_query_detail_requires_a_visible_title(self):
+        html = (Path(__file__).parent / "fixtures/bornheim_date_cards.html").read_text(encoding="utf-8")
+        untitled = re.sub(r'<h3 class="event-teaser-title">.*?</h3>', "", html, count=1, flags=re.S)
+
+        self.assertEqual([row["title"] for row in regional_html._events_from_bornheim(untitled)], ["Adventsmarkt in Dersdorf"])
 
     def test_bornheim_nested_title_does_not_read_cookie_dialog(self):
         html = (Path(__file__).parent / "fixtures/bornheim_apfelfest_cookie.html").read_text()

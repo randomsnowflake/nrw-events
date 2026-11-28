@@ -281,7 +281,7 @@ def _events_from_bornheim(html: str) -> list:
             re.S | re.I,
         )
         href = re.search(
-            r'<a\b[^>]*\shref="([^"<>]*/veranstaltung/veranstaltung/[^"<>]+'
+            r'<a\b[^>]*\shref="((?P<slug_url>[^"<>]*/veranstaltung/veranstaltung/[^"<>]+)'
             r'|/freizeit-tourismus/veranstaltungen/veranstaltungskalender/veranstaltung\?'
             r'tx_ppwevents_eventsshow%5Baction%5D=show(?:&amp;|&)[^"<>]+)"',
             part,
@@ -293,7 +293,9 @@ def _events_from_bornheim(html: str) -> list:
         link = rc.abs_url("https://www.bornheim.de", href.group(1))
         if not link.startswith("https://www.bornheim.de/"):
             continue
-        title_text = rc.clean(title.group(1)) if title else rc.title_from_href(link)
+        title_text = rc.clean(title.group(1)) if title else ""
+        if not title_text and href.group("slug_url"):
+            title_text = rc.title_from_href(link)
         if not title_text:
             continue
         source_description = " ".join(
