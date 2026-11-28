@@ -1,3 +1,4 @@
+import re
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -71,6 +72,33 @@ class KirmesDataQualityTests(unittest.TestCase):
         self.assertTrue(all(row["description_source"] == "generated" for row in rows))
         self.assertTrue(all("Hier können Sie" not in row["description"] for row in rows))
         self.assertTrue(all("Newsletter" not in row["description"] for row in rows))
+
+    def test_bornheim_date_cards_keep_visible_titles_and_detail_links(self):
+        html = (Path(__file__).parent / "fixtures/bornheim_date_cards.html").read_text(encoding="utf-8")
+        rows = regional_html._events_from_bornheim(html)
+        self.assertEqual(
+            [(row["title"], row["start_date"], row["link"]) for row in rows],
+            [
+                ("Adventschoräle auf dem Peter-Fryns-Platz mit dem Posaunnchor Bornheim", "2026-11-28",
+                 "https://www.bornheim.de/freizeit-tourismus/veranstaltungen/veranstaltungskalender/"
+                 "veranstaltung?tx_ppwevents_eventsshow%5Baction%5D=show&"
+                 "tx_ppwevents_eventsshow%5Bcontroller%5D=Events&tx_ppwevents_eventsshow%5Bevent%5D=3634&"
+                 "cHash=db626840435fabd482360a85dcb644c8"),
+                ("Adventsmarkt in Dersdorf", "2026-11-28",
+                 "https://www.bornheim.de/freizeit-tourismus/veranstaltungen/veranstaltungskalender/"
+                 "veranstaltung/veranstaltung/adventsmarkt-in-dersdorf"),
+            ],
+        )
+        self.assertEqual(
+            regional_html._events_from_bornheim(html.replace('href="/', 'href="//example.org/')),
+            [],
+        )
+
+    def test_bornheim_query_detail_requires_a_visible_title(self):
+        html = (Path(__file__).parent / "fixtures/bornheim_date_cards.html").read_text(encoding="utf-8")
+        untitled = re.sub(r'<h3 class="event-teaser-title">.*?</h3>', "", html, count=1, flags=re.S)
+
+        self.assertEqual([row["title"] for row in regional_html._events_from_bornheim(untitled)], ["Adventsmarkt in Dersdorf"])
 
     def test_bornheim_nested_title_does_not_read_cookie_dialog(self):
         html = (Path(__file__).parent / "fixtures/bornheim_apfelfest_cookie.html").read_text()
